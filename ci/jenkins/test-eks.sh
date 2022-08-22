@@ -16,7 +16,7 @@
 
 set -e
 KUBECTL_VERSION=v1.24.1
-TERRAFORM_VERSION=0.13.5
+TERRAFORM_VERSION=1.2.2
 
 echo "Installing Kubectl"
 curl -LO https://storage.googleapis.com/kubernetes-release/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl

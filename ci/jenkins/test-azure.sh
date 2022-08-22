@@ -17,7 +17,7 @@
 set -e
 KIND_VERSION=v0.12.0
 KUBECTL_VERSION=v1.24.1
-TERRAFORM_VERSION=0.13.5
+TERRAFORM_VERSION=1.2.2
 
 echo "Installing Kind"
 curl -Lo ./kind https://github.com/kubernetes-sigs/kind/releases/download/${KIND_VERSION}/kind-$(uname)-amd64
