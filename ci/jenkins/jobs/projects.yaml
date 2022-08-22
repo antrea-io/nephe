@@ -1,0 +1,379 @@
+- project:
+    name: ""
+    jobs:
+      - '{test_name}-for-pull-request':
+          test_name: nephe-test-e2e-aws
+          node: 'nephe'
+          description: 'This is the {test_name}.'
+          branches:
+            - ${{sha1}}
+          builders:
+            - deploy-vm-and-run-aws-tests-for-nephe:
+                conformance_type: 'networkpolicy'
+          trigger_phrase: .*/nephe-test-e2e-(aws|kind|all).*
+          white_list_target_branches: [ ]
+          allow_whitelist_orgs_as_admins: true
+          admin_list: '{nephe_admin_list}'
+          org_list: '{nephe_org_list}'
+          white_list: '{nephe_white_list}'
+          only_trigger_phrase: true
+          trigger_permit_all: false
+          status_context: nephe-test-e2e-aws
+          status_url: ""
+          success_status: Build finished.
+          failure_status: Failed. Add comment /nephe-test-e2e-aws to re-trigger.
+          error_status: Failed. Add comment /nephe-test-e2e-aws to re-trigger.
+          triggered_status: null
+          started_status: null
+          concurrent: true
+          wrappers:
+            - credentials-binding:
+                - text:
+                    credential-id: CODECOV_TOKEN # Jenkins secret that stores codecov token
+                    variable: CODECOV_TOKEN
+            - timeout:
+                fail: true
+                timeout: 120
+                type: absolute
+            - credentials-binding:
+                - text:
+                    credential-id: VMC_NETWORK_0
+                    variable: VMC_NETWORK_0
+                - text:
+                    credential-id: VMC_NETWORK_1
+                    variable: VMC_NETWORK_1
+                - text:
+                    credential-id: VCENTERNAME
+                    variable: VCENTERNAME
+                - text:
+                    credential-id: DATACENTERNAME
+                    variable: DATACENTERNAME
+                - text:
+                    credential-id: RESOURCEPOOLPATH
+                    variable: RESOURCEPOOLPATH
+                - text:
+                    credential-id: VC_USER
+                    variable: VC_USER
+                - text:
+                    credential-id: GOVC_PASSWORD
+                    variable: GOVC_PASSWORD
+                - text:
+                    credential-id: VC_HOST
+                    variable: VC_HOST
+                - text:
+                    credential-id: DATA_STORE
+                    variable: DATA_STORE
+                - text:
+                    credential-id: VC_CLUSTER
+                    variable: VC_CLUSTER
+                - text:
+                    credential-id: VIRTUAL_MACHINE
+                    variable: VIRTUAL_MACHINE
+                - text:
+                    credential-id: ANTREA_DOCKER_USERNAME
+                    variable: ANTREA_DOCKER_USERNAME
+                - text:
+                    credential-id: ANTREA_DOCKER_PWD
+                    variable: ANTREA_DOCKER_PWD
+                - text:
+                    credential-id: AWS_ACCESS_KEY_ID
+                    variable: AWS_ACCESS_KEY_ID
+                - text:
+                    credential-id: AWS_ACCESS_KEY_SECRET
+                    variable: AWS_ACCESS_KEY_SECRET
+                - text:
+                    credential-id: AWS_KEY_PAIR_NAME
+                    variable: AWS_KEY_PAIR_NAME
+          publishers:
+          - archive:
+              allow-empty: true
+              artifacts: "logs.tar.gz"
+              case-sensitive: true
+              default-excludes: true
+              fingerprint: false
+              only-if-success: false
+      - '{test_name}-for-pull-request':
+            test_name: nephe-test-e2e-azure
+            node: 'nephe'
+            description: 'This is the {test_name}.'
+            branches:
+                - ${{sha1}}
+            builders:
+                - deploy-vm-and-run-azure-tests-for-nephe:
+                      conformance_type: 'networkpolicy'
+            trigger_phrase: .*/nephe-test-e2e-(azure|kind|all).*
+            white_list_target_branches: [ ]
+            allow_whitelist_orgs_as_admins: true
+            admin_list: '{nephe_admin_list}'
+            org_list: '{nephe_org_list}'
+            white_list: '{nephe_white_list}'
+            only_trigger_phrase: true
+            trigger_permit_all: false
+            status_context: nephe-test-e2e-azure
+            status_url: ""
+            success_status: Build finished.
+            failure_status: Failed. Add comment /nephe-test-e2e-azure to re-trigger.
+            error_status: Failed. Add comment /nephe-test-e2e-azure to re-trigger.
+            triggered_status: null
+            started_status: null
+            concurrent: true
+            wrappers:
+                - credentials-binding:
+                      - text:
+                            credential-id: CODECOV_TOKEN # Jenkins secret that stores codecov token
+                            variable: CODECOV_TOKEN
+                - timeout:
+                      fail: true
+                      timeout: 120
+                      type: absolute
+                - credentials-binding:
+                      - text:
+                            credential-id: VMC_NETWORK_0
+                            variable: VMC_NETWORK_0
+                      - text:
+                            credential-id: VMC_NETWORK_1
+                            variable: VMC_NETWORK_1
+                      - text:
+                            credential-id: VCENTERNAME
+                            variable: VCENTERNAME
+                      - text:
+                            credential-id: DATACENTERNAME
+                            variable: DATACENTERNAME
+                      - text:
+                            credential-id: RESOURCEPOOLPATH
+                            variable: RESOURCEPOOLPATH
+                      - text:
+                            credential-id: VC_USER
+                            variable: VC_USER
+                      - text:
+                            credential-id: GOVC_PASSWORD
+                            variable: GOVC_PASSWORD
+                      - text:
+                            credential-id: VC_HOST
+                            variable: VC_HOST
+                      - text:
+                            credential-id: DATA_STORE
+                            variable: DATA_STORE
+                      - text:
+                            credential-id: VC_CLUSTER
+                            variable: VC_CLUSTER
+                      - text:
+                            credential-id: VIRTUAL_MACHINE
+                            variable: VIRTUAL_MACHINE
+                      - text:
+                            credential-id: ANTREA_DOCKER_USERNAME
+                            variable: ANTREA_DOCKER_USERNAME
+                      - text:
+                            credential-id: ANTREA_DOCKER_PWD
+                            variable: ANTREA_DOCKER_PWD
+                      - text:
+                            credential-id: AZURE_APP_ID
+                            variable: AZURE_APP_ID
+                      - text:
+                            credential-id: AZURE_PASSWORD
+                            variable: AZURE_PASSWORD
+                      - text:
+                            credential-id: AZURE_SUBSCRIPTION_ID
+                            variable: AZURE_SUBSCRIPTION_ID
+                      - text:
+                            credential-id: AZURE_TENANT_ID
+                            variable: AZURE_TENANT_ID
+            publishers:
+                - archive:
+                      allow-empty: true
+                      artifacts: "logs.tar.gz"
+                      case-sensitive: true
+                      default-excludes: true
+                      fingerprint: false
+                      only-if-success: false
+      - '{test_name}-for-pull-request':
+            test_name: nephe-test-e2e-eks
+            node: 'nephe'
+            description: 'This is the {test_name}.'
+            branches:
+                - ${{sha1}}
+            builders:
+                - deploy-vm-and-run-eks-tests-for-nephe:
+                      conformance_type: 'networkpolicy'
+            trigger_phrase: .*/nephe-test-e2e-(eks|all).*
+            white_list_target_branches: [ ]
+            allow_whitelist_orgs_as_admins: true
+            admin_list: '{nephe_admin_list}'
+            org_list: '{nephe_org_list}'
+            white_list: '{nephe_white_list}'
+            only_trigger_phrase: true
+            trigger_permit_all: false
+            status_context: nephe-test-e2e-eks
+            status_url: ""
+            success_status: Build finished.
+            failure_status: Failed. Add comment /nephe-test-e2e-eks to re-trigger.
+            error_status: Failed. Add comment /nephe-test-e2e-eks to re-trigger.
+            triggered_status: null
+            started_status: null
+            concurrent: true
+            wrappers:
+                - credentials-binding:
+                      - text:
+                            credential-id: CODECOV_TOKEN # Jenkins secret that stores codecov token
+                            variable: CODECOV_TOKEN
+                - timeout:
+                      fail: true
+                      timeout: 120
+                      type: absolute
+                - credentials-binding:
+                      - text:
+                            credential-id: VMC_NETWORK_0
+                            variable: VMC_NETWORK_0
+                      - text:
+                            credential-id: VMC_NETWORK_1
+                            variable: VMC_NETWORK_1
+                      - text:
+                            credential-id: VCENTERNAME
+                            variable: VCENTERNAME
+                      - text:
+                            credential-id: DATACENTERNAME
+                            variable: DATACENTERNAME
+                      - text:
+                            credential-id: RESOURCEPOOLPATH
+                            variable: RESOURCEPOOLPATH
+                      - text:
+                            credential-id: VC_USER
+                            variable: VC_USER
+                      - text:
+                            credential-id: GOVC_PASSWORD
+                            variable: GOVC_PASSWORD
+                      - text:
+                            credential-id: VC_HOST
+                            variable: VC_HOST
+                      - text:
+                            credential-id: DATA_STORE
+                            variable: DATA_STORE
+                      - text:
+                            credential-id: VC_CLUSTER
+                            variable: VC_CLUSTER
+                      - text:
+                            credential-id: VIRTUAL_MACHINE
+                            variable: VIRTUAL_MACHINE
+                      - text:
+                            credential-id: ANTREA_DOCKER_USERNAME
+                            variable: ANTREA_DOCKER_USERNAME
+                      - text:
+                            credential-id: ANTREA_DOCKER_PWD
+                            variable: ANTREA_DOCKER_PWD
+                      - text:
+                            credential-id: AWS_ACCESS_KEY_ID
+                            variable: AWS_ACCESS_KEY_ID
+                      - text:
+                            credential-id: AWS_ACCESS_KEY_SECRET
+                            variable: AWS_ACCESS_KEY_SECRET
+                      - text:
+                            credential-id: AWS_KEY_PAIR_NAME
+                            variable: AWS_KEY_PAIR_NAME
+                      - text:
+                            credential-id: EKS_IAM_ROLE
+                            variable: EKS_IAM_ROLE
+                      - text:
+                            credential-id: EKS_IAM_INSTANCE_PROFILE
+                            variable: EKS_IAM_INSTANCE_PROFILE
+            publishers:
+                - archive:
+                      allow-empty: true
+                      artifacts: "logs.tar.gz"
+                      case-sensitive: true
+                      default-excludes: true
+                      fingerprint: false
+                      only-if-success: false
+      - '{test_name}-for-pull-request':
+            test_name: nephe-test-e2e-aks
+            node: 'nephe'
+            description: 'This is the {test_name}.'
+            branches:
+                - ${{sha1}}
+            builders:
+                - deploy-vm-and-run-aks-tests-for-nephe:
+                      conformance_type: 'networkpolicy'
+            trigger_phrase: .*/nephe-test-e2e-(aks|all).*
+            white_list_target_branches: [ ]
+            allow_whitelist_orgs_as_admins: true
+            admin_list: '{nephe_admin_list}'
+            org_list: '{nephe_org_list}'
+            white_list: '{nephe_white_list}'
+            only_trigger_phrase: true
+            trigger_permit_all: false
+            status_context: nephe-test-e2e-aks
+            status_url: ""
+            success_status: Build finished.
+            failure_status: Failed. Add comment /nephe-test-e2e-aks to re-trigger.
+            error_status: Failed. Add comment /nephe-test-e2e-aks to re-trigger.
+            triggered_status: null
+            started_status: null
+            concurrent: true
+            wrappers:
+                - credentials-binding:
+                      - text:
+                            credential-id: CODECOV_TOKEN # Jenkins secret that stores codecov token
+                            variable: CODECOV_TOKEN
+                - timeout:
+                      fail: true
+                      timeout: 120
+                      type: absolute
+                - credentials-binding:
+                      - text:
+                            credential-id: VMC_NETWORK_0
+                            variable: VMC_NETWORK_0
+                      - text:
+                            credential-id: VMC_NETWORK_1
+                            variable: VMC_NETWORK_1
+                      - text:
+                            credential-id: VCENTERNAME
+                            variable: VCENTERNAME
+                      - text:
+                            credential-id: DATACENTERNAME
+                            variable: DATACENTERNAME
+                      - text:
+                            credential-id: RESOURCEPOOLPATH
+                            variable: RESOURCEPOOLPATH
+                      - text:
+                            credential-id: VC_USER
+                            variable: VC_USER
+                      - text:
+                            credential-id: GOVC_PASSWORD
+                            variable: GOVC_PASSWORD
+                      - text:
+                            credential-id: VC_HOST
+                            variable: VC_HOST
+                      - text:
+                            credential-id: DATA_STORE
+                            variable: DATA_STORE
+                      - text:
+                            credential-id: VC_CLUSTER
+                            variable: VC_CLUSTER
+                      - text:
+                            credential-id: VIRTUAL_MACHINE
+                            variable: VIRTUAL_MACHINE
+                      - text:
+                            credential-id: ANTREA_DOCKER_USERNAME
+                            variable: ANTREA_DOCKER_USERNAME
+                      - text:
+                            credential-id: ANTREA_DOCKER_PWD
+                            variable: ANTREA_DOCKER_PWD
+                      - text:
+                            credential-id: AZURE_APP_ID
+                            variable: AZURE_APP_ID
+                      - text:
+                            credential-id: AZURE_PASSWORD
+                            variable: AZURE_PASSWORD
+                      - text:
+                            credential-id: AZURE_SUBSCRIPTION_ID
+                            variable: AZURE_SUBSCRIPTION_ID
+                      - text:
+                            credential-id: AZURE_TENANT_ID
+                            variable: AZURE_TENANT_ID
+            publishers:
+                - archive:
+                      allow-empty: true
+                      artifacts: "logs.tar.gz"
+                      case-sensitive: true
+                      default-excludes: true
+                      fingerprint: false
+                      only-if-success: false

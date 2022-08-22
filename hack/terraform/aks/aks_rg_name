@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+OUTPUT=$(az group list --query [].name -o tsv | grep MC_$1 | head -n 1)
+jq -n --arg output "$OUTPUT" '{"output":$output}'

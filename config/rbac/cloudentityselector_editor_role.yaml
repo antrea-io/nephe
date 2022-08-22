@@ -1,0 +1,24 @@
+# permissions for end users to edit cloudentityselectors.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cloudentityselector-editor-role
+rules:
+- apiGroups:
+  - crd.cloud.antrea.io
+  resources:
+  - cloudentityselectors
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - crd.cloud.antrea.io
+  resources:
+  - cloudentityselectors/status
+  verbs:
+  - get

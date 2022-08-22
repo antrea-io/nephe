@@ -1,0 +1,25 @@
+# Match based on vpcMatch:  All vms in vpc <VPC_ID> are matched
+apiVersion: crd.cloud.antrea.io/v1alpha1
+kind: CloudEntitySelector
+metadata:
+  name: cloudentityselector-sample01
+  namespace: sample-ns
+spec:
+  accountName: cloudprovideraccount-sample
+  vmSelector:
+      - vpcMatch:
+          matchID: "<VPC_ID>"
+---
+# Match based on vmMatch in the vpc configured : A vm with id <VM_ID> in vpc <VPC_ID> is matched
+apiVersion: crd.cloud.antrea.io/v1alpha1
+kind: CloudEntitySelector
+metadata:
+  name: cloudentityselector-sample01
+  namespace: sample-ns
+spec:
+  accountName: cloudprovideraccount-sample
+  vmSelector:
+    - vpcMatch:
+        matchID: "<VPC_ID>"
+      vmMatch:
+        - matchID: "<VM_ID>"

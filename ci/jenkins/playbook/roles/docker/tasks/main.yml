@@ -1,0 +1,77 @@
+---
+- name: Add an APT Signing Key for Docker
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+
+- name: Get Ubuntu Release
+  shell: lsb_release -cs
+  register: lsb_release_result
+  changed_when: False
+
+- name: Add APT Repository for Stable Version
+  apt_repository:
+    repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ lsb_release_result.stdout }} stable
+    state: present
+
+- name: Install Docker and Dependencies
+  apt:
+    name: "{{ packages }}"
+    state: present
+    update_cache: yes
+    force_apt_get: yes
+  vars:
+    packages:
+    - docker-ce
+    - docker-ce-cli
+    - containerd.io
+
+- name: Setup docker daemon
+  shell:
+    cmd: |
+      cat > /etc/docker/daemon.json<<EOF
+      {
+        "exec-opts": ["native.cgroupdriver=systemd"],
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "100m"
+        },
+        "storage-driver": "overlay2"
+      }
+      EOF
+
+- name: Create docker service config dir if missing
+  file:
+    path: /etc/systemd/system/docker.service.d
+    state: directory
+
+- name: Setup docker proxy
+  shell:
+    cmd: |
+      cat > /etc/systemd/system/docker.service.d/proxy.conf<<EOF
+      [Service]
+      Environment="NO_PROXY=localhost,127.0.0.1,::1,*.artifactory.eng.vmware.com,harbor-repo.vmware.com,projects.registry.vmware.com"
+      EOF
+
+- name: Reload service docker
+  systemd:
+    name: docker
+    daemon_reload: yes
+    state: restarted
+
+- name: Add jenkins user to docker group
+  user:
+    name: jenkins
+    groups: docker
+    append: yes
+
+- name: Allow ubuntu user to Manage Docker
+  tags: docker
+  user:
+    name: ubuntu
+    groups: docker
+    append: yes
+
+# Install docker-py so that docker images can be pulled
+- pip:
+    name: docker-py

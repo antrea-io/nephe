@@ -1,0 +1,9 @@
+Host {{ inventory_hostname }}
+    SendEnv LANG LC_*
+    HashKnownHosts yes
+    GSSAPIAuthentication yes
+    GSSAPIDelegateCredentials no
+    HostName localhost
+    Port 22
+    User jenkins
+    IdentityFile /var/lib/jenkins/.ssh/id_rsa

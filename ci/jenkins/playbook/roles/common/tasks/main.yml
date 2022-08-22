@@ -1,0 +1,87 @@
+---
+- name: Ensure /usr/lib/systemd/timesyncd.conf.d Exists
+  file:
+    path: /usr/lib/systemd/timesyncd.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Generate Time Sync Config
+  template:
+    dest: /usr/lib/systemd/timesyncd.conf.d/99-ansible.conf
+    force: yes
+    owner: root
+    group: root
+    mode: 0644
+    src: timesyncd.conf.j2
+  register: timesyncd_conf_result
+
+- name: Restart systemd-timesyncd if Needed
+  service:
+    name: systemd-timesyncd
+    state: restarted
+  when: timesyncd_conf_result.changed
+
+- name: Install ntpdate
+  package:
+    name: ntpdate
+    state: present
+
+- when: inventory_hostname in groups['controlplane'] or inventory_hostname in groups['workers']
+  block:
+    - name: Ensure Containerd Service Setting Dir Exist
+      file:
+        path: /etc/systemd/system/containerd.service.d
+        state: directory
+        owner: root
+        group: root
+        mode: 0755
+
+    - name: Add Containerd Proxy Settings
+      copy:
+        dest: /etc/systemd/system/containerd.service.d/http_proxy.conf
+        owner: root
+        group: root
+        mode: 0644
+        content: |
+          [Service]
+          Environment="NO_PROXY=10.96.0.2,127.0.0.1,::1,*.artifactory.eng.vmware.com,harbor-repo.vmware.com,projects.registry.vmware.com"
+      register: containerd_proxy_result
+
+    - name: Reload Systemd Configurations
+      command: systemctl daemon-reload
+      when: containerd_proxy_result.changed
+
+- name: Install jq
+  apt:
+    name: jq
+    state: present
+
+- name: Ensure jenkins group exists
+  group:
+    name: jenkins
+    system: yes
+
+- name: Create jenkins User
+  user:
+    name: jenkins
+    create_home: yes
+    group: jenkins
+    home: "{{ jenkins_home }}"
+    system: yes
+
+- name: Add authorized_keys
+  authorized_key:
+    user: jenkins
+    manage_dir: yes
+    key: "{{ lookup('file', playbook_dir + '/jenkins_id_rsa.pub') }}"
+
+- name: Configure sudo for jenkins user
+  copy:
+    content: |
+      jenkins ALL=(ALL) NOPASSWD: ALL
+    dest: "/etc/sudoers.d/55-jenkins-user"
+    owner: root
+    group: root
+    mode: 0644

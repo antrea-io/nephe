@@ -1,0 +1,11 @@
+---
+- name: Generate config file - ssh-config
+  template:
+    dest: "{{ jenkins_home }}/ssh-config"
+    group: jenkins
+    owner: jenkins
+    mode: 0644
+    force: yes
+    src: ssh-config.j2
+  become: yes
+  when: "inventory_hostname in groups['jumper']"

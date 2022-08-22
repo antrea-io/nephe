@@ -1,0 +1,97 @@
+name: Go
+on:
+  pull_request:
+    branches:
+    - main
+    - release-*
+    - feature/*
+  push:
+    branches:
+    - main
+    - release-*
+    - feature/*
+  workflow_run:
+    workflows: ["Build"]
+    types:
+      - complete
+
+jobs:
+  check-changes:
+    name: Check whether tests need to be run based on diff
+    runs-on: [ubuntu-latest]
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    - uses: antrea-io/has-changes@v2
+      id: check_diff
+      with:
+        paths-ignore: docs/* ci/jenkins/* *.md
+    outputs:
+      has_changes: ${{ steps.check_diff.outputs.has_changes }}
+
+  test-unit:
+    needs: check-changes
+    if: ${{ needs.check-changes.outputs.has_changes == 'yes' || github.event_name == 'push' }}
+    name: Unit test
+    runs-on: [ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Go 1.17
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.17
+
+      - name: Run unit tests
+        run: |
+          mkdir -p $(go env GOPATH)
+          mkdir -p $(go env GOCACHE)
+          sudo make unit-test
+
+  golangci-lint:
+    needs: check-changes
+    if: ${{ needs.check-changes.outputs.has_changes == 'yes' }}
+    name: Check lint
+    runs-on: [ubuntu-latest]
+    steps:
+    - name: Set up Go 1.17
+      uses: actions/setup-go@v3
+      with:
+        go-version: 1.17
+    - name: Check-out code
+      uses: actions/checkout@v3
+    - name: Run golangci-lint
+      run: |
+        mkdir -p $(go env GOPATH)
+        mkdir -p $(go env GOCACHE)
+        make golangci-lint
+
+  check-gen:
+    needs: check-changes
+    if: ${{ needs.check-changes.outputs.has_changes == 'yes' }}
+    name: Check generation
+    runs-on: [ubuntu-latest]
+    steps:
+    - name: Set up Go 1.17
+      uses: actions/setup-go@v3
+      with:
+        go-version: 1.17
+    - name: Check-out code
+      uses: actions/checkout@v3
+    - name: Check generate
+      run: ./ci/check-gen.sh
+    - name: Check copyright
+      run: ./ci/check-copyright.sh
+
+  verify:
+    name: Verify docs and spelling
+    runs-on: [ubuntu-latest]
+    steps:
+    - name: Set up Go 1.17
+      uses: actions/setup-go@v3
+      with:
+        go-version: 1.17
+    - name: Check-out code
+      uses: actions/checkout@v3
+    - name: Run verify scripts
+      run: make verify

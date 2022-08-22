@@ -1,0 +1,110 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.8.0
+  creationTimestamp: null
+  name: virtualmachines.crd.cloud.antrea.io
+spec:
+  group: crd.cloud.antrea.io
+  names:
+    kind: VirtualMachine
+    listKind: VirtualMachineList
+    plural: virtualmachines
+    shortNames:
+    - vm
+    singular: virtualmachine
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.provider
+      name: Cloud-Provider
+      type: string
+    - jsonPath: .status.virtualPrivateCloud
+      name: Virtual-Private-Cloud
+      type: string
+    - jsonPath: .status.state
+      name: State
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: VirtualMachine is the Schema for the virtualmachines API A virtualMachine
+          object is created automatically based on matching criteria specification
+          of CloudEntitySelector.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          status:
+            description: VirtualMachineStatus defines the observed state of VirtualMachine
+              It contains observable parameters.
+            properties:
+              networkInterfaces:
+                description: NetworkInterfaces is array of NetworkInterfaces attached
+                  to this VirtualMachine.
+                items:
+                  description: NetworkInterface contains information pertaining to
+                    NetworkInterface.
+                  properties:
+                    ips:
+                      description: IP addresses of this NetworkInterface.
+                      items:
+                        properties:
+                          address:
+                            type: string
+                          addressType:
+                            type: string
+                        required:
+                        - address
+                        - addressType
+                        type: object
+                      type: array
+                    mac:
+                      description: Hardware address of the interface.
+                      type: string
+                    name:
+                      type: string
+                  type: object
+                type: array
+              provider:
+                description: Provider specifies cloud provider of this VirtualMachine.
+                enum:
+                - Azure
+                - AWS
+                type: string
+              state:
+                description: State indicates current state of the VirtualMachine.
+                type: string
+              tags:
+                additionalProperties:
+                  type: string
+                description: Tags of this VirtualMachine. A corresponding label is
+                  also generated for each tag.
+                type: object
+              virtualPrivateCloud:
+                description: VirtualPrivateCloud is the virtual private cloud this
+                  VirtualMachine belongs to.
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

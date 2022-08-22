@@ -1,0 +1,102 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.8.0
+  creationTimestamp: null
+  name: cloudentityselectors.crd.cloud.antrea.io
+spec:
+  group: crd.cloud.antrea.io
+  names:
+    kind: CloudEntitySelector
+    listKind: CloudEntitySelectorList
+    plural: cloudentityselectors
+    shortNames:
+    - ces
+    singular: cloudentityselector
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: CloudEntitySelector is the Schema for the cloudentityselectors
+          API.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: CloudEntitySelectorSpec defines the desired state of CloudEntitySelector.
+            properties:
+              accountName:
+                description: AccountName specifies cloud account in this CloudProvider.
+                type: string
+              vmSelector:
+                description: VMSelector selects the VirtualMachines the user has modify
+                  privilege. VMSelector is mandatory, at least one selector under
+                  VMSelector is required. It is an array, VirtualMachines satisfying
+                  any item on VMSelector are selected(ORed).
+                items:
+                  description: VirtualMachineSelector specifies VirtualMachine match
+                    criteria. VirtualMachines must satisfy all fields(ANDed) in a
+                    VirtualMachineSelector in order to satisfy match.
+                  properties:
+                    vmMatch:
+                      description: VMMatch specifies VirtualMachines to match. It
+                        is an array, match satisfying any item on VMMatch is selected(ORed).
+                        If it is not specified, all VirtualMachines matching VpcMatch
+                        are selected.
+                      items:
+                        description: EntityMatch specifies match conditions to cloud
+                          entities. Cloud entities must satisfy all fields(ANDed)
+                          in EntityMatch to satisfy EntityMatch.
+                        properties:
+                          matchID:
+                            description: MatchID matches cloud entities' identifier.
+                              If not specified, it matches any cloud entities.
+                            type: string
+                          matchName:
+                            description: MatchName matches cloud entities' name. If
+                              not specified, it matches any cloud entities.
+                            type: string
+                        type: object
+                      type: array
+                    vpcMatch:
+                      description: VpcMatch specifies the virtual private cloud to
+                        which VirtualMachines belong. VpcMatch is ANDed with VMMatch.
+                        If it is not specified, VirtualMachines may belong to any
+                        virtual private cloud.
+                      properties:
+                        matchID:
+                          description: MatchID matches cloud entities' identifier.
+                            If not specified, it matches any cloud entities.
+                          type: string
+                        matchName:
+                          description: MatchName matches cloud entities' name. If
+                            not specified, it matches any cloud entities.
+                          type: string
+                      type: object
+                  type: object
+                type: array
+            required:
+            - vmSelector
+            type: object
+        type: object
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

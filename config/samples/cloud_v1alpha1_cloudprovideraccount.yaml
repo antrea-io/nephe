@@ -1,0 +1,10 @@
+apiVersion: crd.cloud.antrea.io/v1alpha1
+kind: CloudProviderAccount
+metadata:
+  name: cloudprovideraccount-sample
+  namespace: sample-ns
+spec:
+  awsConfig:
+    accessKeyId: "<REPLACE_ME>"
+    accessKeySecret: "<REPLACE_ME>"
+    region: "us-west-2"

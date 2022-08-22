@@ -1,0 +1,47 @@
+#!/bin/bash
+# Copyright 2022 Antrea Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# This script stores terrform configuration files into another place ../terraform.tfstate.d/current/,
+# there are two args for this script, arg1 is testbedname while arg2 is the flag whether terraform 
+# overwrites the existing workspace
+set -e
+
+tesbted_name="$1"
+force="$2"
+
+if [ -z "${tesbted_name}" ]; then
+  echo "Usage: $0 <testbed_name> [-f]"
+  exit 1
+fi
+
+if [ ! -e "terraform.tfstate.d/${tesbted_name}" ]; then
+  echo "${tesbted_name} does not exist in local workspace"
+  exit 1
+fi
+
+if [ -e "../terraform.tfstate.d/current/${tesbted_name}" ]; then
+  if [ "${force}" != "-f" ]; then
+    echo "Shared workspace already exists, use $0 <testbed_name> [-f] to force overwrite."
+    exit 1
+  fi
+fi
+
+if [ ! -e "../terraform.tfstate.d/current/" ]; then
+  mkdir -p ../terraform.tfstate.d/current/
+fi
+
+echo ====== Checking in ${tesbted_name} to Shared Workspace ======
+cp -rf "terraform.tfstate.d/${tesbted_name}" "../terraform.tfstate.d/current/"
+echo ====== Done ======

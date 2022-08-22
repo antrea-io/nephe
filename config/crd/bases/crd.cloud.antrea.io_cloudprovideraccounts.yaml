@@ -1,0 +1,115 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.8.0
+  creationTimestamp: null
+  name: cloudprovideraccounts.crd.cloud.antrea.io
+spec:
+  group: crd.cloud.antrea.io
+  names:
+    kind: CloudProviderAccount
+    listKind: CloudProviderAccountList
+    plural: cloudprovideraccounts
+    shortNames:
+    - cpa
+    singular: cloudprovideraccount
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: CloudProviderAccount is the Schema for the cloudprovideraccounts
+          API.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: CloudProviderAccountSpec defines the desired state of CloudProviderAccount.
+            properties:
+              awsConfig:
+                description: Cloud provider account config.
+                properties:
+                  region:
+                    description: Cloud provider account region.
+                    type: string
+                  secretRef:
+                    description: Reference to k8s secret which has cloud provider
+                      credentials.
+                    properties:
+                      key:
+                        description: Key to select in the secret.
+                        type: string
+                      name:
+                        description: Name of the secret.
+                        type: string
+                      namespace:
+                        description: Namespace of the secret.
+                        type: string
+                    required:
+                    - key
+                    - name
+                    - namespace
+                    type: object
+                type: object
+              azureConfig:
+                description: Cloud provider account config.
+                properties:
+                  region:
+                    type: string
+                  secretRef:
+                    description: SecretReference is a reference to a k8s secret resource
+                      in an arbitrary namespace.
+                    properties:
+                      key:
+                        description: Key to select in the secret.
+                        type: string
+                      name:
+                        description: Name of the secret.
+                        type: string
+                      namespace:
+                        description: Namespace of the secret.
+                        type: string
+                    required:
+                    - key
+                    - name
+                    - namespace
+                    type: object
+                type: object
+              pollIntervalInSeconds:
+                description: PollIntervalInSeconds defines account poll interval (default
+                  value is 60, if not specified).
+                type: integer
+            type: object
+          status:
+            description: CloudProviderAccountStatus defines the observed state of
+              CloudProviderAccount.
+            properties:
+              error:
+                description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
+                  of cluster Important: Run "make" to regenerate code after modifying
+                  this file Error is current error, if any, of the CloudProviderAccount.'
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

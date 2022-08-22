@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+rg_name=$(az group list --query [].name -o tsv | grep MC_$1)
+OUTPUT=$(az network nsg list | jq -r ".[] | select(.resourceGroup == \"$rg_name\") | .name")
+jq -n --arg output "$OUTPUT" '{"output":$output}'
