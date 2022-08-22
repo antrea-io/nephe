@@ -62,18 +62,20 @@ section and proceed to the [Implementation](#implementation) section.
 ### Antrea Internal NetworkPolicy
 
 Each Antrea internal NetworkPolicy object contains a `Name` and `Namespace`
-field that uniquely identifies an Antrea internal NetworkPolicy object. 
+field that uniquely identifies an Antrea internal NetworkPolicy object.
 `Name` and `Namespace` corresponds to user facing Antrea `NetworkPolicy`(ANP).
 It contains list of rules and a list of references to the appliedToGroups and
 addressGroups.
 
 Each `Rule` contains:
+
 - A direction field.
 - A list of services (port).
 - To/From field - IPBlock and reference to a list `AddressGroups`.
 
-An `AddressGroup` is used in `To/From` field of an ANP Rule. Each 
+An `AddressGroup` is used in `To/From` field of an ANP Rule. Each
 `AddressGroup` contains the following:
+
 - An auto-generated name, which uniquely identifies an `AdressGroup`.
 - A list of GroupMembers, each may contain references of ExternalEntities if
   applicable.
@@ -81,6 +83,7 @@ An `AddressGroup` is used in `To/From` field of an ANP Rule. Each
 
 An `AppliedToGroup` is used in `AppliedTo` field of an ANP. Each `AppliedToGroup`
 contains the following:
+
 - An auto-generated name (namespace-less) uniquely identifies a `AppliedToGroup`.
 - A list of GroupMembers, each may contain references of ExternalEntities if
   applicable.
@@ -94,18 +97,20 @@ Interface Cards (NIC). A NIC may be associated with zero or more NSGs. A NSG
 contains Ingress and Egress rules.
 
 **An Ingress Rule includes**:
+
 - IPBlocks - a list of source IP blocks of the permitted incoming traffic.
 - Ports - a list of source ports of the permitted incoming traffic.
 - SecurityGroups - a list of securityGroups from which incoming traffic is
   permitted.
 
 **An Egress Rule includes**:
+
 - IPBlocks - a list of destination IP blocks of the permitted outgoing traffic.
 - Ports - a list of destination ports of the permitted outgoing traffic.
 - SecurityGroups - a list of securityGroups to which outgoing traffic is
   permitted.
 
-## Implementation 
+## Implementation
 
 The `Nephe Controller` creates two types of network security groups (NSGs) to
 enforce network polices on public cloud VMs, which are called as
@@ -114,15 +119,15 @@ realized on the cloud VMs via a combination of `AddressGroup NSG` and
 `AppliedTo NSG`. For better performance/scalability, all cloud calls to manage
 Nephe created NSGs are designed to be asynchronous.
 
-### AddressGroup NSG 
+### AddressGroup NSG
 
 AddressGroup NSG internally is referred to as cloud membership only security
 group, as it contains only the GroupMembers. This type of NSG is created with a
 prefix `nephe-ag-<adressGroupName>`, where the prefix `ag-` implies it is just
-an `AddressGroup` based NSG. 
+an `AddressGroup` based NSG.
 
 - Each Antrea AddressGroup is mapped to zero or more cloud membership only
-`AddressGroup NSG`, and zero or more IP blocks. 
+`AddressGroup NSG`, and zero or more IP blocks.
 - Each `AddressGroup NSG` scope is at a VPC level, and which will not have
 any ingress/egress rules.
 
@@ -151,6 +156,7 @@ specific cloud resource and the Antrea `NetworkPolicies` realization status.
 Each cloud resource shall keep track of cloud `AppliedTo NSG` it is associated
 with. An Antrea `NetworkPolicy` is considered to be successfully applied to
 a network resource, when the following expectations are met.
+
 - Its `AppliedTo NSG` to which the network resource is a member of,
   are created/updated with no error.
 - Its `AddressGroup NSG` are created/updated with no error.
@@ -239,7 +245,7 @@ VMs, as shown in the below image.
 
 ### AddressGroup NSG
 
-The AddressGroup `9938be4e-784d-582b-b22a-d12a82d6fd89` corresponds to the 
+The AddressGroup `9938be4e-784d-582b-b22a-d12a82d6fd89` corresponds to the
 `from` field of ANP. This group contains only one ExternalEntity as the Group
 Members. `Nephe Controller` will convert this AddressGroup into an
 `AddressGroup NSG` with NSG name as

@@ -4,7 +4,7 @@
 
 Nephe supports security policy enforcement across different Public
 Clouds. It translates and enforces Antrea `NetworkPolicies` on Public Cloud
-Virtual Machines using Cloud Network Security Groups. Nephe deploys  a 
+Virtual Machines using Cloud Network Security Groups. Nephe deploys  a
 `nephe-controller` Pod in a Kubernetes cluster. Antrea must be the CNI of the
 Kubernetes cluster.
 

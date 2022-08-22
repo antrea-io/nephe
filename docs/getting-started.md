@@ -1,4 +1,4 @@
-# Getting Started with Nephe 
+# Getting Started with Nephe
 
 ## Table of Contents
 
@@ -13,7 +13,7 @@
     - [Sample Secret for AWS](#sample-secret-for-aws)
     - [Sample CloudProviderAccount for AWS](#sample-cloudprovideraccount-for-aws)
     - [Sample Secret for Azure](#sample-secret-for-azure)
-    - [Sample CloudProviderAccount for Azure:](#sample-cloudprovideraccount-for-azure)
+    - [Sample CloudProviderAccount for Azure](#sample-cloudprovideraccount-for-azure)
   - [CloudEntitySelector](#cloudentityselector)
   - [External Entity](#external-entity)
 - [Apply Antrea NetworkPolicy](#apply-antrea-networkpolicy)
@@ -21,10 +21,10 @@
 
 ## Prerequisites
 
-* [Kubectl](https://kubernetes.io/docs/tasks/tools/) installed.
-* An active Kubernetes cluster, accessible using kubectl.
-* [Antrea](https://github.com/antrea-io/antrea/) deployed. Recommend v1.8.
-* [Cert-Manager](https://github.com/jetstack/cert-manager) deployed. Recommend
+- [Kubectl](https://kubernetes.io/docs/tasks/tools/) installed.
+- An active Kubernetes cluster, accessible using kubectl.
+- [Antrea](https://github.com/antrea-io/antrea/) deployed. Recommend v1.8.
+- [Cert-Manager](https://github.com/jetstack/cert-manager) deployed. Recommend
   v1.8.
 
 ## Nephe Installation
@@ -40,7 +40,7 @@ Create a Kind cluster. Recommend Kind v0.12.
 Install Nephe.
 
 To deploy the latest version of nephe (built from the main branch), use the
-checked-in [deployment yaml](/config/nephe.yml):
+checked-in [deployment yaml](../config/nephe.yml):
 
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/antrea-io/nephe/main/config/nephe.yml
@@ -81,7 +81,6 @@ echo '{"accessKeyId": "YOUR_AWS_ACCESS_KEY_ID", "accessKeySecret": "YOUR_AWS_ACC
 Note: `roleArn` and `externalId` are used for role based access on AWS, they can
 be removed if credentials are provided.
 
-
 ```bash
 kubectl create namespace sample-ns
 cat <<EOF | kubectl apply -f -
@@ -94,7 +93,7 @@ type: Opaque
 data:
   credentials: "<BASE64_ENCODED_JSON_STRING>"
 EOF
-``` 
+```
 
 #### Sample CloudProviderAccount for AWS
 
@@ -114,7 +113,7 @@ spec:
       namespace: nephe-system
       key: credentials
 EOF
-``` 
+```
 
 #### Sample Secret for Azure
 
@@ -136,9 +135,9 @@ type: Opaque
 data:
   credentials: "<BASE64_ENCODED_JSON_STRING>"
 EOF
-``` 
+```
 
-#### Sample CloudProviderAccount for Azure:
+#### Sample CloudProviderAccount for Azure
 
 ```bash
 kubectl create namespace sample-ns
@@ -156,7 +155,7 @@ spec:
       namespace: nephe-system
       key: credentials
 EOF
-``` 
+```
 
 ### CloudEntitySelector
 
@@ -178,7 +177,7 @@ spec:
       - vpcMatch:
           matchID: "<VPC_ID>"
 EOF
-``` 
+```
 
 If there are any virtual machines in VPC `VPC_ID`, those virtual machines will
 be imported. Invoke kubectl commands to get the details of imported VMs.
@@ -198,12 +197,12 @@ sample-ns        i-0a20bae92ddcdb60b   AWS              vpc-0d6bb6a4a880bd9ad   
 
 Currently, the following matching criteria are supported to import VMs.
 
-* AWS:
-    * vpcMatch: matchID, matchName
-    * vmMatch: matchID, matchName
-* Azure:
-    * vpcMatch: matchID
-    * vmMatch: matchID, matchName
+- AWS:
+  - vpcMatch: matchID, matchName
+  - vmMatch: matchID, matchName
+- Azure:
+  - vpcMatch: matchID
+  - vmMatch: matchID, matchName
 
 ### External Entity
 
@@ -353,15 +352,15 @@ sample-ns   i-0033eb4a6c846451d   SUCCESS       1
 The `externalEntitySelector` field in ANP supports the following pre-defined
 labels:
 
-* `kind.nephe`: Select based on CRD type. Currently, only supported
+- `kind.nephe`: Select based on CRD type. Currently, only supported
   CRD type is `virtualmachine` in lower case. `virtualmachine` may be used in
   `To`, `From`, `AppliedTo` ANP fields. Thus, an ANP may be applied to virtual
   machines.
-* `vpc.nephe`: Select based on cloud resource VPC.
-* `name.nephe`: Select based on K8s resource name. The resource name
+- `vpc.nephe`: Select based on cloud resource VPC.
+- `name.nephe`: Select based on K8s resource name. The resource name
   is meaningful only within the K8s cluster. For AWS, virtual machine name is
   the AWS VM instance ID. For Azure virtual machine name is the hashed values of
   the Azure VM resource ID.
-* `key.tag.nephe`: Select based on cloud resource tag key/value pair,
+- `key.tag.nephe`: Select based on cloud resource tag key/value pair,
   where `key` is the cloud resource `Key` tag (in lower case) and the `label`
   value is cloud resource tag `Value` in lower case.

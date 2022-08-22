@@ -75,6 +75,16 @@ verify:
 	@echo "===> Verifying documentation formatting for website <==="
 	$(CURDIR)/hack/verify-docs-for-website.sh
 
+.PHONE: markdownlint
+markdownlint:
+	@echo "===> Running markdownlint <==="
+	markdownlint -c .markdownlint-config.yml -i CHANGELOG.md -i CODE_OF_CONDUCT.md .
+
+.PHONE: markdownlint-fix
+markdownlint-fix:
+	@echo "===> Running markdownlint <==="
+	markdownlint --fix -c .markdownlint-config.yml -i CHANGELOG.md -i CODE_OF_CONDUCT.md .
+
 # Generate code
 generate: docker-builder
 	$(DOCKERIZE) controller-gen object:headerFile="hack/boilerplate.go.txt" paths=$(GENERATE_CODE_LIST)
