@@ -21,7 +21,7 @@
 ## Prerequisites
 
 1. Install and configure [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html).
-2. Install [Terraform](https://learn.hashicorp.com/terraform/getting-started/install.html). Recommend v0.13.5.
+2. Install [Terraform](https://learn.hashicorp.com/terraform/getting-started/install.html). Recommend v1.2.2.
 3. Install `jq`, `pv`, and `bzip2`.
 4. Set the below environment variables.
 

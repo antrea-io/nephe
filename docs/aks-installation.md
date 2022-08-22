@@ -21,7 +21,7 @@
 ## Prerequisites
 
 1. Install and configure [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest).
-2. Install [Terraform](https://learn.hashicorp.com/terraform/getting-started/install.html). Recommend v0.13.5.
+2. Install [Terraform](https://learn.hashicorp.com/terraform/getting-started/install.html). Recommend v1.2.2.
 3. Install `jq`, `pv`, and `bzip2`.
 4. Create or obtain an azure service principal and set the below environment
    variables. Please refer to [Azure documentation](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal#create-an-azure-active-directory-application)
