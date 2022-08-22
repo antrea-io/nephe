@@ -1,0 +1,859 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nephe-system
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: nephe-system/serving-cert
+    controller-gen.kubebuilder.io/version: v0.8.0
+  name: cloudentityselectors.crd.cloud.antrea.io
+spec:
+  conversion:
+    strategy: Webhook
+    webhook:
+      clientConfig:
+        caBundle: Cg==
+        service:
+          name: nephe-controller-webhook-service
+          namespace: nephe-system
+          path: /convert
+      conversionReviewVersions:
+      - v1
+      - v1beta1
+  group: crd.cloud.antrea.io
+  names:
+    kind: CloudEntitySelector
+    listKind: CloudEntitySelectorList
+    plural: cloudentityselectors
+    shortNames:
+    - ces
+    singular: cloudentityselector
+  preserveUnknownFields: false
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: CloudEntitySelector is the Schema for the cloudentityselectors API.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: CloudEntitySelectorSpec defines the desired state of CloudEntitySelector.
+            properties:
+              accountName:
+                description: AccountName specifies cloud account in this CloudProvider.
+                type: string
+              vmSelector:
+                description: VMSelector selects the VirtualMachines the user has modify privilege. VMSelector is mandatory, at least one selector under VMSelector is required. It is an array, VirtualMachines satisfying any item on VMSelector are selected(ORed).
+                items:
+                  description: VirtualMachineSelector specifies VirtualMachine match criteria. VirtualMachines must satisfy all fields(ANDed) in a VirtualMachineSelector in order to satisfy match.
+                  properties:
+                    vmMatch:
+                      description: VMMatch specifies VirtualMachines to match. It is an array, match satisfying any item on VMMatch is selected(ORed). If it is not specified, all VirtualMachines matching VpcMatch are selected.
+                      items:
+                        description: EntityMatch specifies match conditions to cloud entities. Cloud entities must satisfy all fields(ANDed) in EntityMatch to satisfy EntityMatch.
+                        properties:
+                          matchID:
+                            description: MatchID matches cloud entities' identifier. If not specified, it matches any cloud entities.
+                            type: string
+                          matchName:
+                            description: MatchName matches cloud entities' name. If not specified, it matches any cloud entities.
+                            type: string
+                        type: object
+                      type: array
+                    vpcMatch:
+                      description: VpcMatch specifies the virtual private cloud to which VirtualMachines belong. VpcMatch is ANDed with VMMatch. If it is not specified, VirtualMachines may belong to any virtual private cloud.
+                      properties:
+                        matchID:
+                          description: MatchID matches cloud entities' identifier. If not specified, it matches any cloud entities.
+                          type: string
+                        matchName:
+                          description: MatchName matches cloud entities' name. If not specified, it matches any cloud entities.
+                          type: string
+                      type: object
+                  type: object
+                type: array
+            required:
+            - vmSelector
+            type: object
+        type: object
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: nephe-system/serving-cert
+    controller-gen.kubebuilder.io/version: v0.8.0
+  name: cloudprovideraccounts.crd.cloud.antrea.io
+spec:
+  conversion:
+    strategy: Webhook
+    webhook:
+      clientConfig:
+        caBundle: Cg==
+        service:
+          name: nephe-controller-webhook-service
+          namespace: nephe-system
+          path: /convert
+      conversionReviewVersions:
+      - v1
+      - v1beta1
+  group: crd.cloud.antrea.io
+  names:
+    kind: CloudProviderAccount
+    listKind: CloudProviderAccountList
+    plural: cloudprovideraccounts
+    shortNames:
+    - cpa
+    singular: cloudprovideraccount
+  preserveUnknownFields: false
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: CloudProviderAccount is the Schema for the cloudprovideraccounts API.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: CloudProviderAccountSpec defines the desired state of CloudProviderAccount.
+            properties:
+              awsConfig:
+                description: Cloud provider account config.
+                properties:
+                  region:
+                    description: Cloud provider account region.
+                    type: string
+                  secretRef:
+                    description: Reference to k8s secret which has cloud provider credentials.
+                    properties:
+                      key:
+                        description: Key to select in the secret.
+                        type: string
+                      name:
+                        description: Name of the secret.
+                        type: string
+                      namespace:
+                        description: Namespace of the secret.
+                        type: string
+                    required:
+                    - key
+                    - name
+                    - namespace
+                    type: object
+                type: object
+              azureConfig:
+                description: Cloud provider account config.
+                properties:
+                  region:
+                    type: string
+                  secretRef:
+                    description: SecretReference is a reference to a k8s secret resource in an arbitrary namespace.
+                    properties:
+                      key:
+                        description: Key to select in the secret.
+                        type: string
+                      name:
+                        description: Name of the secret.
+                        type: string
+                      namespace:
+                        description: Namespace of the secret.
+                        type: string
+                    required:
+                    - key
+                    - name
+                    - namespace
+                    type: object
+                type: object
+              pollIntervalInSeconds:
+                description: PollIntervalInSeconds defines account poll interval (default value is 60, if not specified).
+                type: integer
+            type: object
+          status:
+            description: CloudProviderAccountStatus defines the observed state of CloudProviderAccount.
+            properties:
+              error:
+                description: 'INSERT ADDITIONAL STATUS FIELD - define observed state of cluster Important: Run "make" to regenerate code after modifying this file Error is current error, if any, of the CloudProviderAccount.'
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: nephe-system/serving-cert
+    controller-gen.kubebuilder.io/version: v0.8.0
+  name: virtualmachines.crd.cloud.antrea.io
+spec:
+  conversion:
+    strategy: Webhook
+    webhook:
+      clientConfig:
+        caBundle: Cg==
+        service:
+          name: nephe-controller-webhook-service
+          namespace: nephe-system
+          path: /convert
+      conversionReviewVersions:
+      - v1
+      - v1beta1
+  group: crd.cloud.antrea.io
+  names:
+    kind: VirtualMachine
+    listKind: VirtualMachineList
+    plural: virtualmachines
+    shortNames:
+    - vm
+    singular: virtualmachine
+  preserveUnknownFields: false
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.provider
+      name: Cloud-Provider
+      type: string
+    - jsonPath: .status.virtualPrivateCloud
+      name: Virtual-Private-Cloud
+      type: string
+    - jsonPath: .status.state
+      name: State
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: VirtualMachine is the Schema for the virtualmachines API A virtualMachine object is created automatically based on matching criteria specification of CloudEntitySelector.
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          status:
+            description: VirtualMachineStatus defines the observed state of VirtualMachine It contains observable parameters.
+            properties:
+              networkInterfaces:
+                description: NetworkInterfaces is array of NetworkInterfaces attached to this VirtualMachine.
+                items:
+                  description: NetworkInterface contains information pertaining to NetworkInterface.
+                  properties:
+                    ips:
+                      description: IP addresses of this NetworkInterface.
+                      items:
+                        properties:
+                          address:
+                            type: string
+                          addressType:
+                            type: string
+                        required:
+                        - address
+                        - addressType
+                        type: object
+                      type: array
+                    mac:
+                      description: Hardware address of the interface.
+                      type: string
+                    name:
+                      type: string
+                  type: object
+                type: array
+              provider:
+                description: Provider specifies cloud provider of this VirtualMachine.
+                enum:
+                - Azure
+                - AWS
+                type: string
+              state:
+                description: State indicates current state of the VirtualMachine.
+                type: string
+              tags:
+                additionalProperties:
+                  type: string
+                description: Tags of this VirtualMachine. A corresponding label is also generated for each tag.
+                type: object
+              virtualPrivateCloud:
+                description: VirtualPrivateCloud is the virtual private cloud this VirtualMachine belongs to.
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: leader-election-role
+  namespace: nephe-system
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - configmaps/status
+  verbs:
+  - get
+  - update
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - '*'
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: secret-viewer-role
+  namespace: nephe-system
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - controlplane.antrea.io
+  resources:
+  - addressgroups
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - controlplane.antrea.io
+  resources:
+  - appliedtogroups
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - controlplane.antrea.io
+  resources:
+  - networkpolicies
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - crd.antrea.io
+  resources:
+  - externalentities
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - crd.antrea.io
+  resources:
+  - externalentities/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - crd.cloud.antrea.io
+  resources:
+  - cloudentityselectors
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - crd.cloud.antrea.io
+  resources:
+  - cloudentityselectors/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - crd.cloud.antrea.io
+  resources:
+  - cloudprovideraccounts
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - crd.cloud.antrea.io
+  resources:
+  - cloudprovideraccounts/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - crd.cloud.antrea.io
+  resources:
+  - virtualmachines
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - crd.cloud.antrea.io
+  resources:
+  - virtualmachines/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resourceNames:
+  - extension-apiserver-authentication
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: resource-viewer-role
+rules:
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - services/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: leader-election-rolebinding
+  namespace: nephe-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: nephe-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: secret-viewer-rolebinding
+  namespace: nephe-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: secret-viewer-role
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: nephe-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: manager-role
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: nephe-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: resource-viewer-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: resource-viewer-role
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: nephe-system
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nephe-controller-service
+  namespace: nephe-system
+spec:
+  ports:
+  - port: 443
+    protocol: TCP
+    targetPort: 5443
+  selector:
+    control-plane: nephe-controller
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nephe-controller-webhook-service
+  namespace: nephe-system
+spec:
+  ports:
+  - port: 443
+    targetPort: 9443
+  selector:
+    control-plane: nephe-controller
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    control-plane: nephe-controller
+  name: nephe-controller
+  namespace: nephe-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      control-plane: nephe-controller
+  template:
+    metadata:
+      labels:
+        control-plane: nephe-controller
+    spec:
+      containers:
+      - args:
+        - --enable-leader-election
+        - --enable-debug-log
+        command:
+        - /nephe-controller
+        image: projects.registry.vmware.com/antrea/nephe:latest
+        imagePullPolicy: IfNotPresent
+        name: nephe-controller
+        ports:
+        - containerPort: 9443
+          name: webhook-server
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 2000Mi
+          requests:
+            cpu: 200m
+            memory: 500Mi
+        volumeMounts:
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: cert
+          readOnly: true
+        - mountPath: /tmp/k8s-apiserver/serving-certs
+          name: apiserver-cert
+          readOnly: true
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - name: cert
+        secret:
+          defaultMode: 420
+          secretName: serving-cert
+      - name: apiserver-cert
+        secret:
+          defaultMode: 420
+          secretName: serving-cert
+---
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: nephe-system/serving-cert
+  name: v1alpha1.runtime.cloud.antrea.io
+spec:
+  group: runtime.cloud.antrea.io
+  groupPriorityMinimum: 100
+  service:
+    name: nephe-controller-service
+    namespace: nephe-system
+  version: v1alpha1
+  versionPriority: 100
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: serving-cert
+  namespace: nephe-system
+spec:
+  dnsNames:
+  - '*.nephe-system.svc'
+  - '*.nephe-system.svc.cluster.local'
+  issuerRef:
+    kind: Issuer
+    name: selfsigned-issuer
+  secretName: serving-cert
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: selfsigned-issuer
+  namespace: nephe-system
+spec:
+  selfSigned: {}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: nephe-system/serving-cert
+  name: nephe-controller-mutating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    caBundle: Cg==
+    service:
+      name: nephe-controller-webhook-service
+      namespace: nephe-system
+      path: /mutate-crd-cloud-antrea-io-v1alpha1-virtualmachine
+  failurePolicy: Fail
+  name: mvirtualmachine.kb.io
+  rules:
+  - apiGroups:
+    - crd.cloud.antrea.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - virtualmachines
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    caBundle: Cg==
+    service:
+      name: nephe-controller-webhook-service
+      namespace: nephe-system
+      path: /mutate-crd-cloud-antrea-io-v1alpha1-cloudentityselector
+  failurePolicy: Fail
+  name: mcloudentityselector.kb.io
+  rules:
+  - apiGroups:
+    - crd.cloud.antrea.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - cloudentityselectors
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    caBundle: Cg==
+    service:
+      name: nephe-controller-webhook-service
+      namespace: nephe-system
+      path: /mutate-crd-cloud-antrea-io-v1alpha1-cloudprovideraccount
+  failurePolicy: Fail
+  name: mcloudprovideraccount.kb.io
+  rules:
+  - apiGroups:
+    - crd.cloud.antrea.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    resources:
+    - cloudprovideraccounts
+  sideEffects: None
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: nephe-system/serving-cert
+  name: nephe-controller-validating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    caBundle: Cg==
+    service:
+      name: nephe-controller-webhook-service
+      namespace: nephe-system
+      path: /validate-crd-cloud-antrea-io-v1alpha1-virtualmachine
+  failurePolicy: Fail
+  name: vvirtualmachine.kb.io
+  rules:
+  - apiGroups:
+    - crd.cloud.antrea.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - virtualmachines
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    caBundle: Cg==
+    service:
+      name: nephe-controller-webhook-service
+      namespace: nephe-system
+      path: /validate-crd-cloud-antrea-io-v1alpha1-cloudentityselector
+  failurePolicy: Fail
+  name: vcloudentityselector.kb.io
+  rules:
+  - apiGroups:
+    - crd.cloud.antrea.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - cloudentityselectors
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    caBundle: Cg==
+    service:
+      name: nephe-controller-webhook-service
+      namespace: nephe-system
+      path: /validate-crd-cloud-antrea-io-v1alpha1-cloudprovideraccount
+  failurePolicy: Fail
+  name: vcloudprovideraccount.kb.io
+  rules:
+  - apiGroups:
+    - crd.cloud.antrea.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - cloudprovideraccounts
+  sideEffects: None

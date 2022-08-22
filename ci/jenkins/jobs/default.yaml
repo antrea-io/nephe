@@ -1,0 +1,7 @@
+- defaults:
+    name: global
+    ghpr_auth: ""
+    nephe_admin_list: ["liu4480", "reachjainrahul", "Anandkumar26", "shenmo3"]
+    nephe_org_list: [""]
+    nephe_white_list: []
+    org_repo: "antrea-io/nephe"

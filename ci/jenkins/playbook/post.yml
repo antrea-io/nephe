@@ -1,0 +1,10 @@
+---
+- hosts: controlplane
+  roles:
+  - e2e
+- hosts: jumper
+  roles:
+  - e2e
+- hosts: all
+  roles:
+  - sshconfig

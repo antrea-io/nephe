@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+
+# Copyright 2022 Antrea Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+AZURE_CLI="az"
+TERRAFORM="terraform"
+KUBECTL="kubectl"
+RUN_PATH="$HOME/tmp/terraform-aks"
+CONFIG_PATH=$(dirname $(readlink -f "$0"))/terraform/aks
+CMD_ARRAY=($AZURE_CLI $TERRAFORM $KUBECTL pv bzip2 jq)
+ENV_ARRAY=(TF_VAR_aks_client_id TF_VAR_aks_client_secret)
+CREATE_ONLY=
+
+_usage="Usage: $0 :
+                [create]  [--create-only]: create aks cluster, If create-only, no prerequisites are deployed
+                [destroy] : destroy aks cluster
+                [output]  : display aks attributes
+                [kubectl] : access aks
+                [load] : load image to aks cluster
+                [--help|h]"
+
+function print_help {
+    echo "Try '$0 --help' for more information."
+}
+
+function print_usage {
+    echo "$_usage"
+}
+
+function validate {
+  for cmd in ${CMD_ARRAY[@]}; do
+     which $cmd > /dev/null 2>&1
+     if [ $? -ne 0 ]; then
+       echo $cmd not found, please install first
+       exit 1
+     fi
+  done
+
+  for env in ${ENV_ARRAY[@]}; do
+     printenv $env > /dev/null 2>&1
+     if [ $? -ne 0 ]; then
+       echo required environment variable $env is not set.
+       exit 1
+     fi
+  done
+}
+
+function apply {
+  validate
+  mkdir -p $RUN_PATH
+  if [ $? -ne 0 ]; then
+     echo $RUN_PATH cannot be created
+     exit 1
+  fi
+  cp $CONFIG_PATH/* $RUN_PATH
+
+  cd $RUN_PATH
+  $TERRAFORM init
+  if [ $? -ne 0 ]; then
+     exit 1
+  fi
+  $TERRAFORM apply -auto-approve
+  if [[ $? -ne 0 ]]; then
+    echo "aks creation failed"
+    exit 1
+  fi
+  echo aks cluster created.
+  $TERRAFORM output -json kube_config | jq -r . > $RUN_PATH/kubeconfig
+  echo run aks kubectl ... to acess it.
+
+  if [ -z $CREATE_ONLY ]; then
+     KUBECONFIG=$RUN_PATH/kubeconfig kubectl apply -f antrea-aks-node-init.yml
+     KUBECONFIG=$RUN_PATH/kubeconfig kubectl apply -f antrea-aks.yml
+     KUBECONFIG=$RUN_PATH/kubeconfig kubectl create namespace cert-manager
+     KUBECONFIG=$RUN_PATH/kubeconfig kubectl apply --validate=false -f "https://github.com/jetstack/cert-manager/releases/download/v1.2.0/cert-manager.yaml"
+  fi
+}
+
+function destroy {
+  if [ ! -d $RUN_PATH ]; then
+    exit 0
+  fi
+  cd $RUN_PATH
+  $TERRAFORM destroy -auto-approve
+}
+
+function load {
+  image=$1
+  nodes=$(KUBECONFIG=$RUN_PATH/kubeconfig kubectl get nodes -o json | jq -r '.items[] | .status | .addresses[] | select(.type == "ExternalIP") |.address')
+  for node in $(echo $nodes); do
+    echo load $image to $node
+    docker save $image | pv| ssh  -oStrictHostKeyChecking=no azureuser@$node 'sudo ctr -n=k8s.io images import -'
+  done
+}
+
+function output {
+  if [ ! -d $RUN_PATH ]; then
+    exit 1
+  fi
+  cd $RUN_PATH
+  $TERRAFORM output
+}
+
+while [[ $# -gt 0 ]]
+do
+key="$1"
+
+case $key in
+    create)
+      shift 1
+    ;;
+    --create-only)
+      CREATE_ONLY=true
+      shift 1
+    ;;
+    destroy)
+      destroy
+      exit 0
+    ;;
+    output)
+      output
+      exit 0
+    ;;
+    kubectl)
+      KUBECONFIG=$RUN_PATH/kubeconfig kubectl ${@:2}
+      exit $?
+    ;;
+    load)
+      load $2
+      exit $?
+    ;;
+    -h|--help)
+    print_usage
+    exit 0
+    ;;
+    *)    # unknown option
+    echo "Unknown option $1"
+    exit 1
+    ;;
+esac
+done
+
+apply

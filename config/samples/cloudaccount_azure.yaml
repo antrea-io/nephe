@@ -1,0 +1,35 @@
+# Add Azure Account and Onboard VNET
+# To get base64 encoded json string for secret credential, run:
+# echo '{"subscriptionId": "AZURE_SUBSCRIPTION_ID", "clientId": "YOUR_AZURE_CLIENT_ID", "tenantId": "AZURE_TENANT_ID", "clientKey": "YOUR_AZURE_CLIENT_KEY"}' | openssl base64
+apiVersion: v1
+kind: Secret
+metadata:
+  name: azure-account-creds
+  namespace: nephe-system
+type: Opaque
+data:
+  credentials: "<BASE64_ENCODED_JSON_STRING>"
+---
+apiVersion: crd.cloud.antrea.io/v1alpha1
+kind: CloudProviderAccount
+metadata:
+  name: cloudprovideraccount-azure-sample
+  namespace: sample-ns
+spec:
+  azureConfig:
+    region: "<REPLACE_ME>"
+    secretRef:
+      name: azure-account-creds
+      namespace: nephe-system
+      key: credentials
+---
+apiVersion: crd.cloud.antrea.io/v1alpha1
+kind: CloudEntitySelector
+metadata:
+  name: cloudentityselector-azure-sample
+  namespace: sample-ns
+spec:
+  accountName: cloudprovideraccount-azure-sample
+  vmSelector:
+    - vpcMatch:
+        matchID: "<VNET_ID>"

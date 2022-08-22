@@ -1,0 +1,20 @@
+# permissions for end users to view externalentities.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: externalentity-viewer-role
+rules:
+- apiGroups:
+  - crd.antrea.io
+  resources:
+  - externalentities
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - crd.antrea.io
+  resources:
+  - externalentities/status
+  verbs:
+  - get

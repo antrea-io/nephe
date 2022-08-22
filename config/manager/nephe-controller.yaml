@@ -1,0 +1,62 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: system
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nephe-controller-service
+  namespace: system
+spec:
+  ports:
+  - port: 443
+    protocol: TCP
+    targetPort: 5443
+  selector:
+    control-plane: nephe-controller
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nephe-controller
+  namespace: system
+  labels:
+    control-plane: nephe-controller
+spec:
+  selector:
+    matchLabels:
+      control-plane: nephe-controller
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        control-plane: nephe-controller
+    spec:
+      containers:
+      - command:
+        - /nephe-controller
+        args:
+        - --enable-leader-election
+        - --enable-debug-log
+        image: "projects.registry.vmware.com/antrea/nephe:latest"
+        imagePullPolicy: IfNotPresent
+        name: nephe-controller
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 2000Mi
+          requests:
+            cpu: 200m
+            memory: 500Mi
+        volumeMounts:
+          - name: apiserver-cert
+            mountPath: /tmp/k8s-apiserver/serving-certs
+            readOnly: true
+      volumes:
+        - name: apiserver-cert
+          secret:
+            defaultMode: 420
+            secretName: serving-cert
+      terminationGracePeriodSeconds: 10

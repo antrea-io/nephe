@@ -1,0 +1,20 @@
+# permissions for end users to view cloudprovideraccounts.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cloudprovideraccount-viewer-role
+rules:
+- apiGroups:
+  - crd.cloud.antrea.io
+  resources:
+  - cloudprovideraccounts
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - crd.cloud.antrea.io
+  resources:
+  - cloudprovideraccounts/status
+  verbs:
+  - get

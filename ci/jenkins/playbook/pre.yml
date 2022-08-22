@@ -1,0 +1,12 @@
+---
+- hosts: all
+  strategy: free
+  become: yes
+  roles:
+    - common
+- hosts: jumper
+  strategy: free
+  become: yes
+  roles:
+    - jenkins
+    - docker

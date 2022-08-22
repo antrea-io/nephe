@@ -1,0 +1,21 @@
+# Add Policy to add SSH
+apiVersion: crd.antrea.io/v1alpha1
+kind: NetworkPolicy
+metadata:
+  name: vm-anp
+  namespace: sample-ns
+spec:
+  priority: 1
+  appliedTo:
+  - externalEntitySelector:
+      matchLabels:
+         kind.nephe: virtualmachine
+  ingress:
+  - action: Allow
+    from:
+      - ipBlock:
+          cidr: 0.0.0.0/0
+    ports:
+      - protocol: TCP
+        port: 22
+

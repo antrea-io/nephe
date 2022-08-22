@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+
+# Copyright 2022 Antrea Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# NOTE: terraform environment variables need to be set
+
+# save console logs
+exec > >(tee -i /tmp/terraform-console-vm-deploy.log)
+exec 2>&1
+
+TERRAFORM="terraform"
+RUN_PATH="$HOME/tmp/terraform-azure"
+CONFIG_PATH=$(dirname $(readlink -f "$0"))/terraform/azure
+
+_usage="Usage: $0 :
+                [create]  : create vm cluster
+                [destroy] : destroy vm cluster
+                [output] : display vm cluster output variables
+                [help]"
+
+function print_usage {
+    echo -e "$_usage"
+}
+
+function apply {
+  mkdir -p $RUN_PATH
+  if [ $? -ne 0 ]; then
+     echo $RUN_PATH cannot be created
+     exit 1
+  fi
+  cp $CONFIG_PATH/* $RUN_PATH
+  cd $RUN_PATH
+  $TERRAFORM init
+  if [ $? -ne 0 ]; then
+     exit 1
+  fi
+  $TERRAFORM apply -auto-approve
+  if [[ $? -ne 0 ]]; then
+    echo "vm cluster creation failed"
+    exit 1
+  fi
+  echo vm cluster created.
+}
+
+function destroy {
+  if [ ! -d $RUN_PATH ]; then
+    exit 0
+  fi
+  cd $RUN_PATH
+  $TERRAFORM destroy -auto-approve
+}
+
+function output {
+  if [ ! -d $RUN_PATH ]; then
+    exit 1
+  fi
+  cd $RUN_PATH
+  $TERRAFORM output ${@}
+}
+
+while [[ $# -gt 0 ]]
+do
+key="$1"
+outputKey="${@:2}"
+
+case $key in
+    create)
+    apply
+    exit 0
+    ;;
+    destroy)
+    destroy
+    exit 0
+    ;;
+    output)
+    output $outputKey
+    exit 0
+    ;;
+    help)
+    print_usage
+    exit 0
+    ;;
+    *)    # unknown option
+    echo -e "Unknown option $1"
+    exit 1
+    ;;
+esac
+done

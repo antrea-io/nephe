@@ -1,0 +1,58 @@
+# golangci.com configuration
+# https://github.com/golangci/golangci/wiki/Configuration
+service:
+  # Use the fixed version to not introduce new linters unexpectedly.
+  # NOTE: Update the golangci-lint version in sync at build/images/Dockerfile and .golangci.yml.
+  golangci-lint-version: 1.41.1
+run:
+  # timeout for analysis, e.g. 30s, 5m, default is 1m
+  deadline: 20m
+  skip-files:
+    - zz_generated.deepcopy.go
+
+linters:
+  disable-all: true
+  enable:
+    # Enabled By Default Linters
+    - gofmt
+    - govet
+    - errcheck
+    - deadcode
+    - staticcheck
+    - unused
+    - gosimple
+    - structcheck
+    - varcheck
+    - ineffassign
+    - typecheck
+    # Enabled for project Linters
+    - revive
+    - lll
+    - misspell
+    - unparam
+    - whitespace
+    # godot enable back once the repo is cleaned up
+
+linters-settings:
+  funlen:
+    lines: 100
+    statements: 50
+  goconst:
+    min-len: 3
+    min-occurrences: 2
+  golint:
+    min-confidence: 0
+  lll:
+    line-length: 140
+    tab-width: 1
+  misspell:
+    locale: US
+  revive:
+    ignore-generated-header: true
+    severity: warning
+    rules:
+      - name: atomic
+      - name: line-length-limit
+        severity: error
+        arguments: [330]
+

@@ -1,0 +1,27 @@
+# Binaries for programs and plugins
+bin
+.mockgen
+.cache
+.golangci-bin
+
+# Test binary, build with `go test -c`
+*.test
+
+# VIM
+.*.swp
+
+# Emacs
+*~
+
+# IDEs
+.idea
+.vscode
+
+# Kubernetes Generated files - skip generated files, except for vendored files
+!vendor/**/zz_generated.*
+
+# terraform generated files
+*.tfstate
+*.backup
+*.hcl
+.terraform/
