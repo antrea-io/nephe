@@ -52,7 +52,7 @@ controller etc.
 ### Cloud Entity Selector (CES) Controller
 
 The CES controller watches `CloudEntitySelectors` CR specified by the user. It
-extracts the specified `CloudProviderAccount` and the match selectors in the 
+extracts the specified `CloudProviderAccount` and the match selectors in the
 CR. It scans corresponding cloud providers' VPC / VNET, discovers matching
 cloud resources such as VMs, and caches them. An account poller is configured by
 the controller in the same Namespace as the `CloudEntitySelector`.

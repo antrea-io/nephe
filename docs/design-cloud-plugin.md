@@ -66,17 +66,20 @@ The Cloud Interface plugin is a `CloudInterface` interface implemented by
 each cloud plugin. Cloud Interface plugin is composed of the following
 interfaces:
 
-**ComputeInterface**: 
+**ComputeInterface**:
+
 - Provides APIs to get compute instances inventory in terms
   of VirtualMachine for a cloud.
 
 **AccountMgmtInterface**:
+
 - Provides APIs to add/remove/update cloud accounts using CloudProviderAccount
   CR.
 - Provides APIs to add/remove/update cloud resource selectors using
   CloudEntitySelector CR.
 
 **SecurityGroupInterface**:
+
 - Provides APIs to realize Kubernetes NetworkPolicy via the cloud native
   security groups.
 
@@ -177,11 +180,11 @@ for new cloud type as shown below.
 type CloudProvider string
 
 const (
-	// AzureCloudProvider specifies Azure.
-	AzureCloudProvider CloudProvider = "Azure"
-	// AWSCloudProvider specifies AWS.
-	AWSCloudProvider CloudProvider = "AWS"
-	// ADD NEW CLOUD TYPE HERE
+ // AzureCloudProvider specifies Azure.
+ AzureCloudProvider CloudProvider = "Azure"
+ // AWSCloudProvider specifies AWS.
+ AWSCloudProvider CloudProvider = "AWS"
+ // ADD NEW CLOUD TYPE HERE
 )
 ```
 

@@ -43,23 +43,23 @@ if this test spec should be run in zero or more test suites.
 
 1. Install [ginkgo v1.16.5](https://onsi.github.io/ginkgo/).
 
-```bash
-go install github.com/onsi/ginkgo/ginkgo@v1.16.5
-export PATH=$PATH:$(go env GOPATH)/bin
-```
+   ```bash
+   go install github.com/onsi/ginkgo/ginkgo@v1.16.5
+   export PATH=$PATH:$(go env GOPATH)/bin
+   ```
 
 2. Download the below docker images.
 
-```bash
-docker pull kennethreitz/httpbin
-docker pull byrnedo/alpine-curl
-```
+   ```bash
+   docker pull kennethreitz/httpbin
+   docker pull byrnedo/alpine-curl
+   ```
 
 3. Create a Kind cluster
 
-```bash
-ci/kind/kind-setup.sh create kind
-```
+   ```bash
+   ci/kind/kind-setup.sh create kind
+   ```
 
 ### Running AWS Integration Test
 
@@ -109,7 +109,7 @@ make integration-test-azure
 
 ### Running Integration Test on Cloud cluster
 
--  Deploy Nephe on an EKS cluster using [the EKS installation guide](../docs/eks-installation.md).
+- Deploy Nephe on an EKS cluster using [the EKS installation guide](../docs/eks-installation.md).
    Run integration tests on EKS cluster.
 
    ```bash
@@ -122,7 +122,7 @@ make integration-test-azure
     export TF_VAR_nephe_controller_role_arn=YOUR_IAM_ROLE
     ```
 
--  Deploy Nephe on an AKS cluster using [the AKS installation guide](../docs/eks-installation.md).
+- Deploy Nephe on an AKS cluster using [the AKS installation guide](../docs/eks-installation.md).
    Run integration tests on AKS cluster.
 
    ```bash
@@ -131,5 +131,3 @@ make integration-test-azure
 
 **Note**: If Cloud cluster is not created using nephe [terraform scripts](../hack/terraform),
 then update the `-kubeconfig` argument with your kubeconfig file.
-
-

@@ -32,11 +32,11 @@
    export TF_VAR_eks_key_pair_name=YOUR_KEY_PAIR_TO_ACCESS_WORKER_NODE
    ```
 
-   -  `TF_VAR_owner` may be set so that you can identify your own cloud resources.
+   - `TF_VAR_owner` may be set so that you can identify your own cloud resources.
       It should be one word, with no spaces and in lower case.
-   -  `TF_VAR_eks_cluster_iam_role_name` may be created following this [AWS guide](https://docs.aws.amazon.com/eks/latest/userguide/service_IAM_role.html#create-service-role).
-   -  `TF_VAR_eks_iam_instance_profile_name` may be created following this [AWS guide](https://docs.aws.amazon.com/eks/latest/userguide/create-node-role.html).
-   -  `TF_VAR_eks_key_pair_name` must be configured following this
+   - `TF_VAR_eks_cluster_iam_role_name` may be created following this [AWS guide](https://docs.aws.amazon.com/eks/latest/userguide/service_IAM_role.html#create-service-role).
+   - `TF_VAR_eks_iam_instance_profile_name` may be created following this [AWS guide](https://docs.aws.amazon.com/eks/latest/userguide/create-node-role.html).
+   - `TF_VAR_eks_key_pair_name` must be configured following this
       [AWS cli documentation](https://awscli.amazonaws.com/v2/documentation/api/latest/reference/ec2/import-key-pair.html).
       The public key imported to AWS should be `~/.ssh/id_rsa.pub`. Follow the
       documentation to create a new key then import if this key doesn't exist.
@@ -57,7 +57,7 @@ required bash and terraform scripts to the user home directory, under
 ### Create an EKS cluster
 
 Create an EKS cluster using the provided terraform scripts. Once the EKS cluster
-is created, worker nodes are accessible via their external IP using ssh. 
+is created, worker nodes are accessible via their external IP using ssh.
 Terraform state files and other runtime info will be stored under
 `~/tmp/terraform-eks/`. You can also create an EKS cluster in other ways and
 deploy prerequisites manually.
@@ -71,7 +71,7 @@ This also deploys `cert-manager v1.8.2` and `Antrea v1.8`.
 ### Deploy Nephe Controller
 
 To deploy the latest version of nephe (built from the main branch), use the
-checked-in [deployment yaml](/config/nephe.yml):
+checked-in [deployment yaml](../config/nephe.yml):
 
 ```bash
 ~/terraform/eks kubectl apply -f https://raw.githubusercontent.com/antrea-io/nephe/main/config/nephe.yml

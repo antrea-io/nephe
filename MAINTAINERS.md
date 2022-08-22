@@ -6,4 +6,3 @@ is described in [GOVERNANCE.md](GOVERNANCE.md).
 | Maintainer | GitHub ID      | Affiliation |
 |------------|----------------|-------------|
 | Rahul Jain | reachjainrahul | VMware      |
-
