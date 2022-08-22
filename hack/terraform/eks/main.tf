@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 0.13.1"
+  required_version = ">= 0.13.5"
   required_providers {
     aws = {
       version = "~> 4.4"
@@ -116,7 +116,7 @@ module "eks" {
       asg_desired_capacity      = var.eks_worker_count
       public_ip                 = true
       iam_instance_profile_name = var.eks_iam_instance_profile_name
-      key_name                  = var.eks_key_pair_name
+      key_name                  = var.aws_key_pair_name
     },
   ]
 

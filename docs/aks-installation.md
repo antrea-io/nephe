@@ -20,7 +20,7 @@
 
 ## Prerequisites
 
-1. Install and configure [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest).
+1. Install [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) v1.24+.
 2. Install [Terraform](https://learn.hashicorp.com/terraform/getting-started/install.html). Recommend v1.2.2.
 3. Install `jq`, `pv`, and `bzip2`.
 4. Create or obtain an azure service principal and set the below environment
@@ -28,10 +28,10 @@
    for more information.
 
    ```bash
-   export TF_VAR_aks_client_id=YOUR_SERVICE_PRINCIPAL_ID
-   export TF_VAR_aks_client_secret=YOUR_SERVICE_PRINCIPAL_SECRET
-   export TF_VAR_aks_client_subscription_id=YOUR_SUBCRIPTION_ID
-   export TF_VAR_aks_client_tenant_id=YOUR_TENANT_ID
+   export TF_VAR_azure_client_id=YOUR_SERVICE_PRINCIPAL_ID
+   export TF_VAR_azure_client_secret=YOUR_SERVICE_PRINCIPAL_SECRET
+   export TF_VAR_azure_client_subscription_id=YOUR_SUBCRIPTION_ID
+   export TF_VAR_azure_client_tenant_id=YOUR_TENANT_ID
    export TF_VAR_owner=YOUR_NAME
    ```
 
@@ -108,11 +108,12 @@ Additionally, you can also create compute VNET with 3 VMs using terraform
 scripts for testing purpose. Each VM will have a public IP and an Apache Tomcat
 server deployed on port 80. Use curl `<PUBLIC_IP>:80` to access a sample web
 page. Create or obtain Azure Service Principal credential and configure the
-below environment variables.
+below environment variables, see [Prerequisites](#Prerequisites) section for
+more details.
 
 ```bash
-export TF_VAR_azure_client_id=YOUR_CLIENT_ID
-export TF_VAR_azure_client_secret=YOUR_CLIENT_SECRET
+export TF_VAR_azure_client_id=YOUR_SERVICE_PRINCIPAL_ID
+export TF_VAR_azure_client_secret=YOUR_SERVICE_PRINCIPAL_SECRET
 export TF_VAR_azure_client_subscription_id=YOUR_SUBCRIPTION_ID
 export TF_VAR_azure_client_tenant_id=YOUR_TENANT_ID
 export TF_VAR_owner=YOUR_NAME
@@ -131,7 +132,7 @@ export TF_VAR_owner=YOUR_NAME
 ```
 
 Terraform state files and other runtime info will be stored under
-`~/tmp/terraform-azure/`
+`~/tmp/terraform-azure/`.
 
 ### Display VNET attributes
 

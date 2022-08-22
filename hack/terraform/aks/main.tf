@@ -14,36 +14,11 @@ terraform {
 }
 
 provider "azurerm" {
-  client_id       = var.aks_client_id
-  client_secret   = var.aks_client_secret
-  subscription_id = var.aks_client_subscription_id
-  tenant_id       = var.aks_client_tenant_id
+  client_id       = var.azure_client_id
+  client_secret   = var.azure_client_secret
+  subscription_id = var.azure_client_subscription_id
+  tenant_id       = var.azure_client_tenant_id
   features {}
-}
-
-resource "azurerm_resource_group" "k8s" {
-  name     = local.resource_group_name
-  location = var.location
-}
-
-# get the auto-generated NSG name
-data "external" "aks_nsg_id" {
-  program = [
-    "bash",
-    "aks_nsg_id",
-    local.resource_group_name
-  ]
-  depends_on = [azurerm_kubernetes_cluster.k8s]
-}
-
-# get the auto-generated resource group name
-data "external" "aks_rg_name" {
-  program = [
-    "bash",
-    "aks_rg_name",
-    local.resource_group_name
-  ]
-  depends_on = [azurerm_kubernetes_cluster.k8s]
 }
 
 locals {
@@ -54,9 +29,19 @@ locals {
   resource_group_name = "nephe-aks-${local.owner_name}-${random_string.suffix.result}"
 }
 
+data "azurerm_resources" "node_nsg" {
+  resource_group_name = azurerm_kubernetes_cluster.k8s.node_resource_group
+  type = "Microsoft.Network/networkSecurityGroups"
+}
+
 resource "random_string" "suffix" {
   length  = 4
   special = false
+}
+
+resource "azurerm_resource_group" "k8s" {
+  name     = local.resource_group_name
+  location = var.location
 }
 
 resource "azurerm_network_security_rule" "openport" {
@@ -69,8 +54,8 @@ resource "azurerm_network_security_rule" "openport" {
   destination_port_range      = var.aks_open_port
   source_address_prefix       = "*"
   destination_address_prefix  = "*"
-  resource_group_name         = data.external.aks_rg_name.result.output
-  network_security_group_name = data.external.aks_nsg_id.result.output
+  resource_group_name         = azurerm_kubernetes_cluster.k8s.node_resource_group
+  network_security_group_name = data.azurerm_resources.node_nsg.resources[0].name
 }
 
 resource "azurerm_kubernetes_cluster" "k8s" {
