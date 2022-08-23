@@ -74,7 +74,8 @@ This also deploys `cert-manager v1.8.2` and `Antrea v1.8`.
 ### Deploy Nephe Controller
 
 To deploy the latest version of nephe (built from the main branch), use the
-checked-in [deployment yaml](../config/nephe.yml):
+checked-in [deployment yaml](../config/nephe.yml) after `cert-manager` Pods are
+running:
 
 ```bash
 ~/terraform/eks kubectl apply -f https://raw.githubusercontent.com/antrea-io/nephe/main/config/nephe.yml
