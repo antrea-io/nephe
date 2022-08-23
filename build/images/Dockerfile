@@ -12,7 +12,7 @@ RUN	CONTROLLER_GEN_TMP_DIR=$(mktemp -d) &&\
 RUN	KUSTOMIZE_TMP_DIR=$(mktemp -d) &&\
 	cd $KUSTOMIZE_TMP_DIR && \
 	go mod init tmp  && \
-	go get sigs.k8s.io/kustomize/kustomize/v3@v3.8.7 &&\
+	go get sigs.k8s.io/kustomize/kustomize/v4@v4.4.1 &&\
 	rm -rf $$KUSTOMIZE_TMP_DIR
 
 # install mockgen

@@ -37,13 +37,18 @@ spec:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: CloudEntitySelector is the Schema for the cloudentityselectors API.
+        description: CloudEntitySelector is the Schema for the cloudentityselectors
+          API.
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
             type: string
           metadata:
             type: object
@@ -54,31 +59,48 @@ spec:
                 description: AccountName specifies cloud account in this CloudProvider.
                 type: string
               vmSelector:
-                description: VMSelector selects the VirtualMachines the user has modify privilege. VMSelector is mandatory, at least one selector under VMSelector is required. It is an array, VirtualMachines satisfying any item on VMSelector are selected(ORed).
+                description: VMSelector selects the VirtualMachines the user has modify
+                  privilege. VMSelector is mandatory, at least one selector under
+                  VMSelector is required. It is an array, VirtualMachines satisfying
+                  any item on VMSelector are selected(ORed).
                 items:
-                  description: VirtualMachineSelector specifies VirtualMachine match criteria. VirtualMachines must satisfy all fields(ANDed) in a VirtualMachineSelector in order to satisfy match.
+                  description: VirtualMachineSelector specifies VirtualMachine match
+                    criteria. VirtualMachines must satisfy all fields(ANDed) in a
+                    VirtualMachineSelector in order to satisfy match.
                   properties:
                     vmMatch:
-                      description: VMMatch specifies VirtualMachines to match. It is an array, match satisfying any item on VMMatch is selected(ORed). If it is not specified, all VirtualMachines matching VpcMatch are selected.
+                      description: VMMatch specifies VirtualMachines to match. It
+                        is an array, match satisfying any item on VMMatch is selected(ORed).
+                        If it is not specified, all VirtualMachines matching VpcMatch
+                        are selected.
                       items:
-                        description: EntityMatch specifies match conditions to cloud entities. Cloud entities must satisfy all fields(ANDed) in EntityMatch to satisfy EntityMatch.
+                        description: EntityMatch specifies match conditions to cloud
+                          entities. Cloud entities must satisfy all fields(ANDed)
+                          in EntityMatch to satisfy EntityMatch.
                         properties:
                           matchID:
-                            description: MatchID matches cloud entities' identifier. If not specified, it matches any cloud entities.
+                            description: MatchID matches cloud entities' identifier.
+                              If not specified, it matches any cloud entities.
                             type: string
                           matchName:
-                            description: MatchName matches cloud entities' name. If not specified, it matches any cloud entities.
+                            description: MatchName matches cloud entities' name. If
+                              not specified, it matches any cloud entities.
                             type: string
                         type: object
                       type: array
                     vpcMatch:
-                      description: VpcMatch specifies the virtual private cloud to which VirtualMachines belong. VpcMatch is ANDed with VMMatch. If it is not specified, VirtualMachines may belong to any virtual private cloud.
+                      description: VpcMatch specifies the virtual private cloud to
+                        which VirtualMachines belong. VpcMatch is ANDed with VMMatch.
+                        If it is not specified, VirtualMachines may belong to any
+                        virtual private cloud.
                       properties:
                         matchID:
-                          description: MatchID matches cloud entities' identifier. If not specified, it matches any cloud entities.
+                          description: MatchID matches cloud entities' identifier.
+                            If not specified, it matches any cloud entities.
                           type: string
                         matchName:
-                          description: MatchName matches cloud entities' name. If not specified, it matches any cloud entities.
+                          description: MatchName matches cloud entities' name. If
+                            not specified, it matches any cloud entities.
                           type: string
                       type: object
                   type: object
@@ -130,13 +152,18 @@ spec:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: CloudProviderAccount is the Schema for the cloudprovideraccounts API.
+        description: CloudProviderAccount is the Schema for the cloudprovideraccounts
+          API.
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
             type: string
           metadata:
             type: object
@@ -150,7 +177,8 @@ spec:
                     description: Cloud provider account region.
                     type: string
                   secretRef:
-                    description: Reference to k8s secret which has cloud provider credentials.
+                    description: Reference to k8s secret which has cloud provider
+                      credentials.
                     properties:
                       key:
                         description: Key to select in the secret.
@@ -173,7 +201,8 @@ spec:
                   region:
                     type: string
                   secretRef:
-                    description: SecretReference is a reference to a k8s secret resource in an arbitrary namespace.
+                    description: SecretReference is a reference to a k8s secret resource
+                      in an arbitrary namespace.
                     properties:
                       key:
                         description: Key to select in the secret.
@@ -191,14 +220,18 @@ spec:
                     type: object
                 type: object
               pollIntervalInSeconds:
-                description: PollIntervalInSeconds defines account poll interval (default value is 60, if not specified).
+                description: PollIntervalInSeconds defines account poll interval (default
+                  value is 60, if not specified).
                 type: integer
             type: object
           status:
-            description: CloudProviderAccountStatus defines the observed state of CloudProviderAccount.
+            description: CloudProviderAccountStatus defines the observed state of
+              CloudProviderAccount.
             properties:
               error:
-                description: 'INSERT ADDITIONAL STATUS FIELD - define observed state of cluster Important: Run "make" to regenerate code after modifying this file Error is current error, if any, of the CloudProviderAccount.'
+                description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
+                  of cluster Important: Run "make" to regenerate code after modifying
+                  this file Error is current error, if any, of the CloudProviderAccount.'
                 type: string
             type: object
         type: object
@@ -257,23 +290,32 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: VirtualMachine is the Schema for the virtualmachines API A virtualMachine object is created automatically based on matching criteria specification of CloudEntitySelector.
+        description: VirtualMachine is the Schema for the virtualmachines API A virtualMachine
+          object is created automatically based on matching criteria specification
+          of CloudEntitySelector.
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
             type: string
           metadata:
             type: object
           status:
-            description: VirtualMachineStatus defines the observed state of VirtualMachine It contains observable parameters.
+            description: VirtualMachineStatus defines the observed state of VirtualMachine
+              It contains observable parameters.
             properties:
               networkInterfaces:
-                description: NetworkInterfaces is array of NetworkInterfaces attached to this VirtualMachine.
+                description: NetworkInterfaces is array of NetworkInterfaces attached
+                  to this VirtualMachine.
                 items:
-                  description: NetworkInterface contains information pertaining to NetworkInterface.
+                  description: NetworkInterface contains information pertaining to
+                    NetworkInterface.
                   properties:
                     ips:
                       description: IP addresses of this NetworkInterface.
@@ -307,10 +349,12 @@ spec:
               tags:
                 additionalProperties:
                   type: string
-                description: Tags of this VirtualMachine. A corresponding label is also generated for each tag.
+                description: Tags of this VirtualMachine. A corresponding label is
+                  also generated for each tag.
                 type: object
               virtualPrivateCloud:
-                description: VirtualPrivateCloud is the virtual private cloud this VirtualMachine belongs to.
+                description: VirtualPrivateCloud is the virtual private cloud this
+                  VirtualMachine belongs to.
                 type: string
             type: object
         type: object
