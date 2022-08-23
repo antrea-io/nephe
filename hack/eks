@@ -96,7 +96,7 @@ function apply {
      KUBECONFIG=$RUN_PATH/kubeconfig kubectl apply -f antrea-eks-node-init.yml
      KUBECONFIG=$RUN_PATH/kubeconfig kubectl apply -f antrea-eks.yml
      KUBECONFIG=$RUN_PATH/kubeconfig kubectl create namespace cert-manager
-     KUBECONFIG=$RUN_PATH/kubeconfig kubectl apply --validate=false -f "https://github.com/jetstack/cert-manager/releases/download/v1.2.0/cert-manager.yaml"
+     KUBECONFIG=$RUN_PATH/kubeconfig kubectl apply --validate=false -f "https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cert-manager.yaml"
   fi
 
   echo run eks kubectl ... to acess it.

@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 0.12.0"
+  required_version = ">= 0.13.5"
   required_providers {
     azurerm = {
       version = "=2.78.0"
@@ -105,8 +105,6 @@ resource "azurerm_kubernetes_cluster" "k8s" {
   identity {
     type = "SystemAssigned"
   }
-
-  kubernetes_version = "1.21.9"
 
   tags = {
     Environment = "nephe"

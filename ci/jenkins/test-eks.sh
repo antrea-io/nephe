@@ -16,7 +16,7 @@
 
 set -e
 KUBECTL_VERSION=v1.24.1
-TERRAFORM_VERSION=0.13.5
+TERRAFORM_VERSION=1.2.2
 
 echo "Installing Kubectl"
 curl -LO https://storage.googleapis.com/kubernetes-release/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl
@@ -30,7 +30,7 @@ chmod +x ./terraform && sudo mv ./terraform /usr/local/bin/terraform
 
 echo "Installing AWS CLI"
 curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-unzip awscliv2.zip
+unzip -q awscliv2.zip
 sudo ./aws/install
 
 echo "Installing eksctl"

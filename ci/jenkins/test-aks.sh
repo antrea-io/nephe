@@ -16,7 +16,7 @@
 
 set -e
 KUBECTL_VERSION=v1.24.1
-TERRAFORM_VERSION=0.13.5
+TERRAFORM_VERSION=1.2.2
 
 echo "Installing Kubectl"
 curl -LO https://storage.googleapis.com/kubernetes-release/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl
@@ -41,7 +41,6 @@ curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
 echo "Building Nephe Docker image"
 make build
-
 
 export TF_VAR_azure_client_subscription_id=$1
 export TF_VAR_azure_client_id=$2
