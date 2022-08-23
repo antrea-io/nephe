@@ -23,7 +23,7 @@ function echoerr {
 _usage="Usage: $0 [--help|-h]
 Generate a YAML manifest for Nephe using Kustomize and print it to stdout.
         --help    | -h                      Print this message and exit
-Environment variables IMG_NAME and IMG_TAG must be set when release mode is enabled.
+Environment variables IMG_NAME and IMG_TAG must be set.
 "
 
 function print_usage {
