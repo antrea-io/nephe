@@ -52,5 +52,5 @@ OUTPUT_DIR=$(cd "$1" && pwd)
 
 export IMG_TAG=$VERSION
 export IMG_NAME=projects.registry.vmware.com/antrea/nephe
-./hack/generate-manifest.sh --release > "$OUTPUT_DIR"/nephe.yml
+./hack/generate-manifest.sh > "$OUTPUT_DIR"/nephe.yml
 ls "$OUTPUT_DIR" | cat
