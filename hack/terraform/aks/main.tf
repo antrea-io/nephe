@@ -106,8 +106,6 @@ resource "azurerm_kubernetes_cluster" "k8s" {
     type = "SystemAssigned"
   }
 
-  kubernetes_version = "1.21.9"
-
   tags = {
     Environment = "nephe"
   }

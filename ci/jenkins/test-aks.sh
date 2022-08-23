@@ -42,7 +42,6 @@ curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 echo "Building Nephe Docker image"
 make build
 
-
 export TF_VAR_azure_client_subscription_id=$1
 export TF_VAR_azure_client_id=$2
 export TF_VAR_azure_client_tenant_id=$3
