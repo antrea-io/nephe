@@ -73,3 +73,41 @@
         credentials-id: ANTREA_GIT_CREDENTIAL
         url: 'https://github.com/{org_repo}'
     wrappers: '{wrappers}'
+- job-template:
+      name: '{test_name}'
+      node: '{node}'
+      triggers: '{triggers}'
+      builders: '{builders}'
+      parameters:
+          - string:
+                default: https://github.com/antrea-io/nephe/
+                description: The repository to checkout Nephe for this test.
+                name: NEPHE_REPO
+                trim: 'true'
+          - string:
+                default: main
+                description: The branch or SHA commit ID to checkout and build Nephe for this test.
+                name: NEPHE_GIT_REVISION
+                trim: 'true'
+      description: '{description}'
+      block-downstream: false
+      block-upstream: false
+      project-type: freestyle
+      properties:
+          - build-discarder:
+                artifact-days-to-keep: -1
+                artifact-num-to-keep: -1
+                days-to-keep: 30
+                num-to-keep: 30
+          - github:
+                url: '{repo_url}'
+      scm:
+          - git:
+                branches: '{branches}'
+                credentials-id: ANTREA_GIT_CREDENTIAL
+                name: origin
+                refspec: +refs/heads/*:refs/remotes/origin/* +refs/pull/${{ghprbPullId}}/*:refs/remotes/origin/pr/${{ghprbPullId}}/*
+                url: 'https://github.com/{org_repo}'
+                wipe-workspace: true
+      publishers: '{publishers}'
+      wrappers: '{wrappers}'
