@@ -20,9 +20,9 @@
 
 ## Prerequisites
 
-1. Install [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) v1.24+.
+1. Install [Kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) v1.24+.
 2. Install [Terraform](https://learn.hashicorp.com/terraform/getting-started/install.html). Recommend v1.2.2.
-3. Install `jq`, `pv`, and `bzip2`.
+3. Install `jq` and `pv`.
 4. Create or obtain an azure service principal and set the below environment
    variables. Please refer to [Azure documentation](https://docs.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal#create-an-azure-active-directory-application)
    for more information.
@@ -35,8 +35,8 @@
    export TF_VAR_owner=YOUR_NAME
    ```
 
-   Note: `TF_VAR_owner` may be set so that you can identify your own cloud resources.
-   It should be one word, with no spaces and in lower case.
+   Note: `TF_VAR_owner` may be set so that you can identify your own cloud
+   resources. It should be one word, with no spaces and in lower case.
 
 ## Create an AKS cluster via terraform
 
@@ -67,8 +67,7 @@ This also deploys `cert-manager v1.8.2` and `antrea v1.8`.
 ### Deploy Nephe Controller
 
 To deploy the latest version of nephe (built from the main branch), use the
-checked-in [deployment yaml](../config/nephe.yml) after `cert-manager` Pods are
-running:
+checked-in [deployment yaml](../config/nephe.yml).
 
 ```bash
 ~/terraform/aks kubectl apply -f https://raw.githubusercontent.com/antrea-io/nephe/main/config/nephe.yml

@@ -18,7 +18,7 @@ TERRAFORM="terraform"
 KUBECTL="kubectl"
 RUN_PATH="$HOME/tmp/terraform-aks"
 CONFIG_PATH=$(dirname $(readlink -f "$0"))/terraform/aks
-CMD_ARRAY=($TERRAFORM $KUBECTL pv bzip2 jq)
+CMD_ARRAY=($TERRAFORM $KUBECTL pv jq)
 ENV_ARRAY=(TF_VAR_azure_client_id TF_VAR_azure_client_secret TF_VAR_azure_client_subscription_id TF_VAR_azure_client_tenant_id)
 CREATE_ONLY=
 

@@ -21,7 +21,7 @@
 ## Prerequisites
 
 1. Install [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html) v2.3.6+.
-2. Install [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) v1.24+.
+2. Install [Kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) v1.24+.
 3. Install [Terraform](https://learn.hashicorp.com/terraform/getting-started/install.html). Recommend v1.2.2.
 4. Install `jq`, `pv`, and `bzip2`.
 5. Set the below environment variables.
@@ -74,8 +74,7 @@ This also deploys `cert-manager v1.8.2` and `Antrea v1.8`.
 ### Deploy Nephe Controller
 
 To deploy the latest version of nephe (built from the main branch), use the
-checked-in [deployment yaml](../config/nephe.yml) after `cert-manager` Pods are
-running:
+checked-in [deployment yaml](../config/nephe.yml).
 
 ```bash
 ~/terraform/eks kubectl apply -f https://raw.githubusercontent.com/antrea-io/nephe/main/config/nephe.yml

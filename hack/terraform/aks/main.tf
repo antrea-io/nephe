@@ -31,7 +31,7 @@ locals {
 
 data "azurerm_resources" "node_nsg" {
   resource_group_name = azurerm_kubernetes_cluster.k8s.node_resource_group
-  type = "Microsoft.Network/networkSecurityGroups"
+  type                = "Microsoft.Network/networkSecurityGroups"
 }
 
 resource "random_string" "suffix" {
@@ -91,7 +91,7 @@ resource "azurerm_kubernetes_cluster" "k8s" {
     type = "SystemAssigned"
   }
   kubernetes_version = "1.24.3"
-  tags = {
+  tags               = {
     Environment = "nephe"
   }
 }
