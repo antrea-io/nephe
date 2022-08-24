@@ -18,8 +18,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2021-03-01/network"
+	"github.com/Azure/go-autorest/autorest"
 )
 
 // securityGroups returns security-groups apiClient.
