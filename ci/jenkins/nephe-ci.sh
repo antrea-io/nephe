@@ -147,7 +147,8 @@ testbed_name="nephe-test-${testType}-${buildNumber}"
 ip_addr=`cat terraform.tfstate.d/${testbed_name}/terraform.tfstate | jq -r .outputs.vm_ips.value[0]`
 
 #TODO: Scp'ing the code. Need to find better way
-scp -r -i id_rsa ${OLDPWD}/* ubuntu@${ip_addr}:~/
+ssh -i id_rsa ubuntu@${ip_addr} "mkdir ~/nephe"
+scp -r -i id_rsa ${OLDPWD}/* ubuntu@${ip_addr}:~/nephe
 
 function cleanup_testbed() {
   echo "=== retrieve logs ==="
@@ -165,18 +166,18 @@ trap cleanup_testbed EXIT
 case $testType in
     aws)
     echo "Run tests on Kind cluster with AWS VMs"
-    ssh -i id_rsa ubuntu@${ip_addr} "~/ci/jenkins/test-aws.sh ${AWS_ACCESS_KEY_ID} ${AWS_ACCESS_KEY_SECRET}"
+    ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/test-aws.sh ${AWS_ACCESS_KEY_ID} ${AWS_ACCESS_KEY_SECRET}"
     ;;
     azure)
     echo "Run tests on Kind cluster with Azure VMs"
-    ssh -i id_rsa ubuntu@${ip_addr} "~/ci/jenkins/test-azure.sh ${AZURE_SUBSCRIPTION_ID} ${AZURE_APP_ID} ${AZURE_TENANT_ID} ${AZURE_PASSWORD}"
+    ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/test-azure.sh ${AZURE_SUBSCRIPTION_ID} ${AZURE_APP_ID} ${AZURE_TENANT_ID} ${AZURE_PASSWORD}"
     ;;
     eks)
     echo "Run tests on EKS cluster with AWS VMs"
-    ssh -i id_rsa ubuntu@${ip_addr} "~/ci/jenkins/test-eks.sh ${AWS_ACCESS_KEY_ID} ${AWS_ACCESS_KEY_SECRET} ${EKS_IAM_ROLE} ${EKS_IAM_INSTANCE_PROFILE}"
+    ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/test-eks.sh ${AWS_ACCESS_KEY_ID} ${AWS_ACCESS_KEY_SECRET} ${EKS_IAM_ROLE} ${EKS_IAM_INSTANCE_PROFILE}"
     ;;
     aks)
     echo "Run tests on AKS cluster with Azure VMs"
-    ssh -i id_rsa ubuntu@${ip_addr} "~/ci/jenkins/test-aks.sh ${AZURE_SUBSCRIPTION_ID} ${AZURE_APP_ID} ${AZURE_TENANT_ID} ${AZURE_PASSWORD}"
+    ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/test-aks.sh ${AZURE_SUBSCRIPTION_ID} ${AZURE_APP_ID} ${AZURE_TENANT_ID} ${AZURE_PASSWORD}"
     ;;
 esac
