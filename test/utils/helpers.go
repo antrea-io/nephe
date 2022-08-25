@@ -19,7 +19,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"reflect"
@@ -412,7 +411,7 @@ func CollectAgentInfo(kubctl *KubeCtl, dir string) error {
 					return err
 				}
 				fn := path.Join(dirName, bridge+"_dump_flows")
-				err = ioutil.WriteFile(fn, []byte(dumpFlowsOutput), 0666)
+				err = os.WriteFile(fn, []byte(dumpFlowsOutput), 0666)
 				if err != nil {
 					return err
 				}
@@ -426,7 +425,7 @@ func CollectAgentInfo(kubctl *KubeCtl, dir string) error {
 				continue
 			}
 			fn := path.Join(dirName, c+".log")
-			err = ioutil.WriteFile(fn, []byte(output), 0666)
+			err = os.WriteFile(fn, []byte(output), 0666)
 			if err != nil {
 				return err
 			}
@@ -452,7 +451,7 @@ func CollectCRDs(kubectl *KubeCtl, dir string) error {
 		fName := path.Join(dir, fmt.Sprintf("%s-output", k))
 		cmd := fmt.Sprintf("describe %s -A", k)
 		output, _ := kubectl.Cmd(cmd)
-		_ = ioutil.WriteFile(fName, []byte(output), 0666)
+		_ = os.WriteFile(fName, []byte(output), 0666)
 	}
 	return nil
 }
@@ -478,7 +477,7 @@ func CollectControllerLogs(kubctl *KubeCtl, dir string) error {
 				continue
 			}
 			fn := path.Join(dirName, "log"+i)
-			err = ioutil.WriteFile(fn, []byte(output), 0666)
+			err = os.WriteFile(fn, []byte(output), 0666)
 			if err != nil {
 				return err
 			}

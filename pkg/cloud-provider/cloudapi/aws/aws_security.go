@@ -633,7 +633,9 @@ func getMemberNicCloudResourcesAttachedToOtherSGs(members []securitygroup.CloudR
 }
 
 // ////////////////////////////////////////////////////////
-// 	SecurityInterface Implementation
+//
+//	SecurityInterface Implementation
+//
 // ////////////////////////////////////////////////////////.
 func (c *awsCloud) CreateSecurityGroup(addressGroupIdentifier *securitygroup.CloudResourceID, membershipOnly bool) (*string, error) {
 	mutex.Lock()

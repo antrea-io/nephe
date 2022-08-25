@@ -16,8 +16,8 @@ package integration
 
 import (
 	"flag"
-	"io/ioutil"
 	"math/rand"
+	"os"
 	"path"
 	"strings"
 	"sync"
@@ -109,7 +109,7 @@ var _ = BeforeSuite(func(done Done) {
 	k8sClients = make(map[string]client.Client)
 	clusters = strings.Split(clusterContexts, ",")
 	for _, cluster := range clusters {
-		bytes, err := ioutil.ReadFile(manifest)
+		bytes, err := os.ReadFile(manifest)
 		Expect(err).ToNot(HaveOccurred())
 		nepheControllerManifests[cluster] = string(bytes)
 
