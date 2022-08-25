@@ -1,29 +1,29 @@
 #builder
-FROM golang:1.17 as builder
+FROM golang:1.19 as builder
 
 # install controller-gen
 RUN	CONTROLLER_GEN_TMP_DIR=$(mktemp -d) &&\
 	cd $CONTROLLER_GEN_TMP_DIR && \
 	go mod init tmp  && \
-	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.8.0 &&\
+	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.8.0 &&\
 	rm -rf $$CONTROLLER_GEN_TMP_DIR
 
 # install kustomize
 RUN	KUSTOMIZE_TMP_DIR=$(mktemp -d) &&\
 	cd $KUSTOMIZE_TMP_DIR && \
 	go mod init tmp  && \
-	go get sigs.k8s.io/kustomize/kustomize/v4@v4.4.1 &&\
+	go install sigs.k8s.io/kustomize/kustomize/v4@v4.5.2 && \
 	rm -rf $$KUSTOMIZE_TMP_DIR
 
 # install mockgen
 RUN	GOMOCK_TMP_DIR=$(mktemp -d) &&\
 	cd $GOMOCK_TMP_DIR && \
 	go mod init tmp  && \
-	go get github.com/golang/mock/mockgen@v1.6.0 &&\
+	go install github.com/golang/mock/mockgen@v1.6.0 &&\
 	rm -rf $$GOMOCK_GEN_DIR
 
 # install golangci-lint
-RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.41.1
+RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.48.0
 
 ENV PATH=$PATH:$GOPATH/bin
 

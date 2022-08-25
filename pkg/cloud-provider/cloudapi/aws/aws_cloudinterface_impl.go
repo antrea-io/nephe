@@ -58,7 +58,9 @@ func (c *awsCloud) ProviderType() cloudcommon.ProviderType {
 }
 
 // /////////////////////////////////////////////
-// 	ComputeInterface Implementation
+//
+//	ComputeInterface Implementation
+//
 // /////////////////////////////////////////////.
 // Instances returns VM status for all instances across all accounts of a cloud provider.
 func (c *awsCloud) Instances() ([]*v1alpha1.VirtualMachine, error) {
@@ -82,7 +84,9 @@ func (c *awsCloud) IsVirtualPrivateCloudPresent(vpcUniqueIdentifier string) bool
 }
 
 // ////////////////////////////////////////////////////////
-// 	AccountMgmtInterface Implementation
+//
+//	AccountMgmtInterface Implementation
+//
 // ////////////////////////////////////////////////////////
 // AddProviderAccount adds and initializes given account of a cloud provider.
 func (c *awsCloud) AddProviderAccount(client client.Client, account *v1alpha1.CloudProviderAccount) error {

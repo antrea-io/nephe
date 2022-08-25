@@ -688,7 +688,9 @@ func (computeCfg *computeServiceConfig) getAGGroupView(nepheControllerAGSgNameTo
 }
 
 // ////////////////////////////////////////////////////////
-// 	SecurityInterface Implementation
+//
+//	SecurityInterface Implementation
+//
 // ////////////////////////////////////////////////////////.
 func (c *azureCloud) CreateSecurityGroup(addressGroupIdentifier *securitygroup.CloudResourceID, membershipOnly bool) (*string, error) {
 	mutex.Lock()

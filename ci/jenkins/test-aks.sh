@@ -17,6 +17,7 @@
 set -e
 KUBECTL_VERSION=v1.24.1
 TERRAFORM_VERSION=1.2.2
+GO_VERSION=1.19
 
 echo "Installing Kubectl"
 curl -LO https://storage.googleapis.com/kubernetes-release/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl
@@ -30,10 +31,10 @@ chmod +x ./terraform && sudo mv ./terraform /usr/local/bin/terraform
 
 sudo apt-get install -y pv bzip2 jq
 
-echo "Installing Go 1.17"
-curl -LO https://golang.org/dl/go1.17.linux-amd64.tar.gz
-sudo rm -rf /usr/local/go && sudo tar -zxf go1.17.linux-amd64.tar.gz -C /usr/local/
-rm go1.17.linux-amd64.tar.gz
+echo "Installing Go ${GO_VERSION}"
+curl -LO https://golang.org/dl/go${GO_VERSION}.linux-amd64.tar.gz
+sudo rm -rf /usr/local/go && sudo tar -zxf go${GO_VERSION}.linux-amd64.tar.gz -C /usr/local/
+rm go${GO_VERSION}.linux-amd64.tar.gz
 export PATH=$PATH:/usr/local/go/bin
 
 echo "Installing Azure CLI"

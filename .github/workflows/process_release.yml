@@ -8,10 +8,10 @@ jobs:
   upload-release-assets:
     runs-on: ubuntu-latest
     steps:
-    - name: Set up Go 1.17
+    - name: Set up Go using version from go.mod
       uses: actions/setup-go@v3
       with:
-        go-version: 1.17
+        go-version-file: 'go.mod'
     - uses: actions/checkout@v3
     - name: Build assets
       env:

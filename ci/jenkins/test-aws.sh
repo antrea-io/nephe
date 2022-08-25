@@ -19,6 +19,7 @@ set -e
 KIND_VERSION=v0.12.0
 KUBECTL_VERSION=v1.24.1
 TERRAFORM_VERSION=1.2.2
+GO_VERSION=1.19
 
 echo "Installing Kind"
 curl -Lo ./kind https://github.com/kubernetes-sigs/kind/releases/download/${KIND_VERSION}/kind-$(uname)-amd64
@@ -35,10 +36,10 @@ curl -Lo ./terraform.zip https://releases.hashicorp.com/terraform/${TERRAFORM_VE
 unzip ./terraform.zip
 chmod +x ./terraform && sudo mv ./terraform /usr/local/bin/terraform
 
-echo "Installing Go 1.17"
-curl -LO https://golang.org/dl/go1.17.linux-amd64.tar.gz
-sudo rm -rf /usr/local/go && sudo tar -zxf go1.17.linux-amd64.tar.gz -C /usr/local/
-rm go1.17.linux-amd64.tar.gz
+echo "Installing Go ${GO_VERSION}"
+curl -LO https://golang.org/dl/go${GO_VERSION}.linux-amd64.tar.gz
+sudo rm -rf /usr/local/go && sudo tar -zxf go${GO_VERSION}.linux-amd64.tar.gz -C /usr/local/
+rm go${GO_VERSION}.linux-amd64.tar.gz
 export PATH=$PATH:/usr/local/go/bin
 
 echo "Installing AWS CLI"
