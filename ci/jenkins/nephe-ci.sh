@@ -151,14 +151,14 @@ ssh -i id_rsa ubuntu@${ip_addr} "mkdir ~/nephe"
 scp -r -i id_rsa ${OLDPWD}/* ubuntu@${ip_addr}:~/nephe
 
 function cleanup_testbed() {
-  echo "=== retrieve logs ==="
-  scp -r -i id_rsa ubuntu@${ip_addr}:~/logs ${OLDPWD}
+    echo "=== Retrieve logs ==="
+    scp -r -i id_rsa ubuntu@${ip_addr}:~/logs ${OLDPWD}
 
-  echo "=== cleanup vm ==="
-  ./destroy.sh "${testbed_name}" "${goVcPassword}"
+    echo "=== Cleanup VM ==="
+    ./destroy.sh "${testbed_name}" "${goVcPassword}"
 
-  cd ${OLDPWD}
-  tar zvcf logs.tar.gz logs
+    cd ${OLDPWD}
+    tar zvcf logs.tar.gz logs
 }
 
 trap cleanup_testbed EXIT
@@ -166,18 +166,21 @@ trap cleanup_testbed EXIT
 case $testType in
     aws)
     echo "Run tests on Kind cluster with AWS VMs"
-    ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/test-aws.sh ${AWS_ACCESS_KEY_ID} ${AWS_ACCESS_KEY_SECRET}"
+    ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/scripts/test-aws.sh --aws-access-key-id ${AWS_ACCESS_KEY_ID} --aws-secret-key ${AWS_ACCESS_KEY_SECRET}"
     ;;
     azure)
     echo "Run tests on Kind cluster with Azure VMs"
-    ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/test-azure.sh ${AZURE_SUBSCRIPTION_ID} ${AZURE_APP_ID} ${AZURE_TENANT_ID} ${AZURE_PASSWORD}"
+    ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/scripts/test-azure.sh --azure-subscription-id ${AZURE_SUBSCRIPTION_ID} --azure-app-id ${AZURE_APP_ID} \
+                                                   --azure-tenant-id ${AZURE_TENANT_ID} --azure-secret ${AZURE_PASSWORD}"
     ;;
     eks)
     echo "Run tests on EKS cluster with AWS VMs"
-    ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/test-eks.sh ${AWS_ACCESS_KEY_ID} ${AWS_ACCESS_KEY_SECRET} ${EKS_IAM_ROLE} ${EKS_IAM_INSTANCE_PROFILE}"
-    ;;
+    ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/scripts/test-eks.sh --aws-access-key-id ${AWS_ACCESS_KEY_ID} --aws-secret-key ${AWS_ACCESS_KEY_SECRET} \
+                                                   --eks-cluster-role ${EKS_IAM_ROLE} --eks-node-role ${EKS_IAM_INSTANCE_PROFILE}"
+     ;;
     aks)
     echo "Run tests on AKS cluster with Azure VMs"
-    ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/test-aks.sh ${AZURE_SUBSCRIPTION_ID} ${AZURE_APP_ID} ${AZURE_TENANT_ID} ${AZURE_PASSWORD}"
+    ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/scripts/test-aks.sh --azure-subscription-id ${AZURE_SUBSCRIPTION_ID} --azure-app-id ${AZURE_APP_ID} \
+                                                   --azure-tenant-id ${AZURE_TENANT_ID} --azure-secret ${AZURE_PASSWORD}"
     ;;
-esac
+ esac
