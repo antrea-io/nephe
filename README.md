@@ -12,9 +12,9 @@ Kubernetes cluster.
 
 * [Docker](https://docs.docker.com/install/): Nephe is developed and tested
   with Docker version 20.10.17.
-* [Antrea](https://github.com/antrea-io/antrea/): Provides Antrea
-  NetworkPolicy (ANP) CRD, a controller that computes ANP spans, and an agent as
-  K8s CNI.
+* [Antrea](https://github.com/antrea-io/antrea/): Antrea provides Antrea
+  NetworkPolicy (ANP) CRD, and Antrea Controller computes ANPs on cloud virtual
+  machines for Nephe.
 * [Cert-Manager](https://github.com/jetstack/cert-manager): Provides in cluster
   authentication for `nephe-controller` CR webhook servers.
 

@@ -16,7 +16,7 @@
     - [Sample CloudProviderAccount for Azure](#sample-cloudprovideraccount-for-azure)
   - [CloudEntitySelector](#cloudentityselector)
   - [External Entity](#external-entity)
-- [Apply Antrea NetworkPolicy](#apply-antrea-networkpolicy)
+- [Applying Antrea NetworkPolicy](#applying-antrea-networkpolicy)
 <!-- /toc -->
 
 ## Prerequisites
@@ -39,7 +39,15 @@ Create a Kind cluster. Recommend Kind v0.12.
 
 Install Nephe.
 
-To deploy the latest version of nephe (built from the main branch), use the
+To deploy a released version of Nephe, pick a deployment manifest from the
+[list of releases](https://github.com/antrea-io/nephe/releases). For any given
+release <TAG> (e.g. v0.1.0), you can deploy Nephe as follows:
+
+```bash
+kubectl apply -f https://github.com/antrea-io/nephe/releases/download/<TAG>/nephe.yml
+```
+
+To deploy the latest version of Nephe (built from the main branch), use the
 checked-in [deployment yaml](../config/nephe.yml):
 
 ```bash
@@ -58,17 +66,18 @@ to [the AKS installation guide](aks-installation.md).
 
 ## Importing Cloud VMs
 
-To manage security policies of Public Cloud VMs, we need to first import
-the target VMs onto `Nephe Controller`. The following section explains
-how to set up access to public cloud account, select target VMs, and
-import VMs into the K8s cluster as VirtualMachine CRs.
+To manage security policies of Public Cloud VMs, we need to first import the
+target VMs onto the `Nephe Controller`. The following section explains how to
+set up access to public cloud account, select target VMs, and import VMs into
+the K8s cluster as `VirtualMachine` CRs.
 
 ### CloudProviderAccount
 
 To import cloud VMs, user needs to configure a `CloudProviderAccount` CR, with
-a K8s secret containing base64 encoded cloud account credentials. The secret
-should be created in `nephe-system` namespace, so that `Nephe Controller` can
-access it.
+a K8s Secret containing base64 encoded cloud account credentials. The Secret
+should be created in `nephe-system` Namespace, so that `Nephe Controller` can
+access it. Samples below will create CRs and import VMs into the `sample-ns`
+Namespace.
 
 #### Sample Secret for AWS
 
@@ -82,7 +91,6 @@ Note: `roleArn` and `externalId` are used for role based access on AWS, they can
 be removed if credentials are provided.
 
 ```bash
-kubectl create namespace sample-ns
 cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: Secret
@@ -124,7 +132,6 @@ echo '{"subscriptionId": "YOUR_AZURE_SUBSCRIPTION_ID", "clientId": "YOUR_AZURE_C
 ```
 
 ```bash
-kubectl create namespace sample-ns
 cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: Secret
@@ -289,7 +296,7 @@ Spec:
 Events:           <none>
 ```
 
-## Apply Antrea NetworkPolicy
+## Applying Antrea NetworkPolicy
 
 With the VMs imported into the cluster, we can now configure their security
 policies by setting and applying [Antrea NetworkPolicies (ANP)](https://github.com/antrea-io/antrea/blob/main/docs/antrea-network-policy.md)
