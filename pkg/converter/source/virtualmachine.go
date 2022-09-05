@@ -39,6 +39,11 @@ func (v *VirtualMachineSource) GetEndPointAddresses() ([]string, error) {
 	return ip, nil
 }
 
+// GetNetworkInterfaces returns VirtualMachine's IP addresses.
+func (v *VirtualMachineSource) GetNetworkInterfaces() ([]v1alpha1.NetworkInterface, error) {
+	return v.Status.NetworkInterfaces, nil
+}
+
 // GetEndPointPort returns nil as VirtualMachine has no associated port.
 func (v *VirtualMachineSource) GetEndPointPort(_ client.Client) []antreatypes.NamedPort {
 	return nil
@@ -54,13 +59,13 @@ func (v *VirtualMachineSource) GetLabelsFromClient(_ client.Client) map[string]s
 	return map[string]string{config.ExternalEntityLabelCloudVPCKey: v.Status.VirtualPrivateCloud}
 }
 
-// GetExternalNode returns external node/controller associated with VirtualMachine.
-func (v *VirtualMachineSource) GetExternalNode(_ client.Client) string {
+// GetExternalNodeName returns controller associated with VirtualMachine.
+func (v *VirtualMachineSource) GetExternalNodeName(_ client.Client) string {
 	return config.ANPNepheController
 }
 
 // Copy returns a duplicate of VirtualMachineSource.
-func (v *VirtualMachineSource) Copy() target.ExternalEntitySource {
+func (v *VirtualMachineSource) Copy() (duplicate interface{}) {
 	newVM := &VirtualMachineSource{}
 	v.VirtualMachine.DeepCopyInto(&newVM.VirtualMachine)
 	return newVM
@@ -77,5 +82,6 @@ func (v *VirtualMachineSource) IsFedResource() bool {
 
 var (
 	_ target.ExternalEntitySource = &VirtualMachineSource{}
+	_ target.ExternalNodeSource   = &VirtualMachineSource{}
 	_ client.Object               = &VirtualMachineSource{}
 )

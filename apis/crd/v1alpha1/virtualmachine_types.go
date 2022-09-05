@@ -86,6 +86,8 @@ type VirtualMachineStatus struct {
 	NetworkInterfaces []NetworkInterface `json:"networkInterfaces,omitempty"`
 	// State indicates current state of the VirtualMachine.
 	State VMState `json:"state,omitempty"`
+	// Agented specifies if VM runs in agented mode, default is false.
+	Agented bool `json:"agented"`
 }
 
 // +genclient
@@ -96,6 +98,7 @@ type VirtualMachineStatus struct {
 // +kubebuilder:printcolumn:name="Cloud-Provider",type=string,JSONPath=`.status.provider`
 // +kubebuilder:printcolumn:name="Virtual-Private-Cloud",type=string,JSONPath=`.status.virtualPrivateCloud`
 // +kubebuilder:printcolumn:name="State",type=string,JSONPath=`.status.state`
+// +kubebuilder:printcolumn:name="Agented",type=string,JSONPath=`.status.agented`
 // VirtualMachine is the Schema for the virtualmachines API
 // A virtualMachine object is created automatically based on
 // matching criteria specification of CloudEntitySelector.

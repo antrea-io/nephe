@@ -112,7 +112,8 @@ var _ = Describe(fmt.Sprintf("%s,%s: ExternalEntity", focusAws, focusAzure), fun
 	tester := func(kind string, epNum int, hasNic, hasPort bool) {
 		// TODO: remove set resource version and copy status in another way
 		externalEntitySource := externalEntitySources[kind].EmbedType()
-		externalEntitySourceCopy := externalEntitySources[kind].Copy().EmbedType()
+		tempCopy, _ := externalEntitySources[kind].Copy().(target.ExternalEntitySource)
+		externalEntitySourceCopy := tempCopy.EmbedType()
 		ctx := context.Background()
 		By("ExternalEntity can be created")
 		err := k8sClient.Create(ctx, externalEntitySourceCopy)

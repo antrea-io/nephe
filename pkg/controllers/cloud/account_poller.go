@@ -17,11 +17,13 @@ package cloud
 import (
 	"context"
 	"fmt"
+	"reflect"
+
 	"github.com/go-logr/logr"
 	"go.uber.org/multierr"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"reflect"
+	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"strings"
@@ -46,6 +48,7 @@ type accountPoller struct {
 	cloudType         cloudv1alpha1.CloudProvider
 	namespacedName    *types.NamespacedName
 	selector          *cloudv1alpha1.CloudEntitySelector
+	vmSelector        cache.Indexer
 	ch                chan struct{}
 }
 
@@ -105,70 +108,36 @@ func (p *accountPoller) doVirtualMachineOperations(virtualMachines []*cloudv1alp
 	virtualMachinesToCreate, found := virtualMachinesBasedOnOperation[accountResourceToCreate]
 	if found {
 		for _, vm := range virtualMachinesToCreate {
-			e := controllerutil.SetControllerReference(p.selector, vm, p.scheme)
+			e := p.createVirtualMachineCR(vm)
 			if e != nil {
-				p.log.Info("error setting controller owner reference", "err", e)
 				err = multierr.Append(err, e)
 				continue
 			}
-			// save status since Create will update vm object and remove status field from it
-			vmStatus := vm.Status
-			e = p.Client.Create(context.TODO(), vm)
-			if e != nil {
-				p.log.Info("virtual machine create failed", "name", vm.Name, "err", e)
-				err = multierr.Append(err, e)
-				continue
-			}
-			vm.Status = vmStatus
-			e = p.Client.Status().Update(context.TODO(), vm)
-			if e != nil {
-				p.log.Info("virtual machine status update failed", "account", p.namespacedName, "name", vm.Name, "err", e)
-				err = multierr.Append(err, e)
-				continue
-			}
-		}
-	}
-
-	virtualMachinesToDelete, found := virtualMachinesBasedOnOperation[accountResourceToDelete]
-	if found {
-		for _, vm := range virtualMachinesToDelete {
-			e := p.Delete(context.TODO(), vm)
-			if e != nil {
-				if client.IgnoreNotFound(e) != nil {
-					err = multierr.Append(err, e)
-					p.log.Info("unable to delete", "vm-name", vm.Name)
-					continue
-				}
-			}
-			p.log.Info("deleted", "vm-name", vm.Name)
+			p.log.Info("created", "vm-name", vm.Name)
 		}
 	}
 
 	virtualMachinesToUpdate, found := virtualMachinesBasedOnOperation[accountResourceToUpdate]
 	if found {
 		for _, vm := range virtualMachinesToUpdate {
-			vmNamespacedName := types.NamespacedName{
-				Namespace: vm.Namespace,
-				Name:      vm.Name,
-			}
-			currentVM := &cloudv1alpha1.VirtualMachine{}
-			e := p.Get(context.TODO(), vmNamespacedName, currentVM)
+			e := p.updateVirtualMachineCR(vm)
 			if e != nil {
-				if client.IgnoreNotFound(e) != nil {
-					err = multierr.Append(err, e)
-					p.log.Info("unable to find to update", "vm-name", vm.Name)
-					continue
-				}
-			}
-
-			updateCloudDiscoveredFieldsOfVirtualMachineStatus(&currentVM.Status, &vm.Status)
-			e = p.Client.Status().Update(context.TODO(), currentVM)
-			if e != nil {
-				p.log.Info("virtual machine status update failed", "account", p.namespacedName, "name", vm.Name, "err", e)
 				err = multierr.Append(err, e)
 				continue
 			}
 			p.log.Info("updated", "vm-name", vm.Name)
+		}
+	}
+
+	virtualMachinesToDelete, found := virtualMachinesBasedOnOperation[accountResourceToDelete]
+	if found {
+		for _, vm := range virtualMachinesToDelete {
+			e := p.deleteVirtualMachineCR(vm)
+			if e != nil {
+				err = multierr.Append(err, e)
+				continue
+			}
+			p.log.Info("deleted", "vm-name", vm.Name)
 		}
 	}
 
@@ -206,6 +175,10 @@ func (p *accountPoller) findVirtualMachinesByOperation(discoveredVirtualMachines
 		} else {
 			delete(currentVirtualMachinesByName, currentVirtualMachine.Name)
 			if !areDiscoveredFieldsSameVirtualMachineStatus(currentVirtualMachine.Status, discoveredVirtualMachine.Status) {
+				virtualMachinesToUpdate = append(virtualMachinesToUpdate, discoveredVirtualMachine)
+			} else if currentVirtualMachine.Status.Agented != p.isVMAgented(&currentVirtualMachine) {
+				p.log.Info("vm selector changed, update VM",
+					"vm-name", currentVirtualMachine.Name)
 				virtualMachinesToUpdate = append(virtualMachinesToUpdate, discoveredVirtualMachine)
 			}
 		}
@@ -371,4 +344,111 @@ func updateCloudDiscoveredFieldsOfVirtualMachineStatus(current, discovered *clou
 
 func updateAccountStatus(current, discovered *cloudv1alpha1.CloudProviderAccountStatus) {
 	current.Error = discovered.Error
+}
+
+// createVirtualMachineCR creates VirtualMachine CR and updates the status.
+func (p *accountPoller) createVirtualMachineCR(vm *cloudv1alpha1.VirtualMachine) (err error) {
+	err = controllerutil.SetControllerReference(p.selector, vm, p.scheme)
+	if err != nil {
+		p.log.Info("error setting controller owner reference", "err", err)
+		return err
+	}
+	// save status since create will update VM object and remove status field from it.
+	vmStatus := vm.Status
+	err = p.Client.Create(context.TODO(), vm)
+	if err != nil {
+		p.log.Info("virtual machine create failed", "name", vm.Name, "err", err)
+		return err
+	}
+	vmStatus.Agented = p.isVMAgented(vm)
+	vm.Status = vmStatus
+	err = p.Client.Status().Update(context.TODO(), vm)
+	if err != nil {
+		p.log.Info("virtual machine status update failed", "account", p.namespacedName, "name", vm.Name, "err", err)
+		return err
+	}
+	return nil
+}
+
+// updateVirtualMachineCR updates VirtualMachine CR. When the Agented status
+// field is changed, it delete and re-create the VirtualMachine CR.
+func (p *accountPoller) updateVirtualMachineCR(vm *cloudv1alpha1.VirtualMachine) (err error) {
+	vmNamespacedName := types.NamespacedName{
+		Namespace: vm.Namespace,
+		Name:      vm.Name,
+	}
+	currentVM := &cloudv1alpha1.VirtualMachine{}
+	err = p.Get(context.TODO(), vmNamespacedName, currentVM)
+	if err != nil {
+		if client.IgnoreNotFound(err) != nil {
+			p.log.V(1).Info("unable to find to update", "vm-name", vm.Name, "err", err)
+			return err
+		}
+	}
+	// Check if status is changed from Agented to Agentless or vice-versa.
+	if currentVM.Status.Agented != p.isVMAgented(currentVM) {
+		p.log.Info("vm agent status changed", "vm-name", currentVM.Name)
+		// Delete the old VM CR, so that any dependent CR's will be deleted.
+		err = p.deleteVirtualMachineCR(currentVM)
+		if err != nil {
+			return err
+		}
+		// Create a new VM CR, using pre-created VM object.
+		// Set the resource version empty.
+		vm.ResourceVersion = ""
+		err = p.createVirtualMachineCR(vm)
+		if err != nil {
+			return err
+		}
+	} else {
+		updateCloudDiscoveredFieldsOfVirtualMachineStatus(&currentVM.Status, &vm.Status)
+		err = p.Client.Status().Update(context.TODO(), currentVM)
+		if err != nil {
+			p.log.Info("virtual machine status update failed", "account", p.namespacedName, "name", vm.Name, "err", err)
+			return err
+		}
+	}
+	return nil
+}
+
+// deleteVirtualMachineCR deletes VirtualMachine CR.
+func (p *accountPoller) deleteVirtualMachineCR(vm *cloudv1alpha1.VirtualMachine) (err error) {
+	err = p.Delete(context.TODO(), vm)
+	if err != nil {
+		if client.IgnoreNotFound(err) != nil {
+			p.log.V(1).Info("unable to delete", "vm-name", vm.Name, "err", err)
+			return err
+		}
+	}
+	return nil
+}
+
+// getVMSelectorMatch returns a VMSelector for a VirtualMachine only if it is agented.
+func (p *accountPoller) getVMSelectorMatch(vm *cloudv1alpha1.VirtualMachine) *cloudv1alpha1.VirtualMachineSelector {
+	vmSelectors, _ := p.vmSelector.ByIndex(virtualMachineSelectorMatchIndexerByID, vm.Annotations[common.AnnotationCloudAssignedIDKey])
+	for _, i := range vmSelectors {
+		vmSelector := i.(*cloudv1alpha1.VirtualMachineSelector)
+		if vmSelector.Agented {
+			return vmSelector
+		}
+	}
+
+	vmSelectors, _ = p.vmSelector.ByIndex(virtualMachineSelectorMatchIndexerByVPC, vm.Annotations[common.AnnotationCloudAssignedVPCIDKey])
+	for _, i := range vmSelectors {
+		vmSelector := i.(*cloudv1alpha1.VirtualMachineSelector)
+		if vmSelector.Agented {
+			return vmSelector
+		}
+	}
+	return nil
+}
+
+// isVMAgented returns true if a matching VMSelector is found for a VirtualMachine.
+func (p *accountPoller) isVMAgented(vm *cloudv1alpha1.VirtualMachine) bool {
+	vmSelectorMatch := p.getVMSelectorMatch(vm)
+	if vmSelectorMatch == nil {
+		return false
+	}
+	p.log.V(1).Info("found agented VM match", "VMSelector", vmSelectorMatch)
+	return vmSelectorMatch.Agented
 }
