@@ -24,8 +24,8 @@ var (
 
 type RetryRecord = retryRecord
 
-func ProcessEvent(v VMConverter, vm *VirtualMachineSource, failedUpdates map[string]retryRecord, isRetry bool) {
-	v.processEvent(vm, failedUpdates, isRetry)
+func ProcessEvent(v VMConverter, vm *VirtualMachineSource, failedUpdates map[string]retryRecord, isRetry bool, isAgented bool) {
+	v.processEvent(vm, failedUpdates, isRetry, isAgented)
 }
 
 func (v VMConverter) GetRetryCh() chan cloudv1alpha1.VirtualMachine {

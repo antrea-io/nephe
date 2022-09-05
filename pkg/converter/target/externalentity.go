@@ -15,17 +15,12 @@
 package target
 
 import (
-	"reflect"
-	"regexp"
-	"strings"
-
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
-	"antrea.io/nephe/pkg/controllers/config"
 )
 
 const (
@@ -45,85 +40,46 @@ type ExternalEntitySource interface {
 	GetTags() map[string]string
 	// GetLabelsFromClient returns labels specific to ExternalEntitySource.
 	GetLabelsFromClient(client client.Client) map[string]string
-	// GetExternalNode returns external node/controller associated with this ExternalEntitySource.
-	GetExternalNode(client client.Client) string
+	// GetExternalNodeName returns controller associated with VirtualMachine.
+	GetExternalNodeName(client client.Client) string
 	// Copy return a duplicate of current ExternalEntitySource.
-	Copy() ExternalEntitySource
+	Copy() (duplicate interface{})
 	// EmbedType returns the underlying ExternalEntitySource source resource.
 	EmbedType() client.Object
 }
 
-// GetExternalEntityLabelKind returns value of ExternalEntity kind label.
-func GetExternalEntityLabelKind(obj runtime.Object) string {
-	return strings.ToLower(reflect.TypeOf(obj).Elem().Name())
-}
-
-func GetExternalEntityName(obj runtime.Object) string {
-	access, _ := meta.Accessor(obj)
-	return strings.ToLower(reflect.TypeOf(obj).Elem().Name()) + "-" + access.GetName()
-}
-
-func GetObjectKeyFromSource(source ExternalEntitySource) client.ObjectKey {
-	access, _ := meta.Accessor(source)
-	return client.ObjectKey{Namespace: access.GetNamespace(),
-		Name: GetExternalEntityName(source.EmbedType())}
-}
-
 // NewExternalEntityFrom generate a new ExternalEntity from source.
 func NewExternalEntityFrom(
-	source ExternalEntitySource, name, namespace string, cl client.Client, scheme *runtime.Scheme) *antreatypes.ExternalEntity {
-	externEntity := &antreatypes.ExternalEntity{}
-	PopulateExternalEntityFrom(source, externEntity, cl)
-	externEntity.SetName(name)
-	externEntity.SetNamespace(namespace)
-	accessor, err := meta.Accessor(source.EmbedType())
-	if err != nil {
-		externEntity.SetName(name)
-		externEntity.SetNamespace(namespace)
+	source ExternalEntitySource, name, namespace string, cl client.Client,
+	scheme *runtime.Scheme) *antreatypes.ExternalEntity {
+	externalEntity := &antreatypes.ExternalEntity{}
+	populateExternalEntityFrom(source, externalEntity, cl)
+	externalEntity.SetName(name)
+	externalEntity.SetNamespace(namespace)
+	accessor, _ := meta.Accessor(source.EmbedType())
+	if err := ctrl.SetControllerReference(accessor, externalEntity, scheme); err != nil {
+		externalEntity.SetName(name)
+		externalEntity.SetNamespace(namespace)
 	}
-	if err = ctrl.SetControllerReference(accessor, externEntity, scheme); err != nil {
-		externEntity.SetName(name)
-		externEntity.SetNamespace(namespace)
-	}
-	return externEntity
+	return externalEntity
 }
 
 // PatchExternalEntityFrom generate a patch for existing ExternalEntity from source.
 func PatchExternalEntityFrom(
 	source ExternalEntitySource, patch *antreatypes.ExternalEntity, cl client.Client) *antreatypes.ExternalEntity {
-	PopulateExternalEntityFrom(source, patch, cl)
+	populateExternalEntityFrom(source, patch, cl)
 	return patch
 }
 
-func PopulateExternalEntityFrom(source ExternalEntitySource, externEntity *antreatypes.ExternalEntity, cl client.Client) {
-	labels := make(map[string]string)
-	accessor, _ := meta.Accessor(source)
-	labels[config.ExternalEntityLabelKeyKind] = GetExternalEntityLabelKind(source.EmbedType())
-	labels[config.ExternalEntityLabelKeyName] = strings.ToLower(accessor.GetName())
-	labels[config.ExternalEntityLabelKeyNamespace] = strings.ToLower(accessor.GetNamespace())
-	for key, val := range source.GetLabelsFromClient(cl) {
-		labels[key] = val
-	}
-	for key, val := range source.GetTags() {
-		reg, _ := regexp.Compile(LabelExpression)
-		fkey := reg.ReplaceAllString(key, "") + config.ExternalEntityLabelKeyTagPostfix
-		if len(fkey) > LabelSizeLimit {
-			fkey = fkey[:LabelSizeLimit]
-		}
-		fval := reg.ReplaceAllString(val, "")
-		if len(fval) > LabelSizeLimit {
-			fval = fval[:LabelSizeLimit]
-		}
-		labels[strings.ToLower(fkey)] = strings.ToLower(fval)
-	}
-	externEntity.SetLabels(labels)
-
+func populateExternalEntityFrom(source ExternalEntitySource, externalEntity *antreatypes.ExternalEntity,
+	cl client.Client) {
+	externalEntity.SetLabels(genTargetEntityLabels(source, cl))
 	ipAddrs, _ := source.GetEndPointAddresses()
 	endpoints := make([]antreatypes.Endpoint, 0, len(ipAddrs))
 	for _, ip := range ipAddrs {
 		endpoints = append(endpoints, antreatypes.Endpoint{IP: ip})
 	}
-	externEntity.Spec.Endpoints = endpoints
-	externEntity.Spec.Ports = source.GetEndPointPort(cl)
-	externEntity.Spec.ExternalNode = source.GetExternalNode(cl)
+	externalEntity.Spec.Endpoints = endpoints
+	externalEntity.Spec.Ports = source.GetEndPointPort(cl)
+	externalEntity.Spec.ExternalNode = source.GetExternalNodeName(cl)
 }

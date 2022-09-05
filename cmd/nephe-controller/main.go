@@ -24,7 +24,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	antreanetworking "antrea.io/antrea/pkg/apis/controlplane/v1beta2"
-	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
+	antreav1alpha1 "antrea.io/antrea/pkg/apis/crd/v1alpha1"
+	antreav1alpha2 "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/apiserver"
@@ -42,7 +43,8 @@ var (
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
 	_ = antreanetworking.AddToScheme(scheme)
-	_ = antreatypes.AddToScheme(scheme)
+	_ = antreav1alpha1.AddToScheme(scheme)
+	_ = antreav1alpha2.AddToScheme(scheme)
 	_ = crdv1alpha1.AddToScheme(scheme)
 	_ = runtimev1alpha1.AddToScheme(scheme)
 

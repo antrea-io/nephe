@@ -17,15 +17,16 @@ package testing
 import (
 	"fmt"
 	"reflect"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cloud "antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/pkg/converter/source"
 	"antrea.io/nephe/pkg/converter/target"
 )
 
-func SetupVirtualMachine(vm *cloud.VirtualMachine, name, namespace string, nics ...*cloud.NetworkInterface) {
+func SetupVirtualMachine(vm *cloud.VirtualMachine, name, namespace string, agented bool, nics ...*cloud.NetworkInterface) {
 	vm.Status.NetworkInterfaces = nil
 	for _, nic := range nics {
 		vm.Status.NetworkInterfaces = append(vm.Status.NetworkInterfaces, *nic)
@@ -34,11 +35,12 @@ func SetupVirtualMachine(vm *cloud.VirtualMachine, name, namespace string, nics 
 	vm.Namespace = namespace
 	vm.Status.Tags = map[string]string{"test-vm-tag": "test-vm-key"}
 	vm.Status.VirtualPrivateCloud = "test-vm-vpc"
+	vm.Status.Agented = agented
 }
 
 func SetupVirtualMachineOwnerOf(vm *source.VirtualMachineSource, name, namespace string,
-	nics ...*cloud.NetworkInterface) {
-	SetupVirtualMachine(&vm.VirtualMachine, name, namespace, nics...)
+	agented bool, nics ...*cloud.NetworkInterface) {
+	SetupVirtualMachine(&vm.VirtualMachine, name, namespace, agented, nics...)
 }
 
 func SetupNetworkInterface(nic *cloud.NetworkInterface, name string, ips []string) {
@@ -62,7 +64,25 @@ func SetupExternalEntitySources(ips []string, namespace string) map[string]targe
 		SetupNetworkInterface(nic, name, []string{ip})
 		networkInterfaces = append(networkInterfaces, nic)
 	}
-	SetupVirtualMachineOwnerOf(virtualMachine, "test-vm", namespace, networkInterfaces...)
+	SetupVirtualMachineOwnerOf(virtualMachine, "test-vm", namespace, false, networkInterfaces...)
+
+	return sources
+}
+
+// SetupExternalNodeSources returns externalNodeSource resources for testing.
+func SetupExternalNodeSources(ips []string, namespace string) map[string]target.ExternalNodeSource {
+	sources := make(map[string]target.ExternalNodeSource)
+	virtualMachine := &source.VirtualMachineSource{}
+	sources["VirtualMachine"] = virtualMachine
+
+	networkInterfaces := make([]*cloud.NetworkInterface, 0)
+	// Currently only one NetworkInterface with multiple IPs is supported.
+	i := 0
+	name := "nic" + fmt.Sprintf("%d", i)
+	nic := &cloud.NetworkInterface{}
+	SetupNetworkInterface(nic, name, ips)
+	networkInterfaces = append(networkInterfaces, nic)
+	SetupVirtualMachineOwnerOf(virtualMachine, "test-vm", namespace, true, networkInterfaces...)
 
 	return sources
 }

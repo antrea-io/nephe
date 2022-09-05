@@ -15,16 +15,18 @@
 package cloud
 
 import (
-	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
-	converter "antrea.io/nephe/pkg/converter/source"
-	"antrea.io/nephe/pkg/logging"
 	"context"
+
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	converter "antrea.io/nephe/pkg/converter/source"
+	"antrea.io/nephe/pkg/logging"
 )
 
 // VirtualMachineReconciler reconciles a VirtualMachine object.
@@ -48,7 +50,7 @@ func (r *VirtualMachineReconciler) Reconcile(_ context.Context, req ctrl.Request
 			return ctrl.Result{}, err
 		}
 		// Fall through if owner is deleted.
-		r.Log.V(1).Info("Is delete")
+		r.Log.V(1).Info("Is delete", "vm", req.NamespacedName)
 		accessor, _ := meta.Accessor(&virtualMachine)
 		accessor.SetName(req.Name)
 		accessor.SetNamespace(req.Namespace)
