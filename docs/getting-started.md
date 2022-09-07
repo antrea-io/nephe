@@ -69,15 +69,15 @@ to [the AKS installation guide](aks-installation.md).
 To manage security policies of Public Cloud VMs, we need to first import the
 target VMs onto the `Nephe Controller`. The following section explains how to
 set up access to public cloud account, select target VMs, and import VMs into
-the K8s cluster as `VirtualMachine` CRs.
+the K8s cluster as `VirtualMachine` CRs. The examples below import VMs into the
+`sample-ns` Namespace.
 
 ### CloudProviderAccount
 
-To import cloud VMs, user needs to configure a `CloudProviderAccount` CR, with
-a K8s Secret containing base64 encoded cloud account credentials. The Secret
-should be created in `nephe-system` Namespace, so that `Nephe Controller` can
-access it. Samples below will create CRs and import VMs into the `sample-ns`
-Namespace.
+Before importing cloud VMs, we need to configure a `CloudProviderAccount` CR,
+with a K8s Secret containing base64 encoded cloud account credentials. The
+Secret should be created in `nephe-system` Namespace, so that `Nephe Controller`
+can access it.
 
 #### Sample Secret for AWS
 
