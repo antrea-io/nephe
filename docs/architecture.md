@@ -62,7 +62,7 @@ the controller in the same Namespace as the `CloudEntitySelector`.
 Account poller is created for each configured `CloudEntitySelector` at the
 Namespace level. On every polling interval, the account poller accesses
 Cloud-Interface plugin routines and gets all cached cloud resources.
-For each cloud resource, it creates a corresponding VirtualMachine CR and
+For each cloud resource, it creates a corresponding `VirtualMachine` CR and
 imports them into the same Namespace as the `CloudEntitySelector`.
 It compares the cloud resources stored in `etcd` against the cloud
 resources fetched and identifies which cloud resources needs to be created,
@@ -85,7 +85,7 @@ IP addresses of cloud resources when applicable.
 
 The `Antrea Controller` watches on the changes in Antrea `NetworkPolicy`, and
 computes the scopes, computes the address groups, translates to appropriate
-Antrea internal newtorkpolicy structs, and disperses them accordingly to Antrea
+Antrea internal networkpolicy structs, and disperses them accordingly to Antrea
 CNI agent or `Nephe Controller`. To support cloud use case, the
 `antrea-controller` understands `ExternalEntity` CRD and `externalEntitySelector`
 fields, and use them accordingly for ANP span computation and dispersion.
@@ -94,9 +94,9 @@ fields, and use them accordingly for ANP span computation and dispersion.
 
 The NP controller watches for the `NetworkPolicy` events from
 `Antrea Controller`. `Antrea Controller` guarantees that any internal
-networkpolicy object and the associated CRs are pushed to the NP controller, while
-the NP controller guarantees that NetworkPolicies are applied to Public Cloud
-VMs managed by the `Nephe Controller` instance. It will translate network
+networkpolicy object and the associated CRs are pushed to the NP controller,
+while the NP controller guarantees that NetworkPolicies are applied to Public
+Cloud VMs managed by the `Nephe Controller` instance. It will translate network
 policies into one or more cloud security groups and rules. The NP controller
 uses cloud plugins to attach the security groups to the cloud VMs.
 For more information, please refer to [NetworkPolicy document](networkpolicy.md).
