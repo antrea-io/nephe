@@ -49,11 +49,11 @@ key="$1"
 
 case $key in
     --aws-access-key-id)
-    export TF_VAR_aws_access_key_id="$2"
+    export AWS_ACCESS_KEY_ID="$2"
     shift 2
     ;;
     --aws-secret-key)
-    export TF_VAR_aws_access_key_secret="$2"
+    export AWS_SECRET_ACCESS_KEY="$2"
     shift 2
     ;;
     --aws-region)
@@ -84,7 +84,7 @@ case $key in
 esac
 done
 
-if [ -z "$TF_VAR_aws_access_key_id" ] || [ -z "$TF_VAR_aws_access_key_id" ]; then
+if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
     echoerr "AWS credentials must be set."
     print_usage
     exit 1
@@ -111,16 +111,10 @@ install_common_packages
 echo "Building Nephe Docker image"
 make build
 
-# Set Export for AWS CLI
-export AWS_ACCESS_KEY_ID=${TF_VAR_aws_access_key_id}
-export AWS_SECRET_ACCESS_KEY=${TF_VAR_aws_access_key_secret}
-export AWS_DEFAULT_REGION=${TF_VAR_region}
-
 # Create SSH Key Pair
 KEY_PAIR="nephe-$$"
 aws ec2 import-key-pair --key-name ${KEY_PAIR} --public-key-material fileb://~/.ssh/id_rsa.pub --region ${TF_VAR_region}
 export TF_VAR_aws_key_pair_name=${KEY_PAIR}
-export TF_VAR_eks_key_pair_name=${KEY_PAIR}
 
 function wait_for_cert_manager() {
     i=1

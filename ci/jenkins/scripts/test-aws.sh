@@ -47,11 +47,11 @@ key="$1"
 
 case $key in
     --aws-access-key-id)
-    export TF_VAR_aws_access_key_id="$2"
+    export AWS_ACCESS_KEY_ID="$2"
     shift 2
     ;;
     --aws-secret-key)
-    export TF_VAR_aws_access_key_secret="$2"
+    export AWS_SECRET_ACCESS_KEY="$2"
     shift 2
     ;;
     --aws-region)
@@ -74,7 +74,7 @@ case $key in
 esac
 done
 
-if [ -z "$TF_VAR_aws_access_key_id" ] || [ -z "$TF_VAR_aws_access_key_id" ]; then
+if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
     echoerr "AWS credentials must be set."
     print_usage
     exit 1
@@ -100,11 +100,6 @@ docker tag antrea/nephe:latest projects.registry.vmware.com/antrea/nephe:latest
 echo "Creating Kind cluster"
 hack/install-cloud-tools.sh
 ci/kind/kind-setup.sh create kind
-
-# Export AWS Credentials for AWS CLI
-export AWS_ACCESS_KEY_ID=${TF_VAR_aws_access_key_id}
-export AWS_SECRET_ACCESS_KEY=${TF_VAR_aws_access_key_secret}
-export AWS_DEFAULT_REGION=${TF_VAR_region}
 
 # Create a key pair
 KEY_PAIR="nephe-$$"
