@@ -8,7 +8,7 @@ DOCKER_SRC=/usr/src/antrea.io/nephe
 DOCKER_GOPATH=/tmp/gopath
 DOCKER_GOCACHE=/tmp/gocache
 GENERATE_CODE_LIST={$$(go list ./... | grep -e apis/crd -e apis/runtime | paste -s -d, -)}
-GENERATE_MANIFEST_LIST={$$(go list ./... | grep apis/crd | paste -s -d, -)}
+GENERATE_MANIFEST_LIST={$$(go list ./... | grep -E 'apis/crd|pkg/apiserver/webhook' | paste -s -d, -)}
 
 DOCKERIZE := \
 	 docker run --rm -u $$(id -u):$$(id -g) \

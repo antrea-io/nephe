@@ -231,7 +231,7 @@ func (r *CloudProviderAccount) validateAzureAccount() error {
 	}
 	// validate credentials
 	if len(strings.TrimSpace(azureCredential.ClientID)) == 0 || len(strings.TrimSpace(azureCredential.ClientKey)) == 0 {
-		return fmt.Errorf("must specify either credentials or managed identity client id, cannot both be empty")
+		return fmt.Errorf("client id and client key cannot be blank or empty")
 	}
 
 	// validate region

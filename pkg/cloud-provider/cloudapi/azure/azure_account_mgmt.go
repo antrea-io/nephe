@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -80,10 +79,6 @@ func compareAccountCredentials(accountName string, existing interface{}, new int
 
 // extractSecret extracts credentials from a Kubernetes secret.
 func extractSecret(c client.Client, s *v1alpha1.SecretReference) (*v1alpha1.AzureAccountCredential, error) {
-	if s == nil {
-		return nil, fmt.Errorf("secret reference not found")
-	}
-
 	u := &unstructured.Unstructured{}
 	u.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   "",

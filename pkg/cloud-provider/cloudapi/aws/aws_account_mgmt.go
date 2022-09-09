@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -62,6 +61,14 @@ func compareAccountCredentials(accountName string, existing interface{}, new int
 		credsChanged = true
 		awsPluginLogger().Info("account access key secret updated", "account", accountName)
 	}
+	if strings.Compare(existingConfig.RoleArn, newConfig.RoleArn) != 0 {
+		credsChanged = true
+		awsPluginLogger().Info("account IAM role updated", "account", accountName)
+	}
+	if strings.Compare(existingConfig.ExternalID, newConfig.ExternalID) != 0 {
+		credsChanged = true
+		awsPluginLogger().Info("account IAM external id updated", "account", accountName)
+	}
 	if strings.Compare(existingConfig.region, newConfig.region) != 0 {
 		credsChanged = true
 		awsPluginLogger().Info("account region updated", "account", accountName)
@@ -71,10 +78,6 @@ func compareAccountCredentials(accountName string, existing interface{}, new int
 
 // extractSecret extracts credentials from a Kubernetes secret.
 func extractSecret(c client.Client, s *v1alpha1.SecretReference) (*v1alpha1.AwsAccountCredential, error) {
-	if s == nil {
-		return nil, fmt.Errorf("secret reference not found")
-	}
-
 	u := &unstructured.Unstructured{}
 	u.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   "",
