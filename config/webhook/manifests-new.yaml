@@ -131,3 +131,23 @@ webhooks:
           - cloudprovideraccounts
     sideEffects: None
     admissionReviewVersions: ["v1", "v1beta1"]
+  - clientConfig:
+      caBundle: Cg==
+      service:
+        name: nephe-controller-webhook-service
+        namespace: system
+        path: /validate-v1-secret
+    failurePolicy: Fail
+    name: vsecret.kb.io
+    rules:
+      - apiGroups:
+            - ""
+        apiVersions:
+            - v1
+        operations:
+            - UPDATE
+            - DELETE
+        resources:
+            - secrets
+    sideEffects: None
+    admissionReviewVersions: ["v1", "v1beta1"]

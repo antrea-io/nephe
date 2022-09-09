@@ -21,12 +21,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	antreanetworking "antrea.io/antrea/pkg/apis/controlplane/v1beta2"
 	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/apiserver"
+	nephewebhook "antrea.io/nephe/pkg/apiserver/webhook"
 	controllers "antrea.io/nephe/pkg/controllers/cloud"
 	"antrea.io/nephe/pkg/logging"
 	// +kubebuilder:scaffold:imports
@@ -134,6 +136,11 @@ func main() {
 		setupLog.Error(err, "unable to create webhook", "webhook", "CloudProviderAccount")
 		os.Exit(1)
 	}
+
+	// Register webhook for secret
+	mgr.GetWebhookServer().Register("/validate-v1-secret",
+		&webhook.Admission{Handler: &nephewebhook.SecretValidator{Client: mgr.GetClient(),
+			Log: logging.GetLogger("webhook").WithName("Secret")}})
 
 	if err = (&apiserver.NepheControllerAPIServer{}).SetupWithManager(mgr,
 		npController.GetVirtualMachinePolicyIndexer(), logging.GetLogger("apiServer")); err != nil {
