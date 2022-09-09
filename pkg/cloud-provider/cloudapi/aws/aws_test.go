@@ -24,6 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/golang/mock/gomock"
+	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,7 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
-	. "github.com/onsi/ginkgo"
 )
 
 var (
@@ -317,7 +317,7 @@ var _ = Describe("AWS cloud", func() {
 			mockCtrl.Finish()
 		})
 
-		SetAwsAccount := func(mockawsCloudHelper *MockawsServicesHelper) *awsCloud {
+		setAwsAccount := func(mockawsCloudHelper *MockawsServicesHelper) *awsCloud {
 			fakeClient = fake.NewClientBuilder().Build()
 			_ = fakeClient.Create(context.Background(), secret)
 			c1 := newAWSCloud(mockawsCloudHelper)
@@ -327,7 +327,7 @@ var _ = Describe("AWS cloud", func() {
 
 		Context("VM Selector scenarios", func() {
 			It("Should match expected filter - single vpcID only match", func() {
-				c := SetAwsAccount(mockawsCloudHelper)
+				c := setAwsAccount(mockawsCloudHelper)
 				var expectedFilters [][]*ec2.Filter
 				var vpcFilters []*ec2.Filter
 				vpc01Filter := &ec2.Filter{
@@ -355,7 +355,7 @@ var _ = Describe("AWS cloud", func() {
 			})
 		})
 		It("Should match expected filter - multiple vpcID only match", func() {
-			c := SetAwsAccount(mockawsCloudHelper)
+			c := setAwsAccount(mockawsCloudHelper)
 			var expectedFilters [][]*ec2.Filter
 			var vpcFilters []*ec2.Filter
 			vpc01Filter := &ec2.Filter{
@@ -386,7 +386,7 @@ var _ = Describe("AWS cloud", func() {
 			Expect(filters).To(Equal(expectedFilters))
 		})
 		It("Should match expected filter - multiple vpcName only match", func() {
-			c := SetAwsAccount(mockawsCloudHelper)
+			c := setAwsAccount(mockawsCloudHelper)
 			var expectedFilters [][]*ec2.Filter
 			var vpcFilters []*ec2.Filter
 			vpc01Filter := &ec2.Filter{
@@ -417,7 +417,7 @@ var _ = Describe("AWS cloud", func() {
 			Expect(filters).To(Equal(expectedFilters))
 		})
 		It("Should match expected filter - multiple vpcID & vmName match", func() {
-			c := SetAwsAccount(mockawsCloudHelper)
+			c := setAwsAccount(mockawsCloudHelper)
 			var expectedFilters [][]*ec2.Filter
 			var vpc01Filter []*ec2.Filter
 			vpc01VpcFilter := &ec2.Filter{
@@ -472,7 +472,7 @@ var _ = Describe("AWS cloud", func() {
 			Expect(filters).To(Equal(expectedFilters))
 		})
 		It("Should match expected filter - multiple with one all", func() {
-			c := SetAwsAccount(mockawsCloudHelper)
+			c := setAwsAccount(mockawsCloudHelper)
 			var expectedFilters [][]*ec2.Filter
 			vmSelector := []v1alpha1.VirtualMachineSelector{
 				{
@@ -499,7 +499,7 @@ var _ = Describe("AWS cloud", func() {
 			Expect(filters).To(Equal(expectedFilters))
 		})
 		It("Should match expected filter - multiple vm names only match", func() {
-			c := SetAwsAccount(mockawsCloudHelper)
+			c := setAwsAccount(mockawsCloudHelper)
 			var expectedFilters [][]*ec2.Filter
 			var vmNameFilters []*ec2.Filter
 			vmNameFilter := &ec2.Filter{
@@ -536,7 +536,7 @@ var _ = Describe("AWS cloud", func() {
 			Expect(filters).To(Equal(expectedFilters))
 		})
 		It("Should match expected filter - multiple vm IDs only match", func() {
-			c := SetAwsAccount(mockawsCloudHelper)
+			c := setAwsAccount(mockawsCloudHelper)
 			var expectedFilters [][]*ec2.Filter
 			var vmIDFilters []*ec2.Filter
 			vmIDFilter := &ec2.Filter{

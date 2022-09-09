@@ -20,9 +20,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mohae/deepcopy"
-
 	"github.com/cenkalti/backoff/v4"
+	"github.com/mohae/deepcopy"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	cloudcommon "antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
