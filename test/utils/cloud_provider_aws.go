@@ -35,8 +35,7 @@ type awsVPC struct {
 
 // createAWSVPC creates AWS VPC that contains some VMs. It returns VPC id if successful.
 func createAWSVPC(timeout time.Duration) (map[string]interface{}, error) {
-	envs := []string{"TF_VAR_aws_access_key_secret",
-		"TF_VAR_aws_access_key_id"}
+	envs := []string{"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"}
 	for _, key := range envs {
 		if _, ok := os.LookupEnv(key); !ok {
 			return nil, fmt.Errorf("environment variable %v not set", key)
@@ -207,8 +206,8 @@ func (p *awsVPC) GetCloudAccountParameters(name, namespace string, cloudCluster 
 		cred.RoleArn = roleArn
 		logf.Log.Info("Using AWS role based access")
 	} else {
-		cred.AccessKeyID = os.Getenv("TF_VAR_aws_access_key_id")
-		cred.AccessKeySecret = os.Getenv("TF_VAR_aws_access_key_secret")
+		cred.AccessKeyID = os.Getenv("AWS_ACCESS_KEY_ID")
+		cred.AccessKeySecret = os.Getenv("AWS_SECRET_ACCESS_KEY")
 	}
 	secretString, _ := json.Marshal(cred)
 	out.SecretRef.Credential = string(secretString)
