@@ -1,6 +1,6 @@
 ---
 name: Support request
-about: You are trying to use Antrea and need help
+about: You are trying to use Nephe and need help
 title: ''
 labels: kind/support
 assignees: ''
