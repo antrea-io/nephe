@@ -19,4 +19,4 @@ echo ====== Local Workspaces ======
 terraform workspace list | grep -xv '^[* ]*default$'
 
 echo ====== Shared Workspaces ======
-ls -1 ../terraform.tfstate.d/current/ | awk '{print "  "$0}'
+ls -1 ${HOME}/terraform.tfstate.d/current/ | awk '{print "  "$0}'
