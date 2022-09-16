@@ -25,7 +25,7 @@ If you believe this bug is a security issue, please don't use this template and 
 **Versions:**
 <!--
 Please provide the following information:
- - Antrea version (Docker image tag).
+ - Nephe version (Docker image tag).
  - Kubernetes version (use `kubectl version`). If your Kubernetes components have [different versions](https://kubernetes.io/docs/setup/release/version-skew-policy/), please provide the version for all of them.
  - Container runtime: which runtime are you using (e.g. containerd, cri-o, docker) and which version are you using?
  - Linux kernel version on the Kubernetes Nodes (`uname -r`).
@@ -33,6 +33,6 @@ Please provide the following information:
 -->
 
 **Additional context**
-<!-- Add any other context about the problem here, such as Antrea logs, kubelet logs, etc. -->
+<!-- Add any other context about the problem here, such as Nephe logs, Antrea logs, kubelet logs, etc. -->
 
 <!-- (Please consider pasting long output into a [GitHub gist](https://gist.github.com) or any other pastebin.) -->
