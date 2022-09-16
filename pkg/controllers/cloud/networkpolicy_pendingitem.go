@@ -17,10 +17,11 @@ package cloud
 import (
 	"fmt"
 
-	antreanetworking "antrea.io/antrea/pkg/apis/controlplane/v1beta2"
 	"github.com/mohae/deepcopy"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+
+	antreanetworking "antrea.io/antrea/pkg/apis/controlplane/v1beta2"
 )
 
 type PendingItem interface {

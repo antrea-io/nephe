@@ -700,14 +700,19 @@ var _ = Describe("NetworkPolicy", func() {
 			err = reconciler.processNetworkPolicy(event)
 			Expect(err).ToNot(HaveOccurred())
 		}
+		nAddr := 0
+		if outOrder {
+			nAddr = len(anp.Rules)
+		}
 
+		Expect(len(reconciler.addrSGIndexer.ListKeys())).To(Equal(nAddr))
 		Expect(len(reconciler.networkPolicyIndexer.ListKeys())).To(Equal(0))
-		Expect(len(reconciler.addrSGIndexer.ListKeys())).To(Equal(0))
 		Expect(len(reconciler.appliedToSGIndexer.ListKeys())).To(Equal(0))
 
 		if !sgConfig.sgDeletePending {
 			wait()
 		}
+		Expect(len(reconciler.addrSGIndexer.ListKeys())).To(Equal(0))
 	}
 
 	verifyDeleteNP := func(outOrder bool) []chan error {

@@ -45,6 +45,7 @@ import (
 const (
 	NetworkPolicyStatusIndexerByNamespace       = "namespace"
 	addrAppliedToIndexerByGroupID               = "GroupID"
+	appliedToIndexerByAddrGroupRef              = "AddressGrp"
 	networkPolicyIndexerByAddrGrp               = "AddressGrp"
 	networkPolicyIndexerByAppliedToGrp          = "AppliedToGrp"
 	cloudResourceNPTrackerIndexerByAppliedToGrp = "AppliedToGrp"
@@ -511,7 +512,16 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				appliedToGrp := obj.(*appliedToSecurityGroup)
 				return []string{appliedToGrp.id.Name}, nil
 			},
-		})
+			appliedToIndexerByAddrGroupRef: func(obj interface{}) ([]string, error) {
+				appliedToGrp := obj.(*appliedToSecurityGroup)
+				addrGrps := make([]string, 0)
+				for sg := range appliedToGrp.references {
+					addrGrps = append(addrGrps, sg)
+				}
+				return addrGrps, nil
+			},
+		},
+	)
 	r.networkPolicyIndexer = cache.NewIndexer(
 		func(obj interface{}) (string, error) {
 			np := obj.(*networkPolicy)
@@ -564,8 +574,7 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		cache.Indexers{
 			NetworkPolicyStatusIndexerByNamespace: func(obj interface{}) ([]string, error) {
 				npStatus := obj.(*NetworkPolicyStatus)
-				ret := []string{npStatus.Namespace}
-				return ret, nil
+				return []string{npStatus.Namespace}, nil
 			},
 		})
 	r.localRequest = make(chan watch.Event)
