@@ -399,3 +399,18 @@
                 - text:
                     credential-id: GOVC_PASSWORD
                     variable: GOVC_PASSWORD
+      - '{test_name}-testbed-gc-on-all-nodes':
+          test_name: nephe
+          node: nephe-gc
+          triggers:
+            - timed: "H 15 * * *"
+          axes:
+            - axis:
+                type: slave
+                name: nodes
+                values:
+                  - nephe-test-1
+                  - nephe-test-2
+                  - nephe-test-3
+          builders:
+            - nephe-testbed-gc-on-all-nodes

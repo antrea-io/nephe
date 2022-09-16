@@ -35,6 +35,7 @@ if [ -z ${terraformDir} ]; then
   terraformDir="${HOME}/terraform.tfstate.d/current/"
 fi
 echo ${terraformDir}
+chmod +x ./ci/jenkins/destroy.sh
 for testbed_name in $(ls ${terraformDir}); do
   if [ -d ${terraformDir}/${testbed_name} ]; then
     start_time=$(date "+%s" --date `cat "${terraformDir}/${testbed_name}"/terraform.tfstate|jq -r .resources[6].instances[0].attributes.change_version`)
@@ -43,7 +44,7 @@ for testbed_name in $(ls ${terraformDir}); do
     timeout=10800
     if [ ${delta} > ${timeout} ]; then
       echo "testbed ${testbed_name} is stale, and it will be destroyed"
-      #./destroy.sh "${testbed_name}" "${goVcPassword}" "${terraformDir}"
+      ./ci/jenkins/destroy.sh "${testbed_name}" "${goVcPassword}" "${terraformDir}"
     else
       echo "testbed ${testbed_name} is in use"
     fi

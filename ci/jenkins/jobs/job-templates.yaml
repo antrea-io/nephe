@@ -66,7 +66,26 @@
         url: 'https://github.com/{org_repo}'
     scm:
     - git:
-        branches: master
+        branches:
+          - master
         credentials-id: ANTREA_GIT_CREDENTIAL
         url: 'https://github.com/{org_repo}'
     wrappers: '{wrappers}'
+
+- job-template:
+    name: '{test_name}-testbed-gc-on-all-nodes'
+    node: "{node}"
+    block-downstream: false
+    block-upstream: false
+    builders: '{builders}'
+    concurrent: false
+    description: '{description}'
+    project-type: matrix
+    axes: '{axes}'
+    triggers: "{triggers}"
+    properties:
+    - build-discarder:
+        artifact-days-to-keep: -1
+        artifact-num-to-keep: -1
+        days-to-keep: 7
+        num-to-keep: 30
