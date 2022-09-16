@@ -90,7 +90,7 @@ resource "azurerm_kubernetes_cluster" "k8s" {
   identity {
     type = "SystemAssigned"
   }
-  tags               = {
+  tags = {
     Environment = "nephe"
   }
 }

@@ -101,6 +101,8 @@ echo "Creating Kind cluster"
 hack/install-cloud-tools.sh
 ci/kind/kind-setup.sh create kind
 
+export AWS_DEFAULT_REGION=${TF_VAR_region}
+
 # Create a key pair
 KEY_PAIR="nephe-$$"
 aws ec2 import-key-pair --key-name ${KEY_PAIR} --public-key-material fileb://~/.ssh/id_rsa.pub --region ${TF_VAR_region}

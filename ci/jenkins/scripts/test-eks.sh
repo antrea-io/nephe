@@ -111,6 +111,8 @@ install_common_packages
 echo "Building Nephe Docker image"
 make build
 
+export AWS_DEFAULT_REGION=${TF_VAR_region}
+
 # Create SSH Key Pair
 KEY_PAIR="nephe-$$"
 aws ec2 import-key-pair --key-name ${KEY_PAIR} --public-key-material fileb://~/.ssh/id_rsa.pub --region ${TF_VAR_region}
