@@ -41,7 +41,7 @@ type SecretValidator struct {
 
 // Handle handles admission requests for Secret.
 func (v *SecretValidator) Handle(ctx context.Context, req admission.Request) admission.Response {
-	v.Log.V(1).Info("Received admission webhook", "req", req, "operation", req.Operation)
+	v.Log.V(1).Info("Received admission webhook request", "Name", req.Name, "Operation", req.Operation)
 	switch req.Operation {
 	case admissionv1.Create:
 		return v.validateCreate(req)
@@ -78,8 +78,6 @@ func (v *SecretValidator) getCPABySecret(s *corev1.Secret) (error, *crdv1alpha1.
 	}
 
 	for _, cpa := range cpaList.Items {
-		v.Log.V(1).Info("Checking CloudProvideAccount", "Name", cpa.Name,
-			"Namespace", cpa.Namespace)
 		if cpa.Spec.AWSConfig != nil {
 			if cpa.Spec.AWSConfig.SecretRef.Name == s.Name &&
 				cpa.Spec.AWSConfig.SecretRef.Namespace == s.Namespace {
