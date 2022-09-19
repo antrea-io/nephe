@@ -30,6 +30,13 @@ rules:
   - list
   - watch
 - apiGroups:
+  - controlplane.antrea.io
+  resources:
+  - networkpolicies/status
+  verbs:
+  - create
+  - delete
+- apiGroups:
   - crd.antrea.io
   resources:
   - externalentities
