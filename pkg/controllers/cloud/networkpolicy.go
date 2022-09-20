@@ -1061,7 +1061,7 @@ func (a *appliedToSecurityGroup) notify(op securityGroupOperation, status error,
 		a.hasMembers = true
 	case securityGroupOperationUpdateRules:
 		// AppliedToSecurityGroup added rules, now update rule realization state, addrGroup references and add members.
-    a.updateRuleRealizationState(r)
+		a.updateRuleRealizationState(r)
 		if err := a.updateAddrGroupReference(r); err != nil {
 			return err
 		}
