@@ -23,6 +23,7 @@ import (
 
 	"github.com/mohae/deepcopy"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -911,6 +912,36 @@ func (a *appliedToSecurityGroup) getStatus() error {
 	return &InProgress{}
 }
 
+// updateRuleRealizationState report ANP realization status to Antrea Controller.
+func (a *appliedToSecurityGroup) updateRuleRealizationState(r *NetworkPolicyReconciler) {
+	nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAppliedToGrp, a.id.Name)
+	if err != nil {
+		r.Log.Error(err, "Get networkPolicy indexer failed.", "appliedToGroup", a.id.Name)
+		return
+	}
+	// Walk through all the ANPs for a given appliedToGroup and report combined status.
+	for _, i := range nps {
+		np := i.(*networkPolicy)
+		status := &antreanetworking.NetworkPolicyStatus{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      string(np.UID),
+				Namespace: np.Namespace,
+			},
+
+			Nodes: []antreanetworking.NetworkPolicyNodeStatus{
+				{
+					NodeName:   config.ANPNepheController,
+					Generation: np.Generation,
+				},
+			},
+		}
+		r.Log.V(1).Info("Updating rule realization.", "NP", np.Name, "Namespace", np.Namespace)
+		if err := r.antreaClient.NetworkPolicies().UpdateStatus(context.TODO(), status.Name, status); err != nil {
+			r.Log.Error(err, "Rule realization failed.", "NP", np.Name, "Namespace", np.Namespace)
+		}
+	}
+}
+
 // notify calls into appliedToSecurityGroup to report operation status from cloud plug-in.
 func (a *appliedToSecurityGroup) notify(op securityGroupOperation, status error, r *NetworkPolicyReconciler) error {
 	defer func() {
@@ -948,6 +979,7 @@ func (a *appliedToSecurityGroup) notify(op securityGroupOperation, status error,
 	case securityGroupOperationUpdateMembers:
 		a.hasMembers = true
 	case securityGroupOperationUpdateRules:
+		a.updateRuleRealizationState(r)
 		// AppliedToSecurityGroup added rules, now add members.
 		a.hasRules = true
 		if !a.hasMembers {
