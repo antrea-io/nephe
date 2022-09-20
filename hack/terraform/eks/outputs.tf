@@ -22,7 +22,7 @@ output "config_map_aws_auth" {
 
 output "region" {
   description = "AWS region."
-  value       = var.region
+  value       = data.aws_region.current.name
 }
 
 output "vpc" {

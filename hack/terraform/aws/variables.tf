@@ -1,14 +1,8 @@
-variable aws_access_key_id {}
-variable aws_access_key_secret {}
 variable aws_key_pair_name {}
 
 variable owner {
   type    = string
   default = null
-}
-
-variable "region" {
-  default = "us-west-1"
 }
 
 variable aws_vm_type {

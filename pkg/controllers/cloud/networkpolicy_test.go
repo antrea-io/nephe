@@ -37,6 +37,7 @@ import (
 
 	antreanetworking "antrea.io/antrea/pkg/apis/controlplane/v1beta2"
 	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
+	antreafakeclientset "antrea.io/antrea/pkg/client/clientset/versioned/fake"
 	cloud "antrea.io/nephe/apis/crd/v1alpha1"
 	cloudcommon "antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
@@ -98,7 +99,9 @@ var _ = Describe("NetworkPolicy", func() {
 			Log:             logf.Log,
 			Client:          mockClient,
 			syncedWithCloud: true,
+			antreaClient:    antreafakeclientset.NewSimpleClientset().ControlplaneV1beta2(),
 		}
+
 		err := reconciler.SetupWithManager(nil)
 		Expect(err).ToNot(HaveOccurred())
 		vmMembers = make(map[string]*securitygroup.CloudResource)

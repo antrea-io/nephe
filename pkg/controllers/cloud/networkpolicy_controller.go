@@ -73,7 +73,7 @@ type NetworkPolicyReconciler struct {
 	client.Client
 	Log          logr.Logger
 	Scheme       *runtime.Scheme
-	antreaClient *antreanetworkingclient.ControlplaneV1beta2Client
+	antreaClient antreanetworkingclient.ControlplaneV1beta2Interface
 
 	// Watcher interfaces
 	addrGroupWatcher      watch.Interface

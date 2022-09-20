@@ -21,7 +21,7 @@ KUBECTL="kubectl"
 RUN_PATH="$HOME/tmp/terraform-eks"
 CONFIG_PATH=$(dirname $(readlink -f "$0"))/terraform/eks
 CMD_ARRAY=($AWS_CLI $TERRAFORM $KUBECTL pv bzip2 jq)
-ENV_ARRAY=(TF_VAR_eks_cluster_iam_role_name TF_VAR_eks_iam_instance_profile_name TF_VAR_eks_key_pair_name)
+ENV_ARRAY=(TF_VAR_eks_cluster_iam_role_name TF_VAR_eks_iam_instance_profile_name TF_VAR_aws_key_pair_name)
 CREATE_ONLY=
 
 _usage="Usage: $0 :
@@ -56,19 +56,6 @@ function validate {
        exit 1
      fi
   done
-
-  # check for aws permissions
-  $AWS_CLI eks list-clusters > /dev/null 2>&1
-   if [ $? -ne 0 ]; then
-     echo aws user has no permission to eks
-     exit 1
-   fi
-
-  $AWS_CLI iam list-roles > /dev/null 2>&1
-   if [ $? -ne 0 ]; then
-     echo aws user has no permission to iam
-     exit 1
-   fi
 }
 
 function apply {
@@ -116,7 +103,7 @@ function load {
   nodes=$(KUBECONFIG=$RUN_PATH/kubeconfig kubectl get nodes -o json | jq -r '.items[] | .status | .addresses[] | select(.type == "ExternalIP") |.address')
   for node in $(echo $nodes); do
     echo load $image to $node
-    docker save $image | bzip2 |pv| ssh  -oStrictHostKeyChecking=no ec2-user@$node 'docker load'
+    docker save $image | bzip2 | pv | ssh -oStrictHostKeyChecking=no ec2-user@$node 'docker load'
   done
 }
 
