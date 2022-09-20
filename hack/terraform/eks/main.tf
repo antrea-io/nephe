@@ -22,9 +22,7 @@ terraform {
   }
 }
 
-provider "aws" {
-  region = var.region
-}
+provider "aws" {}
 
 provider "kubernetes" {
   host                   = data.aws_eks_cluster.cluster.endpoint
@@ -39,6 +37,8 @@ data "aws_eks_cluster" "cluster" {
 data "aws_eks_cluster_auth" "cluster" {
   name = module.eks.cluster_id
 }
+
+data "aws_region" "current" {}
 
 data "aws_caller_identity" "current" {}
 

@@ -5,10 +5,6 @@ variable owner {
   default = null
 }
 
-variable "region" {
-  default = "us-west-1"
-}
-
 variable aws_vm_type {
   default = "t2.micro"
 }

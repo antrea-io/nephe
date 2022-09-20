@@ -21,7 +21,3 @@ variable eks_worker_count {
 variable eks_worker_type {
   default = "t2.medium"
 }
-
-variable "region" {
-  default = "us-west-1"
-}

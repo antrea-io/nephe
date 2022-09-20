@@ -41,7 +41,7 @@ function print_help {
 
 # Defaults
 export TF_VAR_owner="ci"
-export TF_VAR_region="us-west-2"
+export AWS_DEFAULT_REGION="us-west-2"
 
 while [[ $# -gt 0 ]]
 do
@@ -57,7 +57,7 @@ case $key in
     shift 2
     ;;
     --aws-region)
-    export TF_VAR_region="$2"
+    export AWS_DEFAULT_REGION="$2"
     shift 2
     ;;
     --eks-cluster-role)
@@ -111,11 +111,9 @@ install_common_packages
 echo "Building Nephe Docker image"
 make build
 
-export AWS_DEFAULT_REGION=${TF_VAR_region}
-
 # Create SSH Key Pair
 KEY_PAIR="nephe-$$"
-aws ec2 import-key-pair --key-name ${KEY_PAIR} --public-key-material fileb://~/.ssh/id_rsa.pub --region ${TF_VAR_region}
+aws ec2 import-key-pair --key-name ${KEY_PAIR} --public-key-material fileb://~/.ssh/id_rsa.pub --region ${AWS_DEFAULT_REGION}
 export TF_VAR_aws_key_pair_name=${KEY_PAIR}
 
 function wait_for_cert_manager() {
@@ -133,7 +131,7 @@ function wait_for_cert_manager() {
 
 function cleanup() {
     $HOME/terraform/eks destroy
-    aws ec2 delete-key-pair  --key-name ${KEY_PAIR}  --region ${TF_VAR_region}
+    aws ec2 delete-key-pair  --key-name ${KEY_PAIR}  --region ${AWS_DEFAULT_REGION}
 }
 trap cleanup EXIT
 

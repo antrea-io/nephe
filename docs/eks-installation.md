@@ -33,6 +33,7 @@
    export TF_VAR_aws_key_pair_name=YOUR_KEY_PAIR_TO_ACCESS_WORKER_NODE
    export AWS_ACCESS_KEY_ID=YOUR_AWS_KEY
    export AWS_SECRET_ACCESS_KEY=YOUR_AWS_KEY_SECRET
+   export AWS_DEFAULT_REGION=YOUR_REGION
    ```
 
    - `TF_VAR_owner` may be set so that you can identify your own cloud resources.
@@ -128,7 +129,7 @@ variables, see [Prerequisites](#Prerequisites) section for more details.
 ```bash
 export AWS_ACCESS_KEY_ID=YOUR_AWS_KEY
 export AWS_SECRET_ACCESS_KEY=YOUR_AWS_KEY_SECRET
-export TF_VAR_region=YOUR_REGION
+export AWS_DEFAULT_REGION=YOUR_REGION
 export TF_VAR_aws_key_pair_name=YOU_AWS_KEY_PAIR
 ```
 
