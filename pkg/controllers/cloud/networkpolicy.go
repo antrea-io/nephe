@@ -802,9 +802,9 @@ func (a *addrSecurityGroup) notifyNetworkPolicyChange(r *NetworkPolicyReconciler
 // appliedToSecurityGroup contains information to create a cloud appliedToSecurityGroup.
 type appliedToSecurityGroup struct {
 	securityGroupImpl
-	hasRules     bool
-	hasMembers   bool
-	addrGroupRef map[string]bool
+	hasRules      bool
+	hasMembers    bool
+	addrGroupRefs map[string]bool
 }
 
 // newAddrAppliedGroup creates a new addSecurityGroup from Antrea AddressGroup membership.
@@ -908,7 +908,7 @@ func (a *appliedToSecurityGroup) computeRules(nps []interface{}) ([]*securitygro
 	return deduplicateIngressRules(irules), deduplicateEgressRules(erules)
 }
 
-// updateAddrGroupReference updates appliedTo group addrGroupRef and notifies removed addrGroups that rules referencing them is removed.
+// updateAddrGroupReference updates appliedTo group addrGroupRefs and notifies removed addrGroups that rules referencing them is removed.
 func (a *appliedToSecurityGroup) updateAddrGroupReference(r *NetworkPolicyReconciler) error {
 	// get latest irules and erules
 	nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAppliedToGrp, a.id.Name)
@@ -917,38 +917,38 @@ func (a *appliedToSecurityGroup) updateAddrGroupReference(r *NetworkPolicyReconc
 	}
 	irules, erules := a.computeRules(nps)
 
-	// combine irules and erules to get latest addrGroupRef.
-	references := make(map[string]bool)
+	// combine irules and erules to get latest addrGroupRefs.
+	currentRefs := make(map[string]bool)
 	for _, rule := range irules {
 		for _, sg := range rule.FromSecurityGroups {
-			references[sg.String()] = true
+			currentRefs[sg.String()] = true
 		}
 	}
 	for _, rule := range erules {
 		for _, sg := range rule.ToSecurityGroups {
-			references[sg.String()] = true
+			currentRefs[sg.String()] = true
 		}
 	}
-	// compute addrGroupRef removed from previous.
-	removedRef := make([]string, 0)
-	for oldRef := range a.addrGroupRef {
-		if _, found := references[oldRef]; !found {
-			removedRef = append(removedRef, oldRef)
+	// compute addrGroupRefs removed from previous.
+	removedRefs := make([]string, 0)
+	for oldRef := range a.addrGroupRefs {
+		if _, found := currentRefs[oldRef]; !found {
+			removedRefs = append(removedRefs, oldRef)
 		}
 	}
-	// update addrGroupRef.
+	// update addrGroupRefs.
 	// Indexer does not work with in-place update. Do delete->update->add.
 	if err = r.appliedToSGIndexer.Delete(a); err != nil {
 		r.Log.Error(err, "Delete appliedToSG indexer", "Name", a.id.String())
 		return err
 	}
-	a.addrGroupRef = references
+	a.addrGroupRefs = currentRefs
 	if err = r.appliedToSGIndexer.Add(a); err != nil {
 		r.Log.Error(err, "Add appliedToSG indexer", "Name", a.id.String())
 		return err
 	}
-	// notify addrSG that have addrGroupRef removed
-	return a.notifyAddrGroups(removedRef, r)
+	// notify addrSG that references removed.
+	return a.notifyAddrGroups(removedRefs, r)
 }
 
 // notifyAddrGroups notifies referenced addrGroups that the reference has changed.
@@ -1078,7 +1078,7 @@ func (a *appliedToSecurityGroup) notify(op securityGroupOperation, status error,
 	case securityGroupOperationDelete:
 		// AppliedToSecurityGroup is deleted, notify all referenced addrGroups.
 		ref := make([]string, 0)
-		for sg := range a.addrGroupRef {
+		for sg := range a.addrGroupRefs {
 			ref = append(ref, sg)
 		}
 		return a.notifyAddrGroups(ref, r)

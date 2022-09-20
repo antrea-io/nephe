@@ -515,7 +515,7 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			appliedToIndexerByAddrGroupRef: func(obj interface{}) ([]string, error) {
 				appliedToGrp := obj.(*appliedToSecurityGroup)
 				addrGrps := make([]string, 0)
-				for sg := range appliedToGrp.addrGroupRef {
+				for sg := range appliedToGrp.addrGroupRefs {
 					addrGrps = append(addrGrps, sg)
 				}
 				return addrGrps, nil
