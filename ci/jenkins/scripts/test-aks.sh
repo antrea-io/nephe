@@ -101,12 +101,6 @@ echo "Installing Azure CLI"
 curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 az login --service-principal -u $TF_VAR_azure_client_id -p $TF_VAR_azure_client_secret --tenant $TF_VAR_azure_client_tenant_id
 
-# Set AKS exports too
-export TF_VAR_aks_client_subscription_id=${TF_VAR_azure_client_subscription_id}
-export TF_VAR_aks_client_id=${TF_VAR_azure_client_id}
-export TF_VAR_aks_client_tenant_id=${TF_VAR_azure_client_tenant_id}
-export TF_VAR_aks_client_secret=${TF_VAR_azure_client_secret}
-
 function cleanup() {
     echo "Destroying AKS Cluster"
     $HOME/terraform/aks destroy

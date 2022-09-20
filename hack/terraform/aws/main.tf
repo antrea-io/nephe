@@ -9,11 +9,7 @@ terraform {
   }
 }
 
-provider "aws" {
-  region     = var.region
-  access_key = var.aws_access_key_id
-  secret_key = var.aws_access_key_secret
-}
+provider "aws" {}
 
 ##################################################################
 # Data sources to get VPC, subnet, security group and AMI details
@@ -46,6 +42,8 @@ data "template_file" user_data {
   template = file(var.aws_vm_os_types[count.index].init)
 }
 
+data "aws_region" "current" {}
+
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
   version = "2.77.0"
@@ -53,7 +51,7 @@ module "vpc" {
   name = local.vpc_name
   cidr = var.vpc_cidr
 
-  azs            = ["${var.region}b"]
+  azs            = ["${data.aws_region.current.name}b"]
   public_subnets = [var.vpc_public_subnet]
 
   #enable_nat_gateway = true

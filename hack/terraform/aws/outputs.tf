@@ -40,5 +40,5 @@ output "private_ips" {
 
 output "region" {
   description = "VPC region"
-  value       = var.region
+  value       = data.aws_region.current.name
 }

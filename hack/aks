@@ -14,13 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-AZURE_CLI="az"
 TERRAFORM="terraform"
 KUBECTL="kubectl"
 RUN_PATH="$HOME/tmp/terraform-aks"
 CONFIG_PATH=$(dirname $(readlink -f "$0"))/terraform/aks
-CMD_ARRAY=($AZURE_CLI $TERRAFORM $KUBECTL pv bzip2 jq)
-ENV_ARRAY=(TF_VAR_aks_client_id TF_VAR_aks_client_secret)
+CMD_ARRAY=($TERRAFORM $KUBECTL pv jq)
+ENV_ARRAY=(TF_VAR_azure_client_id TF_VAR_azure_client_secret TF_VAR_azure_client_subscription_id TF_VAR_azure_client_tenant_id)
 CREATE_ONLY=
 
 _usage="Usage: $0 :
@@ -101,7 +100,7 @@ function load {
   nodes=$(KUBECONFIG=$RUN_PATH/kubeconfig kubectl get nodes -o json | jq -r '.items[] | .status | .addresses[] | select(.type == "ExternalIP") |.address')
   for node in $(echo $nodes); do
     echo load $image to $node
-    docker save $image | pv| ssh  -oStrictHostKeyChecking=no azureuser@$node 'sudo ctr -n=k8s.io images import -'
+    docker save $image | pv | ssh -oStrictHostKeyChecking=no azureuser@$node 'sudo ctr -n=k8s.io images import -'
   done
 }
 
