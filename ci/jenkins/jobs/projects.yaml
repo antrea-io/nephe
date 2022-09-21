@@ -403,7 +403,7 @@
           test_name: nephe
           node: nephe-gc
           triggers:
-            - timed: "H 15 * * *"
+            - timed: "H 7 * * *"
           axes:
             - axis:
                 type: slave
