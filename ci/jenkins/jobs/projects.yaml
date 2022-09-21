@@ -377,3 +377,40 @@
                       default-excludes: true
                       fingerprint: false
                       only-if-success: false
+      - '{test_name}-testbed-gc':
+          test_name: nephe
+          node: 'nephe'
+          description: 'This is the {test_name}-testbed-gc.'
+          builders:
+            - nephe-gc-cronjob
+          white_list_target_branches: [ ]
+          allow_whitelist_orgs_as_admins: true
+          admin_list: '{nephe_admin_list}'
+          org_list: '{nephe_org_list}'
+          white_list: '{nephe_white_list}'
+          success_status: Build finished.
+          failure_status: Failed.
+          error_status: Failed.
+          triggered_status: null
+          started_status: null
+          concurrent: true
+          wrappers:
+            - credentials-binding:
+                - text:
+                    credential-id: GOVC_PASSWORD
+                    variable: GOVC_PASSWORD
+      - '{test_name}-testbed-gc-on-all-nodes':
+          test_name: nephe
+          node: nephe-gc
+          triggers:
+            - timed: "H 7 * * *"
+          axes:
+            - axis:
+                type: slave
+                name: nodes
+                values:
+                  - nephe-test-1
+                  - nephe-test-2
+                  - nephe-test-3
+          builders:
+            - nephe-testbed-gc-on-all-nodes

@@ -27,7 +27,7 @@ if [ -z "${tesbted_name}" ]; then
   exit 1
 fi
 
-if [ ! -e "../terraform.tfstate.d/current/${tesbted_name}" ]; then
+if [ ! -e "${HOME}/terraform.tfstate.d/current/${tesbted_name}" ]; then
   echo "${tesbted_name} does not exist in remote workspace"
   exit 1
 fi
@@ -40,5 +40,5 @@ if [ -e "terraform.tfstate.d/${tesbted_name}" ]; then
 fi
 
 echo ====== Checking out ${tesbted_name} to Local Workspace ======
-cp -rf "../terraform.tfstate.d/current/${tesbted_name}" terraform.tfstate.d/
+cp -rf "${HOME}/terraform.tfstate.d/current/${tesbted_name}" terraform.tfstate.d/
 echo ====== Done ======

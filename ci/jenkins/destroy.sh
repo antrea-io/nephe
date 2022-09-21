@@ -20,7 +20,10 @@ set -e
 
 tesbted_name="$1"
 vc_passwd="$2"
-var_file="terraform.tfstate.d/${tesbted_name}/vars.tfvars"
+var_file="$3"
+if [ -z ${var_file} ]; then
+  var_file="terraform.tfstate.d/${tesbted_name}/vars.tfvars"
+fi
 
 if [ -z "${tesbted_name}" ]; then
   echo "Usage: $0 <testbed_name>"
@@ -44,5 +47,5 @@ terraform workspace "select" default
 terraform workspace delete "${tesbted_name}"
 echo ====== Deleted ${tesbted_name} from Local Workspace ======
 echo ====== Deleting ${tesbted_name} from Shared Workspace ======
-rm -rf "../terraform.tfstate.d/current/${tesbted_name}"
+rm -rf "${HOME}/terraform.tfstate.d/current/${tesbted_name}"
 echo ====== Deleted ${tesbted_name} from Shared Workspace ======

@@ -34,3 +34,18 @@
                   --vcuser "${{VC_USER}}" --datacenter "${{DATACENTERNAME}}" --datastore "${{DATA_STORE}}" \
                   --vcCluster "${{VC_CLUSTER}}" --resourcePool "${{RESOURCEPOOLPATH}}" --vcNetwork "${{VMC_NETWORK_1}}" \
                   --virtualMachine "${{VIRTUAL_MACHINE}}" --goVcPassword "${{GOVC_PASSWORD}}" --testType aks
+
+- builder:
+    name: nephe-gc-cronjob
+    builders:
+      - shell: |-
+          #!/bin/bash
+          chmod +x ./ci/jenkins/nephe-gc.sh
+          ./ci/jenkins/nephe-gc.sh --goVcPassword "${GOVC_PASSWORD}"
+
+- builder:
+    name: nephe-testbed-gc-on-all-nodes
+    builders:
+        - trigger-builds:
+              - project: "nephe-testbed-gc"
+                block: true

@@ -27,10 +27,10 @@ if [ ! -e "terraform.tfstate.d/${tesbted_name}" ]; then
   exit 1
 fi
 
-if [ ! -e "../terraform.tfstate.d/current/${tesbted_name}" ]; then
+if [ ! -e "${HOME}/terraform.tfstate.d/current/${tesbted_name}" ]; then
   echo "${tesbted_name} does not exist in remote workspace"
   exit 1
 fi
 
 echo ====== Showing Differences for ${tesbted_name} between Local and Shared Workspaces======
-diff -sur "terraform.tfstate.d/${tesbted_name}" "../terraform.tfstate.d/current/${tesbted_name}"
+diff -sur "terraform.tfstate.d/${tesbted_name}" "${HOME}/terraform.tfstate.d/current/${tesbted_name}"
