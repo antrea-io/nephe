@@ -36,6 +36,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	antreanetworking "antrea.io/antrea/pkg/apis/controlplane/v1beta2"
+	"antrea.io/antrea/pkg/apis/crd/v1alpha1"
 	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	antreafakeclientset "antrea.io/antrea/pkg/client/clientset/versioned/fake"
 	cloud "antrea.io/nephe/apis/crd/v1alpha1"
@@ -827,6 +828,15 @@ var _ = Describe("NetworkPolicy", func() {
 	It("Delete networkPolicy out order", func() {
 		createAndVerifyNP(false)
 		deleteAndVerifyNP(true)
+	})
+
+	It("Verify unsupported networkPolicy drop action", func() {
+		anpTemp := anp
+		ruleAction := v1alpha1.RuleActionDrop
+		anpTemp.Rules[0].Action = &ruleAction
+		event := watch.Event{Type: watch.Added, Object: anpTemp}
+		err := reconciler.processNetworkPolicy(event)
+		Expect(err).To(HaveOccurred())
 	})
 
 	It("Modify addrGroup cloud member", func() {
