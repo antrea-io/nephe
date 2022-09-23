@@ -69,7 +69,7 @@
     scm:
     - git:
         branches:
-          - master
+          - main
         credentials-id: ANTREA_GIT_CREDENTIAL
         url: 'https://github.com/{org_repo}'
     wrappers: '{wrappers}'
