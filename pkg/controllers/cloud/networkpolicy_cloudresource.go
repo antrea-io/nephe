@@ -50,7 +50,7 @@ func vmNPStatusSetter(tracker *cloudResourceNPTracker, r *NetworkPolicyReconcile
 	log.V(1).Info("Update ANP status", "resource", tracker.cloudResource, "status", status)
 	vmList := &cloud.VirtualMachineList{}
 	if err := r.List(context.TODO(), vmList,
-		client.MatchingFields{virtualMachineIndexerByCloudID: tracker.cloudResource.Name.Name}); err != nil {
+		client.MatchingFields{virtualMachineIndexerByCloudID: tracker.cloudResource.Name}); err != nil {
 		return false, err
 	}
 	for _, vm := range vmList.Items {
@@ -168,18 +168,18 @@ func (r *NetworkPolicyReconciler) processCloudResourceNPTrackers() {
 }
 
 func (c *cloudResourceNPTracker) update(sg *appliedToSecurityGroup, isDelete bool, r *NetworkPolicyReconciler) error {
-	_, found := c.appliedToSGs[sg.id.String()]
+	_, found := c.appliedToSGs[sg.id.CloudResourceID.String()]
 	if found != isDelete {
 		return nil
 	}
 	c.markDirty()
 	_ = r.cloudResourceNPTrackerIndexer.Delete(c)
 	if isDelete {
-		delete(c.appliedToSGs, sg.id.String())
-		c.prevAppliedToSGs[sg.id.String()] = sg
+		delete(c.appliedToSGs, sg.id.CloudResourceID.String())
+		c.prevAppliedToSGs[sg.id.CloudResourceID.String()] = sg
 	} else {
-		delete(c.prevAppliedToSGs, sg.id.String())
-		c.appliedToSGs[sg.id.String()] = sg
+		delete(c.prevAppliedToSGs, sg.id.CloudResourceID.String())
+		c.appliedToSGs[sg.id.CloudResourceID.String()] = sg
 	}
 	return r.cloudResourceNPTrackerIndexer.Add(c)
 }
@@ -252,7 +252,7 @@ func (c *cloudResourceNPTracker) computeNPStatus(r *NetworkPolicyReconciler) map
 
 	for _, asg := range newPrevSgs {
 		if asg.status == nil {
-			delete(newPrevSgs, asg.id.String())
+			delete(newPrevSgs, asg.id.CloudResourceID.String())
 			continue
 		}
 		nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAppliedToGrp, asg.id.Name)
@@ -261,7 +261,7 @@ func (c *cloudResourceNPTracker) computeNPStatus(r *NetworkPolicyReconciler) map
 				"key", asg.id.Name)
 			continue
 		}
-		errMsg := fmt.Sprintf(AppliedSecurityGroupDeleteError, asg.id.String(), asg.status.Error())
+		errMsg := fmt.Sprintf(AppliedSecurityGroupDeleteError, asg.id.CloudResourceID.String(), asg.status.Error())
 		for _, i := range nps {
 			np := i.(*networkPolicy)
 			npList, ok := ret[np.Namespace]
@@ -278,7 +278,7 @@ func (c *cloudResourceNPTracker) computeNPStatus(r *NetworkPolicyReconciler) map
 				npList = make(map[string]string)
 				ret[""] = npList
 			}
-			npList[asg.id.String()] = errMsg
+			npList[asg.id.CloudResourceID.String()] = errMsg
 		}
 	}
 	if len(newPrevSgs) != len(c.prevAppliedToSGs) {

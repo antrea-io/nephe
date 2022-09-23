@@ -18,13 +18,13 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"strings"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
-	"antrea.io/nephe/pkg/cloud-provider/cloudapi/internal"
 )
 
 type awsAccountConfig struct {
@@ -100,30 +100,4 @@ func extractSecret(c client.Client, s *v1alpha1.SecretReference) (*v1alpha1.AwsA
 	}
 
 	return cred, nil
-}
-
-// getVpcAccount returns first found account config to which this vpc id belongs.
-func (c *awsCloud) getVpcAccount(vpcID string) internal.CloudAccountInterface {
-	accCfgs := c.cloudCommon.GetCloudAccounts()
-	if len(accCfgs) == 0 {
-		return nil
-	}
-
-	for _, accCfg := range accCfgs {
-		ec2ServiceCfg, err := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
-		if err != nil {
-			awsPluginLogger().Error(err, "get ec2 service config failed", "vpcID", vpcID, "account", accCfg.GetNamespacedName())
-			continue
-		}
-		accVpcIDs := ec2ServiceCfg.(*ec2ServiceConfig).getCachedVpcIDs()
-		if len(accVpcIDs) == 0 {
-			awsPluginLogger().Info("no vpc found for account", "vpcID", vpcID, "account", accCfg.GetNamespacedName())
-			continue
-		}
-		if _, found := accVpcIDs[strings.ToLower(vpcID)]; found {
-			return accCfg
-		}
-		awsPluginLogger().Info("vpcID not found in cache", "vpcID", vpcID, "account", accCfg.GetNamespacedName())
-	}
-	return nil
 }

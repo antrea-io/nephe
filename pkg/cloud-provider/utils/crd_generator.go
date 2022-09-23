@@ -27,7 +27,7 @@ import (
 
 func GenerateVirtualMachineCRD(crdName string, cloudName string, cloudID string, namespace string, cloudNetwork string,
 	shortNetworkID string, state cloudv1alpha1.VMState, tags map[string]string, networkInterfaces []cloudv1alpha1.NetworkInterface,
-	provider cloudcommon.ProviderType) *cloudv1alpha1.VirtualMachine {
+	provider cloudcommon.ProviderType, accountId string) *cloudv1alpha1.VirtualMachine {
 	vmStatus := &cloudv1alpha1.VirtualMachineStatus{
 		Provider:            cloudv1alpha1.CloudProvider(provider),
 		VirtualPrivateCloud: shortNetworkID,
@@ -39,6 +39,7 @@ func GenerateVirtualMachineCRD(crdName string, cloudName string, cloudID string,
 		cloudcommon.AnnotationCloudAssignedIDKey:    cloudID,
 		cloudcommon.AnnotationCloudAssignedNameKey:  cloudName,
 		cloudcommon.AnnotationCloudAssignedVPCIDKey: cloudNetwork,
+		cloudcommon.AnnotationCloudAccountIDKey:     accountId,
 	}
 
 	vmCrd := &cloudv1alpha1.VirtualMachine{

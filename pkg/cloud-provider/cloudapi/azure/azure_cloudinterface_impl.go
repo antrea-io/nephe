@@ -75,14 +75,6 @@ func (c *azureCloud) InstancesGivenProviderAccount(accountNamespacedName *types.
 	return vmCRDs, err
 }
 
-// IsVirtualPrivateCloudPresent returns true if given ID is managed by the cloud, else false.
-func (c *azureCloud) IsVirtualPrivateCloudPresent(vpcUniqueIdentifier string) bool {
-	if accCfg := c.getVnetAccount(vpcUniqueIdentifier); accCfg == nil {
-		return false
-	}
-	return true
-}
-
 // ////////////////////////////////////////////////////////
 //
 //	AccountMgmtInterface Implementation

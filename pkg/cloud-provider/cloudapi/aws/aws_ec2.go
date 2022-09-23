@@ -249,12 +249,12 @@ func (ec2Cfg *ec2ServiceConfig) RemoveResourceFilters(selectorName string) {
 	delete(ec2Cfg.instanceFilters, selectorName)
 }
 
-func (ec2Cfg *ec2ServiceConfig) GetResourceCRDs(namespace string) *internal.CloudServiceResourceCRDs {
+func (ec2Cfg *ec2ServiceConfig) GetResourceCRDs(namespace string, accountId string) *internal.CloudServiceResourceCRDs {
 	instances := ec2Cfg.getCachedInstances()
 	vmCRDs := make([]*v1alpha1.VirtualMachine, 0, len(instances))
 	for _, instance := range instances {
 		// build VirtualMachine CRD
-		vmCRD := ec2InstanceToVirtualMachineCRD(instance, namespace)
+		vmCRD := ec2InstanceToVirtualMachineCRD(instance, namespace, accountId)
 		vmCRDs = append(vmCRDs, vmCRD)
 	}
 

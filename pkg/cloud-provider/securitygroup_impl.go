@@ -28,28 +28,18 @@ func init() {
 	securitygroup.CloudSecurityGroup = &SecurityGroupImpl{}
 }
 
-func getCloudInterfaceForCloudResource(addressGroupIdentifier *securitygroup.CloudResourceID) (cloudcommon.CloudInterface, error) {
-	var cloudInterfaceForResource cloudcommon.CloudInterface
-
-	providerTypes := GetSupportedCloudProviderTypes()
-	for _, providerType := range providerTypes {
-		cloudInterface, err := GetCloudInterface(providerType)
-		if err != nil {
-			corePluginLogger().Error(err, "get cloud interface failed", "providerType", providerType)
-			continue
-		}
-		if cloudInterface.IsVirtualPrivateCloudPresent(addressGroupIdentifier.Vpc) {
-			cloudInterfaceForResource = cloudInterface
-			break
-		}
+// getCloudInterfaceForCloudResource fetches Cloud Interface using Cloud Provider Type present in CloudResource.
+func getCloudInterfaceForCloudResource(addressGroupIdentifier *securitygroup.CloudResource) (cloudcommon.CloudInterface, error) {
+	providerType := cloudcommon.ProviderType(addressGroupIdentifier.CloudProvider)
+	cloudInterface, err := GetCloudInterface(providerType)
+	if err != nil {
+		corePluginLogger().Error(err, "get cloud interface failed", "providerType", providerType)
+		return nil, fmt.Errorf("virtual private cloud [%v] not managed by supported clouds", addressGroupIdentifier.Vpc)
 	}
-	if cloudInterfaceForResource != nil {
-		return cloudInterfaceForResource, nil
-	}
-	return nil, fmt.Errorf("virtual private cloud [%v] not managed by supported clouds [%v]", addressGroupIdentifier.Vpc, providerTypes)
+	return cloudInterface, nil
 }
 
-func (sg *SecurityGroupImpl) CreateSecurityGroup(addressGroupIdentifier *securitygroup.CloudResourceID, membershipOnly bool) <-chan error {
+func (sg *SecurityGroupImpl) CreateSecurityGroup(addressGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) <-chan error {
 	ch := make(chan error)
 
 	go func() {
@@ -73,7 +63,7 @@ func (sg *SecurityGroupImpl) CreateSecurityGroup(addressGroupIdentifier *securit
 	return ch
 }
 
-func (sg *SecurityGroupImpl) UpdateSecurityGroupMembers(addressGroupIdentifier *securitygroup.CloudResourceID,
+func (sg *SecurityGroupImpl) UpdateSecurityGroupMembers(addressGroupIdentifier *securitygroup.CloudResource,
 	members []*securitygroup.CloudResource, membershipOnly bool) <-chan error {
 	ch := make(chan error)
 
@@ -98,7 +88,7 @@ func (sg *SecurityGroupImpl) UpdateSecurityGroupMembers(addressGroupIdentifier *
 	return ch
 }
 
-func (sg *SecurityGroupImpl) UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResourceID,
+func (sg *SecurityGroupImpl) UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResource,
 	ingressRules []*securitygroup.IngressRule, egressRules []*securitygroup.EgressRule) <-chan error {
 	ch := make(chan error)
 
@@ -123,7 +113,7 @@ func (sg *SecurityGroupImpl) UpdateSecurityGroupRules(addressGroupIdentifier *se
 	return ch
 }
 
-func (sg *SecurityGroupImpl) DeleteSecurityGroup(addressGroupIdentifier *securitygroup.CloudResourceID, membershipOnly bool) <-chan error {
+func (sg *SecurityGroupImpl) DeleteSecurityGroup(addressGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) <-chan error {
 	ch := make(chan error)
 
 	go func() {
