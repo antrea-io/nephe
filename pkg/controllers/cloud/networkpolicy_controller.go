@@ -114,10 +114,17 @@ func (r *NetworkPolicyReconciler) isNetworkPolicySupported(anp *antreanetworking
 	if anp.SourceRef.Type != antreanetworking.AntreaNetworkPolicy {
 		return fmt.Errorf("only antrea network policy is supported")
 	}
-	// Check for support actions
+	// Check for support actions.
 	for _, rule := range anp.Rules {
 		if rule.Action != nil && *rule.Action != v1alpha1.RuleActionAllow {
 			return fmt.Errorf("only Allow action is supported in antrea network policy")
+		}
+		// check for supported protocol.
+		for _, s := range rule.Services {
+			if _, ok := AntreaProtocolMap[*s.Protocol]; !ok {
+				return fmt.Errorf("unsupported protocol %v, only %v protocols are supported",
+					*s.Protocol, reflect.ValueOf(AntreaProtocolMap).MapKeys())
+			}
 		}
 	}
 	return nil
