@@ -245,6 +245,10 @@ func (ec2Cfg *ec2ServiceConfig) SetResourceFilters(selector *v1alpha1.CloudEntit
 	}
 }
 
+func (ec2Cfg *ec2ServiceConfig) RemoveResourceFilters(selectorName string) {
+	delete(ec2Cfg.instanceFilters, selectorName)
+}
+
 func (ec2Cfg *ec2ServiceConfig) GetResourceCRDs(namespace string) *internal.CloudServiceResourceCRDs {
 	instances := ec2Cfg.getCachedInstances()
 	vmCRDs := make([]*v1alpha1.VirtualMachine, 0, len(instances))

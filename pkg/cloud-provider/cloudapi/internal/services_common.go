@@ -46,6 +46,8 @@ type CloudServiceInterface interface {
 	SetResourceFilters(selector *cloudv1alpha1.CloudEntitySelector)
 	// HasFiltersConfigured returns if service has filters configured and if the configured filters are nil or not.
 	HasFiltersConfigured() (bool, bool)
+	// RemoveResourceFilters will be used by service to remove configured filter.
+	RemoveResourceFilters(selectorName string)
 	// DoResourceInventory performs resource inventory for the cloud service based on configured filters. As part
 	// inventory, it is expected to save resources in service cache CloudServiceResourcesCache.
 	DoResourceInventory() error
@@ -73,6 +75,13 @@ func (cfg *CloudServiceCommon) setResourceFilters(selector *cloudv1alpha1.CloudE
 	defer cfg.mutex.Unlock()
 
 	cfg.serviceInterface.SetResourceFilters(selector)
+}
+
+func (cfg *CloudServiceCommon) removeResourceFilters(selectorName string) {
+	cfg.mutex.Lock()
+	defer cfg.mutex.Unlock()
+
+	cfg.serviceInterface.RemoveResourceFilters(selectorName)
 }
 
 func (cfg *CloudServiceCommon) hasFiltersConfigured() (bool, bool) {
