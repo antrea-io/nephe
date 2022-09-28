@@ -233,6 +233,10 @@ func (computeCfg *computeServiceConfig) SetResourceFilters(selector *v1alpha1.Cl
 	}
 }
 
+func (computeCfg *computeServiceConfig) RemoveResourceFilters(selectorName string) {
+	delete(computeCfg.computeFilters, selectorName)
+}
+
 func (computeCfg *computeServiceConfig) GetResourceCRDs(namespace string) *internal.CloudServiceResourceCRDs {
 	virtualMachines := computeCfg.getCachedVirtualMachines()
 	vmCRDs := make([]*v1alpha1.VirtualMachine, 0, len(virtualMachines))

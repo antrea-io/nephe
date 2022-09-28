@@ -16,12 +16,12 @@ package internal
 
 import (
 	"fmt"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sync"
 	"time"
 
 	"go.uber.org/multierr"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/pkg/logging"
@@ -192,6 +192,10 @@ func (c *cloudCommon) RemoveSelector(accNamespacedName *types.NamespacedName, se
 	if !found {
 		c.logger().Info("Not found", "account", *accNamespacedName, "name", selectorName)
 		return
+	}
+
+	for _, serviceCfg := range accCfg.GetServiceConfigs() {
+		serviceCfg.removeResourceFilters(selectorName)
 	}
 
 	accCfg.stopPeriodicInventorySync()
