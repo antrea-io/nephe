@@ -143,16 +143,16 @@ var _ = Describe("AWS Cloud Security", func() {
 				Vpc:  testVpcID01,
 			}
 
-			input1 := constructDescribeSecurityGroupInput(webAddressGroupIdentifier.Vpc,
+			input1 := constructEc2DescribeSecurityGroupsInput(webAddressGroupIdentifier.Vpc,
 				map[string]struct{}{webAddressGroupIdentifier.GetCloudName(true): {}})
-			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Eq(input1)).Return(constructDescribeSecurityGroupOutput(
+			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Eq(input1)).Return(constructEc2DescribeSecurityGroupsOutput(
 				nil, true, false), nil).Times(1)
 
-			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Eq(input1)).Return(constructDescribeSecurityGroupOutput(
+			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Eq(input1)).Return(constructEc2DescribeSecurityGroupsOutput(
 				webAddressGroupIdentifier, true, false), nil).Times(1)
 
 			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Any()).Return(
-				constructDescribeSecurityGroupOutput(webAddressGroupIdentifier, true, false), nil).Times(1)
+				constructEc2DescribeSecurityGroupsOutput(webAddressGroupIdentifier, true, false), nil).Times(1)
 			createOutput := &ec2.CreateSecurityGroupOutput{GroupId: aws.String(fmt.Sprintf("%v", rand.Intn(10)))}
 			mockawsEC2.EXPECT().createSecurityGroup(gomock.Any()).Return(createOutput, nil).Times(1)
 			mockawsEC2.EXPECT().revokeSecurityGroupEgress(gomock.Any()).Return(nil, nil).Times(1)
@@ -167,7 +167,7 @@ var _ = Describe("AWS Cloud Security", func() {
 				Vpc:  testVpcID01,
 			}
 			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Any()).Return(
-				constructDescribeSecurityGroupOutput(webAddressGroupIdentifier, true, false), nil).Times(1)
+				constructEc2DescribeSecurityGroupsOutput(webAddressGroupIdentifier, true, false), nil).Times(1)
 			mockawsEC2.EXPECT().createSecurityGroup(gomock.Any()).Times(0)
 
 			cloudSgID, err := cloudInterface.CreateSecurityGroup(webAddressGroupIdentifier, true)
@@ -181,9 +181,9 @@ var _ = Describe("AWS Cloud Security", func() {
 				Name: "Web",
 				Vpc:  testVpcID01,
 			}
-			input := constructDescribeSecurityGroupInput(webAddressGroupIdentifier.Vpc,
+			input := constructEc2DescribeSecurityGroupsInput(webAddressGroupIdentifier.Vpc,
 				map[string]struct{}{webAddressGroupIdentifier.GetCloudName(true): {}})
-			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Eq(input)).Return(constructDescribeSecurityGroupOutput(
+			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Eq(input)).Return(constructEc2DescribeSecurityGroupsOutput(
 				nil, true, false), nil).Times(1)
 			mockawsEC2.EXPECT().deleteSecurityGroup(gomock.Any()).Times(0)
 			err := cloudInterface.DeleteSecurityGroup(webAddressGroupIdentifier, true)
@@ -194,12 +194,12 @@ var _ = Describe("AWS Cloud Security", func() {
 				Name: "Web",
 				Vpc:  testVpcID01,
 			}
-			input1 := constructDescribeSecurityGroupInput(webAddressGroupIdentifier.Vpc,
+			input1 := constructEc2DescribeSecurityGroupsInput(webAddressGroupIdentifier.Vpc,
 				map[string]struct{}{webAddressGroupIdentifier.GetCloudName(true): {}})
-			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Eq(input1)).Return(constructDescribeSecurityGroupOutput(
+			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Eq(input1)).Return(constructEc2DescribeSecurityGroupsOutput(
 				webAddressGroupIdentifier, true, false), nil).Times(1)
 
-			input2 := constructDescribeSecurityGroupInput(webAddressGroupIdentifier.Vpc,
+			input2 := constructEc2DescribeSecurityGroupsInput(webAddressGroupIdentifier.Vpc,
 				map[string]struct{}{awsVpcDefaultSecurityGroupName: {}})
 			output := &ec2.DescribeSecurityGroupsOutput{
 				NextToken: nil,
@@ -228,10 +228,10 @@ var _ = Describe("AWS Cloud Security", func() {
 				FromSecurityGroups: []*securitygroup.CloudResourceID{webSgIdentifier},
 				Protocol:           aws.Int(6),
 			}}
-			output := constructDescribeSecurityGroupOutput(webSgIdentifier, true, false)
-			outputAt := constructDescribeSecurityGroupOutput(webSgIdentifier, false, false)
+			output := constructEc2DescribeSecurityGroupsOutput(webSgIdentifier, true, false)
+			outputAt := constructEc2DescribeSecurityGroupsOutput(webSgIdentifier, false, false)
 			output.SecurityGroups = append(output.SecurityGroups, outputAt.SecurityGroups...)
-			input := constructDescribeSecurityGroupInput(webSgIdentifier.Vpc,
+			input := constructEc2DescribeSecurityGroupsInput(webSgIdentifier.Vpc,
 				map[string]struct{}{webSgIdentifier.GetCloudName(true): {}, webSgIdentifier.GetCloudName(false): {}})
 
 			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Any()).Return(output, nil).Times(1).
@@ -263,10 +263,10 @@ var _ = Describe("AWS Cloud Security", func() {
 				ToSecurityGroups: []*securitygroup.CloudResourceID{webSgIdentifier},
 				Protocol:         aws.Int(6),
 			}}
-			output := constructDescribeSecurityGroupOutput(webSgIdentifier, true, false)
-			outputAt := constructDescribeSecurityGroupOutput(webSgIdentifier, false, false)
+			output := constructEc2DescribeSecurityGroupsOutput(webSgIdentifier, true, false)
+			outputAt := constructEc2DescribeSecurityGroupsOutput(webSgIdentifier, false, false)
 			output.SecurityGroups = append(output.SecurityGroups, outputAt.SecurityGroups...)
-			input := constructDescribeSecurityGroupInput(webSgIdentifier.Vpc,
+			input := constructEc2DescribeSecurityGroupsInput(webSgIdentifier.Vpc,
 				map[string]struct{}{webSgIdentifier.GetCloudName(true): {}, webSgIdentifier.GetCloudName(false): {}})
 
 			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Any()).Return(output, nil).Times(1).
@@ -303,8 +303,8 @@ var _ = Describe("AWS Cloud Security", func() {
 				FromSecurityGroups: []*securitygroup.CloudResourceID{webSgIdentifier},
 				Protocol:           aws.Int(6),
 			}}
-			output := constructDescribeSecurityGroupOutput(webSgIdentifier, true, false)
-			outputAt := constructDescribeSecurityGroupOutput(webSgIdentifier, false, false)
+			output := constructEc2DescribeSecurityGroupsOutput(webSgIdentifier, true, false)
+			outputAt := constructEc2DescribeSecurityGroupsOutput(webSgIdentifier, false, false)
 			outputAt.SecurityGroups[0].IpPermissions = []*ec2.IpPermission{{
 				FromPort:         aws.Int64(80),
 				ToPort:           aws.Int64(80),
@@ -317,7 +317,7 @@ var _ = Describe("AWS Cloud Security", func() {
 				UserIdGroupPairs: []*ec2.UserIdGroupPair{{GroupId: output.SecurityGroups[0].GroupId}},
 			}}
 			output.SecurityGroups = append(output.SecurityGroups, outputAt.SecurityGroups...)
-			input := constructDescribeSecurityGroupInput(webSgIdentifier.Vpc,
+			input := constructEc2DescribeSecurityGroupsInput(webSgIdentifier.Vpc,
 				map[string]struct{}{webSgIdentifier.GetCloudName(true): {}, webSgIdentifier.GetCloudName(false): {}})
 
 			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Any()).Return(output, nil).Times(1).
@@ -357,8 +357,8 @@ var _ = Describe("AWS Cloud Security", func() {
 				ToSecurityGroups: []*securitygroup.CloudResourceID{webSgIdentifier},
 				Protocol:         aws.Int(6),
 			}}
-			output := constructDescribeSecurityGroupOutput(webSgIdentifier, true, false)
-			outputAt := constructDescribeSecurityGroupOutput(webSgIdentifier, false, false)
+			output := constructEc2DescribeSecurityGroupsOutput(webSgIdentifier, true, false)
+			outputAt := constructEc2DescribeSecurityGroupsOutput(webSgIdentifier, false, false)
 			outputAt.SecurityGroups[0].IpPermissionsEgress = []*ec2.IpPermission{{
 				FromPort:         aws.Int64(80),
 				ToPort:           aws.Int64(80),
@@ -371,7 +371,7 @@ var _ = Describe("AWS Cloud Security", func() {
 				UserIdGroupPairs: []*ec2.UserIdGroupPair{{GroupId: output.SecurityGroups[0].GroupId}},
 			}}
 			output.SecurityGroups = append(output.SecurityGroups, outputAt.SecurityGroups...)
-			input := constructDescribeSecurityGroupInput(webSgIdentifier.Vpc,
+			input := constructEc2DescribeSecurityGroupsInput(webSgIdentifier.Vpc,
 				map[string]struct{}{webSgIdentifier.GetCloudName(true): {}, webSgIdentifier.GetCloudName(false): {}})
 
 			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Any()).Return(output, nil).Times(1).
@@ -397,7 +397,7 @@ var _ = Describe("AWS Cloud Security", func() {
 	})
 })
 
-func constructDescribeSecurityGroupInput(vpcID string, sgNamesSet map[string]struct{}) *ec2.DescribeSecurityGroupsInput {
+func constructEc2DescribeSecurityGroupsInput(vpcID string, sgNamesSet map[string]struct{}) *ec2.DescribeSecurityGroupsInput {
 	vpcIDs := []string{vpcID}
 	filters := buildAwsEc2FilterForSecurityGroupNameMatches(vpcIDs, sgNamesSet)
 	input := &ec2.DescribeSecurityGroupsInput{
@@ -407,7 +407,7 @@ func constructDescribeSecurityGroupInput(vpcID string, sgNamesSet map[string]str
 }
 
 // nolint: unparam
-func constructDescribeSecurityGroupOutput(identifier *securitygroup.CloudResourceID, membershipOnly bool,
+func constructEc2DescribeSecurityGroupsOutput(identifier *securitygroup.CloudResourceID, membershipOnly bool,
 	isDefaultSg bool) *ec2.DescribeSecurityGroupsOutput {
 	var securityGroups []*ec2.SecurityGroup
 	if isDefaultSg {
