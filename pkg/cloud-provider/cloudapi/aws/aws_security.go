@@ -16,6 +16,7 @@ package aws
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -194,92 +195,94 @@ func (ec2Cfg *ec2ServiceConfig) getCloudSecurityGroupsWithNameFromCloud(vpcIDs [
 
 func (ec2Cfg *ec2ServiceConfig) realizeIngressIPPermissions(cloudSgObj *ec2.SecurityGroup, rules []*securitygroup.IngressRule,
 	cloudSGNameToObj map[string]*ec2.SecurityGroup) error {
-	var err error
+	newIpPermissions := make([]*ec2.IpPermission, 0)
+	for _, rule := range rules {
+		if rule == nil {
+			continue
+		}
+		idGroupPairs := buildEc2UserIDGroupPairs(rule.FromSecurityGroups, cloudSGNameToObj)
+		ipRanges := convertToEc2IpRanges(rule.FromSrcIP, len(rule.FromSecurityGroups) > 0)
+		startPort, endPort := convertToIPPermissionPort(rule.FromPort, rule.Protocol)
+		ipPermission := &ec2.IpPermission{
+			FromPort:         startPort,
+			ToPort:           endPort,
+			IpProtocol:       convertToIPPermissionProtocol(rule.Protocol),
+			IpRanges:         ipRanges,
+			UserIdGroupPairs: idGroupPairs,
+		}
+		newIpPermissions = append(newIpPermissions, ipPermission)
+	}
+
+	ipPermissionsToAdd, ipPermissionsToDelete := computeIPPermissionDelta(newIpPermissions, cloudSgObj.IpPermissions)
+	awsPluginLogger().V(1).Info("ingress", "add", ipPermissionsToAdd, "delete", ipPermissionsToDelete)
 
 	// revoke old ingress rules and add new rules
-	if len(cloudSgObj.IpPermissions) > 0 {
-		revokeIngressInput := &ec2.RevokeSecurityGroupIngressInput{
+	if len(ipPermissionsToDelete) > 0 {
+		request := &ec2.RevokeSecurityGroupIngressInput{
 			GroupId:       cloudSgObj.GroupId,
-			IpPermissions: cloudSgObj.IpPermissions,
+			IpPermissions: ipPermissionsToDelete,
 		}
-		_, err = ec2Cfg.apiClient.revokeSecurityGroupIngress(revokeIngressInput)
-		if err != nil {
+		if _, err := ec2Cfg.apiClient.revokeSecurityGroupIngress(request); err != nil {
 			return err
 		}
 	}
 
-	// build ingress IpPermissions to be added
-	if len(rules) > 0 {
-		var ipPermissionsToAdd []*ec2.IpPermission
-		for _, rule := range rules {
-			if rule == nil {
-				continue
-			}
-			idGroupPairs := buildEc2UserIDGroupPairs(rule.FromSecurityGroups, cloudSGNameToObj)
-			ipRanges := convertToEc2IpRanges(rule.FromSrcIP, len(rule.FromSecurityGroups) > 0)
-			startPort, endPort := convertToIPPermissionPort(rule.FromPort, rule.Protocol)
-			ipPermission := &ec2.IpPermission{
-				FromPort:         startPort,
-				ToPort:           endPort,
-				IpProtocol:       convertToIPPermissionProtocol(rule.Protocol),
-				IpRanges:         ipRanges,
-				UserIdGroupPairs: idGroupPairs,
-			}
-			ipPermissionsToAdd = append(ipPermissionsToAdd, ipPermission)
-		}
+	if len(ipPermissionsToAdd) > 0 {
 		request := &ec2.AuthorizeSecurityGroupIngressInput{
 			GroupId:       cloudSgObj.GroupId,
 			IpPermissions: ipPermissionsToAdd,
 		}
-		_, err = ec2Cfg.apiClient.authorizeSecurityGroupIngress(request)
+		if _, err := ec2Cfg.apiClient.authorizeSecurityGroupIngress(request); err != nil {
+			return err
+		}
 	}
-
-	return err
+	return nil
 }
 
-func (ec2Cfg *ec2ServiceConfig) realizeEgressIPPermissions(group *ec2.SecurityGroup, rules []*securitygroup.EgressRule,
+func (ec2Cfg *ec2ServiceConfig) realizeEgressIPPermissions(cloudSgObj *ec2.SecurityGroup, rules []*securitygroup.EgressRule,
 	cloudSGNameToObj map[string]*ec2.SecurityGroup) error {
-	var err error
+	newIpPermissions := make([]*ec2.IpPermission, 0)
+	for _, rule := range rules {
+		if rule == nil {
+			continue
+		}
+		idGroupPairs := buildEc2UserIDGroupPairs(rule.ToSecurityGroups, cloudSGNameToObj)
+		ipRanges := convertToEc2IpRanges(rule.ToDstIP, len(rule.ToSecurityGroups) > 0)
+		startPort, endPort := convertToIPPermissionPort(rule.ToPort, rule.Protocol)
+		ipPermission := &ec2.IpPermission{
+			FromPort:         startPort,
+			ToPort:           endPort,
+			IpProtocol:       convertToIPPermissionProtocol(rule.Protocol),
+			IpRanges:         ipRanges,
+			UserIdGroupPairs: idGroupPairs,
+		}
+		newIpPermissions = append(newIpPermissions, ipPermission)
+	}
+
+	ipPermissionsToAdd, ipPermissionsToDelete := computeIPPermissionDelta(newIpPermissions, cloudSgObj.IpPermissionsEgress)
+	awsPluginLogger().V(1).Info("egress", "add", ipPermissionsToAdd, "delete", ipPermissionsToDelete)
 
 	// revoke old egress rules and add new rules
-	if len(group.IpPermissionsEgress) > 0 {
-		revokeEgressInput := &ec2.RevokeSecurityGroupEgressInput{
-			GroupId:       group.GroupId,
-			IpPermissions: group.IpPermissionsEgress,
+	if len(ipPermissionsToDelete) > 0 {
+		request := &ec2.RevokeSecurityGroupEgressInput{
+			GroupId:       cloudSgObj.GroupId,
+			IpPermissions: ipPermissionsToDelete,
 		}
-		_, err = ec2Cfg.apiClient.revokeSecurityGroupEgress(revokeEgressInput)
-		if err != nil {
+		if _, err := ec2Cfg.apiClient.revokeSecurityGroupEgress(request); err != nil {
 			return err
 		}
 	}
 
-	// build egress IpPermissions to be added
-	if len(rules) > 0 {
-		var ipPermissionsToAdd []*ec2.IpPermission
-		for _, rule := range rules {
-			if rule == nil {
-				continue
-			}
-			idGroupPairs := buildEc2UserIDGroupPairs(rule.ToSecurityGroups, cloudSGNameToObj)
-			ipRanges := convertToEc2IpRanges(rule.ToDstIP, len(rule.ToSecurityGroups) > 0)
-			startPort, endPort := convertToIPPermissionPort(rule.ToPort, rule.Protocol)
-			ipPermission := &ec2.IpPermission{
-				FromPort:         startPort,
-				ToPort:           endPort,
-				IpProtocol:       convertToIPPermissionProtocol(rule.Protocol),
-				IpRanges:         ipRanges,
-				UserIdGroupPairs: idGroupPairs,
-			}
-			ipPermissionsToAdd = append(ipPermissionsToAdd, ipPermission)
-		}
-
+	if len(ipPermissionsToAdd) > 0 {
 		request := &ec2.AuthorizeSecurityGroupEgressInput{
-			GroupId:       group.GroupId,
+			GroupId:       cloudSgObj.GroupId,
 			IpPermissions: ipPermissionsToAdd,
 		}
-		_, err = ec2Cfg.apiClient.authorizeSecurityGroupEgress(request)
+		if _, err := ec2Cfg.apiClient.authorizeSecurityGroupEgress(request); err != nil {
+			return err
+		}
 	}
-	return err
+	return nil
 }
 
 func (ec2Cfg *ec2ServiceConfig) getVpcDefaultSecurityGroupID(vpcID string) (string, error) {
@@ -588,6 +591,82 @@ func (ec2Cfg *ec2ServiceConfig) getNepheControllerManagedSecurityGroupsCloudView
 	}
 
 	return enforcedSecurityCloudView
+}
+
+// computeIPPermissionDelta compute the difference between new ip permissions and existing ip permissions.
+func computeIPPermissionDelta(newIpPermissions, currentIpPermissions []*ec2.IpPermission) ([]*ec2.IpPermission, []*ec2.IpPermission) {
+	ipPermissionsAdded := make([]*ec2.IpPermission, 0)
+	ipPermissionsDeleted := make([]*ec2.IpPermission, 0)
+
+	for newIdx, newIpPermission := range newIpPermissions {
+		for currentIdx, currentIpPermission := range currentIpPermissions {
+			if compareIPPermissions(newIpPermission, currentIpPermission) {
+				newIpPermissions[newIdx] = nil
+				currentIpPermissions[currentIdx] = nil
+				break
+			}
+		}
+	}
+
+	for _, IpPermission := range newIpPermissions {
+		if IpPermission != nil {
+			ipPermissionsAdded = append(ipPermissionsAdded, IpPermission)
+		}
+	}
+
+	for _, IpPermission := range currentIpPermissions {
+		if IpPermission != nil {
+			ipPermissionsDeleted = append(ipPermissionsDeleted, IpPermission)
+		}
+	}
+	return ipPermissionsAdded, ipPermissionsDeleted
+}
+
+// compareIPPermissions check if two ip permissions are equal.
+// it checks FromPort, ToPort, IpRanges, Ipv6Ranges, PrefixListIds, IpProtocol, UserIdGroupPair.GroupId.
+func compareIPPermissions(p1, p2 *ec2.IpPermission) bool {
+	if p1 == nil || p2 == nil {
+		return p1 == p2
+	}
+	if !reflect.DeepEqual(p1.FromPort, p2.FromPort) {
+		return false
+	}
+	if !reflect.DeepEqual(p1.ToPort, p2.ToPort) {
+		return false
+	}
+	if !reflect.DeepEqual(p1.IpRanges, p2.IpRanges) {
+		return false
+	}
+	if !reflect.DeepEqual(p1.Ipv6Ranges, p2.Ipv6Ranges) {
+		return false
+	}
+	if !reflect.DeepEqual(p1.PrefixListIds, p2.PrefixListIds) {
+		return false
+	}
+
+	// aws return protocol name ("tcp"), nephe uses protocol number string ("6"). A conversion to number string is needed.
+	p1Protocol, p2Protocol := p1.IpProtocol, p2.IpProtocol
+	if protocol, ok := securitygroup.ProtocolNameNumMap[*p1Protocol]; ok {
+		p1Protocol = convertToIPPermissionProtocol(&protocol)
+	}
+	if protocol, ok := securitygroup.ProtocolNameNumMap[*p2Protocol]; ok {
+		p2Protocol = convertToIPPermissionProtocol(&protocol)
+	}
+	if *p1Protocol != *p2Protocol {
+		return false
+	}
+
+	groupIds := make(map[string]bool)
+	for _, id := range p1.UserIdGroupPairs {
+		groupIds[*id.GroupId] = true
+	}
+	for _, id := range p2.UserIdGroupPairs {
+		if _, ok := groupIds[*id.GroupId]; !ok {
+			return false
+		}
+		delete(groupIds, *id.GroupId)
+	}
+	return len(groupIds) == 0
 }
 
 func getCloudSecurityGroupsByType(cloudSecurityGroups []*ec2.SecurityGroup) (map[string]*ec2.SecurityGroup, map[string]*ec2.SecurityGroup) {
