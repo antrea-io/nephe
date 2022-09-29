@@ -9,6 +9,7 @@ spec:
   vmSelector:
       - vpcMatch:
           matchID: "<VPC_ID>"
+        agented: false
 ---
 # Match based on vmMatch in the vpc configured : A vm with id <VM_ID> in vpc <VPC_ID> is matched
 apiVersion: crd.cloud.antrea.io/v1alpha1

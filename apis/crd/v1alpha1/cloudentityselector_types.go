@@ -39,7 +39,7 @@ type VirtualMachineSelector struct {
 	// If it is not specified, all VirtualMachines matching VpcMatch are selected.
 	VMMatch []EntityMatch `json:"vmMatch,omitempty"`
 	// Agented specifies if VM runs in agented mode, default is false.
-	Agented bool `json:"agented"`
+	Agented bool `json:"agented,omitempty"`
 }
 
 // CloudEntitySelectorSpec defines the desired state of CloudEntitySelector.

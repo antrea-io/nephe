@@ -50,7 +50,7 @@ func (v VMConverter) Start() {
 		select {
 		case recv, ok := <-v.Ch:
 			if !ok {
-				v.Log.Info("vm converter channel closed")
+				v.Log.Info("VM converter channel closed")
 				return
 			}
 			vm := &VirtualMachineSource{recv}
@@ -72,12 +72,12 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 	} else {
 		fetchKey = target.GetExternalEntityKeyFromSource(vm)
 	}
-	log.Info("received event", "Key", fetchKey, "Agented", isAgent)
+	log.Info("Received event", "Key", fetchKey, "Agented", isAgent)
 	if isRetry {
 		retry, ok := failedUpdates[fetchKey.String()]
 		// ignore event if newer event succeeds or newer event retrying
 		if !ok || v.isNewEvent(retry.item.(*VirtualMachineSource), vm) {
-			log.Info("ignore retry", "Key", fetchKey, "retryCount", retry.retryCount)
+			log.Info("Ignore retry", "Key", fetchKey, "retryCount", retry.retryCount)
 			return
 		}
 	}
@@ -95,7 +95,7 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 		}
 		record.retryCount += 1
 		if record.retryCount >= maxRetry {
-			log.Info("max retry reached, ignoring", "Key", fetchKey, "maxRetry", maxRetry)
+			log.Info("Max retry reached, ignoring", "Key", fetchKey, "maxRetry", maxRetry)
 			delete(failedUpdates, fetchKey.String())
 			return
 		}
@@ -108,7 +108,7 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 	ctx := context.Background()
 	ips, err := vm.GetEndPointAddresses()
 	if err != nil {
-		log.Info("failed to get IP address for", "Name", fetchKey, "err", err)
+		log.Info("Failed to get IP address for", "Name", fetchKey, "err", err)
 		return
 	}
 
@@ -146,7 +146,7 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 		if err != nil {
 			log.Error(err, "unable to delete ", "Key", fetchKey)
 		} else {
-			log.V(1).Info("deleted resource", "Key", fetchKey)
+			log.V(1).Info("Deleted resource", "Key", fetchKey)
 		}
 		return
 	}
@@ -165,7 +165,7 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 		if err != nil {
 			log.Error(err, "unable to patch ", "Key", fetchKey)
 		} else {
-			log.V(1).Info("patched resource", "Key", fetchKey)
+			log.V(1).Info("Patched resource", "Key", fetchKey)
 		}
 		return
 	}
@@ -181,7 +181,7 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 	if err != nil {
 		log.Error(err, "unable to create ", "Key", fetchKey)
 	} else {
-		log.V(1).Info("created resource", "Key", fetchKey)
+		log.V(1).Info("Created resource", "Key", fetchKey)
 	}
 }
 
