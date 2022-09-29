@@ -3052,7 +3052,7 @@ data:
     #  IPsecCertAuth: false
 
     # Enable managing ExternalNode for unmanaged VM/BM.
-    #  ExternalNode: false
+      ExternalNode: true
 
     # The port for the antrea-controller APIServer to serve on.
     # Note that if it's set to another value, the `containerPort` of the `api` port of the
@@ -3969,6 +3969,7 @@ spec:
   selector:
     app: antrea
     component: antrea-controller
+  type: LoadBalancer
 ---
 # Source: antrea/templates/agent/daemonset.yaml
 apiVersion: apps/v1

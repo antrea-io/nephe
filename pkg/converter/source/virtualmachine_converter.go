@@ -23,7 +23,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
+	antreav1alpha1 "antrea.io/antrea/pkg/apis/crd/v1alpha1"
+	antreav1alpha2 "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/pkg/converter/target"
 )
@@ -49,29 +50,34 @@ func (v VMConverter) Start() {
 		select {
 		case recv, ok := <-v.Ch:
 			if !ok {
-				v.Log.Info("VMConverter channel closed")
+				v.Log.Info("vm converter channel closed")
 				return
 			}
 			vm := &VirtualMachineSource{recv}
-			v.processEvent(vm, failedUpdates, false)
+			v.processEvent(vm, failedUpdates, false, vm.Status.Agented)
 		case recv := <-v.retryCh:
 			vm := &VirtualMachineSource{recv}
-			v.processEvent(vm, failedUpdates, true)
+			v.processEvent(vm, failedUpdates, true, vm.Status.Agented)
 		}
 	}
 }
 
-func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[string]retryRecord, isRetry bool) {
+func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[string]retryRecord, isRetry bool, isAgent bool) {
 	var err error
-	log := v.Log.WithName("processVirtualmachineEvent")
+	var fetchKey client.ObjectKey
+	log := v.Log.WithName("processEvent")
 
-	fetchKey := target.GetObjectKeyFromSource(vm)
-	log.Info("Received vm event", "FetchKey", fetchKey)
+	if isAgent {
+		fetchKey = target.GetExternalNodeKeyFromSource(vm)
+	} else {
+		fetchKey = target.GetExternalEntityKeyFromSource(vm)
+	}
+	log.Info("received event", "Key", fetchKey, "Agented", isAgent)
 	if isRetry {
 		retry, ok := failedUpdates[fetchKey.String()]
 		// ignore event if newer event succeeds or newer event retrying
 		if !ok || v.isNewEvent(retry.item.(*VirtualMachineSource), vm) {
-			log.Info("Ignore retry", "Key", fetchKey, "retryCount", retry.retryCount)
+			log.Info("ignore retry", "Key", fetchKey, "retryCount", retry.retryCount)
 			return
 		}
 	}
@@ -89,7 +95,7 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 		}
 		record.retryCount += 1
 		if record.retryCount >= maxRetry {
-			log.Info("Max retry reached, ignoring", "Key", fetchKey, "maxRetry", maxRetry)
+			log.Info("max retry reached, ignoring", "Key", fetchKey, "maxRetry", maxRetry)
 			delete(failedUpdates, fetchKey.String())
 			return
 		}
@@ -102,18 +108,23 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 	ctx := context.Background()
 	ips, err := vm.GetEndPointAddresses()
 	if err != nil {
-		log.Info("Failed to get IP address for", "Name", fetchKey, "err", err)
+		log.Info("failed to get IP address for", "Name", fetchKey, "err", err)
 		return
 	}
 
 	isDelete := len(ips) == 0
-	externEntity := &antreatypes.ExternalEntity{}
+	externNode := &antreav1alpha1.ExternalNode{}
+	externEntity := &antreav1alpha2.ExternalEntity{}
 	isNotFound := false
-	err = v.Client.Get(ctx, fetchKey, externEntity)
+	if isAgent {
+		err = v.Client.Get(ctx, fetchKey, externNode)
+	} else {
+		err = v.Client.Get(ctx, fetchKey, externEntity)
+	}
 	if err != nil {
 		err = client.IgnoreNotFound(err)
 		if err != nil {
-			log.Error(err, "Unable to fetch ", "Key", fetchKey)
+			log.Error(err, "unable to fetch ", "Key", fetchKey)
 			return
 		}
 		isNotFound = true
@@ -121,40 +132,56 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 
 	// No-op.
 	if isDelete && isNotFound {
-		log.V(1).Info("Deleting non-existing resource", "Key", fetchKey)
 		return
 	}
 
 	// Delete.
 	if isDelete && !isNotFound {
-		err = v.Client.Delete(ctx, externEntity)
+		if isAgent {
+			err = v.Client.Delete(ctx, externNode)
+		} else {
+			err = v.Client.Delete(ctx, externEntity)
+		}
 		err = client.IgnoreNotFound(err)
 		if err != nil {
-			log.Error(err, "Unable to delete ", "Key", fetchKey)
+			log.Error(err, "unable to delete ", "Key", fetchKey)
 		} else {
-			log.V(1).Info("Deleted resource", "Key", fetchKey)
+			log.V(1).Info("deleted resource", "Key", fetchKey)
 		}
 		return
 	}
 
 	// Update.
 	if !isNotFound {
-		base := client.MergeFrom(externEntity.DeepCopy())
-		patch := target.PatchExternalEntityFrom(vm, externEntity, v.Client)
-		if err = v.Client.Patch(ctx, patch, base); err != nil {
-			log.Error(err, "Unable to patch ", "Key", fetchKey)
+		if isAgent {
+			base := client.MergeFrom(externNode.DeepCopy())
+			patch := target.PatchExternalNodeFrom(vm, externNode, v.Client)
+			err = v.Client.Patch(ctx, patch, base)
 		} else {
-			log.V(1).Info("Patched resource", "Key", fetchKey)
+			base := client.MergeFrom(externEntity.DeepCopy())
+			patch := target.PatchExternalEntityFrom(vm, externEntity, v.Client)
+			err = v.Client.Patch(ctx, patch, base)
+		}
+		if err != nil {
+			log.Error(err, "unable to patch ", "Key", fetchKey)
+		} else {
+			log.V(1).Info("patched resource", "Key", fetchKey)
 		}
 		return
 	}
 
 	// Create.
-	externEntity = target.NewExternalEntityFrom(vm, fetchKey.Name, fetchKey.Namespace, v.Client, v.Scheme)
-	if err = v.Client.Create(ctx, externEntity); err != nil {
-		log.Error(err, "Unable to create ", "Key", fetchKey)
+	if isAgent {
+		externNode = target.NewExternalNodeFrom(vm, fetchKey.Name, fetchKey.Namespace, v.Client, v.Scheme)
+		err = v.Client.Create(ctx, externNode)
 	} else {
-		log.V(1).Info("Created resource", "Key", fetchKey)
+		externEntity = target.NewExternalEntityFrom(vm, fetchKey.Name, fetchKey.Namespace, v.Client, v.Scheme)
+		err = v.Client.Create(ctx, externEntity)
+	}
+	if err != nil {
+		log.Error(err, "unable to create ", "Key", fetchKey)
+	} else {
+		log.V(1).Info("created resource", "Key", fetchKey)
 	}
 }
 

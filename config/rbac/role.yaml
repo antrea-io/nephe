@@ -57,6 +57,25 @@ rules:
   - patch
   - update
 - apiGroups:
+    - crd.antrea.io
+  resources:
+    - externalnodes
+  verbs:
+    - create
+    - delete
+    - get
+    - list
+    - patch
+- apiGroups:
+    - crd.antrea.io
+  resources:
+    - externalnodes/status
+  verbs:
+    - get
+    - patch
+    - update
+
+- apiGroups:
   - crd.cloud.antrea.io
   resources:
   - cloudentityselectors

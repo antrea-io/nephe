@@ -16,6 +16,8 @@ package cloud
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/tools/cache"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -33,7 +36,9 @@ import (
 )
 
 const (
-	virtualMachineIndexerByCloudAccount = "virtualmachine.cloudaccount"
+	virtualMachineIndexerByCloudAccount     = "virtualmachine.cloudaccount"
+	virtualMachineSelectorMatchIndexerByID  = "virtualmachine.selector.id"
+	virtualMachineSelectorMatchIndexerByVPC = "virtualmachine.selector.vpc.id"
 )
 
 // CloudEntitySelectorReconciler reconciles a CloudEntitySelector object.
@@ -91,10 +96,26 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *cloudv1a
 	accPoller, preExists := r.addAccountPoller(selector)
 
 	if selector.Spec.VMSelector != nil {
+		// Indexer does not work with in-place update. Do delete->add.
+		for _, vmSelector := range accPoller.vmSelector.List() {
+			if err := accPoller.vmSelector.Delete(vmSelector.(*cloudv1alpha1.VirtualMachineSelector)); err != nil {
+				r.Log.Error(err, "unable to delete selector from indexer",
+					"VMSelector", vmSelector.(*cloudv1alpha1.VirtualMachineSelector))
+			}
+		}
+
+		for i := range selector.Spec.VMSelector {
+			if err := accPoller.vmSelector.Add(&selector.Spec.VMSelector[i]); err != nil {
+				r.Log.Error(err, "unable to add selector into indexer",
+					"VMSelector", selector.Spec.VMSelector[i])
+			}
+		}
+
 		vmList := &cloudv1alpha1.VirtualMachineList{}
 		if err := r.List(context.TODO(), vmList, client.MatchingFields{
 			virtualMachineIndexerByCloudAccount: selector.Name}, client.InNamespace(selector.Namespace)); err != nil {
-			r.Log.Error(err, "Unable to get virtual machines for external entity selector", "Name", selector.Name)
+			r.Log.Error(err, "unable to get virtual machines for external entity selector",
+				"Name", selector.Name)
 		} else {
 			var vms []*cloudv1alpha1.VirtualMachine
 			for i := range vmList.Items {
@@ -103,7 +124,7 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *cloudv1a
 				vms = append(vms, vm)
 			}
 			if err := accPoller.doVirtualMachineOperations(vms); err != nil {
-				r.Log.Error(err, "Unable to update virtual machines")
+				r.Log.Error(err, "unable to update virtual machines")
 			}
 		}
 	}
@@ -121,7 +142,8 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *cloudv1a
 		if !preExists {
 			_ = r.processDelete(selectorNamespacedName)
 		}
-		r.Log.Info("selector add failed", "selector", selectorNamespacedName, "poller-exists", preExists)
+		r.Log.Info("selector add failed", "selector", selectorNamespacedName,
+			"poller-exists", preExists)
 		return err
 	}
 
@@ -179,6 +201,35 @@ func (r *CloudEntitySelectorReconciler) addAccountPoller(selector *cloudv1alpha1
 		selector:          selector.DeepCopy(),
 		ch:                make(chan struct{}),
 	}
+	poller.vmSelector = cache.NewIndexer(
+		func(obj interface{}) (string, error) {
+			m := obj.(*cloudv1alpha1.VirtualMachineSelector)
+			// Create a unique key for each VirtualMachineSelector.
+			return fmt.Sprintf("%v-%v-%v", m.Agented, m.VpcMatch, m.VMMatch), nil
+		},
+		cache.Indexers{
+			virtualMachineSelectorMatchIndexerByID: func(obj interface{}) ([]string, error) {
+				m := obj.(*cloudv1alpha1.VirtualMachineSelector)
+				if len(m.VMMatch) == 0 {
+					return nil, nil
+				}
+				var match []string
+				for _, vmMatch := range m.VMMatch {
+					if len(vmMatch.MatchID) > 0 {
+						match = append(match, strings.ToLower(vmMatch.MatchID))
+					}
+				}
+				return match, nil
+			},
+			virtualMachineSelectorMatchIndexerByVPC: func(obj interface{}) ([]string, error) {
+				m := obj.(*cloudv1alpha1.VirtualMachineSelector)
+				if m.VpcMatch != nil && len(m.VpcMatch.MatchID) > 0 {
+					return []string{strings.ToLower(m.VpcMatch.MatchID)}, nil
+				}
+				return nil, nil
+			},
+		})
+
 	r.accPollers[*selectorNamespacedName] = poller
 
 	r.Log.Info("poller will be created", "selector", selectorNamespacedName)
