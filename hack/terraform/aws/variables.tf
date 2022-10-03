@@ -24,7 +24,6 @@ variable vpc_public_subnet {
 variable "aws_vm_os_types" {
   type = list(object({
     name            = string
-    # ami = string
     login           = string
     init            = string
     ami_name_search = string
@@ -55,10 +54,68 @@ variable "aws_vm_os_types" {
   ]
 }
 
+variable "aws_vm_os_types_agented" {
+  type = list(object({
+    name            = string
+    login           = string
+    init            = string
+    ami_name_search = string
+    ami_owner       = string
+  }))
+  default = [
+    {
+      name            = "ubuntu1"
+      login           = "ubuntu"
+      init            = "init_script_ubuntu.sh"
+      ami_name_search = "NepheAgentedUbuntuImage"
+      ami_owner       = "092722883498"
+    },
+    {
+      name            = "ubuntu2"
+      login           = "ubuntu"
+      init            = "init_script_ubuntu.sh"
+      ami_name_search = "NepheAgentedUbuntuImage"
+      ami_owner       = "092722883498"
+    },
+    {
+      name            = "ubuntu3"
+      login           = "ubuntu"
+      init            = "init_script_ubuntu.sh"
+      ami_name_search = "NepheAgentedUbuntuImage"
+      ami_owner       = "092722883498"
+    }
+  ]
+}
+
 variable "aws_security_groups_postfix" {
   type    = list(string)
   default = [
     "default-vm-deny-all-apply-to",
     "default-vm-allow-all-apply-to",
   ]
+}
+
+variable "agent" {
+  type = bool
+  default = false
+}
+
+variable "namespace" {
+  type = string
+  default = "vm-ns"
+}
+
+variable "aws_vm_agent_k8s_conf" {
+  type = string
+  default = "antrea-agent.kubeconfig"
+}
+
+variable "aws_vm_agent_antrea_conf" {
+  type = string
+  default = "antrea-agent.antrea.kubeconfig"
+}
+
+variable "install_wrapper" {
+  type = string
+  default = "install-wrapper.sh"
 }
