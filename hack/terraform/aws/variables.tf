@@ -95,7 +95,7 @@ variable "aws_security_groups_postfix" {
   ]
 }
 
-variable "agent" {
+variable "with_agent" {
   type = bool
   default = false
 }

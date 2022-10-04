@@ -17,7 +17,7 @@ provider "aws" {}
 
 locals {
   vpc_name = "nephe-vpc-${var.owner}-${random_string.suffix.result}"
-  aws_vm_os_types = var.agent ? var.aws_vm_os_types_agented : var.aws_vm_os_types
+  aws_vm_os_types = var.with_agent ? var.aws_vm_os_types_agented : var.aws_vm_os_types
 }
 
 data "aws_subnets" "all" {
@@ -42,7 +42,7 @@ data "template_file" user_data {
   count    = length(local.aws_vm_os_types)
   template = file(local.aws_vm_os_types[count.index].init)
   vars = {
-    WITH_AGENT = var.agent
+    WITH_AGENT = var.with_agent
     K8S_CONF = fileexists(var.aws_vm_agent_k8s_conf) ? file(var.aws_vm_agent_k8s_conf) : ""
     ANTREA_CONF = fileexists(var.aws_vm_agent_antrea_conf) ? file(var.aws_vm_agent_antrea_conf) : ""
     INSTALL_WRAPPER = fileexists(var.install_wrapper) ? file(var.install_wrapper) : ""
@@ -89,16 +89,16 @@ resource "aws_default_security_group" "default_security_group" {
   vpc_id = module.vpc.vpc_id
 
   ingress {
-    protocol    = "tcp"
-    from_port   = 80
-    to_port     = 80
+    protocol    = var.with_agent ? "-1" : "tcp"
+    from_port   = var.with_agent ? 0 : 80
+    to_port     = var.with_agent ? 0 : 80
     cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
+    protocol    = "-1"
     from_port   = 0
     to_port     = 0
-    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
   tags = {

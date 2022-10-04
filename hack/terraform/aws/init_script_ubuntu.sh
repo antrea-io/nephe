@@ -16,6 +16,7 @@
 sudo apt-get update
 
 if [[ ${WITH_AGENT} == true ]]; then
+  sudo apt-get install -y openvswitch-switch
   cat <<EOF > antrea-agent.kubeconfig
 ${K8S_CONF}
 EOF
