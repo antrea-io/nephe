@@ -18,44 +18,20 @@
 
 set -e
 
-# Defaults
-export CLUSTER_NAME=$(kubectl config view -o jsonpath="{.clusters[].name}")
+export CLUSTER_NAME=$(kubectl config current-context)
 
-function print_usage {
-    echoerr "$_usage"
-}
-
-function print_help {
-    echoerr "Try '$0 --help' for more information"
-}
-
-_usage="Usage: $0 [arguments]
-
-Downloads install script from Antrea and setup antrea-agent on AWS or Azure VM.
-
-[arguments]
-        --cluster-name <ClusterName>  Kubernetes cluster name in kubeconfig."
-
-while [[ $# -gt 0 ]]
-do
-key="$1"
-
-case $key in
-    --ns)
-    export CLUSTER_NAME="$2"
-    shift 2
+case $CLUSTER_NAME in
+    *"eks"*)
+    export ANTREA_API_SERVER="https://$(kubectl get svc antrea -n kube-system -o jsonpath='{.status.loadBalancer.ingress[].hostname}')"
     ;;
-    -h|--help)
-    print_usage
-    exit 0
+    *"aks"*)
+    export ANTREA_API_SERVER=$(kubectl get svc antrea -n kube-system -o jsonpath='{.status.loadBalancer.ingress[].ip}')
     ;;
-    *)    # unknown option
-    echoerr "Unknown option $1"
-    print_help
+    *)
+    echoerr "Unknown cluster type. Only EKS and AKS are supported"
     exit 1
     ;;
 esac
-done
 
 kubectl apply -f https://raw.githubusercontent.com/antrea-io/antrea/v1.8.0/build/yamls/externalnode/vm-agent-rbac.yml
 
@@ -69,7 +45,6 @@ kubectl config --kubeconfig=antrea-agent.kubeconfig set-context antrea-agent@$CL
 kubectl config --kubeconfig=antrea-agent.kubeconfig use-context antrea-agent@$CLUSTER_NAME
 
 # antrea-agent.antrea.kubeconfig
-export ANTREA_API_SERVER="https://$(kubectl get svc antrea -n kube-system -o jsonpath='{.status.loadBalancer.ingress[].hostname}')"
 export ANTREA_CLUSTER_NAME="antrea"
 TOKEN=$(kubectl -n vm-ns get secrets -o jsonpath="{.items[?(@.metadata.annotations['kubernetes\.io/service-account\.name']=='$SERVICE_ACCOUNT')].data.token}"|base64 --decode)
 kubectl config --kubeconfig=antrea-agent.antrea.kubeconfig set-cluster $ANTREA_CLUSTER_NAME --server=$ANTREA_API_SERVER --insecure-skip-tls-verify=true
@@ -80,6 +55,6 @@ kubectl config --kubeconfig=antrea-agent.antrea.kubeconfig use-context antrea-ag
 echo
 echo "Finish generating agent kubeconfigs. Please run the following commands to create agented VMs using terraform"
 echo 'export TF_VAR_agent=true
-export TF_VAR_aws_vm_agent_k8s_conf="$(pwd)/antrea-agent.kubeconfig"
-export TF_VAR_aws_vm_agent_antrea_conf="$(pwd)/antrea-agent.antrea.kubeconfig"
+export TF_VAR_vm_agent_k8s_conf="$(pwd)/antrea-agent.kubeconfig"
+export TF_VAR_vm_agent_antrea_conf="$(pwd)/antrea-agent.antrea.kubeconfig"
 export TF_VAR_install_wrapper="$(pwd)/hack/install-wrapper.sh"'

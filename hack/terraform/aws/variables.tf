@@ -105,12 +105,12 @@ variable "namespace" {
   default = "vm-ns"
 }
 
-variable "aws_vm_agent_k8s_conf" {
+variable "vm_agent_k8s_conf" {
   type = string
   default = "antrea-agent.kubeconfig"
 }
 
-variable "aws_vm_agent_antrea_conf" {
+variable "vm_agent_antrea_conf" {
   type = string
   default = "antrea-agent.antrea.kubeconfig"
 }
