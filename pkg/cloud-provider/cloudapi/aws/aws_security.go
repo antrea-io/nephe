@@ -27,6 +27,7 @@ import (
 	"go.uber.org/multierr"
 	"k8s.io/apimachinery/pkg/types"
 
+	"antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 )
 
@@ -534,10 +535,12 @@ func (ec2Cfg *ec2ServiceConfig) getNepheControllerManagedSecurityGroupsCloudView
 			}
 			cloudResource := securitygroup.CloudResource{
 				Type: securitygroup.CloudResourceTypeNIC,
-				Name: securitygroup.CloudResourceID{
+				CloudResourceID: securitygroup.CloudResourceID{
 					Name: networkInterfaceID,
 					Vpc:  *networkInterface.VpcId,
 				},
+				AccountID:     ec2Cfg.accountName,
+				CloudProvider: string(v1alpha1.AWSCloudProvider),
 			}
 			cloudResources := managedSgIDToMemberCloudResourcesMap[sgID]
 			cloudResources = append(cloudResources, cloudResource)
@@ -576,9 +579,14 @@ func (ec2Cfg *ec2ServiceConfig) getNepheControllerManagedSecurityGroupsCloudView
 
 		// build sync object
 		groupSyncObj := securitygroup.SynchronizationContent{
-			Resource: securitygroup.CloudResourceID{
-				Name: SgName,
-				Vpc:  vpcID,
+			Resource: securitygroup.CloudResource{
+				Type: securitygroup.CloudResourceTypeVM,
+				CloudResourceID: securitygroup.CloudResourceID{
+					Name: SgName,
+					Vpc:  vpcID,
+				},
+				AccountID:     ec2Cfg.accountName,
+				CloudProvider: string(v1alpha1.AWSCloudProvider),
 			},
 			MembershipOnly:             isMembershipOnly,
 			Members:                    members,
@@ -694,17 +702,19 @@ func getMemberNicCloudResourcesAttachedToOtherSGs(members []securitygroup.CloudR
 	var nicCloudResources []securitygroup.CloudResource
 
 	for _, member := range members {
-		memberID := member.Name.Name
-		_, found := memberNicsAttachedToOtherSGs[member.Name.Name]
+		memberID := member.Name
+		_, found := memberNicsAttachedToOtherSGs[member.Name]
 		if !found {
 			continue
 		}
 		cloudResource := securitygroup.CloudResource{
 			Type: securitygroup.CloudResourceTypeNIC,
-			Name: securitygroup.CloudResourceID{
+			CloudResourceID: securitygroup.CloudResourceID{
 				Name: memberID,
-				Vpc:  member.Name.Vpc,
+				Vpc:  member.Vpc,
 			},
+			AccountID:     member.AccountID,
+			CloudProvider: member.CloudProvider,
 		}
 		nicCloudResources = append(nicCloudResources, cloudResource)
 	}
@@ -716,13 +726,13 @@ func getMemberNicCloudResourcesAttachedToOtherSGs(members []securitygroup.CloudR
 //	SecurityInterface Implementation
 //
 // ////////////////////////////////////////////////////////.
-func (c *awsCloud) CreateSecurityGroup(addressGroupIdentifier *securitygroup.CloudResourceID, membershipOnly bool) (*string, error) {
+func (c *awsCloud) CreateSecurityGroup(addressGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) (*string, error) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
 	vpcID := addressGroupIdentifier.Vpc
-	accCfg := c.getVpcAccount(vpcID)
-	if accCfg == nil {
+	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&addressGroupIdentifier.AccountID)
+	if !found {
 		return nil, fmt.Errorf("aws account not found managing virtual private cloud [%v]", vpcID)
 	}
 	serviceCfg, err := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
@@ -741,14 +751,14 @@ func (c *awsCloud) CreateSecurityGroup(addressGroupIdentifier *securitygroup.Clo
 	return securityGroupObj.GroupId, nil
 }
 
-func (c *awsCloud) UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResourceID,
+func (c *awsCloud) UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResource,
 	ingressRules []*securitygroup.IngressRule, egressRules []*securitygroup.EgressRule) error {
 	mutex.Lock()
 	defer mutex.Unlock()
 
 	vpcID := addressGroupIdentifier.Vpc
-	accCfg := c.getVpcAccount(addressGroupIdentifier.Vpc)
-	if accCfg == nil {
+	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&addressGroupIdentifier.AccountID)
+	if !found {
 		return fmt.Errorf("aws account not found managing virtual private cloud [%v]", vpcID)
 	}
 
@@ -759,7 +769,7 @@ func (c *awsCloud) UpdateSecurityGroupRules(addressGroupIdentifier *securitygrou
 	ec2Service := serviceCfg.(*ec2ServiceConfig)
 
 	// build from addressGroups, cloudSgNames from rules
-	cloudSgNames := buildEc2CloudSgNamesFromRules(addressGroupIdentifier, ingressRules, egressRules)
+	cloudSgNames := buildEc2CloudSgNamesFromRules(&addressGroupIdentifier.CloudResourceID, ingressRules, egressRules)
 
 	// make sure all required security groups pre-exist
 	vpcIDs := []string{vpcID}
@@ -788,14 +798,14 @@ func (c *awsCloud) UpdateSecurityGroupRules(addressGroupIdentifier *securitygrou
 	return nil
 }
 
-func (c *awsCloud) UpdateSecurityGroupMembers(groupIdentifier *securitygroup.CloudResourceID,
+func (c *awsCloud) UpdateSecurityGroupMembers(groupIdentifier *securitygroup.CloudResource,
 	cloudResourceIdentifiers []*securitygroup.CloudResource, membershipOnly bool) error {
 	mutex.Lock()
 	defer mutex.Unlock()
 
 	vpcID := groupIdentifier.Vpc
-	accCfg := c.getVpcAccount(vpcID)
-	if accCfg == nil {
+	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&groupIdentifier.AccountID)
+	if !found {
 		return fmt.Errorf("aws account not found managing virtual private cloud [%v]", vpcID)
 	}
 
@@ -828,13 +838,13 @@ func (c *awsCloud) UpdateSecurityGroupMembers(groupIdentifier *securitygroup.Clo
 	return nil
 }
 
-func (c *awsCloud) DeleteSecurityGroup(groupIdentifier *securitygroup.CloudResourceID, membershipOnly bool) error {
+func (c *awsCloud) DeleteSecurityGroup(groupIdentifier *securitygroup.CloudResource, membershipOnly bool) error {
 	mutex.Lock()
 	defer mutex.Unlock()
 
 	vpcID := groupIdentifier.Vpc
-	accCfg := c.getVpcAccount(vpcID)
-	if accCfg == nil {
+	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&groupIdentifier.AccountID)
+	if !found {
 		return fmt.Errorf("aws account not found managing virtual private cloud [%v]", vpcID)
 	}
 

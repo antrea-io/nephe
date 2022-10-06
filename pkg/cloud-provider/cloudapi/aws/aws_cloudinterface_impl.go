@@ -75,14 +75,6 @@ func (c *awsCloud) InstancesGivenProviderAccount(accountNamespacedName *types.Na
 	return vmCRDs, err
 }
 
-// IsVirtualPrivateCloudPresent returns true if given ID is managed by the cloud, else false.
-func (c *awsCloud) IsVirtualPrivateCloudPresent(vpcUniqueIdentifier string) bool {
-	if accCfg := c.getVpcAccount(vpcUniqueIdentifier); accCfg == nil {
-		return false
-	}
-	return true
-}
-
 // ////////////////////////////////////////////////////////
 //
 //	AccountMgmtInterface Implementation

@@ -16,6 +16,7 @@ package internal
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,6 +41,7 @@ type CloudCommonHelperInterface interface {
 // this interface by composition.
 type CloudCommonInterface interface {
 	GetCloudAccountByName(namespacedName *types.NamespacedName) (CloudAccountInterface, bool)
+	GetCloudAccountByAccountId(accountID *string) (CloudAccountInterface, bool)
 	GetCloudAccounts() map[types.NamespacedName]CloudAccountInterface
 
 	GetCloudAccountComputeResourceCRDs(namespacedName *types.NamespacedName) ([]*cloudv1alpha1.VirtualMachine,
@@ -115,12 +117,29 @@ func (c *cloudCommon) RemoveCloudAccount(namespacedName *types.NamespacedName) {
 	c.deleteCloudAccount(namespacedName)
 }
 
+// GetCloudAccountByName finds accCfg matching the namespacedName.
 func (c *cloudCommon) GetCloudAccountByName(namespacedName *types.NamespacedName) (CloudAccountInterface, bool) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
 	accCfg, found := c.accountConfigs[*namespacedName]
 	return accCfg, found
+}
+
+// GetCloudAccountByAccountId converts accountID to namespacedName and finds the matching accCfg.
+func (c *cloudCommon) GetCloudAccountByAccountId(accountID *string) (CloudAccountInterface, bool) {
+	// accountID is a string representation of namespacedName ie namespace and provider account name joined with a "/".
+	tokens := strings.Split(*accountID, "/")
+	if len(tokens) == 2 {
+		namespacedName := types.NamespacedName{Namespace: tokens[0], Name: tokens[1]}
+		c.mutex.Lock()
+		defer c.mutex.Unlock()
+		accCfg, found := c.accountConfigs[namespacedName]
+		return accCfg, found
+	} else {
+		c.logger().V(0).Info("Account ID is not in the expected format", "AccountID", accountID)
+		return nil, false
+	}
 }
 
 func (c *cloudCommon) GetCloudAccounts() map[types.NamespacedName]CloudAccountInterface {
@@ -142,7 +161,7 @@ func (c *cloudCommon) GetCloudAccountComputeResourceCRDs(accountNamespacedName *
 	serviceConfigs := accCfg.GetServiceConfigs()
 	for _, serviceConfig := range serviceConfigs {
 		if serviceConfig.getType() == CloudServiceTypeCompute {
-			resourceCRDs := serviceConfig.getResourceCRDs(namespace)
+			resourceCRDs := serviceConfig.getResourceCRDs(namespace, accCfg.GetNamespacedName().String())
 			computeCRDs = append(computeCRDs, resourceCRDs.virtualMachines...)
 		}
 	}

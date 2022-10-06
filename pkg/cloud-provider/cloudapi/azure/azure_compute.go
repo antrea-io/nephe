@@ -237,13 +237,13 @@ func (computeCfg *computeServiceConfig) RemoveResourceFilters(selectorName strin
 	delete(computeCfg.computeFilters, selectorName)
 }
 
-func (computeCfg *computeServiceConfig) GetResourceCRDs(namespace string) *internal.CloudServiceResourceCRDs {
+func (computeCfg *computeServiceConfig) GetResourceCRDs(namespace string, accountId string) *internal.CloudServiceResourceCRDs {
 	virtualMachines := computeCfg.getCachedVirtualMachines()
 	vmCRDs := make([]*v1alpha1.VirtualMachine, 0, len(virtualMachines))
 
 	for _, virtualMachine := range virtualMachines {
 		// build VirtualMachine CRD
-		vmCRD := computeInstanceToVirtualMachineCRD(virtualMachine, namespace)
+		vmCRD := computeInstanceToVirtualMachineCRD(virtualMachine, namespace, accountId)
 		vmCRDs = append(vmCRDs, vmCRD)
 	}
 

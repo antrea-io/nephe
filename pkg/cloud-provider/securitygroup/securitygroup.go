@@ -128,16 +128,18 @@ var (
 // CloudResource uniquely identify a cloud resource.
 type CloudResource struct {
 	Type CloudResourceType
-	Name CloudResourceID
-}
-
-func (c *CloudResource) String() string {
-	return string(c.Type) + "/" + c.Name.String()
+	CloudResourceID
+	AccountID     string
+	CloudProvider string
 }
 
 type CloudResourceID struct {
 	Name string
 	Vpc  string
+}
+
+func (c *CloudResource) String() string {
+	return string(c.Type) + "/" + c.CloudResourceID.String()
 }
 
 func (c *CloudResourceID) GetCloudName(membershipOnly bool) string {
@@ -169,7 +171,7 @@ type EgressRule struct {
 
 // SynchronizationContent returns a SecurityGroup content in cloud.
 type SynchronizationContent struct {
-	Resource                   CloudResourceID
+	Resource                   CloudResource
 	MembershipOnly             bool
 	Members                    []CloudResource
 	MembersWithOtherSGAttached []CloudResource
@@ -183,24 +185,24 @@ type CloudSecurityGroupAPI interface {
 	// membershipOnly is true if the SecurityGroup is used for membership tracking, not
 	// applying ingress/egress rules.
 	// Caller expects to wait on returned channel for status
-	CreateSecurityGroup(name *CloudResourceID, membershipOnly bool) <-chan error
+	CreateSecurityGroup(name *CloudResource, membershipOnly bool) <-chan error
 
 	// UpdateSecurityGroupMembers updates SecurityGroup name with members.
 	// SecurityGroup name must already have been created.
 	// For appliedSecurityGroup, UpdateSecurityGroupMembers is called only if SG has
 	// rules configured.
-	UpdateSecurityGroupMembers(name *CloudResourceID, members []*CloudResource, membershipOnly bool) <-chan error
+	UpdateSecurityGroupMembers(name *CloudResource, members []*CloudResource, membershipOnly bool) <-chan error
 
 	// DeleteSecurityGroup deletes SecurityGroup name.
 	// SecurityGroup name must already been created, is empty.
-	DeleteSecurityGroup(name *CloudResourceID, membershipOnly bool) <-chan error
+	DeleteSecurityGroup(name *CloudResource, membershipOnly bool) <-chan error
 
 	// UpdateSecurityGroupRules updates SecurityGroup name's ingress/egress rules in entirety.
 	// SecurityGroup name must already been created. SecurityGroups referred to in ingressRules and
 	// egressRules must have been already created.
 	// For appliedSecurityGroup, call with ingressRules=nil and egressRules=nil (clear rules) can be invoked
 	// only if SG has no members.
-	UpdateSecurityGroupRules(name *CloudResourceID, ingressRules []*IngressRule, egressRules []*EgressRule) <-chan error
+	UpdateSecurityGroupRules(name *CloudResource, ingressRules []*IngressRule, egressRules []*EgressRule) <-chan error
 
 	// GetSecurityGroupSyncChan returns a channel that networkPolicy controller waits on to retrieve complete SGs
 	// configured by cloud plug-in.

@@ -25,7 +25,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
-	"antrea.io/nephe/pkg/cloud-provider/cloudapi/internal"
 )
 
 type azureAccountConfig struct {
@@ -101,27 +100,4 @@ func extractSecret(c client.Client, s *v1alpha1.SecretReference) (*v1alpha1.Azur
 	}
 
 	return cred, nil
-}
-
-// getVnetAccount returns first found account config to which this vnet id belongs.
-func (c *azureCloud) getVnetAccount(vpcID string) internal.CloudAccountInterface {
-	accCfgs := c.cloudCommon.GetCloudAccounts()
-	if len(accCfgs) == 0 {
-		return nil
-	}
-
-	for _, accCfg := range accCfgs {
-		ec2ServiceCfg, err := accCfg.GetServiceConfigByName(azureComputeServiceNameCompute)
-		if err != nil {
-			continue
-		}
-		accVpcIDs := ec2ServiceCfg.(*computeServiceConfig).getCachedVnetIDs()
-		if len(accVpcIDs) == 0 {
-			continue
-		}
-		if _, found := accVpcIDs[strings.ToLower(vpcID)]; found {
-			return accCfg
-		}
-	}
-	return nil
 }

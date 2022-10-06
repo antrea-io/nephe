@@ -54,7 +54,7 @@ type CloudServiceInterface interface {
 	// GetInventoryStats returns Inventory statistics for the service.
 	GetInventoryStats() *CloudServiceStats
 	// GetResourceCRDs returns Service resource saved in CloudServiceResourcesCache in terms of CRD.
-	GetResourceCRDs(namespace string) *CloudServiceResourceCRDs
+	GetResourceCRDs(namespace string, accountId string) *CloudServiceResourceCRDs
 	// GetName returns cloud name of the service.
 	GetName() CloudServiceName
 	// GetType returns service type (compute, any other type etc.)
@@ -105,11 +105,11 @@ func (cfg *CloudServiceCommon) getInventoryStats() *CloudServiceStats {
 	return cfg.serviceInterface.GetInventoryStats()
 }
 
-func (cfg *CloudServiceCommon) getResourceCRDs(namespace string) *CloudServiceResourceCRDs {
+func (cfg *CloudServiceCommon) getResourceCRDs(namespace string, accountId string) *CloudServiceResourceCRDs {
 	cfg.mutex.Lock()
 	defer cfg.mutex.Unlock()
 
-	return cfg.serviceInterface.GetResourceCRDs(namespace)
+	return cfg.serviceInterface.GetResourceCRDs(namespace, accountId)
 }
 
 func (cfg *CloudServiceCommon) getName() CloudServiceName {
