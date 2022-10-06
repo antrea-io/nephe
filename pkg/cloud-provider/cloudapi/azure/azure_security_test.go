@@ -38,26 +38,27 @@ import (
 
 var _ = Describe("Azure Cloud Security", func() {
 	var (
-		testAccountNamespacedName       = &types.NamespacedName{Namespace: "namespace01", Name: "account01"}
-		testSubID                       = "SubID"
-		credentials                     = "credentials"
-		testClientID                    = "ClientID"
-		testClientKey                   = "ClientKey"
-		testTenantID                    = "TenantID"
-		testRegion                      = "eastus"
-		testRG                          = "testRG"
-		nsgID                           = "nephe-ag-nsgID"
-		atAsgID                         = "nephe-at-atapplicationsgID"
-		atAsgName                       = "atapplicationsgID"
-		agAsgID                         = "nephe-ag-agapplicationsgID"
-		testPriority              int32 = 100
-		testSourcePortRange             = "*"
-		testDestinationPortRange        = "*"
-		testPrivateIP                   = "0.0.0.0"
-		testProtocol                    = 6
-		testFromPort                    = 22
-		testToPort                      = 23
-		testCidrStr                     = "192.168.1.1/24"
+		testAccountNamespacedName               = &types.NamespacedName{Namespace: "namespace01", Name: "account01"}
+		testAccountNamespacedNameNotExist       = &types.NamespacedName{Namespace: "notexist01", Name: "notexist01"}
+		testSubID                               = "SubID"
+		credentials                             = "credentials"
+		testClientID                            = "ClientID"
+		testClientKey                           = "ClientKey"
+		testTenantID                            = "TenantID"
+		testRegion                              = "eastus"
+		testRG                                  = "testRG"
+		nsgID                                   = "nephe-ag-nsgID"
+		atAsgID                                 = "nephe-at-atapplicationsgID"
+		atAsgName                               = "atapplicationsgID"
+		agAsgID                                 = "nephe-ag-agapplicationsgID"
+		testPriority                      int32 = 100
+		testSourcePortRange                     = "*"
+		testDestinationPortRange                = "*"
+		testPrivateIP                           = "0.0.0.0"
+		testProtocol                            = 6
+		testFromPort                            = 22
+		testToPort                              = 23
+		testCidrStr                             = "192.168.1.1/24"
 
 		testVnet01   = "testVnet01"
 		testVnetID01 = fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Network/virtualNetworks/%v",
@@ -259,18 +260,34 @@ var _ = Describe("Azure Cloud Security", func() {
 
 		Context("CreateSecurityGroup", func() {
 			It("Should create security group(ASG and NSG) successfully and return ID", func() {
-				webAddressGroupIdentifier01 := &securitygroup.CloudResourceID{
-					Name: "Web",
-					Vpc:  testVnetID01,
+				/*
+					webAddressGroupIdentifier01 := &securitygroup.CloudResourceID{
+						Name: "Web",
+						Vpc:  testVnetID01,
+					}
+				*/
+				webAddressGroupIdentifier01 := &securitygroup.CloudResource{
+					Type: securitygroup.CloudResourceTypeVM,
+					CloudResourceID: securitygroup.CloudResourceID{
+						Name: "Web",
+						Vpc:  testVnetID01,
+					},
+					AccountID:     testAccountNamespacedName.String(),
+					CloudProvider: string(v1alpha1.AzureCloudProvider),
 				}
 
 				cloudSgID01, err := c.CreateSecurityGroup(webAddressGroupIdentifier01, false)
 				Expect(err).Should(BeNil())
 				Expect(cloudSgID01).Should(Not(BeNil()))
 
-				webAddressGroupIdentifier02 := &securitygroup.CloudResourceID{
-					Name: "Web",
-					Vpc:  testVnetID02,
+				webAddressGroupIdentifier02 := &securitygroup.CloudResource{
+					Type: securitygroup.CloudResourceTypeVM,
+					CloudResourceID: securitygroup.CloudResourceID{
+						Name: "Web",
+						Vpc:  testVnetID02,
+					},
+					AccountID:     testAccountNamespacedName.String(),
+					CloudProvider: string(v1alpha1.AzureCloudProvider),
 				}
 
 				cloudSgID02, err := c.CreateSecurityGroup(webAddressGroupIdentifier02, true)
@@ -280,9 +297,14 @@ var _ = Describe("Azure Cloud Security", func() {
 			})
 
 			It("Should fail to create security group", func() {
-				webAddressGroupIdentifier01 := &securitygroup.CloudResourceID{
-					Name: "Web",
-					Vpc:  testVnetID03,
+				webAddressGroupIdentifier01 := &securitygroup.CloudResource{
+					Type: securitygroup.CloudResourceTypeVM,
+					CloudResourceID: securitygroup.CloudResourceID{
+						Name: "Web",
+						Vpc:  testVnetID03,
+					},
+					AccountID:     testAccountNamespacedNameNotExist.String(),
+					CloudProvider: string(v1alpha1.AzureCloudProvider),
 				}
 
 				_, err := c.CreateSecurityGroup(webAddressGroupIdentifier01, false)
@@ -293,21 +315,28 @@ var _ = Describe("Azure Cloud Security", func() {
 
 		Context("UpdateSecurityGroup", func() {
 			It("Should Update security group members", func() {
-				webAddressGroupIdentifier01 := &securitygroup.CloudResourceID{
-					Name: "Web",
-					Vpc:  testVnetID01,
+				webAddressGroupIdentifier01 := &securitygroup.CloudResource{
+					Type: securitygroup.CloudResourceTypeVM,
+					CloudResourceID: securitygroup.CloudResourceID{
+						Name: "Web",
+						Vpc:  testVnetID01,
+					},
+					AccountID:     testAccountNamespacedName.String(),
+					CloudProvider: string(v1alpha1.AzureCloudProvider),
 				}
 
-				webAddressGroupIdentifier02 := &securitygroup.CloudResourceID{
-					Name: "Web",
-					Vpc:  testVnetID02,
+				webAddressGroupIdentifier02 := &securitygroup.CloudResource{
+					Type: securitygroup.CloudResourceTypeVM,
+					CloudResourceID: securitygroup.CloudResourceID{
+						Name: "Web",
+						Vpc:  testVnetID02,
+					},
+					AccountID:     testAccountNamespacedName.String(),
+					CloudProvider: string(v1alpha1.AzureCloudProvider),
 				}
 
 				members := []*securitygroup.CloudResource{
-					{
-						Type: securitygroup.CloudResourceTypeVM,
-						Name: *webAddressGroupIdentifier02,
-					},
+					webAddressGroupIdentifier02,
 				}
 
 				err := c.UpdateSecurityGroupMembers(webAddressGroupIdentifier01, members, false)
@@ -315,21 +344,28 @@ var _ = Describe("Azure Cloud Security", func() {
 			})
 
 			It("Should fail to update security group members", func() {
-				webAddressGroupIdentifier01 := &securitygroup.CloudResourceID{
-					Name: "Web",
-					Vpc:  testVnetID03,
+				webAddressGroupIdentifier01 := &securitygroup.CloudResource{
+					Type: securitygroup.CloudResourceTypeVM,
+					CloudResourceID: securitygroup.CloudResourceID{
+						Name: "Web",
+						Vpc:  testVnetID03,
+					},
+					AccountID:     testAccountNamespacedNameNotExist.String(),
+					CloudProvider: string(v1alpha1.AzureCloudProvider),
 				}
 
-				webAddressGroupIdentifier02 := &securitygroup.CloudResourceID{
-					Name: "Web",
-					Vpc:  testVnetID02,
+				webAddressGroupIdentifier02 := &securitygroup.CloudResource{
+					Type: securitygroup.CloudResourceTypeVM,
+					CloudResourceID: securitygroup.CloudResourceID{
+						Name: "Web",
+						Vpc:  testVnetID02,
+					},
+					AccountID:     testAccountNamespacedName.String(),
+					CloudProvider: string(v1alpha1.AzureCloudProvider),
 				}
 
 				members := []*securitygroup.CloudResource{
-					{
-						Type: securitygroup.CloudResourceTypeVM,
-						Name: *webAddressGroupIdentifier02,
-					},
+					webAddressGroupIdentifier02,
 				}
 
 				err := c.UpdateSecurityGroupMembers(webAddressGroupIdentifier01, members, false)
@@ -339,9 +375,14 @@ var _ = Describe("Azure Cloud Security", func() {
 
 		Context("UpdateSecurityRules", func() {
 			It("Should update Security rules successfully", func() {
-				webAddressGroupIdentifier03 := &securitygroup.CloudResourceID{
-					Name: atAsgName,
-					Vpc:  testVnetID01,
+				webAddressGroupIdentifier03 := &securitygroup.CloudResource{
+					Type: securitygroup.CloudResourceTypeVM,
+					CloudResourceID: securitygroup.CloudResourceID{
+						Name: atAsgName,
+						Vpc:  testVnetID01,
+					},
+					AccountID:     testAccountNamespacedName.String(),
+					CloudProvider: string(v1alpha1.AzureCloudProvider),
 				}
 
 				fromSrcIP := getFromSrcIP(testCidrStr)
@@ -360,7 +401,7 @@ var _ = Describe("Azure Cloud Security", func() {
 						ToPort:   &testToPort,
 						ToDstIP:  fromSrcIP,
 						ToSecurityGroups: []*securitygroup.CloudResourceID{
-							webAddressGroupIdentifier03,
+							&webAddressGroupIdentifier03.CloudResourceID,
 						},
 					},
 				}
@@ -370,9 +411,14 @@ var _ = Describe("Azure Cloud Security", func() {
 			})
 
 			It("Should fail to update Security rules -- asg not found", func() {
-				webAddressGroupIdentifier03 := &securitygroup.CloudResourceID{
-					Name: nsgID,
-					Vpc:  testVnetID01,
+				webAddressGroupIdentifier03 := &securitygroup.CloudResource{
+					Type: securitygroup.CloudResourceTypeVM,
+					CloudResourceID: securitygroup.CloudResourceID{
+						Name: nsgID,
+						Vpc:  testVnetID01,
+					},
+					AccountID:     testAccountNamespacedName.String(),
+					CloudProvider: string(v1alpha1.AzureCloudProvider),
 				}
 
 				fromSrcIP := getFromSrcIP(testCidrStr)
@@ -391,7 +437,7 @@ var _ = Describe("Azure Cloud Security", func() {
 						ToPort:   &testToPort,
 						ToDstIP:  fromSrcIP,
 						ToSecurityGroups: []*securitygroup.CloudResourceID{
-							webAddressGroupIdentifier03,
+							&webAddressGroupIdentifier03.CloudResourceID,
 						},
 					},
 				}
@@ -401,9 +447,14 @@ var _ = Describe("Azure Cloud Security", func() {
 			})
 
 			It("Should update Security rules for Peerings", func() {
-				webAddressGroupIdentifier03 := &securitygroup.CloudResourceID{
-					Name: atAsgName,
-					Vpc:  testVnetPeerID01,
+				webAddressGroupIdentifier03 := &securitygroup.CloudResource{
+					Type: securitygroup.CloudResourceTypeVM,
+					CloudResourceID: securitygroup.CloudResourceID{
+						Name: atAsgName,
+						Vpc:  testVnetPeerID01,
+					},
+					AccountID:     testAccountNamespacedName.String(),
+					CloudProvider: string(v1alpha1.AzureCloudProvider),
 				}
 
 				cidr := ipaddr.NewIPAddressString(testCidrStr)
@@ -430,7 +481,7 @@ var _ = Describe("Azure Cloud Security", func() {
 						ToPort:   &testToPort,
 						ToDstIP:  fromSrcIP,
 						ToSecurityGroups: []*securitygroup.CloudResourceID{
-							webAddressGroupIdentifier03,
+							&webAddressGroupIdentifier03.CloudResourceID,
 						},
 					},
 				}
@@ -465,20 +516,30 @@ var _ = Describe("Azure Cloud Security", func() {
 				serviceConfig, _ := accCfg.GetServiceConfigByName(azureComputeServiceNameCompute)
 				serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{vmToUpdateMap, nil, nil})
 
-				serviceConfig.(*computeServiceConfig).GetResourceCRDs(testAccountNamespacedName.Namespace)
+				serviceConfig.(*computeServiceConfig).GetResourceCRDs(testAccountNamespacedName.Namespace, testAccountNamespacedName.String())
 			})
 		})
 
 		Context("DeleteSecurityGroup", func() {
 			It("Should delete security group(ASG and NSG) successfully", func() {
-				webAddressGroupIdentifier01 := &securitygroup.CloudResourceID{
-					Name: "Web",
-					Vpc:  testVnetID01,
+				webAddressGroupIdentifier01 := &securitygroup.CloudResource{
+					Type: securitygroup.CloudResourceTypeVM,
+					CloudResourceID: securitygroup.CloudResourceID{
+						Name: "Web",
+						Vpc:  testVnetID01,
+					},
+					AccountID:     testAccountNamespacedName.String(),
+					CloudProvider: string(v1alpha1.AzureCloudProvider),
 				}
 
-				webAddressGroupIdentifier02 := &securitygroup.CloudResourceID{
-					Name: "Web",
-					Vpc:  testVnetID02,
+				webAddressGroupIdentifier02 := &securitygroup.CloudResource{
+					Type: securitygroup.CloudResourceTypeVM,
+					CloudResourceID: securitygroup.CloudResourceID{
+						Name: "Web",
+						Vpc:  testVnetID02,
+					},
+					AccountID:     testAccountNamespacedName.String(),
+					CloudProvider: string(v1alpha1.AzureCloudProvider),
 				}
 
 				err := c.DeleteSecurityGroup(webAddressGroupIdentifier01, false)
@@ -489,9 +550,14 @@ var _ = Describe("Azure Cloud Security", func() {
 			})
 
 			It("Should fail to delete security group)", func() {
-				webAddressGroupIdentifier01 := &securitygroup.CloudResourceID{
-					Name: "Web",
-					Vpc:  testVnetID03,
+				webAddressGroupIdentifier01 := &securitygroup.CloudResource{
+					Type: securitygroup.CloudResourceTypeVM,
+					CloudResourceID: securitygroup.CloudResourceID{
+						Name: "Web",
+						Vpc:  testVnetID03,
+					},
+					AccountID:     testAccountNamespacedNameNotExist.String(),
+					CloudProvider: string(v1alpha1.AzureCloudProvider),
 				}
 
 				err := c.DeleteSecurityGroup(webAddressGroupIdentifier01, false)

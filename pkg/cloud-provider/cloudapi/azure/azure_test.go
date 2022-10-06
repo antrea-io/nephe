@@ -188,9 +188,6 @@ var _ = Describe("Azure", func() {
 				_, err = c.Instances()
 				Expect(err).Should(BeNil())
 
-				res := c.IsVirtualPrivateCloudPresent("vpc")
-				Expect(res).Should(Equal(false))
-
 				_ = c.GetEnforcedSecurity()
 			})
 		})
