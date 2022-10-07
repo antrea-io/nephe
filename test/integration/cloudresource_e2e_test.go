@@ -49,6 +49,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		otherNamespace *v1.Namespace
 		anpParams      k8stemplates.ANPParameters
 		anpSetupParams k8stemplates.ANPParameters
+		defaultANPParameters k8stemplates.DefaultANPParameters
 
 		importAfterANP bool
 		abbreviated    bool
@@ -86,14 +87,16 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName))
 			}
 
-			nss := []*v1.Namespace{namespace, otherNamespace}
-			for _, ns := range nss {
-				if ns == nil {
-					continue
+			if !withAgent {
+				nss := []*v1.Namespace{namespace, otherNamespace}
+				for _, ns := range nss {
+					if ns == nil {
+						continue
+					}
+					logf.Log.V(1).Info("Delete namespace", "ns", ns.Name)
+					err := k8sClient.Delete(context.TODO(), ns)
+					Expect(err).ToNot(HaveOccurred())
 				}
-				logf.Log.V(1).Info("Delete namespace", "ns", ns.Name)
-				err := k8sClient.Delete(context.TODO(), ns)
-				Expect(err).ToNot(HaveOccurred())
 			}
 			preserveSetup = false
 		}()
@@ -103,10 +106,13 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		Expect(err).ToNot(HaveOccurred())
 		err = utils.ConfigureK8s(kubeCtl, anpParams, k8stemplates.CloudAntreaNetworkPolicy, true)
 		Expect(err).ToNot(HaveOccurred())
-		err = utils.CheckCloudResourceNetworkPolicies(k8sClient, reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), namespace.Name,
-			cloudVPC.GetVMs(), nil)
+		//if withAgent {
+		//	err = utils.ConfigureK8s(kubeCtl, defaultANPParameters, k8stemplates.DefaultANPSetup, true)
+		//	Expect(err).ToNot(HaveOccurred())
+		//}
+		err = utils.CheckCloudResourceNetworkPolicies(kubeCtl, k8sClient, reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), namespace.Name,
+			cloudVPC.GetVMs(), nil, withAgent)
 		Expect(err).ToNot(HaveOccurred())
-
 	})
 
 	configANPApplyTo = func(kind, instanceName, vpc, tagKey, tagVal string) *k8stemplates.EntitySelectorParameters {
@@ -157,6 +163,10 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		if !diffNS {
 			otherNamespace = nil
 		}
+		if withAgent {
+			namespace = staticVMNS
+			otherNamespace = nil
+		}
 
 		nss := []*v1.Namespace{namespace, otherNamespace}
 		for _, ns := range nss {
@@ -178,10 +188,22 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 
 			if !importAfterANP {
 				entityParams := cloudVPC.GetEntitySelectorParameters("test-entity-selector"+ns.Name, ns.Name, kind)
+				entityParams.Agented = withAgent
 				err = utils.ConfigureEntitySelectorAndWait(kubeCtl, k8sClient, entityParams, kind, num, ns.Name, false)
 				Expect(err).ToNot(HaveOccurred())
 			}
 		}
+
+		if withAgent {
+			// To Keep tests happy, add default ingress/egress deny rule
+			// TODO: Update the tests later to remove this rule
+			defaultANPParameters = k8stemplates.DefaultANPParameters{
+				Namespace: staticVMNS.Name,
+			}
+			err := utils.ConfigureK8s(kubeCtl, defaultANPParameters, k8stemplates.DefaultANPSetup, false)
+			Expect(err).ToNot(HaveOccurred(), "Failed to add default ANP rule")
+		}
+
 
 		anpParams = k8stemplates.ANPParameters{
 			Name:      "test-cloud-anp",
@@ -212,11 +234,12 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 				}
 				_ = cloudVPC.GetCloudAccountParameters("test-cloud-account"+ns.Name, ns.Name, cloudCluster)
 				entityParams := cloudVPC.GetEntitySelectorParameters("test-entity-selector"+ns.Name, ns.Name, kind)
+				entityParams.Agented = withAgent
 				err = utils.ConfigureEntitySelectorAndWait(kubeCtl, k8sClient, entityParams, kind, num, ns.Name, false)
 				Expect(err).ToNot(HaveOccurred())
 			}
 		}
-		err = utils.CheckCloudResourceNetworkPolicies(k8sClient, vmKind, namespace.Name, cloudVPC.GetVMs(), []string{anpSetupParams.Name})
+		err = utils.CheckCloudResourceNetworkPolicies(kubeCtl, k8sClient, vmKind, namespace.Name, cloudVPC.GetVMs(), []string{anpSetupParams.Name}, withAgent)
 		Expect(err).ToNot(HaveOccurred())
 		oks := make([]bool, len(cloudVPC.GetVMs()))
 		for i := range oks {
@@ -238,7 +261,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			if ok {
 				np = append(np, anpParams.Name)
 			}
-			err = utils.CheckCloudResourceNetworkPolicies(k8sClient, kind, namespace.Name, []string{ids[i]}, np)
+			err = utils.CheckCloudResourceNetworkPolicies(kubeCtl, k8sClient, kind, namespace.Name, []string{ids[i]}, np, withAgent)
 			Expect(err).ToNot(HaveOccurred())
 		}
 		appliedIPs := make([]string, 0)
@@ -275,7 +298,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			np = append(np, anpSetupParams.Name)
 		}
 		np = append(np, anpParams.Name)
-		err = utils.CheckCloudResourceNetworkPolicies(k8sClient, kind, namespace.Name, []string{id}, np)
+		err = utils.CheckCloudResourceNetworkPolicies(kubeCtl, k8sClient, kind, namespace.Name, []string{id}, np, withAgent)
 		Expect(err).ToNot(HaveOccurred())
 
 		err = utils.ExecuteCurlCmds(cloudVPC, nil, []string{srcVM}, "", dstIPs, apachePort, oks, 30)
@@ -294,7 +317,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			np = append(np, anpSetupParams.Name)
 		}
 		np = append(np, anpParams.Name)
-		err = utils.CheckCloudResourceNetworkPolicies(k8sClient, kind, namespace.Name, []string{id}, np)
+		err = utils.CheckCloudResourceNetworkPolicies(kubeCtl, k8sClient, kind, namespace.Name, []string{id}, np, withAgent)
 		Expect(err).ToNot(HaveOccurred())
 
 		err = utils.ExecuteCurlCmds(cloudVPC, nil, srcVMs, "", []string{ip}, apachePort, oks, 30)
@@ -492,7 +515,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		func(kind string, diffNS bool) {
 			testAppliedTo(kind, diffNS)
 		},
-		table.Entry(fmt.Sprintf("%s: VM In Same Namespace", focusAzure),
+		table.Entry(fmt.Sprintf("%s %s: VM In Same Namespace", focusAzure, focusAgent),
 			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), false),
 		table.Entry("VM In Different Namespaces",
 			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), true),
@@ -502,7 +525,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		func(kind string, diffNS bool) {
 			testEgress(kind, diffNS)
 		},
-		table.Entry("VM In Same Namespace",
+		table.Entry(fmt.Sprintf("%s: VM In Same Namespace", focusAgent),
 			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), false),
 		table.Entry("VM In Different Namespaces",
 			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), true),
@@ -512,7 +535,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		func(kind string, diffNS bool) {
 			testIngress(kind, diffNS)
 		},
-		table.Entry(fmt.Sprintf("%s: VM In Same Namespaces", focusAzure),
+		table.Entry(fmt.Sprintf("%s %s: VM In Same Namespace", focusAzure, focusAgent),
 			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), false),
 		table.Entry("VM In Different Namespaces",
 			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), true),
@@ -527,7 +550,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			func(kind string, diffNS bool) {
 				testAppliedTo(kind, diffNS)
 			},
-			table.Entry(fmt.Sprintf("%s: VM In Same Namespace", focusAzure),
+			table.Entry(fmt.Sprintf("%s %s: VM In Same Namespace", focusAzure, focusAgent),
 				reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), false),
 			table.Entry("VM In Different Namespaces",
 				reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), true),
@@ -537,7 +560,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			func(kind string, diffNS bool) {
 				testEgress(kind, diffNS)
 			},
-			table.Entry("VM In Same Namespace",
+			table.Entry(fmt.Sprintf("%s: VM In Same Namespace", focusAgent),
 				reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), false),
 			table.Entry("VM In Different Namespaces",
 				reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), true),
@@ -547,7 +570,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			func(kind string, diffNS bool) {
 				testIngress(kind, diffNS)
 			},
-			table.Entry(fmt.Sprintf("%s: VM In Same Namespaces", focusAzure),
+			table.Entry(fmt.Sprintf("%s %s: VM In Same Namespace", focusAzure, focusAgent),
 				reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), false),
 			table.Entry("VM In Different Namespaces",
 				reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), true),
@@ -609,7 +632,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		Expect(err).NotTo(HaveOccurred())
 		err = utils.WaitApiServer(k8sClient, time.Second*60)
 		Expect(err).NotTo(HaveOccurred())
-		err = utils.CheckCloudResourceNetworkPolicies(k8sClient, kind, namespace.Name, ids, []string{anpSetupParams.Name})
+		err = utils.CheckCloudResourceNetworkPolicies(kubeCtl, k8sClient, kind, namespace.Name, ids, []string{anpSetupParams.Name}, withAgent)
 		Expect(err).ToNot(HaveOccurred())
 		err = utils.ExecuteCurlCmds(cloudVPC, nil, srcVMs, "", []string{ids[appliedIdx]}, apachePort, oks, 30)
 		Expect(err).ToNot(HaveOccurred())

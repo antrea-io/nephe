@@ -244,7 +244,7 @@ func ConfigureEntitySelectorAndWait(
 }
 
 // CheckCloudResourceNetworkPolicies checks NetworkPolicies has been applied to cloud resources.
-func CheckCloudResourceNetworkPolicies(k8sClient client.Client, kind, namespace string, ids []string, anps []string) error {
+func CheckCloudResourceNetworkPolicies(kubeCtl *KubeCtl, k8sClient client.Client, kind, namespace string, ids, anps []string, agent bool) error {
 	getVMANPs := func(id string) (map[string]*runtimev1alpha1.NetworkPolicyStatus, error) {
 		v := &runtimev1alpha1.VirtualMachinePolicy{}
 		fetchKey := client.ObjectKey{Name: id, Namespace: namespace}
@@ -255,6 +255,27 @@ func CheckCloudResourceNetworkPolicies(k8sClient client.Client, kind, namespace 
 			return nil, err
 		}
 		return v.Status.NetworkPolicyDetails, nil
+	}
+
+	if agent {
+		err := wait.Poll(time.Second*5, time.Second*60, func() (bool, error) {
+			for _, anp := range anps {
+				cmd := fmt.Sprintf("get anp %s -n %s -o json -o=jsonpath={.status.phase}", anp, namespace)
+				out, err := kubeCtl.Cmd(cmd)
+				if err != nil {
+					return false, nil
+				}
+				if strings.Compare(string(out), "Realized") != 0 {
+					logf.Log.V(1).Info("ANP realization in progress", "IDS", ids, "ANP", anp)
+					return false, nil
+				}
+			}
+			return true, nil
+		})
+		if err != nil {
+			logf.Log.V(1).Info("ANP realization failed")
+		}
+		return err
 	}
 
 	logf.Log.V(1).Info("Check NetworkPolicy on resources", "resources", ids, "nps", anps)
