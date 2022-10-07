@@ -31,6 +31,7 @@ type CloudVPC interface {
 	GetVMNames() []string
 	GetVMIPs() []string
 	GetVMPrivateIPs() []string
+	GetPrimaryNICs() []string
 	GetNICs() []string
 	GetTags() []map[string]string
 	IsConfigured() bool
