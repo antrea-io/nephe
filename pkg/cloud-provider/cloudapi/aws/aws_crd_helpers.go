@@ -15,6 +15,8 @@
 package aws
 
 import (
+	"strings"
+
 	"github.com/aws/aws-sdk-go/service/ec2"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
@@ -70,6 +72,7 @@ func ec2InstanceToVirtualMachineCRD(instance *ec2.Instance, namespace string, ac
 	cloudID := *instance.InstanceId
 	cloudNetwork := *instance.VpcId
 
-	return utils.GenerateVirtualMachineCRD(cloudID, cloudName, cloudID, namespace, cloudNetwork, cloudNetwork,
-		v1alpha1.VMState(*instance.State.Name), tags, networkInterfaces, providerType, accountId)
+	return utils.GenerateVirtualMachineCRD(cloudID, strings.ToLower(cloudName), strings.ToLower(cloudID), namespace,
+		strings.ToLower(cloudNetwork), cloudNetwork, v1alpha1.VMState(*instance.State.Name), tags, networkInterfaces,
+		providerType, accountId)
 }

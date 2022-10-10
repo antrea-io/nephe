@@ -15,19 +15,19 @@
 package target_test
 
 import (
-	converter "antrea.io/nephe/pkg/converter/target"
 	"context"
+	"reflect"
+
 	mock "github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
-	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
-
+	antreav1alpha2 "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	cloud "antrea.io/nephe/apis/crd/v1alpha1"
+	target "antrea.io/nephe/pkg/converter/target"
 	"antrea.io/nephe/pkg/testing"
 	"antrea.io/nephe/pkg/testing/controllerruntimeclient"
 )
@@ -44,12 +44,12 @@ var _ = Describe("Externalentity", func() {
 
 		// Test tunable
 		networkInterfaceIPAddresses = []string{"1.1.1.1", "2.2.2.2"}
-		namedports                  = []antreatypes.NamedPort{
+		namedports                  = []antreav1alpha2.NamedPort{
 			{Name: "http", Protocol: v1.ProtocolTCP, Port: 80},
 			{Name: "https", Protocol: v1.ProtocolTCP, Port: 443},
 		}
 
-		externalEntitySources map[string]converter.ExternalEntitySource
+		externalEntitySources map[string]target.ExternalEntitySource
 	)
 
 	BeforeEach(func() {
@@ -83,7 +83,8 @@ var _ = Describe("Externalentity", func() {
 
 	copyTester := func(name string) {
 		externalEntitySource := externalEntitySources[name]
-		dup := externalEntitySource.Copy()
+		temp := externalEntitySource.Copy()
+		dup, _ := temp.(target.ExternalEntitySource)
 		Expect(dup).To(Equal(externalEntitySource))
 	}
 

@@ -34,6 +34,7 @@ func GenerateVirtualMachineCRD(crdName string, cloudName string, cloudID string,
 		Tags:                tags,
 		State:               state,
 		NetworkInterfaces:   networkInterfaces,
+		Agented:             false,
 	}
 	annotationsMap := map[string]string{
 		cloudcommon.AnnotationCloudAssignedIDKey:    cloudID,

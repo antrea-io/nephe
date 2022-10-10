@@ -68,6 +68,10 @@ spec:
                     criteria. VirtualMachines must satisfy all fields(ANDed) in a
                     VirtualMachineSelector in order to satisfy match.
                   properties:
+                    agented:
+                      description: Agented specifies if VM runs in agented mode, default
+                        is false.
+                      type: boolean
                     vmMatch:
                       description: VMMatch specifies VirtualMachines to match. It
                         is an array, match satisfying any item on VMMatch is selected(ORed).
@@ -287,6 +291,9 @@ spec:
     - jsonPath: .status.state
       name: State
       type: string
+    - jsonPath: .status.agented
+      name: Agented
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -310,6 +317,10 @@ spec:
             description: VirtualMachineStatus defines the observed state of VirtualMachine
               It contains observable parameters.
             properties:
+              agented:
+                description: Agented specifies if VM runs in agented mode, default
+                  is false.
+                type: boolean
               networkInterfaces:
                 description: NetworkInterfaces is array of NetworkInterfaces attached
                   to this VirtualMachine.
@@ -356,6 +367,8 @@ spec:
                 description: VirtualPrivateCloud is the virtual private cloud this
                   VirtualMachine belongs to.
                 type: string
+            required:
+            - agented
             type: object
         type: object
     served: true
@@ -476,6 +489,25 @@ rules:
   - crd.antrea.io
   resources:
   - externalentities/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - crd.antrea.io
+  resources:
+  - externalnodes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - watch
+- apiGroups:
+  - crd.antrea.io
+  resources:
+  - externalnodes/status
   verbs:
   - get
   - patch

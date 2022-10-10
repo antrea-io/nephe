@@ -38,12 +38,18 @@ var (
 	mockClient                  *controllerruntimeclient.MockClient
 	scheme                      = runtime.NewScheme()
 	networkInterfaceIPAddresses = []string{"1.1.1.1", "2.2.2.2"}
-	testNamespace               = "test-namespace"
-	emptyExternalEntitySources  = map[string]target.ExternalEntitySource{
+	// Used by ExternalNode.
+	networkInterfaceNames      = []string{"nic0"}
+	testNamespace              = "test-namespace"
+	emptyExternalEntitySources = map[string]target.ExternalEntitySource{
+		"VirtualMachine": &source.VirtualMachineSource{},
+	}
+	emptyExternalNodeSources = map[string]target.ExternalNodeSource{
 		"VirtualMachine": &source.VirtualMachineSource{},
 	}
 
 	externalEntitySources map[string]target.ExternalEntitySource
+	externalNodeSources   map[string]target.ExternalNodeSource
 )
 
 var _ = BeforeSuite(func() {
@@ -58,6 +64,7 @@ func commonInitTest() {
 	mockCtrl = mock.NewController(GinkgoT())
 	mockClient = controllerruntimeclient.NewMockClient(mockCtrl)
 	externalEntitySources = testing2.SetupExternalEntitySources(networkInterfaceIPAddresses, testNamespace)
+	externalNodeSources = testing2.SetupExternalNodeSources(networkInterfaceIPAddresses, testNamespace)
 }
 
 // Testing converting source crd to target crd

@@ -51,6 +51,10 @@ spec:
                     criteria. VirtualMachines must satisfy all fields(ANDed) in a
                     VirtualMachineSelector in order to satisfy match.
                   properties:
+                    agented:
+                      description: Agented specifies if VM runs in agented mode, default
+                        is false.
+                      type: boolean
                     vmMatch:
                       description: VMMatch specifies VirtualMachines to match. It
                         is an array, match satisfying any item on VMMatch is selected(ORed).
