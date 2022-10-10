@@ -1,4 +1,24 @@
 - builder:
+      name: builder-slack-notify-declare
+      builders:
+          - shell: |-
+                #!/bin/bash
+                set -ex
+
+                declare -a nanny
+                nanny=("rahulj" "kumaranand")
+
+                d=$(date '+%d')
+                r=$((d % ${#nanny[@]}))
+                chosen_nanny=${nanny[$r]}
+
+                cat > chosen_nanny <<EOF
+                chosen_nanny=${chosen_nanny}
+                EOF
+
+                cat chosen_nanny
+
+- builder:
     name: deploy-vm-and-run-aws-tests-for-nephe
     builders:
       - shell: |-
