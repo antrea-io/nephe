@@ -178,14 +178,14 @@ func diffAddressGrp(a, b []antreanetworking.NetworkPolicyRule) ([]string, []stri
 func mergeCloudResources(src, added, removed []*securitygroup.CloudResource) (list []*securitygroup.CloudResource) {
 	srcMap := make(map[string]*securitygroup.CloudResource)
 	for _, s := range src {
-		srcMap[s.Name.String()] = s
+		srcMap[s.CloudResourceID.String()] = s
 	}
 	for _, r := range removed {
-		delete(srcMap, r.Name.String())
+		delete(srcMap, r.CloudResourceID.String())
 	}
 	for _, a := range added {
 		rsc := *a
-		srcMap[a.Name.String()] = &rsc
+		srcMap[a.CloudResourceID.String()] = &rsc
 	}
 	for _, v := range srcMap {
 		list = append(list, v)
@@ -262,7 +262,7 @@ func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPoli
 			r.Log.Error(fmt.Errorf(""), "Invalid cloud resource type received", "kind", kind)
 		}
 		if readAnnotations {
-			ownerAnnotations, err := getOwnerAnnotations(e, r)
+			ownerAnnotations, ownerCloudProvider, err := getOwnerProperties(e, r)
 			if err != nil {
 				r.Log.Error(err, "externalEntity owner not found", "key", key, "kind", kind)
 				continue
@@ -272,14 +272,21 @@ func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPoli
 				r.Log.Error(fmt.Errorf(""), "VPC annotation not found in ExternalEntity owner", "key", key, "kind", kind)
 				continue
 			}
-			cloudRsc.Name.Vpc = vpc
+			cloudRsc.Vpc = vpc
 			vpcs[vpc] = append(vpcs[vpc], &cloudRsc)
 			cloudAssignedID, ok := ownerAnnotations[cloudcommon.AnnotationCloudAssignedIDKey]
 			if !ok {
 				r.Log.Error(fmt.Errorf(""), "cloud assigned ID annotation not found in ExternalEntity owner", "key", key, "kind", kind)
 				continue
 			}
-			cloudRsc.Name.Name = cloudAssignedID
+			cloudRsc.Name = cloudAssignedID
+			cloudAccountID, ok := ownerAnnotations[cloudcommon.AnnotationCloudAccountIDKey]
+			if !ok {
+				r.Log.Error(fmt.Errorf(""), "cloud account ID annotation not found in ExternalEntity owner", "key", key, "kind", kind)
+				continue
+			}
+			cloudRsc.AccountID = cloudAccountID
+			cloudRsc.CloudProvider = ownerCloudProvider
 		} else {
 			for _, ep := range e.Spec.Endpoints {
 				var ipnet *net.IPNet
@@ -293,9 +300,10 @@ func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPoli
 	return vpcs, ipBlocks, notFoundMember, nil
 }
 
-func getOwnerAnnotations(e *antreanetcore.ExternalEntity, r *NetworkPolicyReconciler) (map[string]string, error) {
+// getOwnerProperties gets VM object from etcd and returns annotations and cloud provider type from it.
+func getOwnerProperties(e *antreanetcore.ExternalEntity, r *NetworkPolicyReconciler) (map[string]string, string, error) {
 	if len(e.OwnerReferences) == 0 {
-		return nil, fmt.Errorf("externalEntiry owner not found (%v/%v)", e.Namespace, e.Name)
+		return nil, "", fmt.Errorf("externalEntiry owner not found (%v/%v)", e.Namespace, e.Name)
 	}
 	namespace := e.Namespace
 	owner := e.OwnerReferences[0]
@@ -304,11 +312,11 @@ func getOwnerAnnotations(e *antreanetcore.ExternalEntity, r *NetworkPolicyReconc
 		vm := &cloud.VirtualMachine{}
 		if err := r.Get(context.TODO(), key, vm); err != nil {
 			r.Log.Error(err, "Client get VirtualMachine", "key", key)
-			return nil, err
+			return nil, "", err
 		}
-		return vm.Annotations, nil
+		return vm.Annotations, string(vm.Status.Provider), nil
 	}
-	return nil, fmt.Errorf("unsupported cloud owner kind")
+	return nil, "", fmt.Errorf("unsupported cloud owner kind")
 }
 
 // deduplicateKey is used for deduplicate network policy rules.
@@ -446,7 +454,7 @@ type securityGroupImpl struct {
 	// Members of this SecurityGroup.
 	members []*securitygroup.CloudResource
 	// SecurityGroup identifier.
-	id securitygroup.CloudResourceID
+	id securitygroup.CloudResource
 	// Current state of this SecurityGroup.
 	state securityGroupState
 	// To be deleted.
@@ -461,7 +469,7 @@ type securityGroupImpl struct {
 
 // getID returns securityGroup ID.
 func (s *securityGroupImpl) getID() securitygroup.CloudResourceID {
-	return s.id
+	return s.id.CloudResourceID
 }
 
 // getMembers returns securityGroup members.
@@ -475,12 +483,12 @@ func (s *securityGroupImpl) removeStaleMembers(stales []string, r *NetworkPolicy
 	}
 	srcMap := make(map[string]*securitygroup.CloudResource)
 	for _, m := range s.members {
-		srcMap[m.Name.Name] = m
+		srcMap[m.Name] = m
 	}
 	for _, stale := range stales {
 		for k := range srcMap {
 			if strings.Contains(stale, k) {
-				r.Log.V(1).Info("Remove stale members from SecurityGroup", "Stale", stale, "Name", s.id)
+				r.Log.V(1).Info("Remove stale members from SecurityGroup", "Stale", stale, "Name", s.id.Name)
 				delete(srcMap, k)
 			}
 		}
@@ -509,7 +517,7 @@ func (s *securityGroupImpl) addImpl(c cloudSecurityGroup, membershipOnly bool, r
 	if s.retryOp != nil {
 		return nil
 	}
-	r.Log.V(1).Info("Adding SecurityGroup", "Name", s.id, "MembershipOnly", membershipOnly)
+	r.Log.V(1).Info("Adding SecurityGroup", "Name", s.id.Name, "MembershipOnly", membershipOnly)
 	ch := securitygroup.CloudSecurityGroup.CreateSecurityGroup(&s.id, membershipOnly)
 	s.status = &InProgress{}
 	go func() {
@@ -530,7 +538,7 @@ func (s *securityGroupImpl) deleteImpl(c cloudSecurityGroup, membershipOnly bool
 		indexKey = networkPolicyIndexerByAppliedToGrp
 		indexer = r.appliedToSGIndexer
 	}
-	uName := getGroupUniqueName(s.id.String(), membershipOnly)
+	uName := getGroupUniqueName(s.id.CloudResourceID.String(), membershipOnly)
 	guName := getGroupUniqueName(s.id.Name, membershipOnly)
 	if !r.pendingDeleteGroups.Has(guName) {
 		r.pendingDeleteGroups.Add(guName, &pendingGroup{refCnt: new(int)})
@@ -541,26 +549,26 @@ func (s *securityGroupImpl) deleteImpl(c cloudSecurityGroup, membershipOnly bool
 			return fmt.Errorf("get networkpolicy indexer with index=%v, name=%v: %w", indexKey, s.id.Name, err)
 		}
 		if len(nps) != 0 {
-			r.Log.V(1).Info("Deleting SecurityGroup pending, in use by networkpolicies", "Name", s.id,
+			r.Log.V(1).Info("Deleting SecurityGroup pending, in use by networkpolicies", "Name", s.id.Name,
 				"MembershipOnly", membershipOnly, "anpNum", len(nps))
 			s.deletePending = true
 			return nil
 		}
 		if membershipOnly {
-			refs, err := r.appliedToSGIndexer.ByIndex(appliedToIndexerByAddrGroupRef, s.id.String())
+			refs, err := r.appliedToSGIndexer.ByIndex(appliedToIndexerByAddrGroupRef, s.id.CloudResourceID.String())
 			if err != nil {
-				return fmt.Errorf("get appliedTo indexer with name=%v: %w", s.id.String(), err)
+				return fmt.Errorf("get appliedTo indexer with name=%v: %w", s.id.CloudResourceID.String(), err)
 			}
 			if len(refs) != 0 {
-				r.Log.V(1).Info("Deleting SecurityGroup pending, referenced by appliedTo groups", "Name", s.id,
+				r.Log.V(1).Info("Deleting SecurityGroup pending, referenced by appliedTo groups", "Name", s.id.Name,
 					"MembershipOnly", membershipOnly, "refNum", len(refs))
 				s.deletePending = true
 				return nil
 			}
 		}
-		r.Log.V(1).Info("Deleting SecurityGroup", "Name", s.id, "MembershipOnly", membershipOnly)
+		r.Log.V(1).Info("Deleting SecurityGroup", "Name", s.id.Name, "MembershipOnly", membershipOnly)
 		if err := indexer.Delete(c); err != nil {
-			r.Log.Error(err, "Deleting SecurityGroup from indexer", "Name", s.id)
+			r.Log.Error(err, "Deleting SecurityGroup from indexer", "Name", s.id.Name)
 		}
 		// delete operation supersedes any prior retry operations.
 		r.retryQueue.Remove(uName)
@@ -602,7 +610,7 @@ func (s *securityGroupImpl) updateImpl(c cloudSecurityGroup, added, removed []*s
 	if s.retryOp != nil {
 		return nil
 	}
-	r.Log.V(1).Info("Updating SecurityGroup", "Name", s.id, "MembershipOnly", membershipOnly,
+	r.Log.V(1).Info("Updating SecurityGroup", "Name", s.id.Name, "MembershipOnly", membershipOnly,
 		"members", members)
 	ch := securitygroup.CloudSecurityGroup.UpdateSecurityGroupMembers(&s.id, members, membershipOnly)
 	go func() {
@@ -620,7 +628,7 @@ func (s *securityGroupImpl) updateImpl(c cloudSecurityGroup, added, removed []*s
 func (s *securityGroupImpl) notifyImpl(c PendingItem, membershipOnly bool, op securityGroupOperation,
 	status error, r *NetworkPolicyReconciler) {
 	moreOps := false
-	uName := getGroupUniqueName(s.id.String(), membershipOnly)
+	uName := getGroupUniqueName(s.id.CloudResourceID.String(), membershipOnly)
 	if status != nil && !r.retryQueue.Has(uName) &&
 		(s.state != securityGroupStateGarbageCollectState || op == securityGroupOperationDelete) {
 		// ignore prior non-delete failure during delete
@@ -654,7 +662,7 @@ type addrSecurityGroup struct {
 }
 
 // newAddrSecurityGroup creates a new addSecurityGroup from Antrea AddressGroup.
-func newAddrSecurityGroup(id *securitygroup.CloudResourceID, data interface{}, state *securityGroupState) cloudSecurityGroup {
+func newAddrSecurityGroup(id *securitygroup.CloudResource, data interface{}, state *securityGroupState) cloudSecurityGroup {
 	sg := &addrSecurityGroup{}
 	if ips, ok := data.([]*net.IPNet); ok {
 		sg.ipBlocks = ips
@@ -688,7 +696,7 @@ func (a *addrSecurityGroup) delete(r *NetworkPolicyReconciler) error {
 
 // updateIPs updates IPs stored in an addrSecurityGroup. It does not trigger operations to cloud plug-in.
 func (a *addrSecurityGroup) updateIPs(added, removed []*net.IPNet, r *NetworkPolicyReconciler) {
-	r.Log.V(1).Info("AddrSecurityGroup UpdateIPs", "Name", a.id)
+	r.Log.V(1).Info("AddrSecurityGroup UpdateIPs", "Name", a.id.Name)
 	a.ipBlocks = mergeIPs(a.ipBlocks, added, removed)
 }
 
@@ -731,12 +739,12 @@ func (a *addrSecurityGroup) notify(op securityGroupOperation, status error, r *N
 		a.status = status
 	}
 	if status != nil {
-		r.Log.Error(status, "AddrSecurityGroup operation failed", "Name", a.id, "Op", op)
+		r.Log.Error(status, "AddrSecurityGroup operation failed", "Name", a.id.Name, "Op", op)
 		return nil
 	}
 
-	r.Log.V(1).Info("AddrSecurityGroup operation received response", "Name", a.id, "state", a.state, "status", a.status, "Op", op)
-	uName := getGroupUniqueName(a.id.String(), true)
+	r.Log.V(1).Info("AddrSecurityGroup operation received response", "Name", a.id.Name, "state", a.state, "status", a.status, "Op", op)
+	uName := getGroupUniqueName(a.id.CloudResourceID.String(), true)
 	if r.retryQueue.Has(uName) {
 		_ = r.retryQueue.Update(uName, false, op)
 	}
@@ -750,7 +758,7 @@ func (a *addrSecurityGroup) notify(op securityGroupOperation, status error, r *N
 		return nil
 	}
 
-	r.Log.V(1).Info("AddrSecurityGroup becomes ready", "Name", a.id)
+	r.Log.V(1).Info("AddrSecurityGroup becomes ready", "Name", a.id.Name)
 	// update addrSecurityGroup members.
 	if err := a.update(nil, nil, r); err != nil {
 		return err
@@ -786,7 +794,9 @@ func (a *addrSecurityGroup) notifyNetworkPolicyChange(r *NetworkPolicyReconciler
 	if !a.deletePending {
 		return
 	}
+
 	nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAddrGrp, a.id.Name)
+
 	if err != nil {
 		r.Log.Error(err, "Get networkPolicy indexer", a.id.Name, err, "indexKey", networkPolicyIndexerByAddrGrp)
 	}
@@ -808,7 +818,7 @@ type appliedToSecurityGroup struct {
 }
 
 // newAddrAppliedGroup creates a new addSecurityGroup from Antrea AddressGroup membership.
-func newAppliedToSecurityGroup(id *securitygroup.CloudResourceID, data interface{}, state *securityGroupState) cloudSecurityGroup {
+func newAppliedToSecurityGroup(id *securitygroup.CloudResource, data interface{}, state *securityGroupState) cloudSecurityGroup {
 	members, ok := data.([]*securitygroup.CloudResource)
 	if !ok {
 		return nil
@@ -866,7 +876,7 @@ func (a *appliedToSecurityGroup) updateRules(r *NetworkPolicyReconciler) error {
 	}
 	if len(nps) == 0 {
 		if a.hasMembers {
-			r.Log.V(1).Info("AppliedToSecurityGroup clear members with no rules", "Name", a.id)
+			r.Log.V(1).Info("AppliedToSecurityGroup clear members with no rules", "Name", a.id.Name)
 			ch := securitygroup.CloudSecurityGroup.UpdateSecurityGroupMembers(&a.id, nil, false)
 			go func() {
 				err := <-ch
@@ -875,7 +885,7 @@ func (a *appliedToSecurityGroup) updateRules(r *NetworkPolicyReconciler) error {
 			return nil
 		}
 		// No need to update appliedToSecurityGroup with no members.
-		r.Log.V(1).Info("AppliedToSecurityGroup clear rules", "Name", a.id)
+		r.Log.V(1).Info("AppliedToSecurityGroup clear rules", "Name", a.id.Name)
 		a.hasRules = false
 		return nil
 	}
@@ -883,7 +893,7 @@ func (a *appliedToSecurityGroup) updateRules(r *NetworkPolicyReconciler) error {
 	if irules == nil || erules == nil {
 		return nil
 	}
-	r.Log.V(1).Info("AppliedToSecurityGroup update rules", "Name", a.id,
+	r.Log.V(1).Info("AppliedToSecurityGroup update rules", "Name", a.id.Name,
 		"ingressRules", irules, "egressRules", erules)
 	ch := securitygroup.CloudSecurityGroup.UpdateSecurityGroupRules(&a.id, irules, erules)
 	go func() {
@@ -1026,9 +1036,10 @@ func (a *appliedToSecurityGroup) updateRuleRealizationState(r *NetworkPolicyReco
 // notify calls into appliedToSecurityGroup to report operation status from cloud plug-in.
 func (a *appliedToSecurityGroup) notify(op securityGroupOperation, status error, r *NetworkPolicyReconciler) error {
 	defer func() {
-		trackers, err := r.cloudResourceNPTrackerIndexer.ByIndex(cloudResourceNPTrackerIndexerByAppliedToGrp, a.id.String())
+		trackers, err := r.cloudResourceNPTrackerIndexer.ByIndex(cloudResourceNPTrackerIndexerByAppliedToGrp,
+			a.id.CloudResourceID.String())
 		if err != nil {
-			r.Log.Error(err, "Get cloud resource tracker indexer", "Key", a.id)
+			r.Log.Error(err, "Get cloud resource tracker indexer", "Key", a.id.Name)
 			return
 		}
 		for _, i := range trackers {
@@ -1042,11 +1053,12 @@ func (a *appliedToSecurityGroup) notify(op securityGroupOperation, status error,
 		a.status = status
 	}
 	if status != nil {
-		r.Log.Error(status, "AppliedToSecurityGroup operation failed", "Name", a.id, "Op", op)
+		r.Log.Error(status, "AppliedToSecurityGroup operation failed", "Name", a.id.Name, "Op", op)
 		return nil
 	}
-	r.Log.V(1).Info("AppliedToSecurityGroup received operation ok", "Name", a.id, "state", a.state, "status", a.status, "Op", op)
-	uName := getGroupUniqueName(a.id.String(), false)
+	r.Log.V(1).Info("AppliedToSecurityGroup received operation ok", "Name", a.id.Name, "state",
+		a.state, "status", a.status, "Op", op)
+	uName := getGroupUniqueName(a.id.CloudResourceID.String(), false)
 	if r.retryQueue.Has(uName) {
 		_ = r.retryQueue.Update(uName, false, op)
 	}
@@ -1095,7 +1107,7 @@ func (a *appliedToSecurityGroup) notifyNetworkPolicyChange(r *NetworkPolicyRecon
 		r.Log.Error(err, "Get networkPolicy indexer", a.id.Name, err, "indexKey", networkPolicyIndexerByAppliedToGrp)
 	}
 	r.Log.V(1).Info("AppliedToSecurityGroup notifyNetworkPolicyChange", "Name",
-		a.id.String(), "anpNum", len(nps))
+		a.id.CloudResourceID.String(), "anpNum", len(nps))
 	if len(nps) == 0 && a.deletePending {
 		if err := a.delete(r); err != nil {
 			r.Log.Error(err, "Delete securityGroup", "Name", a.id.Name)
@@ -1368,7 +1380,7 @@ func (n *networkPolicy) computeRulesReady(withStatus bool, r *NetworkPolicyRecon
 				}
 				if !sg.isReady() {
 					r.Log.V(1).Info("No rules in networkPolicy because AddrSecurityGroup not ready",
-						"networkPolicy", n.Name, "AddressSecurityGroup", sg.id)
+						"networkPolicy", n.Name, "AddressSecurityGroup", sg.id.Name)
 					return nil
 				}
 			}

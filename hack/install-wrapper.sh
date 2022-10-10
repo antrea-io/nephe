@@ -195,8 +195,8 @@ function download_antrea_files() {
 
 function generate_nodename() {
     if [ "$CLOUD" == $AWS ]; then
-        # NodeName is represented as vm-<instance-id>
-        NODENAME="vm-$(curl ${AWS_METADATA_QUERY_ID})"
+        # NodeName is represented as virtualmachine-<instance-id>
+        NODENAME="virtualmachine-$(curl ${AWS_METADATA_QUERY_ID})"
     elif [ "$CLOUD" == $AZURE ]; then
         vm_name=$(curl -s -H Metadata:true "${AZURE_METADATA_QUERY_NAME}")
         vm_id=$(curl -sS -H Metadata:true "${AZURE_METADATA_QUERY_ID}")
@@ -214,8 +214,8 @@ function generate_nodename() {
         do
             sum=$(($sum + $i))
         done
-        # NodeName is represented as vm-<vm-name>-<hash of the VM resource ID>
-        NODENAME="vm-${vm_name}-${sum}"
+        # NodeName is represented as virtualmachine-<vm-name>-<hash of the VM resource ID>
+        NODENAME="virtualmachine-${vm_name}-${sum}"
     fi
 
     if [ -z "$NODENAME" ]; then

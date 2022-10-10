@@ -45,8 +45,8 @@ func GetExternalEntityLabelKind(obj runtime.Object) string {
 // getTargetEntityName returns the desired name of the target resource.
 func getTargetEntityName(obj runtime.Object) string {
 	access, _ := meta.Accessor(obj)
-	// ExternalNode/ExternalEntity CR name will be vm-<VirtualMachine CR name>.
-	return "vm-" + strings.ToLower(access.GetName())
+	// ExternalNode/ExternalEntity CR name will be virtualmachine-<VirtualMachine CR name>.
+	return strings.ToLower(reflect.TypeOf(obj).Elem().Name()) + "-" + access.GetName()
 }
 
 // genTargetEntityLabels labels for any targets of VirtualMachineSource.

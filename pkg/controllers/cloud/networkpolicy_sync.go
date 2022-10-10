@@ -40,19 +40,19 @@ func (s *securityGroupImpl) syncImpl(csg cloudSecurityGroup, c *securitygroup.Sy
 			nMembers, _ = r.getNICsOfCloudResources(s.members)
 		}
 		if compareCloudResources(nMembers, cMembers) {
-			log.V(1).Info("Same SecurityGroup found", "Name", s.id, "State", s.state)
+			log.V(1).Info("Same SecurityGroup found", "Name", s.id.Name, "State", s.state)
 			return true
 		}
 	} else if len(s.members) == 0 {
-		log.V(1).Info("Empty memberships", "Name", s.id)
+		log.V(1).Info("Empty memberships", "Name", s.id.Name)
 		return true
 	}
 
 	if s.state == securityGroupStateCreated {
-		log.V(1).Info("Update securityGroup", "Name", s.id, "MembershipOnly", membershipOnly, "CloudSecurityGroup", c)
+		log.V(1).Info("Update securityGroup", "Name", s.id.Name, "MembershipOnly", membershipOnly, "CloudSecurityGroup", c)
 		_ = s.updateImpl(csg, nil, nil, membershipOnly, r)
 	} else if s.state == securityGroupStateInit {
-		log.V(1).Info("Add securityGroup", "Name", s.id, "MembershipOnly", membershipOnly, "CloudSecurityGroup", c)
+		log.V(1).Info("Add securityGroup", "Name", s.id.Name, "MembershipOnly", membershipOnly, "CloudSecurityGroup", c)
 		_ = s.addImpl(csg, membershipOnly, r)
 	}
 	return false
@@ -63,7 +63,7 @@ func (a *addrSecurityGroup) sync(c *securitygroup.SynchronizationContent,
 	r *NetworkPolicyReconciler) {
 	log := r.Log.WithName("CloudSync")
 	if a.deletePending {
-		log.V(1).Info("AddressSecurityGroup pending delete", "Name", a.id)
+		log.V(1).Info("AddressSecurityGroup pending delete", "Name", a.id.Name)
 		return
 	}
 	_ = a.syncImpl(a, c, true, r)
@@ -74,7 +74,7 @@ func (a *appliedToSecurityGroup) sync(c *securitygroup.SynchronizationContent,
 	r *NetworkPolicyReconciler) {
 	log := r.Log.WithName("CloudSync")
 	if a.deletePending {
-		log.V(1).Info("AppliedSecurityGroup pending delete", "Name", a.id)
+		log.V(1).Info("AppliedSecurityGroup pending delete", "Name", a.id.Name)
 		return
 	}
 	if a.syncImpl(a, c, false, r) && len(a.members) > 0 {
@@ -181,7 +181,8 @@ func (a *appliedToSecurityGroup) sync(c *securitygroup.SynchronizationContent,
 	}
 	for k, i := range items {
 		if i != 0 {
-			log.V(1).Info("Update appliedToSecurityGroup rules", "Name", a.id.String(), "CloudSecurityGroup", c, "Item", k, "Diff", i)
+			log.V(1).Info("Update appliedToSecurityGroup rules", "Name",
+				a.id.CloudResourceID.String(), "CloudSecurityGroup", c, "Item", k, "Diff", i)
 			_ = a.updateRules(r)
 			return
 		}
@@ -217,7 +218,7 @@ func (r *NetworkPolicyReconciler) syncWithCloud() {
 			sgNew = newAppliedToSecurityGroup
 		}
 		// Removes unknown sg.
-		if _, ok, _ := indexer.GetByKey(content.Resource.String()); !ok {
+		if _, ok, _ := indexer.GetByKey(content.Resource.CloudResourceID.String()); !ok {
 			state := securityGroupStateCreated
 			_ = sgNew(&content.Resource, []*securitygroup.CloudResource{}, &state).delete(r)
 			continue
@@ -226,9 +227,9 @@ func (r *NetworkPolicyReconciler) syncWithCloud() {
 		// reference to cloud sg.
 		cc := content
 		if content.MembershipOnly {
-			cloudAddrSGs[content.Resource] = &cc
+			cloudAddrSGs[content.Resource.CloudResourceID] = &cc
 		} else {
-			cloudAppliedToSGs[content.Resource] = &cc
+			cloudAppliedToSGs[content.Resource.CloudResourceID] = &cc
 			for _, rsc := range content.MembersWithOtherSGAttached {
 				rscWithUnknownSGs[rsc] = struct{}{}
 			}
@@ -287,7 +288,7 @@ func (r *NetworkPolicyReconciler) getNICsOfCloudResources(resources []*securityg
 
 	nics := make([]*securitygroup.CloudResource, 0, len(resources))
 	for _, rsc := range resources {
-		name := rsc.Name.Name
+		name := rsc.Name
 		vmList := &v1alpha1.VirtualMachineList{}
 		if err := r.List(context.TODO(), vmList, client.MatchingFields{virtualMachineIndexerByCloudName: name}); err != nil {
 			return resources, err
@@ -295,7 +296,7 @@ func (r *NetworkPolicyReconciler) getNICsOfCloudResources(resources []*securityg
 		for _, vm := range vmList.Items {
 			for _, nic := range vm.Status.NetworkInterfaces {
 				nics = append(nics, &securitygroup.CloudResource{Type: securitygroup.CloudResourceTypeNIC,
-					Name: securitygroup.CloudResourceID{Name: nic.Name, Vpc: rsc.Name.Vpc}})
+					CloudResourceID: securitygroup.CloudResourceID{Name: nic.Name, Vpc: rsc.Vpc}})
 			}
 		}
 	}

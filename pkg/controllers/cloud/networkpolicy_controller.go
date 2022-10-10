@@ -162,7 +162,7 @@ func (r *NetworkPolicyReconciler) processMemberGrp(name string, eventType watch.
 	}
 
 	var indexer cache.Indexer
-	var creator func(*securitygroup.CloudResourceID, interface{}, *securityGroupState) cloudSecurityGroup
+	var creator func(*securitygroup.CloudResource, interface{}, *securityGroupState) cloudSecurityGroup
 	if isAddrGrp {
 		indexer = r.addrSGIndexer
 		creator = newAddrSecurityGroup
@@ -223,6 +223,8 @@ func (r *NetworkPolicyReconciler) processMemberGrp(name string, eventType watch.
 	// sgChanges changes in addrGroup requires, associated nps to recompute their rules.
 	sgChanges := false
 	for vpc, members := range addedMembers {
+		var cloudProvider string
+		var accountID string
 		key := &securitygroup.CloudResourceID{Name: name, Vpc: vpc}
 		var sg cloudSecurityGroup
 		if i, ok, _ := indexer.GetByKey(key.String()); ok {
@@ -240,7 +242,19 @@ func (r *NetworkPolicyReconciler) processMemberGrp(name string, eventType watch.
 				continue
 			}
 		} else {
-			sg = creator(key, members, nil)
+			// Find accountID and cloudProvider for the cloud resource using any member inside as fields are same for all
+			for _, a := range members {
+				cloudProvider = a.CloudProvider
+				accountID = a.AccountID
+				break
+			}
+			cloudRsrc := securitygroup.CloudResource{
+				Type:            securitygroup.CloudResourceTypeVM,
+				CloudResourceID: *key,
+				AccountID:       accountID,
+				CloudProvider:   cloudProvider,
+			}
+			sg = creator(&cloudRsrc, members, nil)
 			if sg == nil {
 				continue
 			}
@@ -270,7 +284,13 @@ func (r *NetworkPolicyReconciler) processMemberGrp(name string, eventType watch.
 		if sg != nil {
 			sg.(*addrSecurityGroup).updateIPs(addedIPs, removedIPs, r)
 		} else if eventType == watch.Added {
-			sg = creator(key, addedIPs, nil)
+			cloudRsrc := securitygroup.CloudResource{
+				Type:            securitygroup.CloudResourceTypeVM,
+				CloudResourceID: *key,
+				AccountID:       "",
+				CloudProvider:   "",
+			}
+			sg = creator(&cloudRsrc, addedIPs, nil)
 			_ = sg.(*addrSecurityGroup).add(r)
 		} else {
 			r.Log.Error(nil, "Update to IP block does find security group", "key", key)
@@ -285,7 +305,13 @@ func (r *NetworkPolicyReconciler) processMemberGrp(name string, eventType watch.
 			r.Log.Info("Cannot add an empty membershipGroup that already exists", "Key", key)
 			return nil
 		}
-		sg = creator(key, addedIPs, nil)
+		cloudRsrc := securitygroup.CloudResource{
+			Type:            securitygroup.CloudResourceTypeVM,
+			CloudResourceID: *key,
+			AccountID:       "",
+			CloudProvider:   "",
+		}
+		sg = creator(&cloudRsrc, addedIPs, nil)
 		_ = sg.(*addrSecurityGroup).add(r)
 		sgChanges = true
 	}
@@ -498,7 +524,7 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// Each addrSecurityGroup is uniquely identified by its ID.
 		func(obj interface{}) (string, error) {
 			addrGrp := obj.(*addrSecurityGroup)
-			return addrGrp.id.String(), nil
+			return addrGrp.id.CloudResourceID.String(), nil
 		},
 		// addrSecurityGroup indexed by Antrea AddrGroup ID.
 		cache.Indexers{
@@ -511,7 +537,7 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// Each appliedToSecurityGroup is uniquely identified by its ID.
 		func(obj interface{}) (string, error) {
 			appliedToGrp := obj.(*appliedToSecurityGroup)
-			return appliedToGrp.id.String(), nil
+			return appliedToGrp.id.CloudResourceID.String(), nil
 		},
 		// AppliedToSecurityGroup indexed by Antrea AddrGroup ID.
 		cache.Indexers{

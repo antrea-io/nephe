@@ -32,7 +32,7 @@ var azureStateMap = map[string]v1alpha1.VMState{
 	"PowerState/unknown":      v1alpha1.Unknown,
 }
 
-func computeInstanceToVirtualMachineCRD(instance *virtualMachineTable, namespace string) *v1alpha1.VirtualMachine {
+func computeInstanceToVirtualMachineCRD(instance *virtualMachineTable, namespace string, accountId string) *v1alpha1.VirtualMachine {
 	tags := make(map[string]string)
 
 	vmTags := instance.Tags
@@ -100,5 +100,5 @@ func computeInstanceToVirtualMachineCRD(instance *virtualMachineTable, namespace
 	}
 	return utils.GenerateVirtualMachineCRD(crdName, strings.ToLower(cloudName), strings.ToLower(cloudID), namespace,
 		strings.ToLower(cloudNetworkID), cloudNetworkShortID,
-		state, tags, networkInterfaces, providerType)
+		state, tags, networkInterfaces, providerType, accountId)
 }

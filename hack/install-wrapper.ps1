@@ -31,46 +31,41 @@ $InstallLog = "$WorkDir\nephe-install.Log"
 $OSVersion = ""
 
 # Antrea constants.
-$AntreaAgentBin="antrea-agent.exe"
-$AntreaAgentConf="antrea-agent.conf"
-$InstallScript="install-vm.ps1"
+$AntreaAgentBin = "antrea-agent.exe"
+$AntreaAgentConf = "antrea-agent.conf"
+$InstallScript = "install-vm.ps1"
 
 # Cloud specific constants
-$AWS = "aws"
-$AZURE = "azure"
+$AWS = "AWS"
+$AZURE = "Azure"
 $AWSMetaRoot = "http://169.254.169.254/latest/meta-data"
 $AzureMetaRoot = "http://169.254.169.254/metadata"
 $Cloud = ""
 
 # Antrea
 $AntreaBranch = ""
-$AntreaTag = ""
 $AntreaInstallScript = ""
 $AntreaConfig = ""
 $AgentBin = ""
 $Nodename = ""
 
-function ExitOnError()
-{
+function ExitOnError() {
     exit 1
 }
 
-trap
-{
+trap {
     Write-Output "Operation failed. Please look at $InstallLog for more information."
     Write-Output $_
     Log $_
     ExitOnError
 }
 
-function Log($Info)
-{
+function Log($Info) {
     $time = $(get-date -Format g)
     "$time $Info " | Tee-Object $InstallLog -Append | Write-Host
 }
 
-function RemoveIfExists($path, $force=$true, $recurse=$false)
-{
+function RemoveIfExists($path, $force=$true, $recurse=$false) {
     $cmd = "Remove-Item `"$path`""
     if ($force) {
         $cmd = $cmd + " -Force"
@@ -83,28 +78,26 @@ function RemoveIfExists($path, $force=$true, $recurse=$false)
     }
 }
 
-function SetOSVersion()
-{
+function SetOSVersion() {
     $version = [System.Environment]::OSVersion.Version
-    $Script:OSVersion = $version.Major.ToString() + "." + $version.Minor.ToString() + "." + $version.Build.ToString()
+    $Script:OSVersion = $version.Major.ToString() + "." + $version.Minor.ToString() + "." +
+                            $version.Build.ToString()
 }
 
-function InitCloud()
-{
+function InitCloud() {
     $version = (Get-WmiObject -class Win32_ComputerSystemProduct -namespace root\CIMV2).Version
     $vendor = (Get-WmiObject -class Win32_ComputerSystemProduct -namespace root\CIMV2).Vendor
-    if (($version -like "*amazon") -or ($vendor -like "amazon*")) {
+    if ($version.ToLower().Contains("amazon")) {
         $script:Cloud = $AWS
     } elseif ($vendor -like "*Microsoft*Corporation") {
         $script:Cloud = $AZURE
     } else {
-        Log "Unknown cloud platform. Only AWS and Azure Clouds are supported"
+        Log "Error unknown cloud platform. Only $AWS and $AZURE clouds are supported"
         ExitOnError
     }
 }
 
-function UpdateAntreaURL()
-{
+function UpdateAntreaURL() {
     $branchTag = $AntreaVersion.Substring(1,3)
     $Script:AntreaBranch = "release-${branchTag}"
     $Script:AntreaInstallScript = "https://raw.githubusercontent.com/antrea-io/antrea/${AntreaBranch}/hack/externalnode/install-vm.ps1"
@@ -112,16 +105,15 @@ function UpdateAntreaURL()
     $Script:AgentBin = "https://github.com/antrea-io/antrea/releases/download/${AntreaVersion}/antrea-agent-windows-x86_64.exe"
 }
 
-function GenerateNodename()
-{
+function GenerateNodename() {
     $name = $null
     $retries = 5
     if ($Cloud -eq $AWS) {
-        for ($i=0; $i -lt $retries; $i++) {
+        for ($i = 0; $i -lt $retries; $i++) {
             try {
                 $endPoint = "$AWSMetaRoot/instance-id"
-                # NodeName is represented as vm-<instance-id>
-                $name = "vm-" + (Invoke-WebRequest -uri $endPoint).Content
+                # NodeName is represented as virtualmachine-<instance-id>
+                $name = "virtualmachine-" + (Invoke-WebRequest -uri $endPoint).Content
                 break
             } catch {
                 Log "Retrying query for $endPoint, attempt=$i"
@@ -130,8 +122,8 @@ function GenerateNodename()
             }
         }
     } elseif ($Cloud -eq $AZURE) {
-        $vmId=""
-        $vmName=""
+        $vmId = ""
+        $vmName = ""
         for ($i=0; $i -lt $retries; $i++) {
             try {
                 $endPoint = "$AzureMetaRoot/instance/compute/resourceId?api-version=2021-01-01&format=text"
@@ -152,41 +144,51 @@ function GenerateNodename()
         foreach ($i in $vmIdAscii) {
             $sum = $sum + $i
         }
-        # NodeName is represented as vm-<vm-name>-<hash of the VM resource ID>
-        $name = "vm-" + $vmName + "-" + $sum
+        # NodeName is represented as virtualmachine-<vm-name>-<hash of the VM resource ID>
+        $name = "virtualmachine-" + $vmName + "-" + $sum
     }
     $Script:Nodename = $name
-    if ($Nodename -eq "") {
-        Log "ERROR! Nodename cannot be empty for cloud $Cloud"
+    if ($null -eq $Nodename) {
+        Log "Error Nodename cannot be empty for cloud $Cloud"
         ExitOnError
     }
 }
 
-function DownloadFile($src, $dst, $options)
-{
+function DownloadFile($src, $dst) {
     Log "Downloading file $src to $dst"
-    curl.exe $options "$src" -o "$dst"
+    $retries = 3
+    for ($i = 1; $i -le $retries; $i++) {
+        try {
+            # Redirection option is required to download large files.
+            $options = @("-s", "-L")
+            curl.exe $options "$src" -o "$dst"
+        } catch {
+            Log "Failed to download file $src to $dst, retry $i"
+            if ($i -ge $retries) {
+                Log "Error failed to download file $src after $retries attempts"
+                ExitOnError
+            }
+        }
+    }
 }
 
-function DownloadAntreaFiles()
-{
+function DownloadAntreaFiles() {
     RemoveIfExists $AntreaTemp -recurse $true
     New-Item $AntreaTemp -type directory -Force | Out-Null
-    DownloadFile $AntreaInstallScript $AntreaTemp/$InstallScript
-    DownloadFile $AntreaConfig $AntreaTemp/$AntreaAgentConf
-    DownloadFile $AgentBin $AntreaTemp/$AntreaAgentBin "-L"
+    DownloadFile $AntreaInstallScript $AntreaTemp\$InstallScript
+    DownloadFile $AntreaConfig $AntreaTemp\$AntreaAgentConf
+    DownloadFile $AgentBin $AntreaTemp\$AntreaAgentBin
 }
 
-function Install()
-{
+function Install() {
     SetOSVersion
     Log "Installing antrea-agent on Windows $OSVersion, cloud $Cloud"
     UpdateAntreaURL
     DownloadAntreaFiles
     GenerateNodename
-    $InstallArgs = "-NameSpace $NameSpace -BinaryPath $AntreaTemp/$AntreaAgentBin -ConfigPath $AntreaTemp/$AntreaAgentConf -KubeConfigPath $KubeConfigPath -AntreaKubeConfigPath $AntreaKubeConfigPath -NodeName $NodeName"
+    Log "Set Environment variable NODE_NAME=$NodeName"
+    $InstallArgs = "-NameSpace $NameSpace -BinaryPath $AntreaTemp\$AntreaAgentBin -ConfigPath $AntreaTemp\$AntreaAgentConf -KubeConfigPath $KubeConfigPath -AntreaKubeConfigPath $AntreaKubeConfigPath -NodeName $NodeName"
     Invoke-Expression "& `"$AntreaTemp\$InstallScript`" $InstallArgs"
-    Log "Setting Environment variable NODE_NAME=$NodeName"
     RemoveIfExists $AntreaTemp -recurse $true
 }
 

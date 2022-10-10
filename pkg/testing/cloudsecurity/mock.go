@@ -50,7 +50,7 @@ func (m *MockCloudSecurityGroupAPI) EXPECT() *MockCloudSecurityGroupAPIMockRecor
 }
 
 // CreateSecurityGroup mocks base method.
-func (m *MockCloudSecurityGroupAPI) CreateSecurityGroup(arg0 *securitygroup.CloudResourceID, arg1 bool) <-chan error {
+func (m *MockCloudSecurityGroupAPI) CreateSecurityGroup(arg0 *securitygroup.CloudResource, arg1 bool) <-chan error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateSecurityGroup", arg0, arg1)
 	ret0, _ := ret[0].(<-chan error)
@@ -64,7 +64,7 @@ func (mr *MockCloudSecurityGroupAPIMockRecorder) CreateSecurityGroup(arg0, arg1 
 }
 
 // DeleteSecurityGroup mocks base method.
-func (m *MockCloudSecurityGroupAPI) DeleteSecurityGroup(arg0 *securitygroup.CloudResourceID, arg1 bool) <-chan error {
+func (m *MockCloudSecurityGroupAPI) DeleteSecurityGroup(arg0 *securitygroup.CloudResource, arg1 bool) <-chan error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteSecurityGroup", arg0, arg1)
 	ret0, _ := ret[0].(<-chan error)
@@ -92,7 +92,7 @@ func (mr *MockCloudSecurityGroupAPIMockRecorder) GetSecurityGroupSyncChan() *gom
 }
 
 // UpdateSecurityGroupMembers mocks base method.
-func (m *MockCloudSecurityGroupAPI) UpdateSecurityGroupMembers(arg0 *securitygroup.CloudResourceID, arg1 []*securitygroup.CloudResource, arg2 bool) <-chan error {
+func (m *MockCloudSecurityGroupAPI) UpdateSecurityGroupMembers(arg0 *securitygroup.CloudResource, arg1 []*securitygroup.CloudResource, arg2 bool) <-chan error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateSecurityGroupMembers", arg0, arg1, arg2)
 	ret0, _ := ret[0].(<-chan error)
@@ -106,7 +106,7 @@ func (mr *MockCloudSecurityGroupAPIMockRecorder) UpdateSecurityGroupMembers(arg0
 }
 
 // UpdateSecurityGroupRules mocks base method.
-func (m *MockCloudSecurityGroupAPI) UpdateSecurityGroupRules(arg0 *securitygroup.CloudResourceID, arg1 []*securitygroup.IngressRule, arg2 []*securitygroup.EgressRule) <-chan error {
+func (m *MockCloudSecurityGroupAPI) UpdateSecurityGroupRules(arg0 *securitygroup.CloudResource, arg1 []*securitygroup.IngressRule, arg2 []*securitygroup.EgressRule) <-chan error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateSecurityGroupRules", arg0, arg1, arg2)
 	ret0, _ := ret[0].(<-chan error)

@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
+	"antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 )
 
 var _ = Describe("Azure", func() {
@@ -42,6 +43,7 @@ var _ = Describe("Azure", func() {
 		testTenantID              = "TenantID"
 		testRegion                = "eastus"
 		testRG                    = "testRG"
+		azureProvideType          = "Azure"
 
 		testVnet01   = "testVnet01"
 		testVnetID01 = fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Network/virtualNetworks/%v",
@@ -49,6 +51,10 @@ var _ = Describe("Azure", func() {
 		testVnet02   = "testVnet02"
 		testVnetID02 = fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Network/virtualNetworks/%v",
 			testSubID, testRG, testVnet02)
+
+		testVM01   = "testVM01"
+		testVMID01 = fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Network/virtualMachines/%v",
+			testSubID, testRG, testVM01)
 	)
 
 	Context("AddAccountResourceSelector", func() {
@@ -72,8 +78,8 @@ var _ = Describe("Azure", func() {
 			tenantIDs []string
 			locations []string
 			vnetIDs   []string
+			vmIDs     []string
 		)
-		_ = account
 
 		BeforeEach(func() {
 			subIDs = []string{testSubID}
@@ -121,17 +127,8 @@ var _ = Describe("Azure", func() {
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
 					AccountName: testAccountNamespacedName.Name,
-					VMSelector: []v1alpha1.VirtualMachineSelector{
-						{
-							VpcMatch: &v1alpha1.EntityMatch{
-								MatchID: testVnet01,
-							},
-							VMMatch: []v1alpha1.EntityMatch{},
-						},
-					},
 				},
 			}
-
 			mockCtrl = gomock.NewController(GinkgoT())
 			mockAzureServiceHelper = NewMockazureServicesHelper(mockCtrl)
 
@@ -142,17 +139,17 @@ var _ = Describe("Azure", func() {
 			mockazureVirtualNetworksWrapper = NewMockazureVirtualNetworksWrapper(mockCtrl)
 			mockazureResourceGraph = NewMockazureResourceGraphWrapper(mockCtrl)
 
-			mockAzureServiceHelper.EXPECT().newServiceSdkConfigProvider(gomock.Any()).Return(mockazureService, nil).Times(1)
+			mockAzureServiceHelper.EXPECT().newServiceSdkConfigProvider(gomock.Any()).Return(mockazureService, nil).AnyTimes()
 			mockazureService.EXPECT().networkInterfaces(gomock.Any()).Return(mockazureNwIntfWrapper, nil).AnyTimes()
 			mockazureService.EXPECT().securityGroups(gomock.Any()).Return(mockazureNsgWrapper, nil).AnyTimes()
 			mockazureService.EXPECT().applicationSecurityGroups(gomock.Any()).Return(mockazureAsgWrapper, nil).AnyTimes()
 			mockazureService.EXPECT().virtualNetworks(gomock.Any()).Return(mockazureVirtualNetworksWrapper, nil).AnyTimes()
-			mockazureService.EXPECT().resourceGraph().Return(mockazureResourceGraph, nil)
+			mockazureService.EXPECT().resourceGraph().Return(mockazureResourceGraph, nil).AnyTimes()
 			mockazureVirtualNetworksWrapper.EXPECT().listAllComplete(gomock.Any()).AnyTimes()
 			mockazureResourceGraph.EXPECT().resources(gomock.Any(), gomock.Any()).Return(getResourceGraphResult(), nil).AnyTimes()
 
-			fakeClient = fake.NewClientBuilder().Build()
-			c = newAzureCloud(mockAzureServiceHelper)
+			fakeClient, c = setupClientAndCloud(mockAzureServiceHelper, account, secret)
+
 		})
 
 		AfterEach(func() {
@@ -173,18 +170,25 @@ var _ = Describe("Azure", func() {
 					},
 				}
 
-				err := fakeClient.Create(context.Background(), secret)
-				Expect(err).Should(BeNil())
-				err = c.AddProviderAccount(fakeClient, account)
-				Expect(err).Should(BeNil())
+				providerType := c.ProviderType()
+				Expect(providerType).Should(Equal(common.ProviderType(azureProvideType)))
+				selector.Name = "single-vpcIDOnly"
 				selector.Spec.VMSelector = vmSelector
-				err = c.AddAccountResourceSelector(testAccountNamespacedName, selector)
+				err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
 				Expect(err).Should(BeNil())
 
-				accCfg, _ := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
-				serviceConfig, _ := accCfg.GetServiceConfigByName(azureComputeServiceNameCompute)
-				filters := serviceConfig.(*computeServiceConfig).computeFilters[selector.Name]
+				filters := getFilters(c, selector.Name)
 				Expect(filters).To(Equal(expectedQueryStrs))
+
+				c.RemoveAccountResourcesSelector(testAccountNamespacedName, selector.Name)
+				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
+				filters = getFilters(c, selector.Name)
+				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
+
+				_, err = c.Instances()
+				Expect(err).Should(BeNil())
+
+				_ = c.GetEnforcedSecurity()
 			})
 		})
 
@@ -205,18 +209,18 @@ var _ = Describe("Azure", func() {
 				},
 			}
 
-			err := fakeClient.Create(context.Background(), secret)
-			Expect(err).Should(BeNil())
-			err = c.AddProviderAccount(fakeClient, account)
-			Expect(err).Should(BeNil())
 			selector.Spec.VMSelector = vmSelector
-			err = c.AddAccountResourceSelector(testAccountNamespacedName, selector)
+			selector.Name = "multiple-vpcIDOnly"
+			err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
 			Expect(err).Should(BeNil())
 
-			accCfg, _ := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
-			serviceConfig, _ := accCfg.GetServiceConfigByName(azureComputeServiceNameCompute)
-			filters := serviceConfig.(*computeServiceConfig).computeFilters[selector.Name]
+			filters := getFilters(c, selector.Name)
 			Expect(filters).To(Equal(expectedQueryStrs))
+
+			c.RemoveAccountResourcesSelector(testAccountNamespacedName, selector.Name)
+			expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
+			filters = getFilters(c, selector.Name)
+			Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
 		})
 
 		It("Should match expected filter - multiple with one all", func() {
@@ -230,19 +234,157 @@ var _ = Describe("Azure", func() {
 					VMMatch:  []v1alpha1.EntityMatch{},
 				},
 			}
+			selector.Spec.VMSelector = vmSelector
+			selector.Name = "multiple-with-one-all"
+			err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
+			Expect(err).Should(BeNil())
 
-			err := fakeClient.Create(context.Background(), secret)
+			filters := getFilters(c, selector.Name)
+			Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
+		})
+
+		It("Should match expected filter - single VMID only match", func() {
+			vmIDs = []string{testVMID01}
+			var expectedQueryStrs []*string
+			expectedQueryStr, _ := getVMsByVMIDsMatchQuery(vmIDs,
+				subIDs, tenantIDs, locations)
+			expectedQueryStrs = append(expectedQueryStrs, expectedQueryStr)
+			vmSelector := []v1alpha1.VirtualMachineSelector{
+				{
+					VMMatch: []v1alpha1.EntityMatch{{MatchID: testVMID01}},
+				},
+			}
+
+			selector.Spec.VMSelector = vmSelector
+			selector.Name = "VMIDOnly"
+			err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
+			Expect(err).Should(BeNil())
+
+			filters := getFilters(c, selector.Name)
+			Expect(filters).To(Equal(expectedQueryStrs))
+
+			c.RemoveAccountResourcesSelector(testAccountNamespacedName, selector.Name)
+			expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
+			filters = getFilters(c, selector.Name)
+			Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
+		})
+
+		It("Should match expected filter - single VM Name only match", func() {
+			vmNames := []string{testVM01}
+			var expectedQueryStrs []*string
+			expectedQueryStr, _ := getVMsByVMNamesMatchQuery(vmNames,
+				subIDs, tenantIDs, locations)
+			expectedQueryStrs = append(expectedQueryStrs, expectedQueryStr)
+
+			vmSelector := []v1alpha1.VirtualMachineSelector{
+				{
+					VMMatch: []v1alpha1.EntityMatch{{MatchName: testVM01}},
+				},
+			}
+
+			selector.Spec.VMSelector = vmSelector
+			selector.Name = "VMNameOnly"
+			err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
+			Expect(err).Should(BeNil())
+
+			filters := getFilters(c, selector.Name)
+			Expect(filters).To(Equal(expectedQueryStrs))
+
+			c.RemoveAccountResourcesSelector(testAccountNamespacedName, selector.Name)
+			expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
+			filters = getFilters(c, selector.Name)
+			Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
+		})
+
+		It("Should match expected filter - vpcID with VMID match", func() {
+			vnetIDs = []string{testVnetID01}
+			vmIDs = []string{testVMID01}
+			vmNames := []string{}
+			var expectedQueryStrs []*string
+			expectedQueryStr, _ := getVMsByVnetAndOtherMatchesQuery(vnetIDs, vmNames, vmIDs,
+				subIDs, tenantIDs, locations)
+			expectedQueryStrs = append(expectedQueryStrs, expectedQueryStr)
+			vmSelector := []v1alpha1.VirtualMachineSelector{
+				{
+					VMMatch:  []v1alpha1.EntityMatch{{MatchID: testVMID01}},
+					VpcMatch: &v1alpha1.EntityMatch{MatchID: testVnetID01},
+				},
+			}
+
+			selector.Spec.VMSelector = vmSelector
+			selector.Name = "vpcID-VMID"
+			err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
+			Expect(err).Should(BeNil())
+
+			filters := getFilters(c, selector.Name)
+			Expect(filters).To(Equal(expectedQueryStrs))
+
+			c.RemoveAccountResourcesSelector(testAccountNamespacedName, selector.Name)
+			expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
+			filters = getFilters(c, selector.Name)
+			Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
+		})
+
+		It("Should match expected filter - vpcID with VM Name match", func() {
+			vnetIDs = []string{testVnetID01}
+			vmIDs = []string{}
+			vmNames := []string{testVM01}
+			var expectedQueryStrs []*string
+
+			expectedQueryStr, _ := getVMsByVnetAndOtherMatchesQuery(vnetIDs, vmNames, vmIDs,
+				subIDs, tenantIDs, locations)
+			expectedQueryStrs = append(expectedQueryStrs, expectedQueryStr)
+			vmSelector := []v1alpha1.VirtualMachineSelector{
+				{
+					VMMatch:  []v1alpha1.EntityMatch{{MatchName: testVM01}},
+					VpcMatch: &v1alpha1.EntityMatch{MatchID: testVnetID01},
+				},
+			}
+
+			selector.Spec.VMSelector = vmSelector
+			selector.Name = "vpcID-VMName"
+			err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
+			Expect(err).Should(BeNil())
+
+			filters := getFilters(c, selector.Name)
+			Expect(filters).To(Equal(expectedQueryStrs))
+
+			c.RemoveAccountResourcesSelector(testAccountNamespacedName, selector.Name)
+			expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
+			filters = getFilters(c, selector.Name)
+			Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
+		})
+
+		It("Update Secret", func() {
+			credential2 := fmt.Sprintf(`{"subscriptionId": "%s",
+				"clientId": "%s",
+				"tenantId": "%s",
+				"clientKey": "%s"
+			}`, "testSubID01", "testClientID", "testTenantID", "testClientKey")
+
+			secret = &corev1.Secret{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      testAccountNamespacedName.Name,
+					Namespace: testAccountNamespacedName.Namespace,
+				},
+				Data: map[string][]byte{
+					"credentials": []byte(credential2),
+				},
+			}
+			err := fakeClient.Update(context.Background(), secret)
 			Expect(err).Should(BeNil())
 			err = c.AddProviderAccount(fakeClient, account)
 			Expect(err).Should(BeNil())
-			selector.Spec.VMSelector = vmSelector
-			err = c.AddAccountResourceSelector(testAccountNamespacedName, selector)
-			Expect(err).Should(BeNil())
+		})
 
-			accCfg, _ := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
-			serviceConfig, _ := accCfg.GetServiceConfigByName(azureComputeServiceNameCompute)
-			filters := serviceConfig.(*computeServiceConfig).computeFilters[selector.Name]
-			Expect(filters).To(Equal(expectedQueryStrs))
+		Context("VM Provider scenarios", func() {
+			It("Remove Provider Account", func() {
+				c.RemoveProviderAccount(testAccountNamespacedName)
+
+				accCfg, ok := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
+				Expect(accCfg).Should(BeNil())
+				Expect(ok).To(Equal(false))
+			})
 		})
 	})
 })
@@ -259,4 +401,22 @@ func getResourceGraphResult() resourcegraph.QueryResponse {
 		Facets:          nil,
 	}
 	return result
+}
+
+func getFilters(c *azureCloud, selectorName string) []*string {
+	accCfg, _ := c.cloudCommon.GetCloudAccountByName(&types.NamespacedName{Namespace: "namespace01", Name: "account01"})
+	serviceConfig, _ := accCfg.GetServiceConfigByName(azureComputeServiceNameCompute)
+	filters := serviceConfig.(*computeServiceConfig).computeFilters[selectorName]
+	return filters
+}
+func setupClientAndCloud(mockAzureServiceHelper *MockazureServicesHelper, account *v1alpha1.CloudProviderAccount, secret *corev1.Secret) (
+	client.WithWatch, *azureCloud) {
+	fakeClient := fake.NewClientBuilder().Build()
+	c := newAzureCloud(mockAzureServiceHelper)
+
+	err := fakeClient.Create(context.Background(), secret)
+	Expect(err).Should(BeNil())
+	err = c.AddProviderAccount(fakeClient, account)
+	Expect(err).Should(BeNil())
+	return fakeClient, c
 }

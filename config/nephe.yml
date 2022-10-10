@@ -505,6 +505,7 @@ rules:
   - get
   - list
   - patch
+  - watch
 - apiGroups:
   - crd.antrea.io
   resources:

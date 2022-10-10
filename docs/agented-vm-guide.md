@@ -1,38 +1,40 @@
 # Agented VM User Guide
 
-Nephe supports auto on-boarding of public cloud VMs, that can run
-`antrea-agent` on VMs. When a CloudEntitySelector selector is configured to
-import agented VMs, `nephe-controller` will auto create an ExternalNode CR
-corresponding to each VirtualMachine CR. Antrea-Controller watches on the
-ExternalNode CR and then create a corresponding ExternalEntity CR. Once VMs are
-onboarded on to the nephe, user can define Antrea NetworkPolicies for these
-VMs using ExternalEntity selector.
+## Table of Contents
 
-For more information about `ExternalNode`, please refer to antrea
+<!-- toc -->
+- [Import Agented And Agentless VMs](#import-agented-and-agentless-vms)
+- [VirtualMachine CR Creation](#virtualmachine-cr-creation)
+- [ExternalNode CR Creation](#externalnode-cr-creation)
+- [ExternalEntities CR Creation](#externalentities-cr-creation)
+- [Install Antrea-Agent On Public Cloud VM](#install-antrea-agent-on-public-cloud-vm)
+  - [Installation On Linux VMs](#installation-on-linux-vms)
+  - [Installation On Windows VMs](#installation-on-windows-vms)
+- [Troubleshoot VM Agent](#troubleshoot-vm-agent)
+  - [Linux VM](#linux-vm)
+  - [Windows VM](#windows-vm)
+<!-- /toc -->
+
+Nephe supports auto-onboarding of public cloud VMs, that can run
+`antrea-agent` on VMs. When a CloudEntitySelector selector is configured to
+import agented VMs, `nephe-controller` will auto-create an ExternalNode CR
+corresponding to each VirtualMachine CR. `Antrea-Controller` watches on the
+ExternalNode CR and then creates a corresponding ExternalEntity CR. Upon
+onboarding the agented VMs, user can define Antrea NetworkPolicies using
+ExternalEntity selector.
+
+For more information about the `ExternalNode` feature, please refer to antrea
 [ExternalNode](https://github.com/antrea-io/antrea/blob/main/docs/external-node.md)
 documentation.
 
 Note: While applying antrea manifests, make sure to enable `externalnode`
-feature in the `antrea-controller` configuration. Also make sure that VM
-can connect to antrea API server
+feature in the `antrea-controller` configuration. Also, make sure that VM
+can connect to the Kubernetes API server and Antrea API server.
 
-## Table of Contents
+## Import Agented And Agentless VMs
 
-<!-- toc -->
-- [Import Agented and Agentless VMs](#import-agented-and-agentless-vms)
-- [VirtualMachine CR Creation](#virtualmachine-cr-creation)
-- [ExternalNode CR Creation](#externalnode-cr-creation)
-- [ExternalEntities CR Creation](#externalentities-cr-creation)
-- [Install Antrea-Agent on PublicCloud VM](#install-antrea-agent-on-publiccloud-vm)
-- [Troubleshoot](#troubleshoot)
-  - [Ubuntu VM](#ubuntu-vm)
-  - [Windows VM](#windows-vm)
-<!-- /toc -->
-
-## Import Agented and Agentless VMs
-
-To import PublicCloud VMs that can run in agented/agentless configuration,
-user needs to specify `agented` flag in CloudEntitySelector CR.
+To import public cloud VMs that can run in agented or agentless configuration,
+the user needs to specify the `agented` flag in CloudEntitySelector CR.
 
 ```bash
 cat <<EOF | kubectl apply -f -
@@ -57,10 +59,11 @@ EOF
 
 ## VirtualMachine CR Creation
 
-The account poller will poll the cloud inventory and create VirtualMachine CR.
-Based on the `agented` flag, specified in the CES, VirtualMachines will be
-imported as Agented/Agentless. In this example `i-019459b33d951b62e` is imported
-as agented VM, while the remaining three VMs are imported as agentless VMs.
+The `nephe-controller` will poll the cloud inventory and create VirtualMachine
+CR. Based on the `agented` flag specified in the CES, VirtualMachines will
+either be imported as agented or as agentless. In the example above
+`i-019459b33d951b62e` is imported as an agented VM, while the remaining three
+VMs are imported as agentless VMs.
 
 ```bash
 kubectl get vm -A
@@ -155,26 +158,26 @@ Events:                   <none>
 ## ExternalNode CR Creation
 
 The `Nephe Controller` will create an ExternalNode CR corresponding to each
-VirtualMachine CR, which has `agented` flag enabled. In the below example,
+VirtualMachine CR, which has the `agented` flag enabled. In the below example,
 since VM `i-019459b33d951b62e` is configured with agented flag set to true,
-an ExternalNode `vm-i-019459b33d951b62e` is created accordingly.
+a corresponding ExternalNode `virtualmachine-i-019459b33d951b62e` is created.
 
 ```bash
 kubectl get en -A
 ```
 
 ```text
-#Output
-NAMESPACE   NAME                     AGE
-vm-ns       vm-i-019459b33d951b62e   6s
+# Output
+NAMESPACE   NAME                                 AGE
+vm-ns       virtualmachine-i-019459b33d951b62e   6s
 ```
 
 ## ExternalEntities CR Creation
 
-For each ExternalNode CR, `antrea-controller` will create a corresponding ExternalEntity CR.
-In this example, the ExternalEntity `vm-i-019459b33d951b62e-5df40` corresponds to the ExternalNode
-`vm-i-019459b33d951b62e`. While the other three ExternalEntities are created by `nephe-controller`
-with ExternalNode field set as `nephe-controller`.
+For each ExternalNode CR, `antrea-controller` will create a corresponding
+ExternalEntity CR. In this example, the ExternalEntity
+`virtualmachine-i-019459b33d951b62e-5df40` corresponds to the ExternalNode
+`virtualmachine-i-019459b33d951b62e`.
 
 ```bash
 kubectl get ee -A
@@ -182,50 +185,59 @@ kubectl get ee -A
 
 ```text
 # Output
-NAMESPACE   NAME                           AGE
-vm-ns       vm-i-0033eb4a6c846451d         9s
-vm-ns       vm-i-019459b33d951b62e-5df40   9s
-vm-ns       vm-i-05e3fb66922d56e0a         9s
-vm-ns       vm-i-0a20bae92ddcdb60b         9s
+NAMESPACE   NAME                                       AGE
+vm-ns       virtualmachine-i-0033eb4a6c846451d         9s
+vm-ns       virtualmachine-i-019459b33d951b62e-5df40   9s
+vm-ns       virtualmachine-i-05e3fb66922d56e0a         9s
+vm-ns       virtualmachine-i-0a20bae92ddcdb60b         9s
 ```
 
-## Install Antrea-Agent on PublicCloud VM
+## Install Antrea-Agent On Public Cloud VM
 
 Nephe provides a wrapper install script, to facilitate easier installation on
-the PublicCloud VMs. The wrapper install script sets the Environment variable
-`NODE_NAME` to be same as ExternalNode name; Downloads the `antrea-agent`
+the public cloud VMs. The wrapper install script sets the Environment variable
+`NODE_NAME` to be same as ExternalNode name. It downloads the `antrea-agent`
 install script from antrea repository and triggers installation.
 
-The wrapper install script requires 4 arguments
-NameSpace            - It specifies the Namespace to be used by the antrea-agent.
-It should match to the ExternalNode Namespace.
-AntreaVersion        - It specifies the antrea version to be used.
-KubeConfigPath       - It provides access to kubernetes API server.
-AntreaKubeConfigPath - It provides access to antrea API server,
+The wrapper install script requires 4 arguments:
+Namespace            - Specifies the Namespace to be used by the `antrea-agent`.
+It should match with the ExternalNode Namespace.
+Antrea version       - Specifies the Antrea version to be used.
+Kubeconfig           - Provides access to the Kubernetes API server.
+Antrea Kubeconfig    - Provides access to the Antrea API server.
 
-For more information on how to generate these kubeconfig files, please refer to
+For more information on how to generate the kubeconfig files, please refer to
 antrea [ExternalNode](https://github.com/antrea-io/antrea/blob/main/docs/external-node.md#install-antrea-agent-on-vm)
 documentation.
 
-```powershell
-.\install-wrapper.ps1 -Namespace vm-ns -AntreaVersion v1.8.0 `
--KubeConfigPath C:\Users\nsxadmin\Desktop\antrea-agent.kubeconfig `
--AntreaKubeConfigPath C:\Users\nsxadmin\Desktop\antrea-agent.antrea.kubeconfig
-```
+### Installation On Linux VMs
+
+Download the [wrapper install script](../hack/install-wrapper.sh) and run
+installation.
 
 ```bash
-./install-wrapper.sh --ns vm-ns --antrea-version v1.8.0 \
-  --kubeconfig /root/antrea-agent.kubeconfig \
-  --antrea-kubeconfig /root/antrea-agent.antrea.kubeconfig --bin /root/antrea-agent
+./install-wrapper.sh --ns vm-ns --antrea-version v1.8.0 --kubeconfig ./antrea-agent.kubeconfig \
+  --antrea-kubeconfig ./antrea-agent.antrea.kubeconfig --bin ./antrea-agent
 ```
 
-NOTE: For Ubuntu, `antrea-agent` binaries are not published as part of release
-assets in antrea 1.8 release. So user has to manually generate `antrea-agent`
-binary and copy on to the VM.
+Note: For Ubuntu, `antrea-agent` binaries are not published as part of release
+assets in the antrea 1.8 release. So the user has to manually generate an
+`antrea-agent` binary and copy onto the VM.
 
-## Troubleshoot
+### Installation On Windows VMs
 
-Run the `ovs-vsctl show` command on the VM, to validate the interface is moved into OVS.
+Download the [wrapper install script](../hack/install-wrapper.ps1) and run
+installation.
+
+```powershell
+.\install-wrapper.ps1 -Namespace vm-ns -AntreaVersion v1.8.0 -KubeConfigPath .\antrea-agent.kubeconfig `
+  -AntreaKubeConfigPath .\antrea-agent.antrea.kubeconfig
+```
+
+## Troubleshoot VM Agent
+
+Run the `ovs-vsctl show` command on the VM, to validate the interface is moved
+into OVS.
 
 ```text
 root@ip-10-0-1-45:~# ovs-vsctl show
@@ -240,12 +252,12 @@ root@ip-10-0-1-45:~# ovs-vsctl show
     ovs_version: "2.13.8"
 ```
 
-### Ubuntu VM
+### Linux VM
 
 - The `antrea-agent` logs are located in `/var/log/antrea/antrea-agent.log`.
 - The `antrea-agent` configuration files are located in `/etc/antrea`.
 
 ### Windows VM
 
-- The `antrea-agent` logs are located in `C:\antrea-agent\logs`
+- The `antrea-agent` logs are located in `C:\antrea-agent\logs`.
 - The `antrea-agent` configuration files are located in `C:\antrea-agent\conf`.

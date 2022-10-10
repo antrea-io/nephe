@@ -26,7 +26,7 @@ import (
 const ResourceNameTagKey = "Name"
 
 // ec2InstanceToVirtualMachineCRD converts ec2 instance to VirtualMachine CRD.
-func ec2InstanceToVirtualMachineCRD(instance *ec2.Instance, namespace string) *v1alpha1.VirtualMachine {
+func ec2InstanceToVirtualMachineCRD(instance *ec2.Instance, namespace string, accountId string) *v1alpha1.VirtualMachine {
 	tags := make(map[string]string)
 	vmTags := instance.Tags
 	if len(vmTags) > 0 {
@@ -74,5 +74,5 @@ func ec2InstanceToVirtualMachineCRD(instance *ec2.Instance, namespace string) *v
 
 	return utils.GenerateVirtualMachineCRD(cloudID, strings.ToLower(cloudName), strings.ToLower(cloudID), namespace,
 		strings.ToLower(cloudNetwork), cloudNetwork, v1alpha1.VMState(*instance.State.Name), tags, networkInterfaces,
-		providerType)
+		providerType, accountId)
 }

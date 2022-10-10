@@ -33,6 +33,7 @@ var (
 	AnnotationCloudAssignedIDKey    = "cloud-assigned-id"
 	AnnotationCloudAssignedNameKey  = "cloud-assigned-name"
 	AnnotationCloudAssignedVPCIDKey = "cloud-assigned-vpc-id"
+	AnnotationCloudAccountIDKey     = "cloud-account-id"
 )
 
 type ProviderType v1alpha1.CloudProvider
@@ -70,28 +71,26 @@ type ComputeInterface interface {
 	Instances() ([]*v1alpha1.VirtualMachine, error)
 	// InstancesGivenProviderAccount returns VirtualMachineStatus for a given account of a cloud provider.
 	InstancesGivenProviderAccount(namespacedName *types.NamespacedName) ([]*v1alpha1.VirtualMachine, error)
-	// IsVirtualPrivateCloudPresent returns true if given virtual private cloud uniqueIdentifier is managed by the cloud, else false.
-	IsVirtualPrivateCloudPresent(uniqueIdentifier string) bool
 }
 
 type SecurityInterface interface {
 	// CreateSecurityGroup creates cloud security group corresponding to provided address group, if it does not already exist.
 	// If it exists, returns the existing cloud SG ID
-	CreateSecurityGroup(addressGroupIdentifier *securitygroup.CloudResourceID, membershipOnly bool) (*string, error)
+	CreateSecurityGroup(addressGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) (*string, error)
 	// UpdateSecurityGroupRules updates cloud security group corresponding to provided address group with provided ingress and egress rules
-	UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResourceID, ingressRules []*securitygroup.IngressRule,
+	UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResource, ingressRules []*securitygroup.IngressRule,
 		egressRules []*securitygroup.EgressRule) error
 	// UpdateSecurityGroupMembers updates membership of cloud security group corresponding to provided address group. Only
 	// provided computeResources will remain attached to cloud security group. UpdateSecurityGroupMembers will also make sure that
 	// after membership update, if compute resource is no longer attached to any nephe created cloud security group, then
 	// compute resource will get moved to cloud default security group
-	UpdateSecurityGroupMembers(addressGroupIdentifier *securitygroup.CloudResourceID, computeResourceIdentifier []*securitygroup.CloudResource,
+	UpdateSecurityGroupMembers(addressGroupIdentifier *securitygroup.CloudResource, computeResourceIdentifier []*securitygroup.CloudResource,
 		membershipOnly bool) error
 	// DeleteSecurityGroup will delete the cloud security group corresponding to provided address group. DeleteSecurityGroup expects that
 	// UpdateSecurityGroupMembers and UpdateSecurityGroupRules is called prior to calling delete. DeleteSecurityGroup as part of delete,
 	// do the best effort to find resources using this address group and detach the cloud security group from those resources.Also if the
 	// compute resource is attached to only this security group, it will be moved to cloud default security group.
-	DeleteSecurityGroup(addressGroupIdentifier *securitygroup.CloudResourceID, membershipOnly bool) error
+	DeleteSecurityGroup(addressGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) error
 	// GetEnforcedSecurity returns the cloud view of enforced security
 	GetEnforcedSecurity() []securitygroup.SynchronizationContent
 }

@@ -45,10 +45,10 @@ func FindResourcesBasedOnKind(cloudResources []*CloudResource) (map[string]struc
 
 	for _, cloudResource := range cloudResources {
 		if strings.Compare(string(cloudResource.Type), string(CloudResourceTypeVM)) == 0 {
-			virtualMachineIDs[strings.ToLower(cloudResource.Name.Name)] = struct{}{}
+			virtualMachineIDs[strings.ToLower(cloudResource.Name)] = struct{}{}
 		}
 		if strings.Compare(string(cloudResource.Type), string(CloudResourceTypeNIC)) == 0 {
-			networkInterfaceIDs[strings.ToLower(cloudResource.Name.Name)] = struct{}{}
+			networkInterfaceIDs[strings.ToLower(cloudResource.Name)] = struct{}{}
 		}
 	}
 	return virtualMachineIDs, networkInterfaceIDs

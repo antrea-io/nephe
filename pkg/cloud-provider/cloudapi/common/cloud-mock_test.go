@@ -81,7 +81,7 @@ func (mr *MockCloudInterfaceMockRecorder) AddProviderAccount(client, account int
 }
 
 // CreateSecurityGroup mocks base method.
-func (m *MockCloudInterface) CreateSecurityGroup(addressGroupIdentifier *securitygroup.CloudResourceID, membershipOnly bool) (*string, error) {
+func (m *MockCloudInterface) CreateSecurityGroup(addressGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) (*string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateSecurityGroup", addressGroupIdentifier, membershipOnly)
 	ret0, _ := ret[0].(*string)
@@ -96,7 +96,7 @@ func (mr *MockCloudInterfaceMockRecorder) CreateSecurityGroup(addressGroupIdenti
 }
 
 // DeleteSecurityGroup mocks base method.
-func (m *MockCloudInterface) DeleteSecurityGroup(addressGroupIdentifier *securitygroup.CloudResourceID, membershipOnly bool) error {
+func (m *MockCloudInterface) DeleteSecurityGroup(addressGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteSecurityGroup", addressGroupIdentifier, membershipOnly)
 	ret0, _ := ret[0].(error)
@@ -168,20 +168,6 @@ func (mr *MockCloudInterfaceMockRecorder) InstancesGivenProviderAccount(namespac
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstancesGivenProviderAccount", reflect.TypeOf((*MockCloudInterface)(nil).InstancesGivenProviderAccount), namespacedName)
 }
 
-// IsVirtualPrivateCloudPresent mocks base method.
-func (m *MockCloudInterface) IsVirtualPrivateCloudPresent(uniqueIdentifier string) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsVirtualPrivateCloudPresent", uniqueIdentifier)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IsVirtualPrivateCloudPresent indicates an expected call of IsVirtualPrivateCloudPresent.
-func (mr *MockCloudInterfaceMockRecorder) IsVirtualPrivateCloudPresent(uniqueIdentifier interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsVirtualPrivateCloudPresent", reflect.TypeOf((*MockCloudInterface)(nil).IsVirtualPrivateCloudPresent), uniqueIdentifier)
-}
-
 // ProviderType mocks base method.
 func (m *MockCloudInterface) ProviderType() ProviderType {
 	m.ctrl.T.Helper()
@@ -221,7 +207,7 @@ func (mr *MockCloudInterfaceMockRecorder) RemoveProviderAccount(namespacedName i
 }
 
 // UpdateSecurityGroupMembers mocks base method.
-func (m *MockCloudInterface) UpdateSecurityGroupMembers(addressGroupIdentifier *securitygroup.CloudResourceID, computeResourceIdentifier []*securitygroup.CloudResource, membershipOnly bool) error {
+func (m *MockCloudInterface) UpdateSecurityGroupMembers(addressGroupIdentifier *securitygroup.CloudResource, computeResourceIdentifier []*securitygroup.CloudResource, membershipOnly bool) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateSecurityGroupMembers", addressGroupIdentifier, computeResourceIdentifier, membershipOnly)
 	ret0, _ := ret[0].(error)
@@ -235,7 +221,7 @@ func (mr *MockCloudInterfaceMockRecorder) UpdateSecurityGroupMembers(addressGrou
 }
 
 // UpdateSecurityGroupRules mocks base method.
-func (m *MockCloudInterface) UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResourceID, ingressRules []*securitygroup.IngressRule, egressRules []*securitygroup.EgressRule) error {
+func (m *MockCloudInterface) UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResource, ingressRules []*securitygroup.IngressRule, egressRules []*securitygroup.EgressRule) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateSecurityGroupRules", addressGroupIdentifier, ingressRules, egressRules)
 	ret0, _ := ret[0].(error)
@@ -391,20 +377,6 @@ func (mr *MockComputeInterfaceMockRecorder) InstancesGivenProviderAccount(namesp
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstancesGivenProviderAccount", reflect.TypeOf((*MockComputeInterface)(nil).InstancesGivenProviderAccount), namespacedName)
 }
 
-// IsVirtualPrivateCloudPresent mocks base method.
-func (m *MockComputeInterface) IsVirtualPrivateCloudPresent(uniqueIdentifier string) bool {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsVirtualPrivateCloudPresent", uniqueIdentifier)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-// IsVirtualPrivateCloudPresent indicates an expected call of IsVirtualPrivateCloudPresent.
-func (mr *MockComputeInterfaceMockRecorder) IsVirtualPrivateCloudPresent(uniqueIdentifier interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsVirtualPrivateCloudPresent", reflect.TypeOf((*MockComputeInterface)(nil).IsVirtualPrivateCloudPresent), uniqueIdentifier)
-}
-
 // MockSecurityInterface is a mock of SecurityInterface interface.
 type MockSecurityInterface struct {
 	ctrl     *gomock.Controller
@@ -429,7 +401,7 @@ func (m *MockSecurityInterface) EXPECT() *MockSecurityInterfaceMockRecorder {
 }
 
 // CreateSecurityGroup mocks base method.
-func (m *MockSecurityInterface) CreateSecurityGroup(addressGroupIdentifier *securitygroup.CloudResourceID, membershipOnly bool) (*string, error) {
+func (m *MockSecurityInterface) CreateSecurityGroup(addressGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) (*string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateSecurityGroup", addressGroupIdentifier, membershipOnly)
 	ret0, _ := ret[0].(*string)
@@ -444,7 +416,7 @@ func (mr *MockSecurityInterfaceMockRecorder) CreateSecurityGroup(addressGroupIde
 }
 
 // DeleteSecurityGroup mocks base method.
-func (m *MockSecurityInterface) DeleteSecurityGroup(addressGroupIdentifier *securitygroup.CloudResourceID, membershipOnly bool) error {
+func (m *MockSecurityInterface) DeleteSecurityGroup(addressGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteSecurityGroup", addressGroupIdentifier, membershipOnly)
 	ret0, _ := ret[0].(error)
@@ -472,7 +444,7 @@ func (mr *MockSecurityInterfaceMockRecorder) GetEnforcedSecurity() *gomock.Call 
 }
 
 // UpdateSecurityGroupMembers mocks base method.
-func (m *MockSecurityInterface) UpdateSecurityGroupMembers(addressGroupIdentifier *securitygroup.CloudResourceID, computeResourceIdentifier []*securitygroup.CloudResource, membershipOnly bool) error {
+func (m *MockSecurityInterface) UpdateSecurityGroupMembers(addressGroupIdentifier *securitygroup.CloudResource, computeResourceIdentifier []*securitygroup.CloudResource, membershipOnly bool) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateSecurityGroupMembers", addressGroupIdentifier, computeResourceIdentifier, membershipOnly)
 	ret0, _ := ret[0].(error)
@@ -486,7 +458,7 @@ func (mr *MockSecurityInterfaceMockRecorder) UpdateSecurityGroupMembers(addressG
 }
 
 // UpdateSecurityGroupRules mocks base method.
-func (m *MockSecurityInterface) UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResourceID, ingressRules []*securitygroup.IngressRule, egressRules []*securitygroup.EgressRule) error {
+func (m *MockSecurityInterface) UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResource, ingressRules []*securitygroup.IngressRule, egressRules []*securitygroup.EgressRule) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateSecurityGroupRules", addressGroupIdentifier, ingressRules, egressRules)
 	ret0, _ := ret[0].(error)
