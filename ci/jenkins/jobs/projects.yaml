@@ -416,7 +416,7 @@
             - '${{NEPHE_GIT_REVISION}}'
           repo_url: '${{NEPHE_REPO}}'
           builders:
-            - deploy-vm-and-run-aws-tests-for-nephe:
+            - deploy-vm-and-run-aws-tests-for-nephe
           triggers:
             - timed: H H * * *
           wrappers:
@@ -493,7 +493,7 @@
             - '${{NEPHE_GIT_REVISION}}'
           repo_url: '${{NEPHE_REPO}}'
           builders:
-            - deploy-vm-and-run-azure-tests-for-nephe:
+            - deploy-vm-and-run-azure-tests-for-nephe
           triggers:
             - timed: H H * * *
           wrappers:
