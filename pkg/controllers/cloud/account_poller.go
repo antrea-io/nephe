@@ -428,22 +428,39 @@ func (p *accountPoller) getVMSelectorMatch(vm *cloudv1alpha1.VirtualMachine) *cl
 	vmSelectors, _ := p.vmSelector.ByIndex(virtualMachineSelectorMatchIndexerByID, vm.Annotations[common.AnnotationCloudAssignedIDKey])
 	for _, i := range vmSelectors {
 		vmSelector := i.(*cloudv1alpha1.VirtualMachineSelector)
-		if vmSelector.Agented {
-			return vmSelector
+		return vmSelector
+	}
+
+	// VM Name is not unique, hence iterate over all selectors matching the VM Name to see the best matching selector.
+	// VM intended to match a selector with vpcMatch and vmMatch selector, falls under exact Match.
+	// VM intended to match a selector with only vmMatch selector, falls under partial match.
+	var partialMatchSelector *cloudv1alpha1.VirtualMachineSelector = nil
+	vmSelectors, _ = p.vmSelector.ByIndex(virtualMachineSelectorMatchIndexerByName, vm.Annotations[common.AnnotationCloudAssignedNameKey])
+	for _, i := range vmSelectors {
+		vmSelector := i.(*cloudv1alpha1.VirtualMachineSelector)
+		if vmSelector.VpcMatch != nil {
+			if vmSelector.VpcMatch.MatchID == vm.Annotations[common.AnnotationCloudAssignedVPCIDKey] {
+				// Prioritize exact match(along with vpcMatch) over VM name only match.
+				return vmSelector
+			}
+		} else {
+			partialMatchSelector = vmSelector
 		}
+	}
+	if partialMatchSelector != nil {
+		return partialMatchSelector
 	}
 
 	vmSelectors, _ = p.vmSelector.ByIndex(virtualMachineSelectorMatchIndexerByVPC, vm.Annotations[common.AnnotationCloudAssignedVPCIDKey])
 	for _, i := range vmSelectors {
 		vmSelector := i.(*cloudv1alpha1.VirtualMachineSelector)
-		if vmSelector.Agented {
-			return vmSelector
-		}
+		return vmSelector
 	}
 	return nil
 }
 
-// isVMAgented returns true if a matching VMSelector is found for a VirtualMachine.
+// isVMAgented returns true if a matching VMSelector is found for a VirtualMachine and
+// agented flag is enabled for the selector.
 func (p *accountPoller) isVMAgented(vm *cloudv1alpha1.VirtualMachine) bool {
 	vmSelectorMatch := p.getVMSelectorMatch(vm)
 	if vmSelectorMatch == nil {
