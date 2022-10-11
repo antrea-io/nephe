@@ -42,7 +42,8 @@ mock: docker-builder
 
 # Run unit-tests
 unit-test: mock
-	$(DOCKERIZE) go test -v -cover -count 1 $$(go list antrea.io/nephe/pkg/...) --ginkgo.v
+	$(DOCKERIZE) go test -coverprofile=coverage-unit.txt \
+		-covermode=atomic -count 1 $$(go list antrea.io/nephe/pkg/...)
 
 # Run lint against code
 golangci-lint: docker-builder

@@ -48,6 +48,14 @@ jobs:
           mkdir -p $(go env GOCACHE)
           sudo make unit-test
 
+      - name: Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: coverage-unit.txt
+          flags: unit-tests
+          name: codecov-unit-test
+
   golangci-lint:
     needs: check-changes
     if: ${{ needs.check-changes.outputs.has_changes == 'yes' }}
