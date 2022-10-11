@@ -110,7 +110,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/seancfoley/bintree v1.1.0 // indirect
-	github.com/seancfoley/ipaddress-go v1.2.1 // indirect
+	github.com/seancfoley/ipaddress-go v1.2.1
 	github.com/spf13/cobra v1.4.0 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.1 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.1 // indirect
