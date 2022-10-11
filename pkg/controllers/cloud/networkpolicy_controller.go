@@ -377,9 +377,9 @@ func (r *NetworkPolicyReconciler) processNetworkPolicy(event watch.Event) error 
 	}
 
 	r.Log.V(1).Info("Received NetworkPolicy event", "type", event.Type, "obj", anp)
-	if err := r.isNetworkPolicySupported(anp); err != nil {
+	/*if err := r.isNetworkPolicySupported(anp); err != nil {
 		return err
-	}
+	} */
 	if anp.Namespace == "" {
 		// anp comes from antrea controller, recover to its original name/namespace
 		anp.Name = anp.SourceRef.Name
