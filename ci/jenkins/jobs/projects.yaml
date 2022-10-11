@@ -8,8 +8,7 @@
           branches:
             - ${{sha1}}
           builders:
-            - deploy-vm-and-run-aws-tests-for-nephe:
-                conformance_type: 'networkpolicy'
+            - deploy-vm-and-run-aws-tests-for-nephe
           trigger_phrase: .*/nephe-test-e2e-(aws|kind|all).*
           white_list_target_branches: [ ]
           allow_whitelist_orgs_as_admins: true
@@ -99,8 +98,7 @@
             branches:
                 - ${{sha1}}
             builders:
-                - deploy-vm-and-run-azure-tests-for-nephe:
-                      conformance_type: 'networkpolicy'
+                - deploy-vm-and-run-azure-tests-for-nephe
             trigger_phrase: .*/nephe-test-e2e-(azure|kind|all).*
             white_list_target_branches: [ ]
             allow_whitelist_orgs_as_admins: true
@@ -193,8 +191,7 @@
             branches:
                 - ${{sha1}}
             builders:
-                - deploy-vm-and-run-eks-tests-for-nephe:
-                      conformance_type: 'networkpolicy'
+                - deploy-vm-and-run-eks-tests-for-nephe
             trigger_phrase: .*/nephe-test-e2e-(eks|all).*
             white_list_target_branches: [ ]
             allow_whitelist_orgs_as_admins: true
@@ -290,8 +287,7 @@
             branches:
                 - ${{sha1}}
             builders:
-                - deploy-vm-and-run-aks-tests-for-nephe:
-                      conformance_type: 'networkpolicy'
+                - deploy-vm-and-run-aks-tests-for-nephe
             trigger_phrase: .*/nephe-test-e2e-(aks|all).*
             white_list_target_branches: [ ]
             allow_whitelist_orgs_as_admins: true
@@ -488,6 +484,40 @@
                 default-excludes: true
                 fingerprint: false
                 only-if-success: false
+            - email-ext:
+                recipients: rahulj@vmware.com,kumaranand@vmware.com
+                content-type: html
+                subject: Build ${{BUILD_NUMBER}} result for nephe-test-aws
+                body: ${{JELLY_SCRIPT,template="html"}}
+                attach-build-log: false
+                compress-log: false
+                attachments: "*/foo*.log"
+                always: false
+                unstable: true
+                first-failure: true
+                first-unstable: true
+                not-built: true
+                aborted: true
+                regression: true
+                failure: true
+                second-failure: true
+                improvement: true
+                still-failing: true
+                success: false
+                fixed: false
+                fixed-unhealthy: true
+                still-unstable: true
+                pre-build: false
+                matrix-trigger: only-configurations
+                presend-script: ""
+                postsend-script: ""
+                save-output: true
+                send-to:
+                - developers
+                - requester
+                - culprits
+                - recipients
+                - upstream-committers
             - slack:
                 team-domain: vmware
                 auth-token-credential-id: slack-token
@@ -583,6 +613,40 @@
                 default-excludes: true
                 fingerprint: false
                 only-if-success: false
+            - email-ext:
+                  recipients: rahulj@vmware.com, kumaranand@vmware.com
+                  content-type: html
+                  subject: Build ${{BUILD_NUMBER}} result for nephe-test-aws
+                  body: ${{JELLY_SCRIPT,template="html"}}
+                  attach-build-log: false
+                  compress-log: false
+                  attachments: "*/foo*.log"
+                  always: false
+                  unstable: true
+                  first-failure: true
+                  first-unstable: true
+                  not-built: true
+                  aborted: true
+                  regression: true
+                  failure: true
+                  second-failure: true
+                  improvement: true
+                  still-failing: true
+                  success: false
+                  fixed: false
+                  fixed-unhealthy: true
+                  still-unstable: true
+                  pre-build: false
+                  matrix-trigger: only-configurations
+                  presend-script: ""
+                  postsend-script: ""
+                  save-output: true
+                  send-to:
+                    - developers
+                    - requester
+                    - culprits
+                    - recipients
+                    - upstream-committers
             - slack:
                 team-domain: vmware
                 auth-token-credential-id: slack-token
