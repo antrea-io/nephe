@@ -45,10 +45,10 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		apachePort = "8080"
 	)
 	var (
-		namespace      *v1.Namespace
-		otherNamespace *v1.Namespace
-		anpParams      k8stemplates.ANPParameters
-		anpSetupParams k8stemplates.ANPParameters
+		namespace            *v1.Namespace
+		otherNamespace       *v1.Namespace
+		anpParams            k8stemplates.ANPParameters
+		anpSetupParams       k8stemplates.ANPParameters
 		defaultANPParameters k8stemplates.DefaultANPParameters
 
 		importAfterANP bool
@@ -199,7 +199,6 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			err := utils.ConfigureK8s(kubeCtl, defaultANPParameters, k8stemplates.DefaultANPSetup, false)
 			Expect(err).ToNot(HaveOccurred(), "Failed to add default ANP rule")
 		}
-
 
 		anpParams = k8stemplates.ANPParameters{
 			Name:      "test-cloud-anp",

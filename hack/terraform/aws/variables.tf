@@ -96,26 +96,26 @@ variable "aws_security_groups_postfix" {
 }
 
 variable "with_agent" {
-  type = bool
+  type    = bool
   default = false
 }
 
 variable "namespace" {
-  type = string
+  type    = string
   default = "vm-ns"
 }
 
 variable "vm_agent_k8s_conf" {
-  type = string
+  type    = string
   default = "antrea-agent.kubeconfig"
 }
 
 variable "vm_agent_antrea_conf" {
-  type = string
+  type    = string
   default = "antrea-agent.antrea.kubeconfig"
 }
 
 variable "install_wrapper" {
-  type = string
+  type    = string
   default = "install-wrapper.sh"
 }

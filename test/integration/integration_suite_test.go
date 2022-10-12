@@ -147,8 +147,8 @@ var _ = BeforeSuite(func(done Done) {
 			dir, err := os.Getwd()
 			Expect(err).ToNot(HaveOccurred())
 			_ = os.Setenv("TF_VAR_with_agent", "true")
-			_ = os.Setenv("TF_VAR_vm_agent_k8s_conf", dir + "/antrea-agent.kubeconfig")
-			_ = os.Setenv("TF_VAR_vm_agent_antrea_conf", dir + "/antrea-agent.antrea.kubeconfig")
+			_ = os.Setenv("TF_VAR_vm_agent_k8s_conf", dir+"/antrea-agent.kubeconfig")
+			_ = os.Setenv("TF_VAR_vm_agent_antrea_conf", dir+"/antrea-agent.antrea.kubeconfig")
 			_ = os.Setenv("TF_VAR_install_wrapper", path)
 		}
 	}

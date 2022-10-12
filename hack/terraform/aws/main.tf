@@ -16,7 +16,7 @@ provider "aws" {}
 ##################################################################
 
 locals {
-  vpc_name = "nephe-vpc-${var.owner}-${random_string.suffix.result}"
+  vpc_name        = "nephe-vpc-${var.owner}-${random_string.suffix.result}"
   aws_vm_os_types = var.with_agent ? var.aws_vm_os_types_agented : var.aws_vm_os_types
 }
 
@@ -41,12 +41,12 @@ data "aws_ami" aws_ami {
 data "template_file" user_data {
   count    = length(local.aws_vm_os_types)
   template = file(local.aws_vm_os_types[count.index].init)
-  vars = {
-    WITH_AGENT = var.with_agent
-    K8S_CONF = fileexists(var.vm_agent_k8s_conf) ? file(var.vm_agent_k8s_conf) : ""
-    ANTREA_CONF = fileexists(var.vm_agent_antrea_conf) ? file(var.vm_agent_antrea_conf) : ""
+  vars     = {
+    WITH_AGENT      = var.with_agent
+    K8S_CONF        = fileexists(var.vm_agent_k8s_conf) ? file(var.vm_agent_k8s_conf) : ""
+    ANTREA_CONF     = fileexists(var.vm_agent_antrea_conf) ? file(var.vm_agent_antrea_conf) : ""
     INSTALL_WRAPPER = fileexists(var.install_wrapper) ? file(var.install_wrapper) : ""
-    NAMESPACE = var.namespace
+    NAMESPACE       = var.namespace
   }
 }
 
