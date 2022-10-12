@@ -29,7 +29,8 @@ Setup and run integration tests on EKS cluster with AWS VMs.
         [--aws-region <Region>]              The AWS region where the setup will be deployed. Defaults to us-west-2.
         [--eks-cluster-role <ClusterRole>]   IAM Role for Cluster Control Plane.
         [--eks-node-role <NodeRole>]         IAM Role for EKS worker node.
-        [--owner <OwnerName>]                Setup will be prefixed with owner name."
+        [--owner <OwnerName>]                Setup will be prefixed with owner name.
+        [--with-agent]                       Run test with agented VMs."
 
 function print_usage {
     echoerr "$_usage"
@@ -42,6 +43,7 @@ function print_help {
 # Defaults
 export TF_VAR_owner="ci"
 export AWS_DEFAULT_REGION="us-west-2"
+export WITH_AGENT=false
 
 while [[ $# -gt 0 ]]
 do
@@ -71,6 +73,10 @@ case $key in
     --owner)
     export TF_VAR_owner="$2"
     shift 2
+    ;;
+    --with-agent)
+    export WITH_AGENT=true
+    shift 1
     ;;
     -h|--help)
     print_usage
@@ -146,4 +152,4 @@ docker tag antrea/nephe:latest projects.registry.vmware.com/antrea/nephe:latest
 $HOME/terraform/eks load projects.registry.vmware.com/antrea/nephe
 
 mkdir -p $HOME/logs
-ci/bin/integration.test -ginkgo.v -ginkgo.focus=".*test-cloud-cluster.*" -kubeconfig=$HOME/tmp/terraform-eks/kubeconfig -cloud-provider=AWS -support-bundle-dir=$HOME/logs
+ci/bin/integration.test -ginkgo.v -ginkgo.focus=".*test-cloud-cluster.*" -kubeconfig=$HOME/tmp/terraform-eks/kubeconfig -cloud-provider=AWS -support-bundle-dir=$HOME/logs -with-agent=${WITH_AGENT}

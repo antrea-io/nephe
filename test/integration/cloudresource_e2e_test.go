@@ -106,10 +106,6 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		Expect(err).ToNot(HaveOccurred())
 		err = utils.ConfigureK8s(kubeCtl, anpParams, k8stemplates.CloudAntreaNetworkPolicy, true)
 		Expect(err).ToNot(HaveOccurred())
-		//if withAgent {
-		//	err = utils.ConfigureK8s(kubeCtl, defaultANPParameters, k8stemplates.DefaultANPSetup, true)
-		//	Expect(err).ToNot(HaveOccurred())
-		//}
 		err = utils.CheckCloudResourceNetworkPolicies(kubeCtl, k8sClient, reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), namespace.Name,
 			cloudVPC.GetVMs(), nil, withAgent)
 		Expect(err).ToNot(HaveOccurred())
