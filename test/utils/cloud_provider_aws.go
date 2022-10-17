@@ -130,6 +130,10 @@ func (p *awsVPC) GetVMNames() []string {
 	return vmNames
 }
 
+func (p *awsVPC) GetPrimaryNICs() []string {
+	return getListFromOutput(p.output, "primary_nics")
+}
+
 func (p *awsVPC) GetNICs() []string {
 	return getListFromOutput(p.output, "primary_nics")
 }
