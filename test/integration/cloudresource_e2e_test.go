@@ -247,7 +247,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 	}
 
 	verifyAppliedTo := func(kind string, ids, ips []string, srcVM, srcIP string, applied []bool) {
-		// Applied ANP and check configuration.
+		// Apply ANP and check configuration.
 		err := utils.ConfigureK8s(kubeCtl, anpParams, k8stemplates.CloudAntreaNetworkPolicy, false)
 		Expect(err).ToNot(HaveOccurred())
 		for i, ok := range applied {
@@ -375,6 +375,56 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			anpParams.AppliedTo = configANPApplyTo(kind, "", "", "name", cloudVPC.GetTags()[appliedIdx]["Name"])
 			verifyAppliedTo(kind, ids, ips, srcVM, srcIP, applied)
 		}
+	}
+
+	testAppliedToUsingGroup := func(kind string) {
+		var ids []string
+		var ips []string
+		if kind == reflect.TypeOf(v1alpha1.VirtualMachine{}).Name() {
+			ids = cloudVPC.GetVMs()
+			ips = cloudVPC.GetVMPrivateIPs()
+		} else {
+			Fail("Unsupported type")
+		}
+
+		srcVM := cloudVPC.GetVMs()[0]
+		srcIP := cloudVPC.GetVMPrivateIPs()[0]
+
+		setup(kind, len(ids), false, []string{"22"}, false)
+		nsName := namespace.Name
+
+		// Configure Group.
+		groupParameters := k8stemplates.GroupParameters{
+			Namespace: nsName,
+			Name:      "test-group",
+		}
+		By(fmt.Sprintf("Applied NetworkPolicy to %v by kind label selector using group", kind))
+		groupParameters.Entity = &k8stemplates.EntitySelectorParameters{
+			Kind: strings.ToLower(kind),
+		}
+		err := utils.ConfigureK8s(kubeCtl, groupParameters, k8stemplates.CloudAntreaGroup, false)
+		Expect(err).ToNot(HaveOccurred())
+
+		anpParams.From = configANPToFrom(kind, "", "", "", "", "", nsName, []string{apachePort}, false)
+		anpParams.AppliedToGroup = &groupParameters
+		applied := make([]bool, len(ids))
+		for i := range applied {
+			applied[i] = true
+		}
+		verifyAppliedTo(kind, ids, ips, srcVM, srcIP, applied)
+
+		By(fmt.Sprintf("Applied NetworkPolicy to %v by name label selector using group", kind))
+		appliedIdx := len(ids) - 1
+		applied = make([]bool, len(ids))
+		applied[appliedIdx] = true
+
+		// Update Group.
+		groupParameters.Entity = &k8stemplates.EntitySelectorParameters{
+			CloudInstanceName: ids[appliedIdx],
+		}
+		err = utils.ConfigureK8s(kubeCtl, groupParameters, k8stemplates.CloudAntreaGroup, false)
+		Expect(err).ToNot(HaveOccurred())
+		verifyAppliedTo(kind, ids, ips, srcVM, srcIP, applied)
 	}
 
 	testEgress := func(kind string, diffNS bool) {
@@ -516,6 +566,14 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), false),
 		table.Entry("VM In Different Namespaces",
 			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), true),
+	)
+
+	table.DescribeTable("AppliedToUsingGroup",
+		func(kind string, diffNS bool) {
+			testAppliedToUsingGroup(kind)
+		},
+		table.Entry(fmt.Sprintf("%s: VM In Same Namespace", focusAws),
+			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), false),
 	)
 
 	table.DescribeTable("Egress",

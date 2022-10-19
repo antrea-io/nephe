@@ -39,12 +39,19 @@ type PortParameters struct {
 }
 
 type ANPParameters struct {
-	Name         string
-	Namespace    string
-	To           *ToFromParameters
-	From         *ToFromParameters
-	AppliedTo    *EntitySelectorParameters
-	FederatedKey *string
+	Name           string
+	Namespace      string
+	To             *ToFromParameters
+	From           *ToFromParameters
+	AppliedTo      *EntitySelectorParameters
+	AppliedToGroup *GroupParameters
+	FederatedKey   *string
+}
+
+type GroupParameters struct {
+	Name      string
+	Namespace string
+	Entity    *EntitySelectorParameters
 }
 
 const CloudAntreaNetworkPolicy = `
@@ -60,6 +67,9 @@ metadata:
 spec:
   priority: 1
   appliedTo:
+{{- if  .AppliedToGroup }}
+  - group : {{ .AppliedToGroup.Name }}
+{{ end }}
 {{- if  .AppliedTo }}
   - externalEntitySelector:
       matchLabels:
@@ -162,4 +172,27 @@ spec:
 {{ end }}
 {{- end }}{{/* .To.Ports */}}
 {{ end }} {{/* .To */}}
+`
+const CloudAntreaGroup = `
+apiVersion: crd.antrea.io/v1alpha3
+kind: Group
+metadata:
+  name: {{.Name}}
+  namespace: {{.Namespace}}
+spec:
+{{- if .Entity }}
+    externalEntitySelector:
+{{- if .Entity.Kind }}
+      matchLabels:
+        kind.nephe: {{.Entity.Kind}}
+{{ end }}
+{{- if .Entity.CloudInstanceName }}
+      matchLabels:
+        name.nephe: {{ .Entity.CloudInstanceName }}
+{{ end }}
+{{- if .Entity.VPC }}
+      matchLabels:
+        vpc.nephe: {{ .Entity.VPC }}
+{{ end }}
+{{ end }}
 `
