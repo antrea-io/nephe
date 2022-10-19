@@ -26,7 +26,8 @@
           ./ci/jenkins/nephe-ci.sh --buildnumber "${BUILD_NUMBER}" --vchost "${VC_HOST}" \
                   --vcuser "${VC_USER}" --datacenter "${DATACENTERNAME}" --datastore "${DATA_STORE}" \
                   --vcCluster "${VC_CLUSTER}" --resourcePool "${RESOURCEPOOLPATH}" --vcNetwork "${VMC_NETWORK_1}" \
-                  --virtualMachine "${VIRTUAL_MACHINE}" --goVcPassword "${GOVC_PASSWORD}" --testType aws
+                  --virtualMachine "${VIRTUAL_MACHINE}" --goVcPassword "${GOVC_PASSWORD}" --testType aws \
+                  --dockerUser "${DOCKER_USERNAME}" --dockerPassword "${DOCKER_PASSWORD}"
 - builder:
     name: deploy-vm-and-run-azure-tests-for-nephe
     builders:
@@ -35,7 +36,8 @@
           ./ci/jenkins/nephe-ci.sh --buildnumber "${BUILD_NUMBER}" --vchost "${VC_HOST}" \
                   --vcuser "${VC_USER}" --datacenter "${DATACENTERNAME}" --datastore "${DATA_STORE}" \
                   --vcCluster "${VC_CLUSTER}" --resourcePool "${RESOURCEPOOLPATH}" --vcNetwork "${VMC_NETWORK_1}" \
-                  --virtualMachine "${VIRTUAL_MACHINE}" --goVcPassword "${GOVC_PASSWORD}" --testType azure
+                  --virtualMachine "${VIRTUAL_MACHINE}" --goVcPassword "${GOVC_PASSWORD}" --testType azure \
+                  --dockerUser "${DOCKER_USERNAME}" --dockerPassword "${DOCKER_PASSWORD}"
 - builder:
     name: deploy-vm-and-run-eks-tests-for-nephe
     builders:
@@ -44,7 +46,8 @@
           ./ci/jenkins/nephe-ci.sh --buildnumber "${BUILD_NUMBER}" --vchost "${VC_HOST}" \
                   --vcuser "${VC_USER}" --datacenter "${DATACENTERNAME}" --datastore "${DATA_STORE}" \
                   --vcCluster "${VC_CLUSTER}" --resourcePool "${RESOURCEPOOLPATH}" --vcNetwork "${VMC_NETWORK_1}" \
-                  --virtualMachine "${VIRTUAL_MACHINE}" --goVcPassword "${GOVC_PASSWORD}" --testType eks
+                  --virtualMachine "${VIRTUAL_MACHINE}" --goVcPassword "${GOVC_PASSWORD}" --testType eks \
+                  --dockerUser "${DOCKER_USERNAME}" --dockerPassword "${DOCKER_PASSWORD}"
 - builder:
     name: deploy-vm-and-run-aks-tests-for-nephe
     builders:
@@ -53,7 +56,8 @@
           ./ci/jenkins/nephe-ci.sh --buildnumber "${BUILD_NUMBER}" --vchost "${VC_HOST}" \
                   --vcuser "${VC_USER}" --datacenter "${DATACENTERNAME}" --datastore "${DATA_STORE}" \
                   --vcCluster "${VC_CLUSTER}" --resourcePool "${RESOURCEPOOLPATH}" --vcNetwork "${VMC_NETWORK_1}" \
-                  --virtualMachine "${VIRTUAL_MACHINE}" --goVcPassword "${GOVC_PASSWORD}" --testType aks
+                  --virtualMachine "${VIRTUAL_MACHINE}" --goVcPassword "${GOVC_PASSWORD}" --testType aks \
+                  --dockerUser "${DOCKER_USERNAME}" --dockerPassword "${DOCKER_PASSWORD}"
 - builder:
     name: deploy-vm-with-agent-and-run-eks-tests-for-nephe
     builders:
@@ -62,7 +66,8 @@
           ./ci/jenkins/nephe-ci.sh --buildnumber "${BUILD_NUMBER}" --vchost "${VC_HOST}" \
                   --vcuser "${VC_USER}" --datacenter "${DATACENTERNAME}" --datastore "${DATA_STORE}" \
                   --vcCluster "${VC_CLUSTER}" --resourcePool "${RESOURCEPOOLPATH}" --vcNetwork "${VMC_NETWORK_1}" \
-                  --virtualMachine "${VIRTUAL_MACHINE}" --goVcPassword "${GOVC_PASSWORD}" --testType eks-with-agent
+                  --virtualMachine "${VIRTUAL_MACHINE}" --goVcPassword "${GOVC_PASSWORD}" --testType eks-with-agent \
+                  --dockerUser "${DOCKER_USERNAME}" --dockerPassword "${DOCKER_PASSWORD}"
 - builder:
     name: deploy-vm-with-agent-and-run-aks-tests-for-nephe
     builders:
@@ -71,7 +76,28 @@
           ./ci/jenkins/nephe-ci.sh --buildnumber "${BUILD_NUMBER}" --vchost "${VC_HOST}" \
                   --vcuser "${VC_USER}" --datacenter "${DATACENTERNAME}" --datastore "${DATA_STORE}" \
                   --vcCluster "${VC_CLUSTER}" --resourcePool "${RESOURCEPOOLPATH}" --vcNetwork "${VMC_NETWORK_1}" \
-                  --virtualMachine "${VIRTUAL_MACHINE}" --goVcPassword "${GOVC_PASSWORD}" --testType aks-with-agent
+                  --virtualMachine "${VIRTUAL_MACHINE}" --goVcPassword "${GOVC_PASSWORD}" --testType aks-with-agent \
+                  --dockerUser "${DOCKER_USERNAME}" --dockerPassword "${DOCKER_PASSWORD}"
+- builder:
+    name: deploy-windows-vm-with-agent-and-run-eks-tests-for-nephe
+    builders:
+      - shell: |-
+          #!/bin/bash
+          ./ci/jenkins/nephe-ci.sh --buildnumber "${BUILD_NUMBER}" --vchost "${VC_HOST}" \
+                  --vcuser "${VC_USER}" --datacenter "${DATACENTERNAME}" --datastore "${DATA_STORE}" \
+                  --vcCluster "${VC_CLUSTER}" --resourcePool "${RESOURCEPOOLPATH}" --vcNetwork "${VMC_NETWORK_1}" \
+                  --virtualMachine "${VIRTUAL_MACHINE}" --goVcPassword "${GOVC_PASSWORD}" --testType eks-with-windows-agent \
+                  --dockerUser "${DOCKER_USERNAME}" --dockerPassword "${DOCKER_PASSWORD}"
+- builder:
+    name: deploy-windows-vm-with-agent-and-run-aks-tests-for-nephe
+    builders:
+      - shell: |-
+          #!/bin/bash
+          ./ci/jenkins/nephe-ci.sh --buildnumber "${BUILD_NUMBER}" --vchost "${VC_HOST}" \
+                  --vcuser "${VC_USER}" --datacenter "${DATACENTERNAME}" --datastore "${DATA_STORE}" \
+                  --vcCluster "${VC_CLUSTER}" --resourcePool "${RESOURCEPOOLPATH}" --vcNetwork "${VMC_NETWORK_1}" \
+                  --virtualMachine "${VIRTUAL_MACHINE}" --goVcPassword "${GOVC_PASSWORD}" --testType aks-with-windows-agent \
+                  --dockerUser "${DOCKER_USERNAME}" --dockerPassword "${DOCKER_PASSWORD}"
 
 - builder:
     name: nephe-gc-cronjob

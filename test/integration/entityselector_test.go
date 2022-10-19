@@ -24,9 +24,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/onsi/ginkgo/extensions/table"
-
 	. "github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
@@ -296,7 +295,7 @@ var _ = Describe(fmt.Sprintf("%s: Entity selector test", focusAws), func() {
 			if len(supportBundleDir) > 0 {
 				logf.Log.Info("Collect support bundles for test failure.")
 				fileName := utils.GenerateNameFromText(result.FullTestText, testFocus)
-				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName), cloudVPC, withAgent)
+				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName), cloudVPC, withAgent, withWindows)
 			}
 			if preserveSetupOnFail {
 				logf.Log.V(1).Info("Preserve setup on failure")

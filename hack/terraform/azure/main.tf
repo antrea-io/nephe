@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     azurerm = {
-      version = "~>3.11.0"
+      version = "~> 3.11.0"
     }
     random = {
       version = "~> 3.1"
@@ -28,11 +28,12 @@ resource "azurerm_resource_group" "vm" {
 
 locals {
   resource_group_name = "nephe-vnet-${var.owner}-${random_string.suffix.result}"
-  azure_vm_os_types   = var.with_agent ? var.azure_vm_os_types_agented : var.azure_vm_os_types
+  azure_vm_os_types   = var.with_agent ? (var.with_windows ? var.azure_vm_os_types_agented_windows : var.azure_vm_os_types_agented) : var.azure_vm_os_types
 }
 
 locals {
   vnet_name_random = "nephe-vnet-${random_id.suffix.hex}"
+  password_random  = "nephe-${random_string.special.result}"
 }
 
 resource "random_id" "suffix" {
@@ -42,6 +43,14 @@ resource "random_id" "suffix" {
 resource "random_string" "suffix" {
   length  = 4
   special = false
+}
+
+resource "random_string" "special" {
+  length           = 8
+  upper            = true
+  numeric          = true
+  special          = true
+  override_special =  "!@$*-?"
 }
 
 data "template_file" user_data {
@@ -54,6 +63,51 @@ data "template_file" user_data {
     INSTALL_VM_AGENT_WRAPPER = var.with_agent ? file(var.install_vm_agent_wrapper) : ""
     NAMESPACE                = var.namespace
     ANTREA_VERSION           = var.antrea_version
+    SSH_PUBLIC_KEY           = file(var.ssh_public_key)
+  }
+}
+
+data "azurerm_shared_image" "agent_image" {
+  count               = var.with_windows ? length(var.azure_vm_os_types_agented_windows) : 0
+  name                = var.azure_vm_os_types_agented_windows[count.index].image
+  gallery_name        = var.azure_vm_os_types_agented_windows[count.index].gallery
+  resource_group_name = var.azure_vm_os_types_agented_windows[count.index].rg
+}
+
+resource "azurerm_virtual_machine_extension" "win_script" {
+  count                = var.with_windows ? length(var.azure_vm_os_types_agented_windows) : 0
+  name                 = "win_script"
+  virtual_machine_id   = module.vm_cluster[count.index].vm_ids[0]
+  publisher            = "Microsoft.Compute"
+  type                 = "CustomScriptExtension"
+  type_handler_version = "1.9"
+
+  settings = <<SETTINGS
+  {
+      "commandToExecute": "powershell -command \"[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${base64encode(data.template_file.user_data[count.index].rendered)}')) | Out-File -filepath init_script.ps1\" && powershell -ExecutionPolicy Unrestricted -File init_script.ps1"
+  }
+  SETTINGS
+}
+
+# Copy the files since custom_data is unavailable
+# in compute/azurerm module for Windows VM.
+resource "null_resource" "win-remote-exec" {
+  count = var.with_windows ? length(var.azure_vm_os_types_agented_windows) : 0
+  triggers = {
+    vm_id = module.vm_cluster[count.index].vm_ids[0]
+  }
+
+  connection {
+    type     = "ssh"
+    user     = var.username
+    password = local.password_random
+    insecure = true
+    host     = module.vm_cluster[count.index].public_ip_address[0]
+  }
+
+  provisioner "file" {
+    source      = var.install_vm_agent_wrapper
+    destination = "/tmp/install-vm-agent-wrapper.ps1"
   }
 }
 
@@ -63,18 +117,22 @@ module "vm_cluster" {
   resource_group_name     = azurerm_resource_group.vm.name
   count                   = length(local.azure_vm_os_types)
   nb_instances            = 1
-  vm_os_publisher         = local.azure_vm_os_types[count.index].publisher
-  vm_os_offer             = local.azure_vm_os_types[count.index].offer
-  vm_os_sku               = local.azure_vm_os_types[count.index].sku
+  vm_os_publisher         = var.with_windows ? "" : local.azure_vm_os_types[count.index].publisher
+  vm_os_offer             = var.with_windows ? "" : local.azure_vm_os_types[count.index].offer
+  vm_os_sku               = var.with_windows ? "" : local.azure_vm_os_types[count.index].sku
   vm_hostname             = "${local.azure_vm_os_types[count.index].name}-${var.owner}"
-  vm_size                 = var.azure_vm_type
+  vm_os_id                = var.with_windows ? data.azurerm_shared_image.agent_image[count.index].id : ""
+  vm_size                 = var.with_windows ? var.azure_win_vm_type : var.azure_vm_type
   vnet_subnet_id          = module.network.vnet_subnets[0]
-  enable_ssh_key          = true
+  enable_ssh_key          = var.with_windows ? false : true
   ssh_key                 = var.ssh_public_key
   remote_port             = var.with_agent ? "*" : "80"
   source_address_prefixes = ["0.0.0.0/0"]
+  is_windows_image        = var.with_windows ? true : false
+  admin_username          = var.username
+  admin_password          = local.password_random
 
-  custom_data = data.template_file.user_data[count.index].rendered
+  custom_data = var.with_windows ? "" : data.template_file.user_data[count.index].rendered
 
   nb_public_ip      = 1
   allocation_method = "Static"

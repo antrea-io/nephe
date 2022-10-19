@@ -9,6 +9,14 @@ variable aws_vm_type {
   default = "t2.micro"
 }
 
+variable aws_win_vm_type {
+  default = "t3.medium"
+}
+
+variable "ssh_public_key" {
+  default = "~/.ssh/id_rsa.pub"
+}
+
 variable peer_vpc_id {
   default = ""
 }
@@ -87,6 +95,39 @@ variable "aws_vm_os_types_agented" {
   ]
 }
 
+variable "aws_vm_os_types_agented_windows" {
+  type = list(object({
+    name            = string
+    login           = string
+    init            = string
+    ami_name_search = string
+    ami_owner       = string
+  }))
+  default = [
+    {
+      name            = "windows2019-1"
+      login           = "Administrator"
+      init            = "init_script_windows.ps1"
+      ami_name_search = "NepheWin2019Image"
+      ami_owner       = "092722883498"
+    },
+    {
+      name            = "windows2019-2"
+      login           = "Administrator"
+      init            = "init_script_windows.ps1"
+      ami_name_search = "NepheWin2019Image"
+      ami_owner       = "092722883498"
+    },
+    {
+      name            = "windows2019-3"
+      login           = "Administrator"
+      init            = "init_script_windows.ps1"
+      ami_name_search = "NepheWin2019Image"
+      ami_owner       = "092722883498"
+    },
+  ]
+}
+
 variable "aws_security_groups_postfix" {
   type    = list(string)
   default = [
@@ -96,6 +137,11 @@ variable "aws_security_groups_postfix" {
 }
 
 variable "with_agent" {
+  type    = bool
+  default = false
+}
+
+variable "with_windows" {
   type    = bool
   default = false
 }

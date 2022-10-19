@@ -466,7 +466,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: ExternalNode", focusAws, focusAzure), func(
 			if len(supportBundleDir) > 0 {
 				logf.Log.Info("Collect support bundles for test failure.")
 				fileName := utils.GenerateNameFromText(result.FullTestText, testFocus)
-				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName), cloudVPC, withAgent)
+				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName), cloudVPC, withAgent, withWindows)
 			}
 			if preserveSetupOnFail {
 				logf.Log.V(1).Info("Preserve setup on failure")
