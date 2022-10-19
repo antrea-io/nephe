@@ -90,8 +90,6 @@ spec:
                             not specified, it matches any cloud entities.
                           type: string
                       type: object
-                  required:
-                  - agented
                   type: object
                 type: array
             required:

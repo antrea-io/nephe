@@ -234,7 +234,9 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 				Expect(err).ToNot(HaveOccurred())
 			}
 		}
-		err = utils.CheckCloudResourceNetworkPolicies(kubeCtl, k8sClient, vmKind, namespace.Name, cloudVPC.GetVMs(), []string{anpSetupParams.Name}, withAgent)
+		err = utils.CheckCloudResourceNetworkPolicies(
+			kubeCtl, k8sClient, vmKind, namespace.Name, cloudVPC.GetVMs(), []string{anpSetupParams.Name}, withAgent,
+		)
 		Expect(err).ToNot(HaveOccurred())
 		oks := make([]bool, len(cloudVPC.GetVMs()))
 		for i := range oks {

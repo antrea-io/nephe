@@ -20,9 +20,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"os/exec"
 	"path"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -51,6 +49,8 @@ const (
 	focusAzure = "test-azure"
 	focusCloud = "test-cloud-cluster"
 	focusAgent = "test-with-agent"
+
+	antreaVersion = "v1.8.0"
 )
 
 var (
@@ -80,7 +80,7 @@ func init() {
 	flag.StringVar(&manifest, "manifest-path", "./config/nephe.yml", "The relative path to manifest.")
 	flag.BoolVar(&preserveSetupOnFail, "preserve-setup-on-fail", false, "Preserve the setup if a test failed.")
 	flag.StringVar(&supportBundleDir, "support-bundle-dir", "", "Support bundles are saved in this dir when specified.")
-	flag.BoolVar(&withAgent, "with-agent", false, "Using agent on VM")
+	flag.BoolVar(&withAgent, "with-agent", false, "Using antrea-agent on VM")
 	flag.StringVar(&cloudProviders, "cloud-provider", string(cloudv1alpha1.AzureCloudProvider),
 		"Cloud Providers to use, separated by comma. Default is Azure.")
 	flag.StringVar(&clusterContexts, "cluster-context", "", "cluster context to use, separated by common. Default is empty.")
@@ -132,24 +132,9 @@ var _ = BeforeSuite(func(done Done) {
 		if withAgent {
 			kubeCtl.SetContext(cluster)
 			err := c.Get(context.Background(), client.ObjectKey{Name: staticVMNS.Name}, &v1.Namespace{})
-			if apierrors.IsNotFound(err) {
-				err = c.Create(context.TODO(), staticVMNS)
-				Expect(err).ToNot(HaveOccurred(), "create static vm namespace")
-			} else {
-				Expect(err).ToNot(HaveOccurred(), "unable to get vm namespace")
-			}
-
-			cmd := exec.Command("../../hack/install-agent-prerequisites.sh")
-			bytes, err := cmd.CombinedOutput()
-			Expect(err).ToNot(HaveOccurred(), "generate antrea agent kubeconfigs", string(bytes))
-			path, err := filepath.Abs("../../hack/install-wrapper.sh")
+			Expect(apierrors.IsNotFound(err)).To(BeTrue(), "static vm ns not created")
+			err = utils.SetAgentConfig(c, staticVMNS, cloudProviders, antreaVersion, kubeconfig)
 			Expect(err).ToNot(HaveOccurred())
-			dir, err := os.Getwd()
-			Expect(err).ToNot(HaveOccurred())
-			_ = os.Setenv("TF_VAR_with_agent", "true")
-			_ = os.Setenv("TF_VAR_vm_agent_k8s_conf", dir+"/antrea-agent.kubeconfig")
-			_ = os.Setenv("TF_VAR_vm_agent_antrea_conf", dir+"/antrea-agent.antrea.kubeconfig")
-			_ = os.Setenv("TF_VAR_install_wrapper", path)
 		}
 	}
 

@@ -43,8 +43,8 @@ data "template_file" user_data {
   template = file(local.aws_vm_os_types[count.index].init)
   vars     = {
     WITH_AGENT      = var.with_agent
-    K8S_CONF        = fileexists(var.vm_agent_k8s_conf) ? file(var.vm_agent_k8s_conf) : ""
-    ANTREA_CONF     = fileexists(var.vm_agent_antrea_conf) ? file(var.vm_agent_antrea_conf) : ""
+    K8S_CONF        = fileexists(var.antrea_agent_k8s_conf) ? file(var.antrea_agent_k8s_conf) : ""
+    ANTREA_CONF     = fileexists(var.antrea_agent_antrea_conf) ? file(var.antrea_agent_antrea_conf) : ""
     INSTALL_WRAPPER = fileexists(var.install_wrapper) ? file(var.install_wrapper) : ""
     NAMESPACE       = var.namespace
   }

@@ -20,14 +20,16 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"text/template"
 	"time"
 
 	v1 "k8s.io/api/apps/v1"
-	v12 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -35,6 +37,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
+	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	k8stemplates "antrea.io/nephe/test/templates"
 )
@@ -163,7 +166,7 @@ func GetPodsFromDeployment(k8sClient client.Client, name, namespace string) ([]s
 		logf.Log.V(1).Info("Failed to find ReplicaSet", "Deployment", name)
 		return nil, nil
 	}
-	podList := &v12.PodList{}
+	podList := &corev1.PodList{}
 	pods := make([]string, 0)
 	if err := k8sClient.List(context.TODO(), podList, &client.ListOptions{Namespace: namespace}); err != nil {
 		return nil, err
@@ -180,7 +183,7 @@ func GetPodsFromDeployment(k8sClient client.Client, name, namespace string) ([]s
 
 // GetServiceClusterIPPort returns clusterIP and first port of a service.
 func GetServiceClusterIPPort(k8sClient client.Client, name, namespace string) (string, int32, error) {
-	service := &v12.Service{}
+	service := &corev1.Service{}
 	key := types.NamespacedName{Name: name, Namespace: namespace}
 	if err := k8sClient.Get(context.TODO(), key, service); err != nil {
 		return "", 0, err
@@ -244,7 +247,9 @@ func ConfigureEntitySelectorAndWait(
 }
 
 // CheckCloudResourceNetworkPolicies checks NetworkPolicies has been applied to cloud resources.
-func CheckCloudResourceNetworkPolicies(kubeCtl *KubeCtl, k8sClient client.Client, kind, namespace string, ids, anps []string, agent bool) error {
+func CheckCloudResourceNetworkPolicies(
+	kubeCtl *KubeCtl, k8sClient client.Client, kind, namespace string, ids, anps []string, withAgent bool,
+) error {
 	getVMANPs := func(id string) (map[string]*runtimev1alpha1.NetworkPolicyStatus, error) {
 		v := &runtimev1alpha1.VirtualMachinePolicy{}
 		fetchKey := client.ObjectKey{Name: id, Namespace: namespace}
@@ -257,15 +262,15 @@ func CheckCloudResourceNetworkPolicies(kubeCtl *KubeCtl, k8sClient client.Client
 		return v.Status.NetworkPolicyDetails, nil
 	}
 
-	if agent {
-		err := wait.Poll(time.Second*5, time.Second*60, func() (bool, error) {
+	if withAgent {
+		err := wait.Poll(time.Second*5, time.Second*30, func() (bool, error) {
 			for _, anp := range anps {
 				cmd := fmt.Sprintf("get anp %s -n %s -o json -o=jsonpath={.status.phase}", anp, namespace)
 				out, err := kubeCtl.Cmd(cmd)
 				if err != nil {
 					return false, nil
 				}
-				if strings.Compare(string(out), "Realized") != 0 {
+				if strings.Compare(out, "Realized") != 0 {
 					logf.Log.V(1).Info("ANP realization in progress", "IDS", ids, "ANP", anp)
 					return false, nil
 				}
@@ -273,7 +278,7 @@ func CheckCloudResourceNetworkPolicies(kubeCtl *KubeCtl, k8sClient client.Client
 			return true, nil
 		})
 		if err != nil {
-			logf.Log.V(1).Info("ANP realization failed")
+			logf.Log.Error(err, "timeout waiting for ANP realization")
 		}
 		return err
 	}
@@ -395,6 +400,42 @@ func GenerateNameFromText(fullText string, focus []string) string {
 	fullText = strings.ReplaceAll(fullText, ",", "")
 	fullText = strings.ReplaceAll(fullText, ":", "")
 	return strings.ReplaceAll(fullText, " ", "")
+}
+
+func SetAgentConfig(c client.Client, ns *corev1.Namespace, cloudProviders, antreaVersion, kubeconfig string) error {
+	err := c.Create(context.TODO(), ns)
+	if err != nil {
+		return fmt.Errorf("failed to create static vm namespace %+v", err)
+	}
+
+	// TODO: decouple cluster type with cloud provider type
+	clusterType := ""
+	switch cloudProviders {
+	case string(cloudv1alpha1.AzureCloudProvider):
+		clusterType = "aks"
+	case string(cloudv1alpha1.AWSCloudProvider):
+		clusterType = "eks"
+	}
+
+	cmd := exec.Command("../../hack/generate-agent-config.sh", "--cluster-type", clusterType, "--antrea-version", antreaVersion)
+	bytes, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to generate antrea agent kubeconfigs %+v: %s", err, string(bytes))
+	}
+	path, err := filepath.Abs("../../hack/install-wrapper.sh")
+	if err != nil {
+		return err
+	}
+	dir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	_ = os.Setenv("KUBECONFIG", kubeconfig)
+	_ = os.Setenv("TF_VAR_with_agent", "true")
+	_ = os.Setenv("TF_VAR_antrea_agent_k8s_conf", dir+"/antrea-agent.kubeconfig")
+	_ = os.Setenv("TF_VAR_antrea_agent_antrea_conf", dir+"/antrea-agent.antrea.kubeconfig")
+	_ = os.Setenv("TF_VAR_install_wrapper", path)
+	return nil
 }
 
 // CollectAgentInfo collect ovs dump-flows from all bridges.
