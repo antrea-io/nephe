@@ -37,7 +37,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
+	antreav1alpha1 "antrea.io/antrea/pkg/apis/crd/v1alpha1"
+	antreav1alpha2 "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/logging"
@@ -105,7 +106,10 @@ var _ = BeforeSuite(func(done Done) {
 	err = cloudv1alpha1.AddToScheme(scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = antreatypes.AddToScheme(scheme)
+	err = antreav1alpha1.AddToScheme(scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = antreav1alpha2.AddToScheme(scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = runtimev1alpha1.AddToScheme(scheme)

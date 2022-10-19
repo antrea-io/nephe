@@ -146,6 +146,12 @@ func (p *azureVPC) GetVMNames() []string {
 	return vmNames
 }
 
+// GetPrimaryNICs returns the complete NIC ID
+func (p *azureVPC) GetPrimaryNICs() []string {
+	return getListFromOutput(p.output, "primary_nics")
+}
+
+// GetNICs function returns shortened version of NIC ID
 func (p *azureVPC) GetNICs() []string {
 	ids := getListFromOutput(p.output, "primary_nics")
 	var shortids []string
