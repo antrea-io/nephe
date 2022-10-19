@@ -22,8 +22,16 @@ resource "azurerm_resource_group" "vm" {
   location = var.location
 }
 
+data "azurerm_shared_image" "agent_image" {
+  count               = var.with_agent ? length(var.azure_vm_os_types_agented) : 0
+  name                = var.azure_vm_os_types_agented[count.index].image
+  gallery_name        = var.azure_vm_os_types_agented[count.index].image
+  resource_group_name = var.azure_vm_os_types_agented[count.index].image
+}
+
 locals {
   resource_group_name = "nephe-vnet-${var.owner}-${random_string.suffix.result}"
+  azure_vm_os_types   = var.with_agent ? var.azure_vm_os_types_agented : var.azure_vm_os_types
 }
 
 locals {
@@ -40,24 +48,32 @@ resource "random_string" "suffix" {
 }
 
 data "template_file" user_data {
-  count    = length(var.azure_vm_os_types)
-  template = file(var.azure_vm_os_types[count.index].init)
+  count    = length(local.azure_vm_os_types)
+  template = file(local.azure_vm_os_types[count.index].init)
+  vars = {
+    WITH_AGENT = var.with_agent
+    K8S_CONF = fileexists(var.antrea_agent_k8s_conf) ? file(var.antrea_agent_k8s_conf) : ""
+    ANTREA_CONF = fileexists(var.antrea_agent_antrea_conf) ? file(var.antrea_agent_antrea_conf) : ""
+    INSTALL_WRAPPER = fileexists(var.install_wrapper) ? file(var.install_wrapper) : ""
+    NAMESPACE = var.namespace
+  }
 }
 
 module "vm_cluster" {
   source                  = "Azure/compute/azurerm"
   resource_group_name     = azurerm_resource_group.vm.name
-  count                   = length(var.azure_vm_os_types)
+  count                   = length(local.azure_vm_os_types)
   nb_instances            = 1
-  vm_os_publisher         = var.azure_vm_os_types[count.index].publisher
-  vm_os_offer             = var.azure_vm_os_types[count.index].offer
-  vm_os_sku               = var.azure_vm_os_types[count.index].sku
-  vm_hostname             = "${var.azure_vm_os_types[count.index].name}-${var.owner}"
+  vm_os_id                = var.with_agent ? data.azurerm_shared_image.agent_image[count.index].id : ""
+  vm_os_publisher         = var.with_agent ? "" : local.azure_vm_os_types[count.index].publisher
+  vm_os_offer             = var.with_agent ? "" : local.azure_vm_os_types[count.index].offer
+  vm_os_sku               = var.with_agent ? "" : local.azure_vm_os_types[count.index].sku
+  vm_hostname             = "${local.azure_vm_os_types[count.index].name}-${var.owner}"
   vm_size                 = var.azure_vm_type
   vnet_subnet_id          = module.network.vnet_subnets[0]
   enable_ssh_key          = true
   ssh_key                 = var.ssh_public_key
-  remote_port             = 80
+  remote_port             = var.with_agent ? "*" : "80"
   source_address_prefixes = ["0.0.0.0/0"]
 
   custom_data = data.template_file.user_data[count.index].rendered
@@ -68,7 +84,7 @@ module "vm_cluster" {
   tags = {
     Terraform   = "true"
     Environment = "nephe"
-    Name        = var.azure_vm_os_types[count.index].name
+    Name        = local.azure_vm_os_types[count.index].name
   }
 }
 

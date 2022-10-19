@@ -64,3 +64,53 @@ variable "azure_vm_os_types" {
     }
   ]
 }
+
+variable "azure_vm_os_types_agented" {
+  type = list(object({
+    name      = string
+    image     = string
+    init      = string
+  }))
+  default = [
+    {
+      name      = "ubuntu-host1"
+      image     = "NepheAgentedUbuntuImage"
+      init      = "init_script_ubuntu.sh"
+    },
+    {
+      name      = "ubuntu-host2"
+      image     = "NepheAgentedUbuntuImage"
+      init      = "init_script_ubuntu.sh"
+    },
+    {
+      name      = "ubuntu-host3"
+      image     = "NepheAgentedUbuntuImage"
+      init      = "init_script_ubuntu.sh"
+    }
+  ]
+}
+
+variable "with_agent" {
+  type = bool
+  default = false
+}
+
+variable "namespace" {
+  type = string
+  default = "vm-ns"
+}
+
+variable "antrea_agent_k8s_conf" {
+  type = string
+  default = "antrea-agent.kubeconfig"
+}
+
+variable "antrea_agent_antrea_conf" {
+  type = string
+  default = "antrea-agent.antrea.kubeconfig"
+}
+
+variable "install_wrapper" {
+  type = string
+  default = "install-wrapper.sh"
+}

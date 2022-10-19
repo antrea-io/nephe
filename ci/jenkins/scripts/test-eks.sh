@@ -44,6 +44,7 @@ function print_help {
 export TF_VAR_owner="ci"
 export AWS_DEFAULT_REGION="us-west-2"
 export WITH_AGENT=false
+export TEST_FOCUS=".*test-cloud-cluster.*"
 
 while [[ $# -gt 0 ]]
 do
@@ -76,6 +77,7 @@ case $key in
     ;;
     --with-agent)
     export WITH_AGENT=true
+    export TEST_FOCUS=".*test-with-agent*"
     shift 1
     ;;
     -h|--help)
@@ -152,4 +154,4 @@ docker tag antrea/nephe:latest projects.registry.vmware.com/antrea/nephe:latest
 $HOME/terraform/eks load projects.registry.vmware.com/antrea/nephe
 
 mkdir -p $HOME/logs
-ci/bin/integration.test -ginkgo.v -ginkgo.focus=".*test-cloud-cluster.*" -kubeconfig=$HOME/tmp/terraform-eks/kubeconfig -cloud-provider=AWS -support-bundle-dir=$HOME/logs -with-agent=${WITH_AGENT}
+ci/bin/integration.test -ginkgo.v -ginkgo.focus=$TEST_FOCUS -kubeconfig=$HOME/tmp/terraform-eks/kubeconfig -cloud-provider=AWS -support-bundle-dir=$HOME/logs -with-agent=${WITH_AGENT}

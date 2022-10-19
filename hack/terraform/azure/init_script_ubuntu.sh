@@ -14,6 +14,21 @@
 # limitations under the License.
 
 sudo apt-get update
+
+if [[ ${WITH_AGENT} == true ]]; then
+  sudo apt-get install -y openvswitch-switch
+  cat <<EOF > antrea-agent.kubeconfig
+${K8S_CONF}
+EOF
+  cat <<EOF > antrea-agent.antrea.kubeconfig
+${ANTREA_CONF}
+EOF
+  echo $HOME
+  set -- --ns "vm-ns" --antrea-version v1.8.0 --kubeconfig antrea-agent.kubeconfig --antrea-kubeconfig antrea-agent.antrea.kubeconfig --bin /home/azureuser/antrea-agent
+  export SYSTEMD_PAGER=""
+  ${INSTALL_WRAPPER}
+fi
+
 sudo apt-get install -y apache2
 sudo echo "Listen 8080" >> /etc/apache2/ports.conf
 sudo systemctl restart apache2
