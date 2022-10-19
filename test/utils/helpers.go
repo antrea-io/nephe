@@ -417,12 +417,12 @@ func SetAgentConfig(c client.Client, ns *corev1.Namespace, cloudProviders, antre
 		clusterType = "eks"
 	}
 
-	cmd := exec.Command("../../hack/generate-agent-config.sh", "--cluster-type", clusterType, "--antrea-version", antreaVersion)
+	cmd := exec.Command("./hack/generate-agent-config.sh", "--cluster-type", clusterType, "--antrea-version", antreaVersion)
 	bytes, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to generate antrea agent kubeconfigs %+v: %s", err, string(bytes))
 	}
-	path, err := filepath.Abs("../../hack/install-wrapper.sh")
+	path, err := filepath.Abs("./hack/install-wrapper.sh")
 	if err != nil {
 		return err
 	}
@@ -496,6 +496,26 @@ func CollectAgentInfo(kubctl *KubeCtl, dir string) error {
 	return nil
 }
 
+func CollectVMAgentLog(cloudVPC CloudVPC, dir string) error {
+	err := os.MkdirAll(dir, 0777)
+	if err != nil {
+		return err
+	}
+	vmCmd := []string{"cat", "/var/log/antrea/antrea-agent.log"}
+	for _, vm := range cloudVPC.GetVMs() {
+		output, err := cloudVPC.VMCmd(vm, vmCmd, 10*time.Second)
+		if err != nil {
+			continue
+		}
+		fn := path.Join(dir, vm+"-agent.log")
+		err = os.WriteFile(fn, []byte(output), 0666)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func CollectCRDs(kubectl *KubeCtl, dir string) error {
 	err := os.MkdirAll(dir, 0777)
 	if err != nil {
@@ -548,21 +568,27 @@ func CollectControllerLogs(kubctl *KubeCtl, dir string) error {
 	return nil
 }
 
-// CollectSupportBundle collect antrea and nephe logs
-func CollectSupportBundle(kubctl *KubeCtl, dir string) {
+// CollectSupportBundle collect antrea and nephe logs.
+func CollectSupportBundle(kubctl *KubeCtl, dir string, cloudVPC CloudVPC, withAgent bool) {
 	logf.Log.Info("Collecting support bundles")
 	if err := CollectAgentInfo(kubctl, dir); err != nil {
 		logf.Log.Error(err, "Failed to collect OVS flows")
 	}
 	if err := CollectControllerLogs(kubctl, dir); err != nil {
-		logf.Log.Error(err, "Failed to collect logs")
+		logf.Log.Error(err, "Failed to collect controller logs")
 	}
 	if err := CollectCRDs(kubctl, dir); err != nil {
 		logf.Log.Error(err, "Failed to collect CRDs")
 	}
+	if !withAgent {
+		return
+	}
+	if err := CollectVMAgentLog(cloudVPC, dir); err != nil {
+		logf.Log.Error(err, "Failed to collect VM agent logs")
+	}
 }
 
-// WaitApiServer wait for aggregated api server to be ready
+// WaitApiServer wait for aggregated api server to be ready.
 func WaitApiServer(k8sClient client.Client, timeout time.Duration) error {
 	if err := wait.Poll(time.Second, timeout, func() (bool, error) {
 		vmpList := &runtimev1alpha1.VirtualMachinePolicyList{}

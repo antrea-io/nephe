@@ -71,7 +71,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			if len(supportBundleDir) > 0 {
 				logf.Log.Info("Collect support bundles for test failure.")
 				fileName := utils.GenerateNameFromText(result.FullTestText, testFocus)
-				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName))
+				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName), cloudVPC, withAgent)
 				bundleCollected = true
 			}
 			if preserveSetupOnFail {
@@ -84,7 +84,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			if !bundleCollected && err != nil && len(supportBundleDir) > 0 {
 				logf.Log.Info("Collect support bundles for clean-up failure.")
 				fileName := utils.GenerateNameFromText(result.FullTestText, testFocus)
-				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName))
+				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName), cloudVPC, withAgent)
 			}
 
 			if !withAgent {

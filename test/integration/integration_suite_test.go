@@ -255,7 +255,7 @@ var _ = AfterSuite(func(done Done) {
 		if len(supportBundleDir) > 0 {
 			logf.Log.Info("Controllers restart detected, collect support bundles", "Cluster", *controllersCored)
 			for _, cluster := range clusters {
-				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, cluster, "integration"))
+				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, cluster, "integration"), cloudVPC, withAgent)
 			}
 		}
 	}
