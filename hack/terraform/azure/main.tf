@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     azurerm = {
-      version = "~>2.36"
+      version = "~>3.11.0"
     }
     random = {
       version = "~> 2.1"
@@ -95,4 +95,5 @@ module "network" {
   subnet_prefixes     = [var.subnet_prefix]
   subnet_names        = ["subnet1"]
   vnet_name           = local.vnet_name_random
+  vnet_location       = var.location
 }
