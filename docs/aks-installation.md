@@ -127,6 +127,17 @@ export TF_VAR_azure_client_tenant_id=YOUR_TENANT_ID
 export TF_VAR_owner=YOUR_NAME
 ```
 
+To create VMs with antrea agent deployed, additionally set the following
+variables. See [Agented VM User Guide](agented-vm-guide.md#generate-kubeconfigs)
+for helper script on generating and setting required kubeconfig files.
+
+```bash
+export TF_VAR_agent=true
+export TF_VAR_antrea_agent_k8s_conf=PATH_TO_K8S_APISERVER_KUBECONFIG
+export TF_VAR_antrea_agent_antrea_conf=PATH_TO_ANTREA_APISERVER_KUBECONFIG
+export TF_VAR_install_wrapper=PATH_TO_INSTALL_WRAPPER_SCRIPT
+```
+
 ### Setup Terraform Environment
 
 ```bash

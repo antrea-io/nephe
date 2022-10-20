@@ -67,10 +67,10 @@ Set the following variables to allow terraform scripts to create a compute VPC
 with 3 VMs.
 
 ```bash
-export TF_VAR_aws_access_key_id=YOUR_AWS_KEY
-export TF_VAR_aws_access_key_secret=YOUR_AWS_KEY_SECRET
+export AWS_ACCESS_KEY_ID=YOUR_AWS_KEY
+export AWS_SECRET_ACCESS_KEY=YOUR_AWS_KEY_SECRET
+export AWS_DEFAULT_REGION=YOUR_AWS_REGION
 export TF_VAR_aws_key_pair_name=YOU_AWS_KEY_PAIR
-export TF_VAR_region=YOUR_AWS_REGION
 export TF_VAR_owner=YOUR_ID
 ```
 
@@ -102,7 +102,8 @@ make integration-test-azure
 
 ```bash
 make
-kind load docker-image antrea/nephe
+docker tag antrea/nephe projects.registry.vmware.com/antrea/nephe
+kind load docker-image projects.registry.vmware.com/antrea/nephe
 make integration-test-aws
 make integration-test-azure
 ```
@@ -110,7 +111,7 @@ make integration-test-azure
 ### Running Integration Test on Cloud cluster
 
 - Deploy Nephe on an EKS cluster using [the EKS installation guide](../docs/eks-installation.md).
-   Run integration tests on EKS cluster.
+   - Run integration tests on EKS cluster.
 
    ```bash
    ci/bin/integration.test -ginkgo.v -ginkgo.focus=".*test-cloud-cluster.*" -kubeconfig=$HOME/tmp/terraform-eks/kubeconfig -cloud-provider=AWS -cloud-cluster
@@ -122,11 +123,23 @@ make integration-test-azure
     export TF_VAR_nephe_controller_role_arn=YOUR_IAM_ROLE
     ```
 
+   - Run integration tests with agented VMs on EKS cluster.
+
+   ```bash
+   ci/bin/integration.test -ginkgo.v -ginkgo.focus=".*test-with-agent.*" -kubeconfig=$HOME/tmp/terraform-eks/kubeconfig -cloud-provider=AWS -cloud-cluster -with-agent=true
+   ```
+
 - Deploy Nephe on an AKS cluster using [the AKS installation guide](../docs/eks-installation.md).
-   Run integration tests on AKS cluster.
+   - Run integration tests on AKS cluster.
 
    ```bash
    ci/bin/integration.test -ginkgo.v -ginkgo.focus=".*test-cloud-cluster.*" -kubeconfig=$HOME/tmp/terraform-aks/kubeconfig -cloud-provider=Azure -cloud-cluster
+   ```
+
+   - Run integration tests with agented VMs on AKS cluster.
+
+   ```bash
+   ci/bin/integration.test -ginkgo.v -ginkgo.focus=".*test-with-agent.*" -kubeconfig=$HOME/tmp/terraform-aks/kubeconfig -cloud-provider=Azure -cloud-cluster -with-agent=true
    ```
 
 **Note**: If Cloud cluster is not created using nephe [terraform scripts](../hack/terraform),
