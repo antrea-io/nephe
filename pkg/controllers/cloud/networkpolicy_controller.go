@@ -15,7 +15,6 @@
 package cloud
 
 import (
-	"antrea.io/antrea/pkg/apis/crd/v1alpha1"
 	"context"
 	"fmt"
 	"net"
@@ -34,7 +33,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	antreanetworking "antrea.io/antrea/pkg/apis/controlplane/v1beta2"
-	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
+	antreav1alpha1 "antrea.io/antrea/pkg/apis/crd/v1alpha1"
+	antreav1alpha2 "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	antreanetworkingclient "antrea.io/antrea/pkg/client/clientset/versioned/typed/controlplane/v1beta2"
 	cloud "antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
@@ -101,9 +101,6 @@ type NetworkPolicyReconciler struct {
 
 	// localRequest sends and receives network policy requests from local stack.
 	localRequest chan watch.Event
-
-	// Federated ExternalEntities IPs.
-	fedExternalEntityIPs map[string][]string
 }
 
 // isNetworkPolicySupported check if network policy is supported.
@@ -116,7 +113,7 @@ func (r *NetworkPolicyReconciler) isNetworkPolicySupported(anp *antreanetworking
 	}
 	// Check for support actions.
 	for _, rule := range anp.Rules {
-		if rule.Action != nil && *rule.Action != v1alpha1.RuleActionAllow {
+		if rule.Action != nil && *rule.Action != antreav1alpha1.RuleActionAllow {
 			return fmt.Errorf("only Allow action is supported in antrea network policy")
 		}
 		// check for supported protocol.
@@ -656,7 +653,6 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.localRequest = make(chan watch.Event)
 	r.cloudResponse = make(chan *securityGroupStatus)
 	r.pendingDeleteGroups = NewPendingItemQueue(r, nil)
-	r.fedExternalEntityIPs = make(map[string][]string)
 	opCnt := operationCount
 	r.retryQueue = NewPendingItemQueue(r, &opCnt)
 
@@ -673,7 +669,7 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 	r.antreaClient = antreanetworkingclient.NewForConfigOrDie(mgr.GetConfig())
-	if err := ctrl.NewControllerManagedBy(mgr).For(&antreatypes.ExternalEntity{}).Complete(r); err != nil {
+	if err := ctrl.NewControllerManagedBy(mgr).For(&antreav1alpha2.ExternalEntity{}).Complete(r); err != nil {
 		return err
 	}
 	return mgr.Add(r)

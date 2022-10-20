@@ -45,7 +45,6 @@ type ANPParameters struct {
 	From           *ToFromParameters
 	AppliedTo      *EntitySelectorParameters
 	AppliedToGroup *GroupParameters
-	FederatedKey   *string
 }
 
 type GroupParameters struct {
@@ -60,10 +59,6 @@ kind: NetworkPolicy
 metadata:
   name: {{.Name}}
   namespace: {{.Namespace}}
-{{ if .FederatedKey }}
-  annotations:
-    {{.FederatedKey}}: "true"
-{{ end }}
 spec:
   priority: 1
   appliedTo:
