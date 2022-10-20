@@ -52,9 +52,9 @@ data "template_file" user_data {
   template = file(local.azure_vm_os_types[count.index].init)
   vars     = {
     WITH_AGENT      = var.with_agent
-    K8S_CONF        = fileexists(var.antrea_agent_k8s_config) ? file(var.antrea_agent_k8s_config) : ""
-    ANTREA_CONF     = fileexists(var.antrea_agent_antrea_config) ? file(var.antrea_agent_antrea_config) : ""
-    INSTALL_WRAPPER = fileexists(var.install_wrapper) ? file(var.install_wrapper) : ""
+    K8S_CONF        = var.with_agent ? file(var.antrea_agent_k8s_config) : ""
+    ANTREA_CONF     = var.with_agent ? file(var.antrea_agent_antrea_config) : ""
+    INSTALL_WRAPPER = var.with_agent ? file(var.install_wrapper) : ""
     NAMESPACE       = var.namespace
   }
 }

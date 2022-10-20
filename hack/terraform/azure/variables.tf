@@ -102,15 +102,15 @@ variable "namespace" {
 
 variable "antrea_agent_k8s_config" {
   type    = string
-  default = path.cwd + "antrea-agent.kubeconfig"
+  default = "antrea-agent.kubeconfig"
 }
 
 variable "antrea_agent_antrea_config" {
   type    = string
-  default = path.cwd + "antrea-agent.antrea.kubeconfig"
+  default = "antrea-agent.antrea.kubeconfig"
 }
 
 variable "install_wrapper" {
   type    = string
-  default = path.cwd + "install-wrapper.sh"
+  default = "install-wrapper.sh"
 }
