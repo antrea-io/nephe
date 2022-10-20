@@ -105,17 +105,17 @@ variable "namespace" {
   default = "vm-ns"
 }
 
-variable "antrea_agent_k8s_conf" {
+variable "antrea_agent_k8s_config" {
   type    = string
-  default = "antrea-agent.kubeconfig"
+  default = path.cwd + "antrea-agent.kubeconfig"
 }
 
-variable "antrea_agent_antrea_conf" {
+variable "antrea_agent_antrea_config" {
   type    = string
-  default = "antrea-agent.antrea.kubeconfig"
+  default = path.cwd + "antrea-agent.antrea.kubeconfig"
 }
 
 variable "install_wrapper" {
   type    = string
-  default = "install-wrapper.sh"
+  default = path.cwd + "hack/install-wrapper.sh"
 }

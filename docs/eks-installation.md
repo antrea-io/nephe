@@ -27,13 +27,13 @@
 5. Set the below environment variables.
 
    ```bash
-   export TF_VAR_owner=YOUR_NAME
-   export TF_VAR_eks_cluster_iam_role_name=YOUR_EKS_ROLE
-   export TF_VAR_eks_iam_instance_profile_name=YOUR_EKS_WORKER_NODE_PROFILE
-   export TF_VAR_aws_key_pair_name=YOUR_KEY_PAIR_TO_ACCESS_WORKER_NODE
-   export AWS_ACCESS_KEY_ID=YOUR_AWS_KEY
-   export AWS_SECRET_ACCESS_KEY=YOUR_AWS_KEY_SECRET
-   export AWS_DEFAULT_REGION=YOUR_REGION
+   export TF_VAR_owner=<YOUR_NAME>
+   export TF_VAR_eks_cluster_iam_role_name=<YOUR_EKS_ROLE>
+   export TF_VAR_eks_iam_instance_profile_name=<YOUR_EKS_WORKER_NODE_PROFILE>
+   export TF_VAR_aws_key_pair_name=<YOUR_KEY_PAIR_TO_ACCESS_WORKER_NODE>
+   export AWS_ACCESS_KEY_ID=<YOUR_AWS_KEY>
+   export AWS_SECRET_ACCESS_KEY=<YOUR_AWS_KEY_SECRET>
+   export AWS_DEFAULT_REGION=<YOUR_REGION>
    ```
 
    - `TF_VAR_owner` may be set so that you can identify your own cloud resources.
@@ -127,10 +127,10 @@ page. Create or obtain AWS key and secret and configure the below environment
 variables, see [Prerequisites](#Prerequisites) section for more details.
 
 ```bash
-export AWS_ACCESS_KEY_ID=YOUR_AWS_KEY
-export AWS_SECRET_ACCESS_KEY=YOUR_AWS_KEY_SECRET
-export AWS_DEFAULT_REGION=YOUR_REGION
-export TF_VAR_aws_key_pair_name=YOU_AWS_KEY_PAIR
+export AWS_ACCESS_KEY_ID=<YOUR_AWS_KEY>
+export AWS_SECRET_ACCESS_KEY=<YOUR_AWS_KEY_SECRET>
+export AWS_DEFAULT_REGION=<YOUR_REGION>
+export TF_VAR_aws_key_pair_name=<YOU_AWS_KEY_PAIR>
 ```
 
 To create VMs with antrea agent deployed, additionally set the following
@@ -139,9 +139,9 @@ for helper script on generating and setting required kubeconfig files.
 
 ```bash
 export TF_VAR_agent=true
-export TF_VAR_antrea_agent_k8s_conf=PATH_TO_K8S_APISERVER_KUBECONFIG
-export TF_VAR_antrea_agent_antrea_conf=PATH_TO_ANTREA_APISERVER_KUBECONFIG
-export TF_VAR_install_wrapper=PATH_TO_INSTALL_WRAPPER_SCRIPT
+export TF_VAR_antrea_agent_k8s_config=<PATH_TO_K8S_APISERVER_KUBECONFIG>
+export TF_VAR_antrea_agent_antrea_config=<PATH_TO_ANTREA_APISERVER_KUBECONFIG>
+export TF_VAR_install_wrapper=<PATH_TO_INSTALL_WRAPPER_SCRIPT>
 ```
 
 ### Setup Terraform Environment

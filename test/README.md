@@ -67,11 +67,11 @@ Set the following variables to allow terraform scripts to create a compute VPC
 with 3 VMs.
 
 ```bash
-export AWS_ACCESS_KEY_ID=YOUR_AWS_KEY
-export AWS_SECRET_ACCESS_KEY=YOUR_AWS_KEY_SECRET
-export AWS_DEFAULT_REGION=YOUR_AWS_REGION
-export TF_VAR_aws_key_pair_name=YOU_AWS_KEY_PAIR
-export TF_VAR_owner=YOUR_ID
+export AWS_ACCESS_KEY_ID=<YOUR_AWS_KEY>
+export AWS_SECRET_ACCESS_KEY=<YOUR_AWS_KEY_SECRET>
+export AWS_DEFAULT_REGION=<YOUR_AWS_REGION>
+export TF_VAR_aws_key_pair_name=<YOU_AWS_KEY_PAIR>
+export TF_VAR_owner=<YOUR_NAME>
 ```
 
 To run integration test,
@@ -86,10 +86,10 @@ Set the following variables to allow terraform scripts to create a compute VNET
 with 3 VMs.
 
 ```bash
-export TF_VAR_azure_client_id=YOUR_AZURE_CLIENT_ID
-export TF_VAR_azure_client_subscription_id=YOUR_AZURE_CLIENT_SUBSCRIPTION_ID
-export TF_VAR_azure_client_secret=YOUR_AZURE_CLIENT_SECRET
-export TF_VAR_azure_client_tenant_id=YOUR_AZURE_TENANT_ID
+export TF_VAR_azure_client_id=<YOUR_AZURE_CLIENT_ID>
+export TF_VAR_azure_client_subscription_id=<YOUR_AZURE_CLIENT_SUBSCRIPTION_ID>
+export TF_VAR_azure_client_secret=<YOUR_AZURE_CLIENT_SECRET>
+export TF_VAR_azure_client_tenant_id=<YOUR_AZURE_TENANT_ID>
 ```
 
 To run integration test:
@@ -111,36 +111,36 @@ make integration-test-azure
 ### Running Integration Test on Cloud cluster
 
 - Deploy Nephe on an EKS cluster using [the EKS installation guide](../docs/eks-installation.md).
-   - Run integration tests on EKS cluster.
+  - Run integration tests on EKS cluster.
 
-   ```bash
-   ci/bin/integration.test -ginkgo.v -ginkgo.focus=".*test-cloud-cluster.*" -kubeconfig=$HOME/tmp/terraform-eks/kubeconfig -cloud-provider=AWS -cloud-cluster
-   ```
+    ```bash
+    ci/bin/integration.test -ginkgo.v -ginkgo.focus=".*test-cloud-cluster.*" -kubeconfig=$HOME/tmp/terraform-eks/kubeconfig -cloud-provider=AWS -cloud-cluster
+    ```
 
     **Note**: If you want to run the test using AWS IAM role, set the variable.
 
     ```bash
-    export TF_VAR_nephe_controller_role_arn=YOUR_IAM_ROLE
+    export TF_VAR_nephe_controller_role_arn=<YOUR_IAM_ROLE>
     ```
 
-   - Run integration tests with agented VMs on EKS cluster.
+  - Run integration tests with agented VMs on EKS cluster.
 
-   ```bash
-   ci/bin/integration.test -ginkgo.v -ginkgo.focus=".*test-with-agent.*" -kubeconfig=$HOME/tmp/terraform-eks/kubeconfig -cloud-provider=AWS -cloud-cluster -with-agent=true
-   ```
+    ```bash
+    ci/bin/integration.test -ginkgo.v -ginkgo.focus=".*test-with-agent.*" -kubeconfig=$HOME/tmp/terraform-eks/kubeconfig -cloud-provider=AWS -cloud-cluster -with-agent=true
+    ```
 
 - Deploy Nephe on an AKS cluster using [the AKS installation guide](../docs/eks-installation.md).
-   - Run integration tests on AKS cluster.
+  - Run integration tests on AKS cluster.
 
-   ```bash
-   ci/bin/integration.test -ginkgo.v -ginkgo.focus=".*test-cloud-cluster.*" -kubeconfig=$HOME/tmp/terraform-aks/kubeconfig -cloud-provider=Azure -cloud-cluster
-   ```
+    ```bash
+    ci/bin/integration.test -ginkgo.v -ginkgo.focus=".*test-cloud-cluster.*" -kubeconfig=$HOME/tmp/terraform-aks/kubeconfig -cloud-provider=Azure -cloud-cluster
+    ```
 
-   - Run integration tests with agented VMs on AKS cluster.
+  - Run integration tests with agented VMs on AKS cluster.
 
-   ```bash
-   ci/bin/integration.test -ginkgo.v -ginkgo.focus=".*test-with-agent.*" -kubeconfig=$HOME/tmp/terraform-aks/kubeconfig -cloud-provider=Azure -cloud-cluster -with-agent=true
-   ```
+    ```bash
+    ci/bin/integration.test -ginkgo.v -ginkgo.focus=".*test-with-agent.*" -kubeconfig=$HOME/tmp/terraform-aks/kubeconfig -cloud-provider=Azure -cloud-cluster -with-agent=true
+    ```
 
 **Note**: If Cloud cluster is not created using nephe [terraform scripts](../hack/terraform),
 then update the `-kubeconfig` argument with your kubeconfig file.

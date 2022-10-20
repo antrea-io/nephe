@@ -123,8 +123,8 @@ function output() {
   echo "-------------------------"
   echo "Finish generating agent kubeconfigs. Please run the following commands to create agented VMs using terraform."
   echo 'export TF_VAR_agent=true'
-  echo 'export TF_VAR_antrea_agent_k8s_conf="$(pwd)/antrea-agent.kubeconfig"'
-  echo 'export TF_VAR_antrea_agent_antrea_conf="$(pwd)/antrea-agent.antrea.kubeconfig"'
+  echo 'export TF_VAR_antrea_agent_k8s_config="$(pwd)/antrea-agent.kubeconfig"'
+  echo 'export TF_VAR_antrea_agent_antrea_config="$(pwd)/antrea-agent.antrea.kubeconfig"'
   echo 'export TF_VAR_install_wrapper="$(pwd)/hack/install-wrapper.sh"'
 }
 

@@ -247,9 +247,8 @@ func ConfigureEntitySelectorAndWait(
 }
 
 // CheckCloudResourceNetworkPolicies checks NetworkPolicies has been applied to cloud resources.
-func CheckCloudResourceNetworkPolicies(
-	kubeCtl *KubeCtl, k8sClient client.Client, kind, namespace string, ids, anps []string, withAgent bool,
-) error {
+func CheckCloudResourceNetworkPolicies(kubeCtl *KubeCtl, k8sClient client.Client, kind, namespace string, ids, anps []string,
+	withAgent bool) error {
 	getVMANPs := func(id string) (map[string]*runtimev1alpha1.NetworkPolicyStatus, error) {
 		v := &runtimev1alpha1.VirtualMachinePolicy{}
 		fetchKey := client.ObjectKey{Name: id, Namespace: namespace}
@@ -261,6 +260,8 @@ func CheckCloudResourceNetworkPolicies(
 		}
 		return v.Status.NetworkPolicyDetails, nil
 	}
+
+	logf.Log.V(1).Info("Check NetworkPolicy on resources", "resources", ids, "nps", anps)
 
 	if withAgent {
 		err := wait.Poll(time.Second*5, time.Second*30, func() (bool, error) {
@@ -283,7 +284,6 @@ func CheckCloudResourceNetworkPolicies(
 		return err
 	}
 
-	logf.Log.V(1).Info("Check NetworkPolicy on resources", "resources", ids, "nps", anps)
 	if err := wait.Poll(time.Second*2, time.Second*300, func() (bool, error) {
 		var getter func(id string) (map[string]*runtimev1alpha1.NetworkPolicyStatus, error)
 		if kind == reflect.TypeOf(v1alpha1.VirtualMachine{}).Name() {
@@ -402,6 +402,7 @@ func GenerateNameFromText(fullText string, focus []string) string {
 	return strings.ReplaceAll(fullText, " ", "")
 }
 
+// SetAgentConfig configures the cluster, generates agent kubeconfigs and sets terraform env vars.
 func SetAgentConfig(c client.Client, ns *corev1.Namespace, cloudProviders, antreaVersion, kubeconfig string) error {
 	err := c.Create(context.TODO(), ns)
 	if err != nil {
@@ -432,8 +433,8 @@ func SetAgentConfig(c client.Client, ns *corev1.Namespace, cloudProviders, antre
 	}
 	_ = os.Setenv("KUBECONFIG", kubeconfig)
 	_ = os.Setenv("TF_VAR_with_agent", "true")
-	_ = os.Setenv("TF_VAR_antrea_agent_k8s_conf", dir+"/antrea-agent.kubeconfig")
-	_ = os.Setenv("TF_VAR_antrea_agent_antrea_conf", dir+"/antrea-agent.antrea.kubeconfig")
+	_ = os.Setenv("TF_VAR_antrea_agent_k8s_config", dir+"/antrea-agent.kubeconfig")
+	_ = os.Setenv("TF_VAR_antrea_agent_antrea_config", dir+"/antrea-agent.antrea.kubeconfig")
 	_ = os.Setenv("TF_VAR_install_wrapper", path)
 	return nil
 }
@@ -496,6 +497,7 @@ func CollectAgentInfo(kubctl *KubeCtl, dir string) error {
 	return nil
 }
 
+// CollectVMAgentLog collects VM agent log from all imported VMs.
 func CollectVMAgentLog(cloudVPC CloudVPC, dir string) error {
 	err := os.MkdirAll(dir, 0777)
 	if err != nil {
@@ -516,6 +518,7 @@ func CollectVMAgentLog(cloudVPC CloudVPC, dir string) error {
 	return nil
 }
 
+// CollectCRDs collects related CRDs in the cluster.
 func CollectCRDs(kubectl *KubeCtl, dir string) error {
 	err := os.MkdirAll(dir, 0777)
 	if err != nil {
@@ -580,11 +583,10 @@ func CollectSupportBundle(kubctl *KubeCtl, dir string, cloudVPC CloudVPC, withAg
 	if err := CollectCRDs(kubctl, dir); err != nil {
 		logf.Log.Error(err, "Failed to collect CRDs")
 	}
-	if !withAgent {
-		return
-	}
-	if err := CollectVMAgentLog(cloudVPC, dir); err != nil {
-		logf.Log.Error(err, "Failed to collect VM agent logs")
+	if withAgent {
+		if err := CollectVMAgentLog(cloudVPC, dir); err != nil {
+			logf.Log.Error(err, "Failed to collect VM agent logs")
+		}
 	}
 }
 

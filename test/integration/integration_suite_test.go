@@ -81,7 +81,7 @@ func init() {
 	flag.StringVar(&manifest, "manifest-path", "./config/nephe.yml", "The relative path to manifest.")
 	flag.BoolVar(&preserveSetupOnFail, "preserve-setup-on-fail", false, "Preserve the setup if a test failed.")
 	flag.StringVar(&supportBundleDir, "support-bundle-dir", "", "Support bundles are saved in this dir when specified.")
-	flag.BoolVar(&withAgent, "with-agent", false, "Using antrea-agent on VM")
+	flag.BoolVar(&withAgent, "with-agent", false, "Using antrea-agent on VM.")
 	flag.StringVar(&cloudProviders, "cloud-provider", string(cloudv1alpha1.AzureCloudProvider),
 		"Cloud Providers to use, separated by comma. Default is Azure.")
 	flag.StringVar(&clusterContexts, "cluster-context", "", "cluster context to use, separated by common. Default is empty.")
