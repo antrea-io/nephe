@@ -386,7 +386,7 @@
           builders:
             - deploy-vm-with-agent-and-run-eks-tests-for-nephe:
                 conformance_type: 'networkpolicy'
-          trigger_phrase: .*/nephe-test-e2e-(eks-with-agent|agent|all).*
+          trigger_phrase: .*/nephe-test-e2e-(eks-with-agent|with-agent|all).*
           white_list_target_branches: [ ]
           allow_whitelist_orgs_as_admins: true
           admin_list: '{nephe_admin_list}'
@@ -483,7 +483,7 @@
           builders:
             - deploy-vm-with-agent-and-run-aks-tests-for-nephe:
                 conformance_type: 'networkpolicy'
-          trigger_phrase: .*/nephe-test-e2e-(aks-with-agent|agent|all).*
+          trigger_phrase: .*/nephe-test-e2e-(aks-with-agent|with-agent|all).*
           white_list_target_branches: [ ]
           allow_whitelist_orgs_as_admins: true
           admin_list: '{nephe_admin_list}'

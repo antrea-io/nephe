@@ -197,7 +197,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 				Namespace: staticVMNS.Name,
 			}
 			err := utils.ConfigureK8s(kubeCtl, defaultANPParameters, k8stemplates.DefaultANPSetup, false)
-			Expect(err).ToNot(HaveOccurred(), "Failed to add default ANP rule")
+			Expect(err).ToNot(HaveOccurred(), "failed to add default ANP rule")
 		}
 
 		anpParams = k8stemplates.ANPParameters{

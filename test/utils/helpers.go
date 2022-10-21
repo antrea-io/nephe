@@ -222,8 +222,7 @@ func AddCloudAccount(kubeCtl *KubeCtl, params k8stemplates.CloudAccountParameter
 }
 
 // ConfigureEntitySelectorAndWait configures EntitySelector for cloud resources, and wait for them to be imported.
-func ConfigureEntitySelectorAndWait(
-	kubeCtl *KubeCtl, k8sClient client.Client, params k8stemplates.CloudEntitySelectorParameters,
+func ConfigureEntitySelectorAndWait(kubeCtl *KubeCtl, k8sClient client.Client, params k8stemplates.CloudEntitySelectorParameters,
 	kind string, num int, namespace string, isDelete bool) error {
 	if err := ConfigureK8s(kubeCtl, params, k8stemplates.CloudEntitySelector, isDelete); err != nil {
 		return err
