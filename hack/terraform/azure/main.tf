@@ -14,7 +14,11 @@ provider "azurerm" {
   client_secret   = var.azure_client_secret
   subscription_id = var.azure_client_subscription_id
   tenant_id       = var.azure_client_tenant_id
-  features {}
+  features {
+    resource_group {
+      prevent_deletion_if_contains_resources = false
+    }
+  }
 }
 
 resource "azurerm_resource_group" "vm" {
