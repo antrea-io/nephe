@@ -124,6 +124,11 @@ func getGroupIDFromUniqueName(name string) (string, bool) {
 	return name, false
 }
 
+// getNormalizedName replaces any occurrence of / with -.
+func getNormalizedName(name string) string {
+	return strings.ToLower(strings.ReplaceAll(name, "/", "-"))
+}
+
 // diffAppliedToGrp returned added and removed groups from appliedToGroup a to b.
 func diffAppliedToGrp(a, b []string) ([]string, []string) {
 	temp := map[string]int{}
