@@ -216,13 +216,9 @@ Download the [wrapper install script](../hack/install-wrapper.sh) and run
 installation.
 
 ```bash
-./install-wrapper.sh --ns vm-ns --antrea-version v1.8.0 --kubeconfig ./antrea-agent.kubeconfig \
+./install-wrapper.sh --ns vm-ns --antrea-version v1.9.0 --kubeconfig ./antrea-agent.kubeconfig \
   --antrea-kubeconfig ./antrea-agent.antrea.kubeconfig --bin ./antrea-agent
 ```
-
-Note: For Ubuntu, `antrea-agent` binaries are not published as part of release
-assets in the antrea 1.8 release. So the user has to manually generate an
-`antrea-agent` binary and copy onto the VM.
 
 ### Installation On Windows VMs
 
@@ -230,7 +226,7 @@ Download the [wrapper install script](../hack/install-wrapper.ps1) and run
 installation.
 
 ```powershell
-.\install-wrapper.ps1 -Namespace vm-ns -AntreaVersion v1.8.0 -KubeConfigPath .\antrea-agent.kubeconfig `
+.\install-wrapper.ps1 -Namespace vm-ns -AntreaVersion v1.9.0 -KubeConfigPath .\antrea-agent.kubeconfig `
   -AntreaKubeConfigPath .\antrea-agent.antrea.kubeconfig
 ```
 
