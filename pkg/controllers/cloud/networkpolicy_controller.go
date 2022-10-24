@@ -130,6 +130,22 @@ func (r *NetworkPolicyReconciler) isNetworkPolicySupported(anp *antreanetworking
 	return nil
 }
 
+// normalizedANPObject updates ANP object with Nephe friendly name. Required for Azure
+// cloud which doesn't handles / in any cloud resource name.
+func (r *NetworkPolicyReconciler) normalizedANPObject(anp *antreanetworking.NetworkPolicy) {
+	for i, appliedTo := range anp.AppliedToGroups {
+		anp.AppliedToGroups[i] = getNormalizedName(appliedTo)
+	}
+	for i, rule := range anp.Rules {
+		for j, addrGroup := range rule.From.AddressGroups {
+			anp.Rules[i].From.AddressGroups[j] = getNormalizedName(addrGroup)
+		}
+		for j, addrGroup := range rule.To.AddressGroups {
+			anp.Rules[i].To.AddressGroups[j] = getNormalizedName(addrGroup)
+		}
+	}
+}
+
 // processMemberGrp is common function to process AppliedTo/AddressGroup updates from Antrea controller.
 func (r *NetworkPolicyReconciler) processMemberGrp(name string, eventType watch.EventType, isAddrGrp bool,
 	added, removed []antreanetworking.GroupMember) error {
@@ -342,7 +358,7 @@ func (r *NetworkPolicyReconciler) processAddrGrp(event watch.Event) error {
 		added = patch.AddedGroupMembers
 		removed = patch.RemovedGroupMembers
 	}
-	return r.processMemberGrp(accessor.GetName(), event.Type, true, added, removed)
+	return r.processMemberGrp(getNormalizedName(accessor.GetName()), event.Type, true, added, removed)
 }
 
 // processAppliedToGrp processes AppliedToGroup updates from Antrea controller.
@@ -362,7 +378,7 @@ func (r *NetworkPolicyReconciler) processAppliedToGrp(event watch.Event) error {
 		added = patch.AddedGroupMembers
 		removed = patch.RemovedGroupMembers
 	}
-	return r.processMemberGrp(accessor.GetName(), event.Type, false, added, removed)
+	return r.processMemberGrp(getNormalizedName(accessor.GetName()), event.Type, false, added, removed)
 }
 
 // processNetworkPolicy processes NetworkPolicy updates from Antrea controller.
@@ -385,6 +401,7 @@ func (r *NetworkPolicyReconciler) processNetworkPolicy(event watch.Event) error 
 		anp.Name = anp.SourceRef.Name
 		anp.Namespace = anp.SourceRef.Namespace
 	}
+	r.normalizedANPObject(anp)
 
 	var np *networkPolicy
 	isCreate := false
