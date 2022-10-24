@@ -76,8 +76,8 @@ case $key in
     export TF_VAR_owner="$2"
     shift 2
     ;;
-    --agented)
-    export AGENTED=true
+    --with-agent)
+    export WITH_AGENT=true
     export TEST_FOCUS=".*test-with-agent*"
     shift 1
     ;;
@@ -139,4 +139,4 @@ docker tag antrea/nephe:latest projects.registry.vmware.com/antrea/nephe:latest
 $HOME/terraform/aks load projects.registry.vmware.com/antrea/nephe
 
 mkdir -p $HOME/logs
-ci/bin/integration.test -ginkgo.v -ginkgo.focus=$TEST_FOCUS -kubeconfig=$HOME/tmp/terraform-aks/kubeconfig -cloud-provider=Azure -support-bundle-dir=$HOME/logs -with-agent=${AGENTED}
+ci/bin/integration.test -ginkgo.v -ginkgo.focus=$TEST_FOCUS -kubeconfig=$HOME/tmp/terraform-aks/kubeconfig -cloud-provider=Azure -support-bundle-dir=$HOME/logs -with-agent=${WITH_AGENT}

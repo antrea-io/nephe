@@ -49,12 +49,11 @@ _usage="Usage: $0 [arguments]
 Configure Nephe cluster and generates necessary kubeconfigs for importing agented VMs.
 
 [arguments]
-        --cluster-type <Type>                           Type of the Nephe cluster.
-        --antrea-version <Version>                      Antrea version to be used.
-        --kubeconfig <KubeconfigSavePath>               Path to store the generated K8s API Server kubeconfig.
-        --antrea-kubeconfig <AntreaKubeconfigSavePath>  Path to store the generated Antrea API Server kubeconfig.
-        --service-account <ServiceAccount>              Service account to be used by the antrea-agent.
-        --help, -h                                      Print this message and exit."
+        --cluster-type <Type>               Type of the Nephe cluster.
+        --antrea-version <Version>          Antrea version to be used.
+        --target-dir <TargetDirectory>      Target directory to store the generated kubeconfigs.
+        --service-account <ServiceAccount>  Service account to be used by the antrea-agent.
+        --help, -h                          Print this message and exit."
 
 while [[ $# -gt 0 ]]
 do
@@ -69,12 +68,9 @@ case $key in
     ANTREA_VERSION="$2"
     shift 2
     ;;
-    --kubeconfig)
-    K8S_KUBECONFIG="$2"
-    shift 2
-    ;;
-    --antrea-kubeconfig)
-    ANTREA_KUBECONFIG="$2"
+    --target-dir)
+    K8S_KUBECONFIG="$2${K8S_KUBECONFIG}"
+    ANTREA_KUBECONFIG="$2${ANTREA_KUBECONFIG}"
     shift 2
     ;;
     --service-account)

@@ -233,7 +233,7 @@ var _ = AfterSuite(func(done Done) {
 		By(cluster + ": Check for controllers' restarts")
 		err = utils.CheckRestart(kubeCtl)
 		if err != nil {
-			logf.Log.Error(err, "Error restarting nephe controller")
+			logf.Log.Error(err, "error restarting nephe controller")
 			cl := cluster
 			controllersCored = &cl
 			break
@@ -242,8 +242,13 @@ var _ = AfterSuite(func(done Done) {
 			By(fmt.Sprintf(cluster+": Deleting namespace %s", staticVMNS.Name))
 			err = cl.Delete(context.TODO(), staticVMNS)
 			Expect(err).ToNot(HaveOccurred())
-			_ = os.RemoveAll("antrea-agent.kubeconfig")
-			_ = os.RemoveAll("antrea-agent.antrea.kubeconfig")
+			dir, err := os.UserHomeDir()
+			if err != nil {
+				logf.Log.Error(err, "error getting home directory")
+				return
+			}
+			dir = dir + "/tmp/integration/"
+			_ = os.RemoveAll(dir)
 		}
 	}
 	if controllersCored != nil {

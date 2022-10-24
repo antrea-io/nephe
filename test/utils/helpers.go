@@ -417,23 +417,29 @@ func SetAgentConfig(c client.Client, ns *corev1.Namespace, cloudProviders, antre
 		clusterType = "eks"
 	}
 
-	cmd := exec.Command("./hack/generate-agent-config.sh", "--cluster-type", clusterType, "--antrea-version", antreaVersion)
-	bytes, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to generate antrea agent kubeconfigs %+v: %s", err, string(bytes))
-	}
-	path, err := filepath.Abs("./hack/install-wrapper.sh")
+	dir, err := os.UserHomeDir()
 	if err != nil {
 		return err
 	}
-	dir, err := os.Getwd()
+	dir = dir + "/tmp/integration/"
+	err = os.MkdirAll(dir, 0777)
 	if err != nil {
 		return err
 	}
 	_ = os.Setenv("KUBECONFIG", kubeconfig)
+	cmd := exec.Command("../../ci/generate-agent-config.sh", "--cluster-type", clusterType, "--antrea-version", antreaVersion, "--target-dir", dir)
+	bytes, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to generate antrea agent kubeconfigs %+v: %s", err, string(bytes))
+	}
+	path, err := filepath.Abs("../../hack/install-wrapper.sh")
+	if err != nil {
+		return err
+	}
+
 	_ = os.Setenv("TF_VAR_with_agent", "true")
-	_ = os.Setenv("TF_VAR_antrea_agent_k8s_config", dir+"/antrea-agent.kubeconfig")
-	_ = os.Setenv("TF_VAR_antrea_agent_antrea_config", dir+"/antrea-agent.antrea.kubeconfig")
+	_ = os.Setenv("TF_VAR_antrea_agent_k8s_config", dir+"antrea-agent.kubeconfig")
+	_ = os.Setenv("TF_VAR_antrea_agent_antrea_config", dir+"antrea-agent.antrea.kubeconfig")
 	_ = os.Setenv("TF_VAR_install_wrapper", path)
 	return nil
 }
