@@ -20,12 +20,17 @@
 set -e
 
 # Constants.
+# Namespace is constant due to upstream limitation. The RBAC yaml provided by Antrea has hardcoded Namespace vm-ns.
+NAMESPACE="vm-ns"
 EKS="eks"
 AKS="aks"
 CLUSTER_NAME=$(kubectl config current-context)
+ANTREA_CLUSTER_NAME="antrea"
+
+# Defaults.
 K8S_KUBECONFIG="antrea-agent.kubeconfig"
 ANTREA_KUBECONFIG="antrea-agent.antrea.kubeconfig"
-NAMESPACE="vm-ns"
+SERVICE_ACCOUNT="vm-agent"
 
 function echoerr {
     >&2 echo "$@"
@@ -44,9 +49,12 @@ _usage="Usage: $0 [arguments]
 Configure Nephe cluster and generates necessary kubeconfigs for importing agented VMs.
 
 [arguments]
-        --cluster-type <Type>       Type of the Nephe cluster.
-        --antrea-version <Version>  Antrea version to be used.
-        --help, -h                  Print this message and exit."
+        --cluster-type <Type>                           Type of the Nephe cluster.
+        --antrea-version <Version>                      Antrea version to be used.
+        --kubeconfig <KubeconfigSavePath>               Path to store the generated K8s API Server kubeconfig.
+        --antrea-kubeconfig <AntreaKubeconfigSavePath>  Path to store the generated Antrea API Server kubeconfig.
+        --service-account <ServiceAccount>              Service account to be used by the antrea-agent.
+        --help, -h                                      Print this message and exit."
 
 while [[ $# -gt 0 ]]
 do
@@ -59,6 +67,18 @@ case $key in
     ;;
     --antrea-version)
     ANTREA_VERSION="$2"
+    shift 2
+    ;;
+    --kubeconfig)
+    K8S_KUBECONFIG="$2"
+    shift 2
+    ;;
+    --antrea-kubeconfig)
+    ANTREA_KUBECONFIG="$2"
+    shift 2
+    ;;
+    --service-account)
+    SERVICE_ACCOUNT="$2"
     shift 2
     ;;
     -h|--help)
@@ -100,17 +120,15 @@ function set_agent_rbac() {
 }
 
 function generate_k8s_kubeconfig() {
-  SERVICE_ACCOUNT="vm-agent"
-  APISERVER=$(kubectl config view -o jsonpath="{.clusters[?(@.name==\"$CLUSTER_NAME\")].cluster.server}")
+  API_SERVER=$(kubectl config view -o jsonpath="{.clusters[?(@.name==\"$CLUSTER_NAME\")].cluster.server}")
   TOKEN=$(kubectl -n $NAMESPACE get secrets -o jsonpath="{.items[?(@.metadata.annotations['kubernetes\.io/service-account\.name']=='$SERVICE_ACCOUNT')].data.token}" | base64 --decode)
-  kubectl config --kubeconfig=$K8S_KUBECONFIG set-cluster $CLUSTER_NAME --server=$APISERVER --insecure-skip-tls-verify=true
+  kubectl config --kubeconfig=$K8S_KUBECONFIG set-cluster $CLUSTER_NAME --server=$API_SERVER --insecure-skip-tls-verify=true
   kubectl config --kubeconfig=$K8S_KUBECONFIG set-credentials antrea-agent --token=$TOKEN
   kubectl config --kubeconfig=$K8S_KUBECONFIG set-context antrea-agent@$CLUSTER_NAME --cluster=$CLUSTER_NAME --user=antrea-agent
   kubectl config --kubeconfig=$K8S_KUBECONFIG use-context antrea-agent@$CLUSTER_NAME
 }
 
 function generate_antrea_kubeconfig() {
-  ANTREA_CLUSTER_NAME="antrea"
   ANTREA_API_SERVER=$(get_antrea_api_server)
   TOKEN=$(kubectl -n $NAMESPACE get secrets -o jsonpath="{.items[?(@.metadata.annotations['kubernetes\.io/service-account\.name']=='$SERVICE_ACCOUNT')].data.token}" | base64 --decode)
   kubectl config --kubeconfig=$ANTREA_KUBECONFIG set-cluster $ANTREA_CLUSTER_NAME --server=$ANTREA_API_SERVER --insecure-skip-tls-verify=true
@@ -119,16 +137,6 @@ function generate_antrea_kubeconfig() {
   kubectl config --kubeconfig=$ANTREA_KUBECONFIG use-context antrea-agent@$ANTREA_CLUSTER_NAME
 }
 
-function output() {
-  echo "-------------------------"
-  echo "Finish generating agent kubeconfigs. Please run the following commands to create agented VMs using terraform."
-  echo 'export TF_VAR_agent=true'
-  echo 'export TF_VAR_antrea_agent_k8s_config="$(pwd)/antrea-agent.kubeconfig"'
-  echo 'export TF_VAR_antrea_agent_antrea_config="$(pwd)/antrea-agent.antrea.kubeconfig"'
-  echo 'export TF_VAR_install_wrapper="$(pwd)/hack/install-wrapper.sh"'
-}
-
 set_agent_rbac
 generate_k8s_kubeconfig
 generate_antrea_kubeconfig
-output

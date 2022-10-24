@@ -47,6 +47,7 @@ data "template_file" user_data {
     ANTREA_CONF     = var.with_agent ? file(var.antrea_agent_antrea_config) : ""
     INSTALL_WRAPPER = var.with_agent ? file(var.install_wrapper) : ""
     NAMESPACE       = var.namespace
+    ANTREA_VERSION  = var.antrea_version
   }
 }
 

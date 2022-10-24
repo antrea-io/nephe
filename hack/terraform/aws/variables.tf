@@ -105,6 +105,11 @@ variable "namespace" {
   default = "vm-ns"
 }
 
+variable "antrea_version" {
+  type    = string
+  default = "v1.8.0"
+}
+
 variable "antrea_agent_k8s_config" {
   type    = string
   default = "antrea-agent.kubeconfig"

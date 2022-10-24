@@ -13,18 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Constants.
+K8S_KUBECONFIG="antrea-agent.kubeconfig"
+ANTREA_KUBECONFIG="antrea-agent.antrea.kubeconfig"
+
 sudo apt-get update
 
 if [[ ${WITH_AGENT} == true ]]; then
   sudo apt-get install -y openvswitch-switch
-  cat <<EOF > antrea-agent.kubeconfig
+  cat <<EOF > $K8S_KUBECONFIG
 ${K8S_CONF}
 EOF
-  cat <<EOF > antrea-agent.antrea.kubeconfig
+  cat <<EOF > $ANTREA_KUBECONFIG
 ${ANTREA_CONF}
 EOF
-  echo $HOME
-  set -- --ns "vm-ns" --antrea-version v1.8.0 --kubeconfig antrea-agent.kubeconfig --antrea-kubeconfig antrea-agent.antrea.kubeconfig --bin /home/azureuser/antrea-agent
+
+  set -- --ns "${NAMESPACE}" --antrea-version "${ANTREA_VERSION}" --kubeconfig "${K8S_KUBECONFIG}" --antrea-kubeconfig "${ANTREA_KUBECONFIG}" --bin /home/azureuser/antrea-agent
   export SYSTEMD_PAGER=""
   ${INSTALL_WRAPPER}
 fi

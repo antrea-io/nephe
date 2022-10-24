@@ -134,8 +134,13 @@ export TF_VAR_aws_key_pair_name=<YOU_AWS_KEY_PAIR>
 ```
 
 To create VMs with antrea agent deployed, additionally set the following
-variables. See [Agented VM User Guide](agented-vm-guide.md#generate-kubeconfigs)
-for helper script on generating and setting required kubeconfig files.
+variables. For more information on how to generate the kubeconfig files, please
+refer to antrea [ExternalNode](https://github.com/antrea-io/antrea/blob/main/docs/external-node.md#install-antrea-agent-on-vm)
+documentation.
+
+**Note**: Terraform working directory is different from current working
+directory, please use absolute file path to avoid confusion. The install wrapper
+scripts is located under `hack/`.
 
 ```bash
 export TF_VAR_agent=true

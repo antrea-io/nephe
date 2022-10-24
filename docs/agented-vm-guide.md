@@ -8,7 +8,6 @@
 - [ExternalNode CR Creation](#externalnode-cr-creation)
 - [ExternalEntities CR Creation](#externalentities-cr-creation)
 - [Install Antrea-Agent On Public Cloud VM](#install-antrea-agent-on-public-cloud-vm)
-  - [Generate Kubeconfigs](#generate-kubeconfigs)
   - [Installation On Linux VMs](#installation-on-linux-vms)
   - [Installation On Windows VMs](#installation-on-windows-vms)
 - [Troubleshoot VM Agent](#troubleshoot-vm-agent)
@@ -209,23 +208,8 @@ The wrapper install script requires 4 arguments:
 | Kubeconfig        | Provides access to the Kubernetes API server.                                                              |
 | Antrea Kubeconfig | Provides access to the Antrea API server.                                                                  |
 
-### Generate Kubeconfigs
-
-Nephe also provides a helper script `hack/generate-agent-config.sh` to automate
-the generation of kubeconfig and Antrea kubeconfig. It takes two arguments,
-antrea version and Nephe cluster type. Currently only EKS and AKS clusters are
-supported. The script will configure the Nephe cluster to be ready for agented
-VMs and generate the kubeconfigs under your currently directory.
-
-**Note**: The script only works for `vm-ns` Namespace. For other Namespace
-please manually generate.
-
-```bash
-./hack/generate-agent-config.sh --antrea-version v1.8.0 --cluster-type <CLUSTER_TYPE>
-```
-
-For more information on how to manually generate the kubeconfig files, please
-refer to antrea [ExternalNode](https://github.com/antrea-io/antrea/blob/main/docs/external-node.md#install-antrea-agent-on-vm)
+For more information on how to generate the kubeconfig files, please refer to
+antrea [ExternalNode](https://github.com/antrea-io/antrea/blob/main/docs/external-node.md#install-antrea-agent-on-vm)
 documentation.
 
 ### Installation On Linux VMs

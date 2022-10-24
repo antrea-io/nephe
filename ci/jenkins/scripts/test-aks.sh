@@ -31,7 +31,7 @@ Setup and Run integration tests on AKS cluster with Azure VMs.
         [--azure-secret <Secret>]                   Azure Service Principal Secret.
         [--azure-location <Location>]               The Azure location where the setup will be deployed. Defaults to West US 2.
         [--owner <OwnerName>]                       Setup will be prefixed with owner name.
-        [--agented]                                 Run test with agented VMs."
+        [--with-agent]                              Run test with agented VMs."
 
 function print_usage {
     echoerr "$_usage"
