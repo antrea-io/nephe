@@ -66,6 +66,7 @@ var (
 	testFocus     = []string{focusAws, focusAzure}
 	cloudCluster  bool
 	staticVMNS    = &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vm-ns"}}
+	tmpDir        string
 
 	// flags.
 	manifest            string
@@ -136,8 +137,10 @@ var _ = BeforeSuite(func(done Done) {
 		if withAgent {
 			kubeCtl.SetContext(cluster)
 			err := c.Get(context.Background(), client.ObjectKey{Name: staticVMNS.Name}, &v1.Namespace{})
-			Expect(apierrors.IsNotFound(err)).To(BeTrue(), "static vm ns not created")
-			err = utils.SetAgentConfig(c, staticVMNS, cloudProviders, antreaVersion, kubeconfig)
+			Expect(apierrors.IsNotFound(err)).To(BeTrue(), "static ns %s not created", staticVMNS.Name)
+			tmpDir, err = os.MkdirTemp("", "integration-*")
+			Expect(err).ToNot(HaveOccurred())
+			err = utils.SetAgentConfig(c, staticVMNS, cloudProviders, antreaVersion, kubeconfig, tmpDir)
 			Expect(err).ToNot(HaveOccurred())
 		}
 	}
@@ -242,13 +245,7 @@ var _ = AfterSuite(func(done Done) {
 			By(fmt.Sprintf(cluster+": Deleting namespace %s", staticVMNS.Name))
 			err = cl.Delete(context.TODO(), staticVMNS)
 			Expect(err).ToNot(HaveOccurred())
-			dir, err := os.UserHomeDir()
-			if err != nil {
-				logf.Log.Error(err, "error getting home directory")
-				return
-			}
-			dir = dir + "/tmp/integration/"
-			_ = os.RemoveAll(dir)
+			_ = os.RemoveAll(tmpDir)
 		}
 	}
 	if controllersCored != nil {

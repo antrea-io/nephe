@@ -402,7 +402,7 @@ func GenerateNameFromText(fullText string, focus []string) string {
 }
 
 // SetAgentConfig configures the cluster, generates agent kubeconfigs and sets terraform env vars.
-func SetAgentConfig(c client.Client, ns *corev1.Namespace, cloudProviders, antreaVersion, kubeconfig string) error {
+func SetAgentConfig(c client.Client, ns *corev1.Namespace, cloudProviders, antreaVersion, kubeconfig, dir string) error {
 	err := c.Create(context.TODO(), ns)
 	if err != nil {
 		return fmt.Errorf("failed to create static vm namespace %+v", err)
@@ -417,32 +417,23 @@ func SetAgentConfig(c client.Client, ns *corev1.Namespace, cloudProviders, antre
 		clusterType = "eks"
 	}
 
-	dir, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-	dir = dir + "/tmp/integration/"
-
-	err = os.MkdirAll(dir, 0777)
-	if err != nil {
-		return err
-	}
 	_ = os.Setenv("KUBECONFIG", kubeconfig)
 	cmd := exec.Command("./ci/generate-agent-config.sh", "--cluster-type", clusterType, "--antrea-version", antreaVersion,
-		"--target-dir", dir)
-	bytes, err := cmd.CombinedOutput()
+		"--target-dir", dir, "--ns", ns.Name)
+	outputBytes, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to generate antrea agent kubeconfigs %+v: %s", err, string(bytes))
+		return fmt.Errorf("failed to generate antrea agent kubeconfigs %+v: %s", err, string(outputBytes))
 	}
-	path, err := filepath.Abs("./hack/install-wrapper.sh")
+
+	absPath, err := filepath.Abs("./hack/install-wrapper.sh")
 	if err != nil {
 		return err
 	}
 
 	_ = os.Setenv("TF_VAR_with_agent", "true")
-	_ = os.Setenv("TF_VAR_antrea_agent_k8s_config", dir+"antrea-agent.kubeconfig")
-	_ = os.Setenv("TF_VAR_antrea_agent_antrea_config", dir+"antrea-agent.antrea.kubeconfig")
-	_ = os.Setenv("TF_VAR_install_wrapper", path)
+	_ = os.Setenv("TF_VAR_antrea_agent_k8s_config", dir+"/antrea-agent.kubeconfig")
+	_ = os.Setenv("TF_VAR_antrea_agent_antrea_config", dir+"/antrea-agent.antrea.kubeconfig")
+	_ = os.Setenv("TF_VAR_install_wrapper", absPath)
 	return nil
 }
 

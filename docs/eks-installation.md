@@ -140,7 +140,7 @@ documentation.
 
 **Note**: Terraform working directory is different from current working
 directory, please use absolute file path to avoid confusion. The install wrapper
-scripts is located under `hack/`.
+scripts is located under [hack/](../hack).
 
 ```bash
 export TF_VAR_agent=true

@@ -20,8 +20,6 @@
 set -e
 
 # Constants.
-# Namespace is constant due to upstream limitation. The RBAC yaml provided by Antrea has hardcoded Namespace vm-ns.
-NAMESPACE="vm-ns"
 EKS="eks"
 AKS="aks"
 CLUSTER_NAME=$(kubectl config current-context)
@@ -31,6 +29,7 @@ ANTREA_CLUSTER_NAME="antrea"
 K8S_KUBECONFIG="antrea-agent.kubeconfig"
 ANTREA_KUBECONFIG="antrea-agent.antrea.kubeconfig"
 SERVICE_ACCOUNT="vm-agent"
+NAMESPACE="vm-ns"
 
 function echoerr {
     >&2 echo "$@"
@@ -52,7 +51,8 @@ Configure Nephe cluster and generates necessary kubeconfigs for importing agente
         --cluster-type <Type>               Type of the Nephe cluster.
         --antrea-version <Version>          Antrea version to be used.
         --target-dir <TargetDirectory>      Target directory to store the generated kubeconfigs.
-        --service-account <ServiceAccount>  Service account to be used by the antrea-agent.
+        --sa <ServiceAccount>               Service account to be used by the antrea-agent.
+        --ns <Namespace>                    Namespace to be used by the antrea-agent.
         --help, -h                          Print this message and exit."
 
 while [[ $# -gt 0 ]]
@@ -69,12 +69,16 @@ case $key in
     shift 2
     ;;
     --target-dir)
-    K8S_KUBECONFIG="$2${K8S_KUBECONFIG}"
-    ANTREA_KUBECONFIG="$2${ANTREA_KUBECONFIG}"
+    K8S_KUBECONFIG="$2/${K8S_KUBECONFIG}"
+    ANTREA_KUBECONFIG="$2/${ANTREA_KUBECONFIG}"
     shift 2
     ;;
-    --service-account)
+    --sa)
     SERVICE_ACCOUNT="$2"
+    shift 2
+    ;;
+    --ns)
+    NAMESPACE="$2"
     shift 2
     ;;
     -h|--help)
@@ -93,6 +97,14 @@ if [ -z "$CLUSTER_TYPE" ] || [ -z "$ANTREA_VERSION" ]; then
   echoerr "Required fields are not set."
   print_usage
   exit 1
+fi
+
+# Namespace and ServiceAccount is constant due to upstream limitation. The RBAC yaml provided by Antrea has hardcoded Namespace vm-ns and
+# ServiceAccount vm-agent.
+# https://github.com/antrea-io/antrea/blob/v1.9.0/build/yamls/externalnode/vm-agent-rbac.yml.
+# TODO: remove when limitation no longer exists.
+if [[ "$SERVICE_ACCOUNT" != "vm-agent" ]] || [[ "$NAMESPACE" != "vm-ns" ]]; then
+  echoerr "ServiceAccount can only be vm-agent. Namespace can only be vm-ns"
 fi
 
 function get_antrea_api_server() {
