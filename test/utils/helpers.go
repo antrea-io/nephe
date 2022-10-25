@@ -422,17 +422,19 @@ func SetAgentConfig(c client.Client, ns *corev1.Namespace, cloudProviders, antre
 		return err
 	}
 	dir = dir + "/tmp/integration/"
+
 	err = os.MkdirAll(dir, 0777)
 	if err != nil {
 		return err
 	}
 	_ = os.Setenv("KUBECONFIG", kubeconfig)
-	cmd := exec.Command("../../ci/generate-agent-config.sh", "--cluster-type", clusterType, "--antrea-version", antreaVersion, "--target-dir", dir)
+	cmd := exec.Command("./ci/generate-agent-config.sh", "--cluster-type", clusterType, "--antrea-version", antreaVersion,
+		"--target-dir", dir)
 	bytes, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to generate antrea agent kubeconfigs %+v: %s", err, string(bytes))
 	}
-	path, err := filepath.Abs("../../hack/install-wrapper.sh")
+	path, err := filepath.Abs("./hack/install-wrapper.sh")
 	if err != nil {
 		return err
 	}
