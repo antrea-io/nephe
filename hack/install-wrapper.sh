@@ -52,7 +52,6 @@ Downloads install script from Antrea and setup antrea-agent on AWS or Azure VM.
         --kubeconfig <KubeconfigSavePath>               Path of the kubeconfig to access K8s API Server.
         --antrea-kubeconfig <AntreaKubeconfigSavePath>  Path of the kubeconfig to access Antrea API Server.
         --antrea-version <Version>                      Antrea version to be used.
-        --bin <AntreaAgentSavePath>                     Path of the antrea-agent binary(Temporary).
         --help, -h                                      Print this message and exit."
 
 while [[ $# -gt 0 ]]
@@ -74,10 +73,6 @@ case $key in
     ;;
     --antrea-version)
     ANTREA_VERSION="$2"
-    shift 2
-    ;;
-    --bin)
-    AGENT_BIN="$2"
     shift 2
     ;;
     -h|--help)
@@ -156,19 +151,17 @@ function install_required_packages() {
 
 function update_antrea_url() {
     ANTREA_BRANCH="release-$(echo $ANTREA_VERSION | cut -b 2-4)"
-    ANTREA_INSTALL_SCRIPT="https://raw.githubusercontent.com/antrea-io/antrea/${ANTREA_BRANCH}/hack/externalnode/install-vm.sh"
+    ANTREA_INSTALL_SCRIPT="https://github.com/antrea-io/antrea/releases/download/${ANTREA_VERSION}/install-vm.sh"
+    AGENT_BIN="https://github.com/antrea-io/antrea/releases/download/${ANTREA_VERSION}/antrea-agent-linux-x86_64"
     ANTREA_CONFIG="https://raw.githubusercontent.com/antrea-io/antrea/${ANTREA_BRANCH}/build/yamls/externalnode/conf/antrea-agent.conf"
-    if [ -z "$AGENT_BIN" ]; then
-        echo "Uncomment and update the url post antrea 1.9 release"
-        #AGENT_BIN="https://github.com/antrea-io/antrea/releases/download/${ANTREA_VERSION}/antrea-agent-x86_64"
-    fi
 }
 
 function download_file() {
     from=$1
     to=$2
     echo "Downloading file $from to $to"
-    curl --connect-timeout 30 -# --retry 3 "$from" --output "$to"
+    # Redirection option is required to download large files.
+    curl -L --connect-timeout 30 -# --retry 3 "$from" --output "$to"
     if [ $? -ne 0 ]; then
         echoerr "Failed to download file $from"
         exit 2
@@ -183,14 +176,8 @@ function download_antrea_files() {
         exit 2
     fi
     download_file "${ANTREA_INSTALL_SCRIPT}" "${tmp_dir}"/${INSTALL_SCRIPT}
+    download_file "${AGENT_BIN}" "${tmp_dir}"/${ANTREA_AGENT_BIN}
     download_file "${ANTREA_CONFIG}" "${tmp_dir}"/${ANTREA_AGENT_CONF}
-    # TODO: Cleanup post antrea 1.9 release.
-    if [ -f "$AGENT_BIN" ]; then
-        # Temporary solution to use antrea-agent binary from local.
-        cp "$AGENT_BIN" "${tmp_dir}"/${ANTREA_AGENT_BIN}
-    else
-        download_file "${AGENT_BIN}" "${tmp_dir}"/${ANTREA_AGENT_BIN}
-    fi
 }
 
 function generate_nodename() {
@@ -227,9 +214,10 @@ function generate_nodename() {
 function install() {
     echo "Running antrea $INSTALL_SCRIPT script"
     chmod +x "${tmp_dir}"/$INSTALL_SCRIPT
+    chmod +x "${tmp_dir}"/$ANTREA_AGENT_BIN
     "${tmp_dir}"/$INSTALL_SCRIPT --ns "$NAMESPACE" --bin "${tmp_dir}"/${ANTREA_AGENT_BIN} \
-    --config "${tmp_dir}"/${ANTREA_AGENT_CONF} --kubeconfig "$KUBECONFIG" \
-    --antrea-kubeconfig "$ANTREA_KUBECONFIG" --nodename "$NODENAME"
+        --config "${tmp_dir}"/${ANTREA_AGENT_CONF} --kubeconfig "$KUBECONFIG" \
+        --antrea-kubeconfig "$ANTREA_KUBECONFIG" --nodename "$NODENAME"
     echo "Set antrea-agent Service Environment variable NODE_NAME=$NODENAME"
     # Delete the temporary directory.
     rm -rf "${tmp_dir}"
