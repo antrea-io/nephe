@@ -8,8 +8,7 @@
           branches:
             - ${{sha1}}
           builders:
-            - deploy-vm-and-run-aws-tests-for-nephe:
-                conformance_type: 'networkpolicy'
+            - deploy-vm-and-run-aws-tests-for-nephe
           trigger_phrase: .*/nephe-test-e2e-(aws|kind|all).*
           white_list_target_branches: [ ]
           allow_whitelist_orgs_as_admins: true
@@ -99,8 +98,7 @@
             branches:
                 - ${{sha1}}
             builders:
-                - deploy-vm-and-run-azure-tests-for-nephe:
-                      conformance_type: 'networkpolicy'
+                - deploy-vm-and-run-azure-tests-for-nephe
             trigger_phrase: .*/nephe-test-e2e-(azure|kind|all).*
             white_list_target_branches: [ ]
             allow_whitelist_orgs_as_admins: true
@@ -193,8 +191,7 @@
             branches:
                 - ${{sha1}}
             builders:
-                - deploy-vm-and-run-eks-tests-for-nephe:
-                      conformance_type: 'networkpolicy'
+                - deploy-vm-and-run-eks-tests-for-nephe
             trigger_phrase: .*/nephe-test-e2e-(eks|all).*
             white_list_target_branches: [ ]
             allow_whitelist_orgs_as_admins: true
@@ -290,8 +287,7 @@
             branches:
                 - ${{sha1}}
             builders:
-                - deploy-vm-and-run-aks-tests-for-nephe:
-                      conformance_type: 'networkpolicy'
+                - deploy-vm-and-run-aks-tests-for-nephe
             trigger_phrase: .*/nephe-test-e2e-(aks|all).*
             white_list_target_branches: [ ]
             allow_whitelist_orgs_as_admins: true
@@ -597,3 +593,258 @@
                     variable: GOVC_PASSWORD
           builders:
             - nephe-gc-cronjob
+      - '{test_name}':
+          test_name: nephe-test-aws
+          node: 'nephe'
+          description: 'This is the daily {test_name}.'
+          branches:
+            - '${{NEPHE_GIT_REVISION}}'
+          repo_url: '${{NEPHE_REPO}}'
+          builders:
+            - builder-slack-notify-declare
+            - inject:
+                properties-file: chosen_nanny
+            - deploy-vm-and-run-aws-tests-for-nephe
+          triggers:
+            - timed: H H */2 * *
+          wrappers:
+            - credentials-binding:
+                - text:
+                    credential-id: CODECOV_TOKEN # Jenkins secret that stores codecov token
+                    variable: CODECOV_TOKEN
+            - timeout:
+                fail: true
+                timeout: 120
+                type: absolute
+            - credentials-binding:
+                - text:
+                    credential-id: VMC_NETWORK_0
+                    variable: VMC_NETWORK_0
+                - text:
+                    credential-id: VMC_NETWORK_1
+                    variable: VMC_NETWORK_1
+                - text:
+                    credential-id: VCENTERNAME
+                    variable: VCENTERNAME
+                - text:
+                    credential-id: DATACENTERNAME
+                    variable: DATACENTERNAME
+                - text:
+                    credential-id: RESOURCEPOOLPATH
+                    variable: RESOURCEPOOLPATH
+                - text:
+                    credential-id: VC_USER
+                    variable: VC_USER
+                - text:
+                    credential-id: GOVC_PASSWORD
+                    variable: GOVC_PASSWORD
+                - text:
+                    credential-id: VC_HOST
+                    variable: VC_HOST
+                - text:
+                    credential-id: DATA_STORE
+                    variable: DATA_STORE
+                - text:
+                    credential-id: VC_CLUSTER
+                    variable: VC_CLUSTER
+                - text:
+                    credential-id: VIRTUAL_MACHINE
+                    variable: VIRTUAL_MACHINE
+                - text:
+                    credential-id: ANTREA_DOCKER_USERNAME
+                    variable: ANTREA_DOCKER_USERNAME
+                - text:
+                    credential-id: ANTREA_DOCKER_PWD
+                    variable: ANTREA_DOCKER_PWD
+                - text:
+                    credential-id: AWS_ACCESS_KEY_ID
+                    variable: AWS_ACCESS_KEY_ID
+                - text:
+                    credential-id: AWS_ACCESS_KEY_SECRET
+                    variable: AWS_ACCESS_KEY_SECRET
+                - text:
+                    credential-id: AWS_KEY_PAIR_NAME
+                    variable: AWS_KEY_PAIR_NAME
+          publishers:
+            - archive:
+                allow-empty: true
+                artifacts: "logs.tar.gz"
+                case-sensitive: true
+                default-excludes: true
+                fingerprint: false
+                only-if-success: false
+            - email-ext:
+                recipients: rahulj@vmware.com,kumaranand@vmware.com
+                content-type: html
+                subject: Build ${{BUILD_NUMBER}} result for nephe-test-aws
+                body: ${{JELLY_SCRIPT,template="html"}}
+                attach-build-log: false
+                compress-log: false
+                attachments: "*/foo*.log"
+                always: false
+                unstable: true
+                first-failure: true
+                first-unstable: true
+                not-built: true
+                aborted: true
+                regression: true
+                failure: true
+                second-failure: true
+                improvement: true
+                still-failing: true
+                success: false
+                fixed: false
+                fixed-unhealthy: true
+                still-unstable: true
+                pre-build: false
+                matrix-trigger: only-configurations
+                presend-script: ""
+                postsend-script: ""
+                save-output: true
+                send-to:
+                - developers
+                - requester
+                - culprits
+                - recipients
+                - upstream-committers
+            - slack:
+                team-domain: vmware
+                auth-token-credential-id: slack-token
+                notify-success: true
+                notify-every-failure: true
+                notify-aborted: true
+                notify-not-built: true
+                bot-user: false
+                room: 'nephe-ci-nanny'
+                commit-info-choice: NONE
+                include-custom-message: true
+                custom-message: 'Hi ${{chosen_nanny}}, please check the latest build result: ${{BUILD_URL}}'
+      - '{test_name}':
+          test_name: nephe-test-azure
+          node: 'nephe'
+          description: 'This is the daily {test_name}.'
+          branches:
+            - '${{NEPHE_GIT_REVISION}}'
+          repo_url: '${{NEPHE_REPO}}'
+          builders:
+            - builder-slack-notify-declare
+            - inject:
+                properties-file: chosen_nanny
+            - deploy-vm-and-run-azure-tests-for-nephe
+          triggers:
+            - timed: H H */2 * *
+          wrappers:
+            - credentials-binding:
+                - text:
+                    credential-id: CODECOV_TOKEN # Jenkins secret that stores codecov token
+                    variable: CODECOV_TOKEN
+            - timeout:
+                fail: true
+                timeout: 120
+                type: absolute
+            - credentials-binding:
+                - text:
+                    credential-id: VMC_NETWORK_0
+                    variable: VMC_NETWORK_0
+                - text:
+                    credential-id: VMC_NETWORK_1
+                    variable: VMC_NETWORK_1
+                - text:
+                    credential-id: VCENTERNAME
+                    variable: VCENTERNAME
+                - text:
+                    credential-id: DATACENTERNAME
+                    variable: DATACENTERNAME
+                - text:
+                    credential-id: RESOURCEPOOLPATH
+                    variable: RESOURCEPOOLPATH
+                - text:
+                    credential-id: VC_USER
+                    variable: VC_USER
+                - text:
+                    credential-id: GOVC_PASSWORD
+                    variable: GOVC_PASSWORD
+                - text:
+                    credential-id: VC_HOST
+                    variable: VC_HOST
+                - text:
+                    credential-id: DATA_STORE
+                    variable: DATA_STORE
+                - text:
+                    credential-id: VC_CLUSTER
+                    variable: VC_CLUSTER
+                - text:
+                    credential-id: VIRTUAL_MACHINE
+                    variable: VIRTUAL_MACHINE
+                - text:
+                    credential-id: ANTREA_DOCKER_USERNAME
+                    variable: ANTREA_DOCKER_USERNAME
+                - text:
+                    credential-id: ANTREA_DOCKER_PWD
+                    variable: ANTREA_DOCKER_PWD
+                - text:
+                    credential-id: AZURE_APP_ID
+                    variable: AZURE_APP_ID
+                - text:
+                    credential-id: AZURE_PASSWORD
+                    variable: AZURE_PASSWORD
+                - text:
+                    credential-id: AZURE_SUBSCRIPTION_ID
+                    variable: AZURE_SUBSCRIPTION_ID
+                - text:
+                    credential-id: AZURE_TENANT_ID
+                    variable: AZURE_TENANT_ID
+          publishers:
+            - archive:
+                allow-empty: true
+                artifacts: "logs.tar.gz"
+                case-sensitive: true
+                default-excludes: true
+                fingerprint: false
+                only-if-success: false
+            - email-ext:
+                  recipients: rahulj@vmware.com, kumaranand@vmware.com
+                  content-type: html
+                  subject: Build ${{BUILD_NUMBER}} result for nephe-test-aws
+                  body: ${{JELLY_SCRIPT,template="html"}}
+                  attach-build-log: false
+                  compress-log: false
+                  attachments: "*/foo*.log"
+                  always: false
+                  unstable: true
+                  first-failure: true
+                  first-unstable: true
+                  not-built: true
+                  aborted: true
+                  regression: true
+                  failure: true
+                  second-failure: true
+                  improvement: true
+                  still-failing: true
+                  success: false
+                  fixed: false
+                  fixed-unhealthy: true
+                  still-unstable: true
+                  pre-build: false
+                  matrix-trigger: only-configurations
+                  presend-script: ""
+                  postsend-script: ""
+                  save-output: true
+                  send-to:
+                    - developers
+                    - requester
+                    - culprits
+                    - recipients
+                    - upstream-committers
+            - slack:
+                team-domain: vmware
+                auth-token-credential-id: slack-token
+                notify-success: true
+                notify-every-failure: true
+                notify-aborted: true
+                notify-not-built: true
+                bot-user: false
+                room: 'nephe-ci-nanny'
+                commit-info-choice: NONE
+                include-custom-message: true
+                custom-message: 'Hi ${{chosen_nanny}}, please check the latest build result: ${{BUILD_URL}}'

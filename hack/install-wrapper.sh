@@ -151,32 +151,21 @@ function install_required_packages() {
 
 function update_antrea_url() {
     ANTREA_BRANCH="release-$(echo $ANTREA_VERSION | cut -b 2-4)"
-    ANTREA_INSTALL_SCRIPT="https://raw.githubusercontent.com/antrea-io/antrea/${ANTREA_BRANCH}/hack/externalnode/install-vm.sh"
-    ANTREA_CONFIG="https://raw.githubusercontent.com/antrea-io/antrea/${ANTREA_BRANCH}/build/yamls/externalnode/conf/antrea-agent.conf"
+    ANTREA_INSTALL_SCRIPT="https://github.com/antrea-io/antrea/releases/download/${ANTREA_VERSION}/install-vm.sh"
     AGENT_BIN="https://github.com/antrea-io/antrea/releases/download/${ANTREA_VERSION}/antrea-agent-linux-x86_64"
+    ANTREA_CONFIG="https://raw.githubusercontent.com/antrea-io/antrea/${ANTREA_BRANCH}/build/yamls/externalnode/conf/antrea-agent.conf"
 }
 
 function download_file() {
     from=$1
     to=$2
     echo "Downloading file $from to $to"
-    curl --connect-timeout 30 -# --retry 3 "$from" --output "$to"
+    # Redirection option is required to download large files.
+    curl -L --connect-timeout 30 -# --retry 3 "$from" --output "$to"
     if [ $? -ne 0 ]; then
         echoerr "Failed to download file $from"
         exit 2
     fi
-}
-
-function download_bin() {
-    from=$1
-    to=$2
-    echo "Downloading binary $from to $to"
-    wget --connect-timeout 30 -q "$from" --output-document "$to"
-    if [ $? -ne 0 ]; then
-        echoerr "Failed to download binary $from"
-        exit 2
-    fi
-    chmod +x "$to"
 }
 
 function download_antrea_files() {
@@ -187,8 +176,8 @@ function download_antrea_files() {
         exit 2
     fi
     download_file "${ANTREA_INSTALL_SCRIPT}" "${tmp_dir}"/${INSTALL_SCRIPT}
+    download_file "${AGENT_BIN}" "${tmp_dir}"/${ANTREA_AGENT_BIN}
     download_file "${ANTREA_CONFIG}" "${tmp_dir}"/${ANTREA_AGENT_CONF}
-    download_bin "${AGENT_BIN}" "${tmp_dir}"/${ANTREA_AGENT_BIN}
 }
 
 function generate_nodename() {
@@ -225,9 +214,10 @@ function generate_nodename() {
 function install() {
     echo "Running antrea $INSTALL_SCRIPT script"
     chmod +x "${tmp_dir}"/$INSTALL_SCRIPT
+    chmod +x "${tmp_dir}"/$ANTREA_AGENT_BIN
     "${tmp_dir}"/$INSTALL_SCRIPT --ns "$NAMESPACE" --bin "${tmp_dir}"/${ANTREA_AGENT_BIN} \
-    --config "${tmp_dir}"/${ANTREA_AGENT_CONF} --kubeconfig "$KUBECONFIG" \
-    --antrea-kubeconfig "$ANTREA_KUBECONFIG" --nodename "$NODENAME"
+        --config "${tmp_dir}"/${ANTREA_AGENT_CONF} --kubeconfig "$KUBECONFIG" \
+        --antrea-kubeconfig "$ANTREA_KUBECONFIG" --nodename "$NODENAME"
     echo "Set antrea-agent Service Environment variable NODE_NAME=$NODENAME"
     # Delete the temporary directory.
     rm -rf "${tmp_dir}"
