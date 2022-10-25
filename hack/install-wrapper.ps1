@@ -87,7 +87,8 @@ function SetOSVersion() {
 function InitCloud() {
     $version = (Get-WmiObject -class Win32_ComputerSystemProduct -namespace root\CIMV2).Version
     $vendor = (Get-WmiObject -class Win32_ComputerSystemProduct -namespace root\CIMV2).Vendor
-    if ($version.ToLower().Contains("amazon")) {
+    # On AWS, either version or vendor field is set for an instance size.
+    if ($version.ToLower().Contains("amazon") -or ($vendor.ToLower().Contains("amazon"))) {
         $script:Cloud = $AWS
     } elseif ($vendor -like "*Microsoft*Corporation") {
         $script:Cloud = $AZURE
@@ -100,9 +101,9 @@ function InitCloud() {
 function UpdateAntreaURL() {
     $branchTag = $AntreaVersion.Substring(1,3)
     $Script:AntreaBranch = "release-${branchTag}"
-    $Script:AntreaInstallScript = "https://raw.githubusercontent.com/antrea-io/antrea/${AntreaBranch}/hack/externalnode/install-vm.ps1"
-    $Script:AntreaConfig = "https://raw.githubusercontent.com/antrea-io/antrea/${AntreaBranch}/build/yamls/externalnode/conf/antrea-agent.conf"
+    $Script:AntreaInstallScript = "https://github.com/antrea-io/antrea/releases/download/${AntreaVersion}/install-vm.ps1"
     $Script:AgentBin = "https://github.com/antrea-io/antrea/releases/download/${AntreaVersion}/antrea-agent-windows-x86_64.exe"
+    $Script:AntreaConfig = "https://raw.githubusercontent.com/antrea-io/antrea/${AntreaBranch}/build/yamls/externalnode/conf/antrea-agent.conf"
 }
 
 function GenerateNodename() {
@@ -187,6 +188,7 @@ function Install() {
     DownloadAntreaFiles
     GenerateNodename
     Log "Set Environment variable NODE_NAME=$NodeName"
+    [Environment]::SetEnvironmentVariable("NODE_NAME", $NodeName, [System.EnvironmentVariableTarget]::Machine)
     $InstallArgs = "-NameSpace $NameSpace -BinaryPath $AntreaTemp\$AntreaAgentBin -ConfigPath $AntreaTemp\$AntreaAgentConf -KubeConfigPath $KubeConfigPath -AntreaKubeConfigPath $AntreaKubeConfigPath -NodeName $NodeName"
     Invoke-Expression "& `"$AntreaTemp\$InstallScript`" $InstallArgs"
     RemoveIfExists $AntreaTemp -recurse $true
