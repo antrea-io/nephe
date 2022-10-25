@@ -130,6 +130,31 @@ func (r *NetworkPolicyReconciler) isNetworkPolicySupported(anp *antreanetworking
 	return nil
 }
 
+// sendRuleRealizationStatus send anp realization status to antrea controller.
+func (r *NetworkPolicyReconciler) sendRuleRealizationStatus(anp *antreanetworking.NetworkPolicy, failed bool, msg string) {
+	status := &antreanetworking.NetworkPolicyStatus{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      string(anp.UID),
+			Namespace: anp.Namespace,
+		},
+
+		Nodes: []antreanetworking.NetworkPolicyNodeStatus{
+			{
+				NodeName:   config.ANPNepheController,
+				Generation: anp.Generation,
+			},
+		},
+	}
+	if failed {
+		status.Nodes[0].RealizationFailure = true
+		status.Nodes[0].Message = msg
+	}
+	r.Log.V(1).Info("Updating rule realization.", "NP", anp.Name, "Namespace", anp.Namespace)
+	if err := r.antreaClient.NetworkPolicies().UpdateStatus(context.TODO(), status.Name, status); err != nil {
+		r.Log.Error(err, "rule realization send failed.", "NP", anp.Name, "Namespace", anp.Namespace)
+	}
+}
+
 // normalizedANPObject updates ANP object with Nephe friendly name. Required for Azure
 // cloud which doesn't handles / in any cloud resource name.
 func (r *NetworkPolicyReconciler) normalizedANPObject(anp *antreanetworking.NetworkPolicy) {
@@ -394,6 +419,7 @@ func (r *NetworkPolicyReconciler) processNetworkPolicy(event watch.Event) error 
 
 	r.Log.V(1).Info("Received NetworkPolicy event", "type", event.Type, "obj", anp)
 	if err := r.isNetworkPolicySupported(anp); err != nil {
+		r.sendRuleRealizationStatus(anp, true, err.Error())
 		return err
 	}
 	if anp.Namespace == "" {
