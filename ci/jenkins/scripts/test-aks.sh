@@ -44,7 +44,7 @@ function print_help {
 # Defaults
 export TF_VAR_owner="ci"
 export TF_VAR_location="West US 2"
-export AGENTED=false
+export WITH_AGENT=false
 export TEST_FOCUS=".*test-cloud-cluster.*"
 
 while [[ $# -gt 0 ]]
