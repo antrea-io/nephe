@@ -28,7 +28,7 @@ EOF
 ${ANTREA_CONF}
 EOF
 
-  set -- --ns "${NAMESPACE}" --antrea-version "${ANTREA_VERSION}" --kubeconfig $K8S_KUBECONFIG --antrea-kubeconfig $ANTREA_KUBECONFIG --bin /home/azureuser/antrea-agent
+  set -- --ns "${NAMESPACE}" --antrea-version "${ANTREA_VERSION}" --kubeconfig $K8S_KUBECONFIG --antrea-kubeconfig $ANTREA_KUBECONFIG
   export SYSTEMD_PAGER=""
   ${INSTALL_WRAPPER}
 fi

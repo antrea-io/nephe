@@ -67,25 +67,33 @@ variable "azure_vm_os_types" {
 
 variable "azure_vm_os_types_agented" {
   type = list(object({
-    name  = string
-    image = string
-    init  = string
+    name      = string
+    offer     = string
+    publisher = string
+    sku       = string
+    init      = string
   }))
   default = [
     {
-      name  = "ubuntu-host1"
-      image = "NepheAgentedUbuntuImage"
-      init  = "init_script_ubuntu.sh"
+      name      = "ubuntu-host1"
+      offer     = "0001-com-ubuntu-server-focal"
+      publisher = "Canonical"
+      sku       = "20_04-lts-gen2"
+      init      = "init_script_ubuntu.sh"
     },
     {
-      name  = "ubuntu-host2"
-      image = "NepheAgentedUbuntuImage"
-      init  = "init_script_ubuntu.sh"
+      name      = "ubuntu-host2"
+      offer     = "0001-com-ubuntu-server-focal"
+      publisher = "Canonical"
+      sku       = "20_04-lts-gen2"
+      init      = "init_script_ubuntu.sh"
     },
     {
-      name  = "ubuntu-host3"
-      image = "NepheAgentedUbuntuImage"
-      init  = "init_script_ubuntu.sh"
+      name      = "ubuntu-host3"
+      offer     = "0001-com-ubuntu-server-focal"
+      publisher = "Canonical"
+      sku       = "20_04-lts-gen2"
+      init      = "init_script_ubuntu.sh"
     }
   ]
 }
@@ -102,7 +110,7 @@ variable "namespace" {
 
 variable "antrea_version" {
   type    = string
-  default = "v1.8.0"
+  default = "v1.9.0"
 }
 
 variable "antrea_agent_k8s_config" {

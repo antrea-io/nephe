@@ -67,23 +67,23 @@ variable "aws_vm_os_types_agented" {
       name            = "ubuntu1"
       login           = "ubuntu"
       init            = "init_script_ubuntu.sh"
-      ami_name_search = "NepheAgentedUbuntuImage"
-      ami_owner       = "092722883498"
+      ami_name_search = "ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"
+      ami_owner       = "099720109477"
     },
     {
       name            = "ubuntu2"
       login           = "ubuntu"
       init            = "init_script_ubuntu.sh"
-      ami_name_search = "NepheAgentedUbuntuImage"
-      ami_owner       = "092722883498"
+      ami_name_search = "ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"
+      ami_owner       = "099720109477"
     },
     {
       name            = "ubuntu3"
       login           = "ubuntu"
       init            = "init_script_ubuntu.sh"
-      ami_name_search = "NepheAgentedUbuntuImage"
-      ami_owner       = "092722883498"
-    }
+      ami_name_search = "ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"
+      ami_owner       = "099720109477"
+    },
   ]
 }
 
@@ -107,7 +107,7 @@ variable "namespace" {
 
 variable "antrea_version" {
   type    = string
-  default = "v1.8.0"
+  default = "v1.9.0"
 }
 
 variable "antrea_agent_k8s_config" {

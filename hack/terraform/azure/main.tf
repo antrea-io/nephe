@@ -26,13 +26,6 @@ resource "azurerm_resource_group" "vm" {
   location = var.location
 }
 
-data "azurerm_shared_image" "agent_image" {
-  count               = var.with_agent ? length(var.azure_vm_os_types_agented) : 0
-  name                = var.azure_vm_os_types_agented[count.index].image
-  gallery_name        = var.azure_vm_os_types_agented[count.index].image
-  resource_group_name = var.azure_vm_os_types_agented[count.index].image
-}
-
 locals {
   resource_group_name = "nephe-vnet-${var.owner}-${random_string.suffix.result}"
   azure_vm_os_types   = var.with_agent ? var.azure_vm_os_types_agented : var.azure_vm_os_types
@@ -69,10 +62,9 @@ module "vm_cluster" {
   resource_group_name     = azurerm_resource_group.vm.name
   count                   = length(local.azure_vm_os_types)
   nb_instances            = 1
-  vm_os_id                = var.with_agent ? data.azurerm_shared_image.agent_image[count.index].id : ""
-  vm_os_publisher         = var.with_agent ? "" : local.azure_vm_os_types[count.index].publisher
-  vm_os_offer             = var.with_agent ? "" : local.azure_vm_os_types[count.index].offer
-  vm_os_sku               = var.with_agent ? "" : local.azure_vm_os_types[count.index].sku
+  vm_os_publisher         = local.azure_vm_os_types[count.index].publisher
+  vm_os_offer             = local.azure_vm_os_types[count.index].offer
+  vm_os_sku               = local.azure_vm_os_types[count.index].sku
   vm_hostname             = "${local.azure_vm_os_types[count.index].name}-${var.owner}"
   vm_size                 = var.azure_vm_type
   vnet_subnet_id          = module.network.vnet_subnets[0]
