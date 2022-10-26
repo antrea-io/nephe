@@ -53,4 +53,6 @@ OUTPUT_DIR=$(cd "$1" && pwd)
 export IMG_TAG=$VERSION
 export IMG_NAME=projects.registry.vmware.com/antrea/nephe
 ./hack/generate-manifest.sh > "$OUTPUT_DIR"/nephe.yml
-ls "$OUTPUT_DIR" | cat
+
+cp ./hack/install-vm-agent-wrapper.sh "$OUTPUT_DIR/"
+cp ./hack/install-vm-agent-wrapper.ps1 "$OUTPUT_DIR/"

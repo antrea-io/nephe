@@ -212,12 +212,12 @@ documentation.
 
 ### Installation On Linux VMs
 
-Download the [wrapper install script](../hack/install-wrapper.sh) and run
+Download the [wrapper install script](../hack/install-vm-agent-wrapper.sh) and run
 installation.
 
 ```bash
-./install-wrapper.sh --ns vm-ns --antrea-version v1.9.0 --kubeconfig ./antrea-agent.kubeconfig \
-  --antrea-kubeconfig ./antrea-agent.antrea.kubeconfig --bin ./antrea-agent
+./install-vm-agent-wrapper.sh --ns vm-ns --antrea-version v1.9.0 --kubeconfig ./antrea-agent.kubeconfig \
+  --antrea-kubeconfig ./antrea-agent.antrea.kubeconfig
 ```
 
 ### Installation On Windows VMs
@@ -226,7 +226,7 @@ Download the [wrapper install script](../hack/install-wrapper.ps1) and run
 installation.
 
 ```powershell
-.\install-wrapper.ps1 -Namespace vm-ns -AntreaVersion v1.9.0 -KubeConfigPath .\antrea-agent.kubeconfig `
+.\install-vm-agent-wrapper.ps1 -Namespace vm-ns -AntreaVersion v1.9.0 -KubeConfigPath .\antrea-agent.kubeconfig `
   -AntreaKubeConfigPath .\antrea-agent.antrea.kubeconfig
 ```
 
