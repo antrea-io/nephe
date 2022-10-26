@@ -374,14 +374,14 @@
                       fingerprint: false
                       only-if-success: false
       - '{test_name}-for-pull-request':
-          test_name: nephe-test-e2e-eks-with-agent
+          test_name: nephe-test-e2e-with-agent-eks
           node: 'nephe'
           description: 'This is the {test_name}.'
           branches:
             - ${{sha1}}
           builders:
             - deploy-vm-with-agent-and-run-eks-tests-for-nephe
-          trigger_phrase: .*/nephe-test-e2e-(eks-with-agent|with-agent|all).*
+          trigger_phrase: .*/nephe-test-e2e-(with-agent-eks|with-agent-all|all).*
           white_list_target_branches: [ ]
           allow_whitelist_orgs_as_admins: true
           admin_list: '{nephe_admin_list}'
@@ -389,11 +389,11 @@
           white_list: '{nephe_white_list}'
           only_trigger_phrase: true
           trigger_permit_all: false
-          status_context: nephe-test-e2e-eks-with-agent
+          status_context: nephe-test-e2e-with-agent-eks
           status_url: ""
           success_status: Build finished.
-          failure_status: Failed. Add comment /nephe-test-e2e-eks-with-agent to re-trigger.
-          error_status: Failed. Add comment /nephe-test-e2e-eks-with-agent to re-trigger.
+          failure_status: Failed. Add comment /nephe-test-e2e-with-agent-eks to re-trigger.
+          error_status: Failed. Add comment /nephe-test-e2e-with-agent-eks to re-trigger.
           triggered_status: null
           started_status: null
           concurrent: true
@@ -470,14 +470,14 @@
               fingerprint: false
               only-if-success: false
       - '{test_name}-for-pull-request':
-          test_name: nephe-test-e2e-aks-with-agent
+          test_name: nephe-test-e2e-with-agent-aks
           node: 'nephe'
           description: 'This is the {test_name}.'
           branches:
             - ${{sha1}}
           builders:
             - deploy-vm-with-agent-and-run-aks-tests-for-nephe
-          trigger_phrase: .*/nephe-test-e2e-(aks-with-agent|with-agent|all).*
+          trigger_phrase: .*/nephe-test-e2e-(with-agent-eks|with-agent-all|all).*
           white_list_target_branches: [ ]
           allow_whitelist_orgs_as_admins: true
           admin_list: '{nephe_admin_list}'
@@ -485,11 +485,11 @@
           white_list: '{nephe_white_list}'
           only_trigger_phrase: true
           trigger_permit_all: false
-          status_context: nephe-test-e2e-aks-with-agent
+          status_context: nephe-test-e2e-with-agent-aks
           status_url: ""
           success_status: Build finished.
-          failure_status: Failed. Add comment /nephe-test-e2e-aks-with-agent to re-trigger.
-          error_status: Failed. Add comment /nephe-test-e2e-aks-with-agent to re-trigger.
+          failure_status: Failed. Add comment /nephe-test-e2e-with-agent-aks to re-trigger.
+          error_status: Failed. Add comment /nephe-test-e2e-with-agent-aks to re-trigger.
           triggered_status: null
           started_status: null
           concurrent: true
