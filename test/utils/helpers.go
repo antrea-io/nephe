@@ -425,7 +425,7 @@ func SetAgentConfig(c client.Client, ns *corev1.Namespace, cloudProviders, antre
 		return fmt.Errorf("failed to generate antrea agent kubeconfigs %+v: %s", err, string(outputBytes))
 	}
 
-	absPath, err := filepath.Abs("./hack/install-wrapper.sh")
+	absPath, err := filepath.Abs("./hack/install-vm-agent-wrapper.sh")
 	if err != nil {
 		return err
 	}
@@ -433,7 +433,7 @@ func SetAgentConfig(c client.Client, ns *corev1.Namespace, cloudProviders, antre
 	_ = os.Setenv("TF_VAR_with_agent", "true")
 	_ = os.Setenv("TF_VAR_antrea_agent_k8s_config", dir+"/antrea-agent.kubeconfig")
 	_ = os.Setenv("TF_VAR_antrea_agent_antrea_config", dir+"/antrea-agent.antrea.kubeconfig")
-	_ = os.Setenv("TF_VAR_install_wrapper", absPath)
+	_ = os.Setenv("TF_VAR_install_vm_agent_wrapper", absPath)
 	return nil
 }
 

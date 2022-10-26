@@ -120,7 +120,7 @@ variable "antrea_agent_antrea_config" {
   default = "antrea-agent.antrea.kubeconfig"
 }
 
-variable "install_wrapper" {
+variable "install_vm_agent_wrapper" {
   type    = string
-  default = "install-wrapper.sh"
+  default = "install-vm-agent-wrapper.sh"
 }

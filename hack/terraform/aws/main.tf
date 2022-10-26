@@ -42,12 +42,12 @@ data "template_file" user_data {
   count    = length(local.aws_vm_os_types)
   template = file(local.aws_vm_os_types[count.index].init)
   vars     = {
-    WITH_AGENT      = var.with_agent
-    K8S_CONF        = var.with_agent ? file(var.antrea_agent_k8s_config) : ""
-    ANTREA_CONF     = var.with_agent ? file(var.antrea_agent_antrea_config) : ""
-    INSTALL_WRAPPER = var.with_agent ? file(var.install_wrapper) : ""
-    NAMESPACE       = var.namespace
-    ANTREA_VERSION  = var.antrea_version
+    WITH_AGENT               = var.with_agent
+    K8S_CONF                 = var.with_agent ? file(var.antrea_agent_k8s_config) : ""
+    ANTREA_CONF              = var.with_agent ? file(var.antrea_agent_antrea_config) : ""
+    INSTALL_VM_AGENT_WRAPPER = var.with_agent ? file(var.install_vm_agent_wrapper) : ""
+    NAMESPACE                = var.namespace
+    ANTREA_VERSION           = var.antrea_version
   }
 }
 

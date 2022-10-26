@@ -140,7 +140,7 @@ scripts is located under [hack/](../hack).
 export TF_VAR_agent=true
 export TF_VAR_antrea_agent_k8s_config=<PATH_TO_K8S_APISERVER_KUBECONFIG>
 export TF_VAR_antrea_agent_antrea_config=<PATH_TO_ANTREA_APISERVER_KUBECONFIG>
-export TF_VAR_install_wrapper=<PATH_TO_INSTALL_WRAPPER_SCRIPT>
+export TF_VAR_install_vm_agent_wrapper=<PATH_TO_INSTALL_VM_AGENT_WRAPPER_SCRIPT>
 ```
 
 ### Setup Terraform Environment

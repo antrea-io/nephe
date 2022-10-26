@@ -30,7 +30,7 @@ EOF
 
   set -- --ns "${NAMESPACE}" --antrea-version "${ANTREA_VERSION}" --kubeconfig $K8S_KUBECONFIG --antrea-kubeconfig $ANTREA_KUBECONFIG
   export SYSTEMD_PAGER=""
-  ${INSTALL_WRAPPER}
+  ${INSTALL_VM_AGENT_WRAPPER}
 fi
 
 sudo apt-get install -y apache2
