@@ -212,21 +212,49 @@ documentation.
 
 ### Installation On Linux VMs
 
-Download the [wrapper install script](../hack/install-wrapper.sh) and run
-installation.
+Download the [wrapper install script](../hack/install-vm-agent-wrapper.sh) from a
+[list of nephe releases](https://github.com/antrea-io/nephe/releases). For any
+given release <TAG> (e.g. v0.2.0), you can download the script as follows:
 
 ```bash
-./install-wrapper.sh --ns vm-ns --antrea-version v1.9.0 --kubeconfig ./antrea-agent.kubeconfig \
-  --antrea-kubeconfig ./antrea-agent.antrea.kubeconfig --bin ./antrea-agent
+curl https://github.com/antrea-io/nephe/releases/download/<TAG>/install-vm-agent-wrapper.sh --output install-vm-agent-wrapper.sh
+```
+
+To download the latest version of wrapper install script, use the checked-in
+[wrapper install script](../hack/install-vm-agent-wrapper.sh)
+
+```bash
+curl https://raw.githubusercontent.com/antrea-io/nephe/main/hack/install-vm-agent-wrapper.sh --output install-vm-agent-wrapper.sh
+```
+
+To install `antrea-agent`, run the below command:
+
+```bash
+./install-vm-agent-wrapper.sh --ns vm-ns --antrea-version v1.9.0 --kubeconfig ./antrea-agent.kubeconfig \
+  --antrea-kubeconfig ./antrea-agent.antrea.kubeconfig
 ```
 
 ### Installation On Windows VMs
 
-Download the [wrapper install script](../hack/install-wrapper.ps1) and run
-installation.
+Download the [wrapper install script](../hack/install-vm-agent-wrapper.ps1) from a
+[list of nephe releases](https://github.com/antrea-io/nephe/releases). For any
+given release <TAG> (e.g. v0.2.0), you can download the script as follows:
 
 ```powershell
-.\install-wrapper.ps1 -Namespace vm-ns -AntreaVersion v1.9.0 -KubeConfigPath .\antrea-agent.kubeconfig `
+curl.exe "-s" "-L" "https://github.com/antrea-io/nephe/releases/download/<TAG>/install-vm-agent-wrapper.ps1" -o install-vm-agent-wrapper.ps1
+```
+
+To download the latest version of wrapper install script, use the checked-in
+[wrapper install script](../hack/install-vm-agent-wrapper.ps1)
+
+```powershell
+curl.exe "-s" "-L" "https://raw.githubusercontent.com/antrea-io/nephe/main/hack/install-vm-agent-wrapper.ps1" -o install-vm-agent-wrapper.ps1
+```
+
+To install `antrea-agent`, run the below command:
+
+```powershell
+.\install-vm-agent-wrapper.ps1 -Namespace vm-ns -AntreaVersion v1.9.0 -KubeConfigPath .\antrea-agent.kubeconfig `
   -AntreaKubeConfigPath .\antrea-agent.antrea.kubeconfig
 ```
 
