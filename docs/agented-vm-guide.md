@@ -206,27 +206,37 @@ Antrea version       - Specifies the Antrea version to be used.
 Kubeconfig           - Provides access to the Kubernetes API server.
 Antrea Kubeconfig    - Provides access to the Antrea API server.
 
-For more information on how to generate the kubeconfig files, please refer to
+To enable and configure ExternalNode feature in your cluster, please refer to
 antrea [ExternalNode](https://github.com/antrea-io/antrea/blob/main/docs/external-node.md#install-antrea-agent-on-vm)
 documentation.
 
+Note: `Nephe-Controller` will auto create an ExternalNode corresponding to each
+VirtualMachine CR, when agented flag is set.
+
 ### Installation On Linux VMs
 
-Download the [wrapper install script](../hack/install-wrapper.sh) and run
-installation.
+Download the [wrapper install script](../hack/install-vm-agent-wrapper.sh) from a
+[list of nephe releases](https://github.com/antrea-io/nephe/releases) and run
+the installation. For any given release <TAG> (e.g. v0.2.0), you can download
+the script as follows:
 
 ```bash
-./install-wrapper.sh --ns vm-ns --antrea-version v1.9.0 --kubeconfig ./antrea-agent.kubeconfig \
-  --antrea-kubeconfig ./antrea-agent.antrea.kubeconfig --bin ./antrea-agent
+https://github.com/antrea-io/nephe/releases/download/v0.1.0/nephe.yml
+curl https://github.com/antrea-io/nephe/releases/download/<TAG>/install-vm-agent-wrapper.sh --output install-vm-agent-wrapper.sh
+./install-vm-agent-wrapper.sh --ns vm-ns --antrea-version v1.9.0 --kubeconfig ./antrea-agent.kubeconfig \
+  --antrea-kubeconfig ./antrea-agent.antrea.kubeconfig
 ```
 
 ### Installation On Windows VMs
 
-Download the [wrapper install script](../hack/install-wrapper.ps1) and run
-installation.
+Download the [wrapper install script](../hack/install-vm-agent-wrapper.ps1) from a
+[list of nephe releases](https://github.com/antrea-io/nephe/releases) and run
+the installation. For any given release <TAG> (e.g. v0.2.0), you can download the script
+as follows:
 
 ```powershell
-.\install-wrapper.ps1 -Namespace vm-ns -AntreaVersion v1.9.0 -KubeConfigPath .\antrea-agent.kubeconfig `
+curl.exe "-s" "-L" "https://github.com/antrea-io/nephe/releases/download/<TAG>/install-vm-agent-wrapper.ps1" -o install-vm-agent-wrapper.ps1
+.\install-vm-agent-wrapper.ps1 -Namespace vm-ns -AntreaVersion v1.9.0 -KubeConfigPath .\antrea-agent.kubeconfig `
   -AntreaKubeConfigPath .\antrea-agent.antrea.kubeconfig
 ```
 
