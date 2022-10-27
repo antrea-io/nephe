@@ -17,7 +17,6 @@ package integration
 import (
 	"context"
 	"flag"
-	"fmt"
 	"math/rand"
 	"os"
 	"path"
@@ -265,7 +264,7 @@ var _ = AfterSuite(func(done Done) {
 		close(wgChan)
 	}()
 
-	By(cluster + "Deleting nephe controller manifest")
+	By(cluster + ": Deleting nephe controller manifest")
 	manifestBytes, err := os.ReadFile(manifest)
 	Expect(err).ToNot(HaveOccurred())
 	err = kubeCtl.Delete("", manifestBytes)
