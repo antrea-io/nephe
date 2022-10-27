@@ -57,10 +57,8 @@ const (
 var (
 	kubeCtl       *utils.KubeCtl
 	k8sClient     client.Client
-	k8sClients    map[string]client.Client
 	cloudVPC      utils.CloudVPC
 	cloudVPCs     map[string]utils.CloudVPC
-	clusters      []string
 	scheme        = runtime.NewScheme()
 	preserveSetup = false
 	testFocus     = []string{focusAws, focusAzure}
@@ -75,7 +73,7 @@ var (
 	kubeconfig          string
 	withAgent           bool
 	cloudProviders      string
-	clusterContexts     string
+	clusterContext      string
 )
 
 func init() {
@@ -85,7 +83,7 @@ func init() {
 	flag.BoolVar(&withAgent, "with-agent", false, "Using antrea-agent on VM.")
 	flag.StringVar(&cloudProviders, "cloud-provider", string(cloudv1alpha1.AzureCloudProvider),
 		"Cloud Providers to use, separated by comma. Default is Azure.")
-	flag.StringVar(&clusterContexts, "cluster-context", "", "cluster context to use, separated by common. Default is empty.")
+	flag.StringVar(&clusterContext, "cluster-context", "", "cluster context to use. Default is empty.")
 	flag.BoolVar(&cloudCluster, "cloud-cluster", false, "Cluster deployed in public cloud.")
 	rand.Seed(time.Now().Unix())
 }
@@ -121,28 +119,23 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(kubeCtl).ToNot(BeNil())
 
-	nepheControllerManifests := make(map[string]string)
-	k8sClients = make(map[string]client.Client)
-	clusters = strings.Split(clusterContexts, ",")
-	for _, cluster := range clusters {
-		bytes, err := os.ReadFile(manifest)
-		Expect(err).ToNot(HaveOccurred())
-		nepheControllerManifests[cluster] = string(bytes)
+	bytes, err := os.ReadFile(manifest)
+	Expect(err).ToNot(HaveOccurred())
 
-		c, err := utils.NewK8sClient(scheme, cluster)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(c).ToNot(BeNil())
-		k8sClients[cluster] = c
+	cluster := clusterContext
+	c, err := utils.NewK8sClient(scheme, cluster)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(c).ToNot(BeNil())
+	k8sClient = c
 
-		if withAgent {
-			kubeCtl.SetContext(cluster)
-			err := c.Get(context.Background(), client.ObjectKey{Name: staticVMNS.Name}, &v1.Namespace{})
-			Expect(apierrors.IsNotFound(err)).To(BeTrue(), "static ns %s not created", staticVMNS.Name)
-			tmpDir, err = os.MkdirTemp("/tmp", "integration-*")
-			Expect(err).ToNot(HaveOccurred())
-			err = utils.SetAgentConfig(c, staticVMNS, cloudProviders, antreaVersion, kubeconfig, tmpDir)
-			Expect(err).ToNot(HaveOccurred())
-		}
+	if withAgent {
+		kubeCtl.SetContext(cluster)
+		err := c.Get(context.Background(), client.ObjectKey{Name: staticVMNS.Name}, &v1.Namespace{})
+		Expect(apierrors.IsNotFound(err)).To(BeTrue(), "static ns %s not created", staticVMNS.Name)
+		tmpDir, err = os.MkdirTemp("/tmp", "integration-*")
+		Expect(err).ToNot(HaveOccurred())
+		err = utils.SetAgentConfig(c, staticVMNS, cloudProviders, antreaVersion, kubeconfig, tmpDir)
+		Expect(err).ToNot(HaveOccurred())
 	}
 
 	// Create VM VPC in parallel.
@@ -168,34 +161,32 @@ var _ = BeforeSuite(func(done Done) {
 		close(wgChan)
 	}()
 
-	for _, cluster := range clusters {
-		nepheControllerManifest := nepheControllerManifests[cluster]
-		kubeCtl.SetContext(cluster)
-		cl := k8sClients[cluster]
-		if len(cluster) == 0 {
-			cluster = "default"
-		}
-		By(cluster + ": Check cert-manager is ready, may wait longer for docker pull")
-		// Increate the timeout for now to get past CI/CD timeout at this point to see what is causing it.
-		err = utils.RestartOrWaitDeployment(cl, "cert-manager", "cert-manager", time.Second*240, false)
-		Expect(err).ToNot(HaveOccurred())
-		err = utils.RestartOrWaitDeployment(cl, "cert-manager-cainjector", "cert-manager", time.Second*120, false)
-		Expect(err).ToNot(HaveOccurred())
-		err = utils.RestartOrWaitDeployment(cl, "cert-manager-webhook", "cert-manager", time.Second*120, false)
-		Expect(err).ToNot(HaveOccurred())
-
-		By(cluster + ": Check antrea controller is ready, may wait longer for docker pull")
-		err = utils.RestartOrWaitDeployment(cl, "antrea-controller", "kube-system", time.Second*120, false)
-		Expect(err).ToNot(HaveOccurred())
-
-		By(cluster + ": Applying nephe controller manifest")
-		err = kubeCtl.Apply("", []byte(nepheControllerManifest))
-		Expect(err).ToNot(HaveOccurred())
-
-		By(cluster + ": Check nephe controller is ready")
-		err = utils.RestartOrWaitDeployment(cl, "nephe-controller", "nephe-system", time.Second*120, false)
-		Expect(err).ToNot(HaveOccurred())
+	nepheControllerManifest := string(bytes)
+	kubeCtl.SetContext(cluster)
+	if len(cluster) == 0 {
+		cluster = "default"
 	}
+	By(cluster + ": Check cert-manager is ready, may wait longer for docker pull")
+	// Increase the timeout for now to get past CI/CD timeout at this point to see what is causing it.
+	err = utils.RestartOrWaitDeployment(k8sClient, "cert-manager", "cert-manager", time.Second*240, false)
+	Expect(err).ToNot(HaveOccurred())
+	err = utils.RestartOrWaitDeployment(k8sClient, "cert-manager-cainjector", "cert-manager", time.Second*120, false)
+	Expect(err).ToNot(HaveOccurred())
+	err = utils.RestartOrWaitDeployment(k8sClient, "cert-manager-webhook", "cert-manager", time.Second*120, false)
+	Expect(err).ToNot(HaveOccurred())
+
+	By(cluster + ": Check antrea controller is ready, may wait longer for docker pull")
+	err = utils.RestartOrWaitDeployment(k8sClient, "antrea-controller", "kube-system", time.Second*120, false)
+	Expect(err).ToNot(HaveOccurred())
+
+	By(cluster + ": Applying nephe controller manifest")
+	err = kubeCtl.Apply("", []byte(nepheControllerManifest))
+	Expect(err).ToNot(HaveOccurred())
+
+	By(cluster + ": Check nephe controller is ready")
+	err = utils.RestartOrWaitDeployment(k8sClient, "nephe-controller", "nephe-system", time.Second*120, false)
+	Expect(err).ToNot(HaveOccurred())
+
 	// Check create VPC status.
 	By("Check VM VPCs are ready")
 	for {
@@ -209,9 +200,6 @@ var _ = BeforeSuite(func(done Done) {
 		Expect(err).ToNot(HaveOccurred())
 	}
 
-	if len(k8sClients) == 1 {
-		k8sClient = k8sClients[clusters[0]]
-	}
 	if len(cloudVPCs) == 1 {
 		provider := strings.Split(cloudProviders, ",")[0]
 		cloudVPC = cloudVPCs[provider]
@@ -227,27 +215,19 @@ var _ = AfterSuite(func(done Done) {
 	}
 	var controllersCored *string
 	var err error
-	for _, cluster := range clusters {
-		kubeCtl.SetContext(cluster)
-		cl := k8sClients[cluster]
-		if len(cluster) == 0 {
-			cluster = "default"
-		}
-		By(cluster + ": Check for controllers' restarts")
-		err = utils.CheckRestart(kubeCtl)
-		if err != nil {
-			logf.Log.Error(err, "error restarting nephe controller")
-			cl := cluster
-			controllersCored = &cl
-			break
-		}
-		if withAgent {
-			By(fmt.Sprintf(cluster+": Deleting namespace %s", staticVMNS.Name))
-			err = cl.Delete(context.TODO(), staticVMNS)
-			Expect(err).ToNot(HaveOccurred())
-			_ = os.RemoveAll(tmpDir)
-		}
+	cluster := clusterContext
+	kubeCtl.SetContext(cluster)
+	if len(cluster) == 0 {
+		cluster = "default"
 	}
+
+	By(cluster + ": Check for controllers' restarts")
+	err = utils.CheckRestart(kubeCtl)
+	if err != nil {
+		logf.Log.Error(err, "error restarting nephe controller")
+		controllersCored = &cluster
+	}
+
 	if controllersCored != nil {
 		if preserveSetupOnFail {
 			logf.Log.Info("Preserve setup, restart detected")
@@ -256,11 +236,17 @@ var _ = AfterSuite(func(done Done) {
 		}
 		if len(supportBundleDir) > 0 {
 			logf.Log.Info("Controllers restart detected, collect support bundles", "Cluster", *controllersCored)
-			for _, cluster := range clusters {
-				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, cluster, "integration"), cloudVPC, withAgent)
-			}
+			utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, cluster, "integration"), cloudVPC, withAgent)
 		}
 	}
+
+	if withAgent {
+		By(cluster + ": Deleting namespace" + staticVMNS.Name)
+		err = k8sClient.Delete(context.TODO(), staticVMNS)
+		Expect(err).ToNot(HaveOccurred())
+		_ = os.RemoveAll(tmpDir)
+	}
+
 	// Delete VM VPC in parallel.
 	wg := sync.WaitGroup{}
 	wgChan := make(chan error)
@@ -279,7 +265,7 @@ var _ = AfterSuite(func(done Done) {
 		close(wgChan)
 	}()
 
-	By("Deleting nephe controller manifest")
+	By(cluster + "Deleting nephe controller manifest")
 	manifestBytes, err := os.ReadFile(manifest)
 	Expect(err).ToNot(HaveOccurred())
 	err = kubeCtl.Delete("", manifestBytes)
