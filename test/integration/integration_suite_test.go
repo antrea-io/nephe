@@ -264,12 +264,6 @@ var _ = AfterSuite(func(done Done) {
 		close(wgChan)
 	}()
 
-	By(cluster + ": Deleting nephe controller manifest")
-	manifestBytes, err := os.ReadFile(manifest)
-	Expect(err).ToNot(HaveOccurred())
-	err = kubeCtl.Delete("", manifestBytes)
-	Expect(err).ToNot(HaveOccurred())
-
 	// Check delete VPC status.
 	By("Waiting for deleting VM VPCs")
 	for {
