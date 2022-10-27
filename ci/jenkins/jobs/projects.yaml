@@ -477,7 +477,7 @@
             - ${{sha1}}
           builders:
             - deploy-vm-with-agent-and-run-aks-tests-for-nephe
-          trigger_phrase: .*/nephe-test-e2e-(with-agent-eks|with-agent-all|all).*
+          trigger_phrase: .*/nephe-test-e2e-(with-agent-aks|with-agent-all|all).*
           white_list_target_branches: [ ]
           allow_whitelist_orgs_as_admins: true
           admin_list: '{nephe_admin_list}'
