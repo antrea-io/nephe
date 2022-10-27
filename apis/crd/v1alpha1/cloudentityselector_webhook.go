@@ -34,6 +34,16 @@ var (
 	cloudentityselectorlog = logf.Log.WithName("cloudentityselector-resource")
 	client                 controllerclient.Client
 	sh                     *runtime.Scheme
+
+	errorMsgSameVPCMatchID            = "two vpcMatch selectors configured with same matchID"
+	errorMsgSameVMMatchID             = "two vmMatch selectors configured with same matchID"
+	errorMsgSameVMMatchName           = "two vmMatch selectors configured with same matchName"
+	errorMsgSameVMAndVPCMatch         = "two selectors configured with same vpcMatch and vmMatch criteria"
+	errorMsgUnsupportedVPCMatchName01 = "matchName is not supported in vpcMatch, use matchID instead of matchName"
+	errorMsgUnsupportedAgented        = "vpc matchName with agented flag set to true is not supported, use vpc " +
+		"matchID instead"
+	errorMsgUnsupportedVPCMatchName02 = "vpc matchName with either vm matchID or vm matchName is not supported, " +
+		"use vpc matchID instead of vpc matchName"
 )
 
 func (r *CloudEntitySelector) SetupWebhookWithManager(mgr ctrl.Manager) error {
@@ -218,25 +228,100 @@ func (r *CloudEntitySelector) validateMatchSections() error {
 	// In AWS, Vpc name(in vpcMatch section) with either vm id or vm name(in vmMatch section) is not supported
 	if cloudProviderType == AzureCloudProvider {
 		for _, m := range r.Spec.VMSelector {
-			if m.VpcMatch != nil {
-				if len(strings.TrimSpace(m.VpcMatch.MatchName)) != 0 {
-					return fmt.Errorf("matchName is not supported in vpcMatch, " +
-						"use matchID instead of matchName")
-				}
+			if m.VpcMatch != nil && len(strings.TrimSpace(m.VpcMatch.MatchName)) != 0 {
+				return fmt.Errorf(errorMsgUnsupportedVPCMatchName01)
 			}
 		}
 	} else {
 		for _, m := range r.Spec.VMSelector {
-			if m.VpcMatch != nil {
-				if len(strings.TrimSpace(m.VpcMatch.MatchName)) != 0 {
-					for _, vmMatch := range m.VMMatch {
-						if len(strings.TrimSpace(vmMatch.MatchID)) != 0 ||
-							len(strings.TrimSpace(vmMatch.MatchName)) != 0 {
-							return fmt.Errorf("vpc matchName with either vm matchID" +
-								" or vm matchName is not supported, use vpc matchID instead" +
-								" of vpc matchName")
+			if m.VpcMatch != nil && len(strings.TrimSpace(m.VpcMatch.MatchName)) != 0 {
+				for _, vmMatch := range m.VMMatch {
+					if len(strings.TrimSpace(vmMatch.MatchID)) != 0 ||
+						len(strings.TrimSpace(vmMatch.MatchName)) != 0 {
+						return fmt.Errorf(errorMsgUnsupportedVPCMatchName02)
+					}
+				}
+				if m.Agented {
+					return fmt.Errorf(errorMsgUnsupportedAgented)
+				}
+			}
+		}
+	}
+
+	// Block ambiguous match combinations as it can result in unpredictable behavior w.r.t agented configuration.
+	if err := r.validateMatchCombinations(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateMatchCombinations function validates VMSelector to find if it conflicts with other VMSelectors.
+// Block same VPC ID configuration in two VMSelectors with only vpcMatch section.
+// Block same VM ID configuration in any two VMSelectors, same is not applicable for VM Name as VM Name need not be unique.
+// Block same combination of VPC ID and VM ID configuration in any two VMSelectors.
+// Block same combination of VPC ID and VM Name configuration in any two VMSelectors.
+// Block same VM Name configuration in any two VMSelectors with only VMMatch section, when used along with VPCMatch, it is allowed.
+func (r *CloudEntitySelector) validateMatchCombinations() error {
+	// vpcIDOnlyMatch map - VPC ID as key for selector with only vpcMatch matchID.
+	// vmIDOnlyMatch map - VM ID as key for selector with only vmMatch matchID.
+	// vmNameOnlyMatch map - VM Name as key for selector with only vmMatch matchName.
+	// vmIDWithVpcMatch map - VM ID and VPC ID as key for selector with vpcMatch matchID and vmMatch matchID.
+	// vmNameWithVpcMatch map - VM Name and VPC ID as key for selector with vpcMatch matchID and vmMatch matchName.
+	vpcIDOnlyMatch := make(map[string]struct{})
+	vmIDOnlyMatch := make(map[string]struct{})
+	vmNameOnlyMatch := make(map[string]struct{})
+	vmIDWithVpcMatch := make(map[string]struct{})
+	vmNameWithVpcMatch := make(map[string]struct{})
+	exists := struct{}{}
+
+	for _, selector := range r.Spec.VMSelector {
+		if selector.VpcMatch != nil {
+			if selector.VpcMatch.MatchID != "" {
+				if len(selector.VMMatch) == 0 {
+					if _, found := vpcIDOnlyMatch[selector.VpcMatch.MatchID]; found {
+						return fmt.Errorf("%s, %v", errorMsgSameVPCMatchID, selector.VpcMatch.MatchID)
+					}
+					vpcIDOnlyMatch[selector.VpcMatch.MatchID] = exists
+				} else {
+					for _, n := range selector.VMMatch {
+						if n.MatchID != "" {
+							index := n.MatchID + "/" + selector.VpcMatch.MatchID
+							if _, found := vmIDWithVpcMatch[index]; found {
+								return fmt.Errorf("%s, vpcMatch matchID %v, vmMatch matchID %v",
+									errorMsgSameVMAndVPCMatch, selector.VpcMatch.MatchID, n.MatchID)
+							}
+							vmIDWithVpcMatch[index] = exists
+
+							// VM ID is unique across account. Irrespective of VPC match,
+							// same VM ID config in two VMSelector is not allowed.
+							if _, found := vmIDOnlyMatch[n.MatchID]; found {
+								return fmt.Errorf("%s, %v", errorMsgSameVMMatchID, n.MatchID)
+							}
+							vmIDOnlyMatch[n.MatchID] = exists
+						} else { // Applicable for matchName.
+							index := n.MatchName + "/" + selector.VpcMatch.MatchID
+							if _, found := vmNameWithVpcMatch[index]; found {
+								return fmt.Errorf("%s, vpcMatch matchID %v, vmMatch matchName %v",
+									errorMsgSameVMAndVPCMatch, selector.VpcMatch.MatchID, n.MatchName)
+							}
+							vmNameWithVpcMatch[index] = exists
 						}
 					}
+				}
+			}
+		} else {
+			for _, n := range selector.VMMatch {
+				if n.MatchID != "" {
+					if _, found := vmIDOnlyMatch[n.MatchID]; found {
+						return fmt.Errorf("%s, %v", errorMsgSameVMMatchID, n.MatchID)
+					}
+					vmIDOnlyMatch[n.MatchID] = exists
+				} else {
+					if _, found := vmNameOnlyMatch[n.MatchName]; found {
+						return fmt.Errorf("%s, %v", errorMsgSameVMMatchName, n.MatchName)
+					}
+					vmNameOnlyMatch[n.MatchName] = exists
 				}
 			}
 		}

@@ -36,9 +36,10 @@ import (
 )
 
 const (
-	virtualMachineIndexerByCloudAccount     = "virtualmachine.cloudaccount"
-	virtualMachineSelectorMatchIndexerByID  = "virtualmachine.selector.id"
-	virtualMachineSelectorMatchIndexerByVPC = "virtualmachine.selector.vpc.id"
+	virtualMachineIndexerByCloudAccount      = "virtualmachine.cloudaccount"
+	virtualMachineSelectorMatchIndexerByID   = "virtualmachine.selector.id"
+	virtualMachineSelectorMatchIndexerByName = "virtualmachine.selector.name"
+	virtualMachineSelectorMatchIndexerByVPC  = "virtualmachine.selector.vpc.id"
 )
 
 // CloudEntitySelectorReconciler reconciles a CloudEntitySelector object.
@@ -217,6 +218,19 @@ func (r *CloudEntitySelectorReconciler) addAccountPoller(selector *cloudv1alpha1
 				for _, vmMatch := range m.VMMatch {
 					if len(vmMatch.MatchID) > 0 {
 						match = append(match, strings.ToLower(vmMatch.MatchID))
+					}
+				}
+				return match, nil
+			},
+			virtualMachineSelectorMatchIndexerByName: func(obj interface{}) ([]string, error) {
+				m := obj.(*cloudv1alpha1.VirtualMachineSelector)
+				if len(m.VMMatch) == 0 {
+					return nil, nil
+				}
+				var match []string
+				for _, vmMatch := range m.VMMatch {
+					if len(vmMatch.MatchName) > 0 {
+						match = append(match, strings.ToLower(vmMatch.MatchName))
 					}
 				}
 				return match, nil
