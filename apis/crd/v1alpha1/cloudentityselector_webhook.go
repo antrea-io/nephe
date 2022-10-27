@@ -34,6 +34,16 @@ var (
 	cloudentityselectorlog = logf.Log.WithName("cloudentityselector-resource")
 	client                 controllerclient.Client
 	sh                     *runtime.Scheme
+
+	errorMsgSameVPCMatchID            = "two vpcMatch selectors configured with same matchID"
+	errorMsgSameVMMatchID             = "two vmMatch selectors configured with same matchID"
+	errorMsgSameVMMatchName           = "two vmMatch selectors configured with same matchName"
+	errorMsgSameVMAndVPCMatch         = "two selectors configured with same vpcMatch and vmMatch criteria"
+	errorMsgUnsupportedVPCMatchName01 = "matchName is not supported in vpcMatch, use matchID instead of matchName"
+	errorMsgUnsupportedAgented        = "vpc matchName with agented flag set to true is not supported, use vpc " +
+		"matchID instead"
+	errorMsgUnsupportedVPCMatchName02 = "vpc matchName with either vm matchID or vm matchName is not supported, " +
+		"use vpc matchID instead of vpc matchName"
 )
 
 func (r *CloudEntitySelector) SetupWebhookWithManager(mgr ctrl.Manager) error {
@@ -219,8 +229,7 @@ func (r *CloudEntitySelector) validateMatchSections() error {
 	if cloudProviderType == AzureCloudProvider {
 		for _, m := range r.Spec.VMSelector {
 			if m.VpcMatch != nil && len(strings.TrimSpace(m.VpcMatch.MatchName)) != 0 {
-				return fmt.Errorf("matchName is not supported in vpcMatch, " +
-					"use matchID instead of matchName")
+				return fmt.Errorf(errorMsgUnsupportedVPCMatchName01)
 			}
 		}
 	} else {
@@ -229,14 +238,11 @@ func (r *CloudEntitySelector) validateMatchSections() error {
 				for _, vmMatch := range m.VMMatch {
 					if len(strings.TrimSpace(vmMatch.MatchID)) != 0 ||
 						len(strings.TrimSpace(vmMatch.MatchName)) != 0 {
-						return fmt.Errorf("vpc matchName with either vm matchID" +
-							" or vm matchName is not supported, use vpc matchID instead" +
-							" of vpc matchName")
+						return fmt.Errorf(errorMsgUnsupportedVPCMatchName02)
 					}
 				}
 				if m.Agented {
-					return fmt.Errorf("vpc matchName with agented flag set to true " +
-						"is not supported, use vpc matchID instead")
+					return fmt.Errorf(errorMsgUnsupportedAgented)
 				}
 			}
 		}
@@ -274,8 +280,7 @@ func (r *CloudEntitySelector) validateMatchCombinations() error {
 			if selector.VpcMatch.MatchID != "" {
 				if len(selector.VMMatch) == 0 {
 					if _, found := vpcIDOnlyMatch[selector.VpcMatch.MatchID]; found {
-						return fmt.Errorf("same vpcMatch matchID %v configured in two match selectors",
-							selector.VpcMatch.MatchID)
+						return fmt.Errorf("%s, %v", errorMsgSameVPCMatchID, selector.VpcMatch.MatchID)
 					}
 					vpcIDOnlyMatch[selector.VpcMatch.MatchID] = exists
 				} else {
@@ -283,22 +288,22 @@ func (r *CloudEntitySelector) validateMatchCombinations() error {
 						if n.MatchID != "" {
 							index := n.MatchID + "/" + selector.VpcMatch.MatchID
 							if _, found := vmIDWithVpcMatch[index]; found {
-								return fmt.Errorf("same vpcMatch matchID %v and vmMatch matchID %v configured"+
-									" in two match selectors", selector.VpcMatch.MatchID, n.MatchID)
+								return fmt.Errorf("%s, vpcMatch matchID %v, vmMatch matchID %v",
+									errorMsgSameVMAndVPCMatch, selector.VpcMatch.MatchID, n.MatchID)
 							}
 							vmIDWithVpcMatch[index] = exists
 
 							// VM ID is unique across account. Irrespective of VPC match,
 							// same VM ID config in two VMSelector is not allowed.
 							if _, found := vmIDOnlyMatch[n.MatchID]; found {
-								return fmt.Errorf("same vmMatch matchID %v configured in two match selectors", n.MatchID)
+								return fmt.Errorf("%s, %v", errorMsgSameVMMatchID, n.MatchID)
 							}
 							vmIDOnlyMatch[n.MatchID] = exists
 						} else { // Applicable for matchName.
 							index := n.MatchName + "/" + selector.VpcMatch.MatchID
 							if _, found := vmNameWithVpcMatch[index]; found {
-								return fmt.Errorf("same vpcMatch matchID %v and vmMatch matchName %v configured"+
-									" in two match selectors", selector.VpcMatch.MatchID, n.MatchName)
+								return fmt.Errorf("%s, vpcMatch matchID %v, vmMatch matchName %v",
+									errorMsgSameVMAndVPCMatch, selector.VpcMatch.MatchID, n.MatchName)
 							}
 							vmNameWithVpcMatch[index] = exists
 						}
@@ -309,12 +314,12 @@ func (r *CloudEntitySelector) validateMatchCombinations() error {
 			for _, n := range selector.VMMatch {
 				if n.MatchID != "" {
 					if _, found := vmIDOnlyMatch[n.MatchID]; found {
-						return fmt.Errorf("same vmMatch matchID %v configured in two match selectors", n.MatchID)
+						return fmt.Errorf("%s, %v", errorMsgSameVMMatchID, n.MatchID)
 					}
 					vmIDOnlyMatch[n.MatchID] = exists
 				} else {
 					if _, found := vmNameOnlyMatch[n.MatchName]; found {
-						return fmt.Errorf("same vmMatch matchName %v configured in two match selectors", n.MatchName)
+						return fmt.Errorf("%s, %v", errorMsgSameVMMatchName, n.MatchName)
 					}
 					vmNameOnlyMatch[n.MatchName] = exists
 				}

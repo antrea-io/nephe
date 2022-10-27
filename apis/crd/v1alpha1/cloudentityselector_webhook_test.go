@@ -16,7 +16,6 @@ package v1alpha1
 
 import (
 	"context"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,6 +33,9 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			testAccountNamespacedName = types.NamespacedName{Namespace: "namespace01", Name: "account01"}
 			testSecretNamespacedName  = types.NamespacedName{Namespace: "namespace01", Name: "secret01"}
 			credentials               = "credentials"
+			testAbc                   = "abc"
+			testDef                   = "def"
+			testXyz                   = "xyz"
 			account                   *CloudProviderAccount
 			selector                  *CloudEntitySelector
 			fakeClient                k8sclient.WithWatch
@@ -81,11 +83,11 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 					VMSelector: []VirtualMachineSelector{
 						{
 							VpcMatch: &EntityMatch{
-								MatchName: "abc",
+								MatchName: testAbc,
 							},
 							VMMatch: []EntityMatch{
 								{
-									MatchID: "def",
+									MatchID: testDef,
 								},
 							},
 						},
@@ -95,8 +97,7 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 
 			err = selector.validateMatchSections()
 			Expect(err).Should(HaveOccurred())
-			Expect(err.Error()).Should(ContainSubstring("vpc matchName with either vm matchID" +
-				" or vm matchName is not supported"))
+			Expect(err.Error()).Should(ContainSubstring(errorMsgUnsupportedVPCMatchName02))
 		})
 		It("Validate vpcMatch matchName with Agented = true in AWS", func() {
 			err = fakeClient.Create(context.Background(), account)
@@ -112,7 +113,7 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 					VMSelector: []VirtualMachineSelector{
 						{
 							VpcMatch: &EntityMatch{
-								MatchName: "abc",
+								MatchName: testAbc,
 							},
 							Agented: true,
 						},
@@ -122,8 +123,7 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 
 			err = selector.validateMatchSections()
 			Expect(err).Should(HaveOccurred())
-			Expect(err.Error()).Should(ContainSubstring("vpc matchName with agented flag set to true" +
-				" is not supported"))
+			Expect(err.Error()).Should(ContainSubstring(errorMsgUnsupportedAgented))
 		})
 		It("Validate vpcMatch matchName in Azure", func() {
 			account = &CloudProviderAccount{
@@ -156,7 +156,7 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 					VMSelector: []VirtualMachineSelector{
 						{
 							VpcMatch: &EntityMatch{
-								MatchName: "abc",
+								MatchName: testAbc,
 							},
 						},
 					},
@@ -164,7 +164,7 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			}
 			err = selector.validateMatchSections()
 			Expect(err).Should(HaveOccurred())
-			Expect(err.Error()).Should(ContainSubstring("matchName is not supported in vpcMatch"))
+			Expect(err.Error()).Should(ContainSubstring(errorMsgUnsupportedVPCMatchName01))
 		})
 
 		It("Validate same vpcMatch matchID in two vmSelectors", func() {
@@ -181,12 +181,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 					VMSelector: []VirtualMachineSelector{
 						{
 							VpcMatch: &EntityMatch{
-								MatchID: "abc",
+								MatchID: testAbc,
 							},
 						},
 						{
 							VpcMatch: &EntityMatch{
-								MatchID: "abc",
+								MatchID: testAbc,
 							},
 						},
 					},
@@ -194,7 +194,7 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			}
 			err := selector.validateMatchSections()
 			Expect(err).Should(HaveOccurred())
-			Expect(err.Error()).Should(ContainSubstring("same vpcMatch matchID abc configured in two match selectors"))
+			Expect(err.Error()).Should(ContainSubstring(errorMsgSameVPCMatchID))
 		})
 		It("Validate same vmMatch matchID(with vpcMatch in one) in two vmSelectors", func() {
 			err = fakeClient.Create(context.Background(), account)
@@ -210,18 +210,18 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 					VMSelector: []VirtualMachineSelector{
 						{
 							VpcMatch: &EntityMatch{
-								MatchID: "abc",
+								MatchID: testAbc,
 							},
 							VMMatch: []EntityMatch{
 								{
-									MatchID: "def",
+									MatchID: testDef,
 								},
 							},
 						},
 						{
 							VMMatch: []EntityMatch{
 								{
-									MatchID: "def",
+									MatchID: testDef,
 								},
 							},
 						},
@@ -230,8 +230,7 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			}
 			err := selector.validateMatchSections()
 			Expect(err).Should(HaveOccurred())
-			Expect(err.Error()).Should(ContainSubstring("same vmMatch matchID def configured in" +
-				" two match selectors"))
+			Expect(err.Error()).Should(ContainSubstring(errorMsgSameVMMatchID))
 		})
 		It("Validate same vpcMatch matchID and vmMatch matchID in two vmSelectors", func() {
 			err = fakeClient.Create(context.Background(), account)
@@ -247,21 +246,21 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 					VMSelector: []VirtualMachineSelector{
 						{
 							VpcMatch: &EntityMatch{
-								MatchID: "abc",
+								MatchID: testAbc,
 							},
 							VMMatch: []EntityMatch{
 								{
-									MatchID: "def",
+									MatchID: testDef,
 								},
 							},
 						},
 						{
 							VpcMatch: &EntityMatch{
-								MatchID: "abc",
+								MatchID: testAbc,
 							},
 							VMMatch: []EntityMatch{
 								{
-									MatchID: "def",
+									MatchID: testDef,
 								},
 							},
 						},
@@ -270,8 +269,7 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			}
 			err := selector.validateMatchSections()
 			Expect(err).Should(HaveOccurred())
-			Expect(err.Error()).Should(ContainSubstring("same vpcMatch matchID abc and vmMatch matchID def" +
-				" configured in two match selectors"))
+			Expect(err.Error()).Should(ContainSubstring(errorMsgSameVMAndVPCMatch))
 		})
 		It("Validate same vmMatch matchID in two vmSelectors", func() {
 			err = fakeClient.Create(context.Background(), account)
@@ -288,14 +286,14 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						{
 							VMMatch: []EntityMatch{
 								{
-									MatchID: "abc",
+									MatchID: testAbc,
 								},
 							},
 						},
 						{
 							VMMatch: []EntityMatch{
 								{
-									MatchID: "abc",
+									MatchID: testAbc,
 								},
 							},
 						},
@@ -304,8 +302,7 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			}
 			err := selector.validateMatchSections()
 			Expect(err).Should(HaveOccurred())
-			Expect(err.Error()).Should(ContainSubstring("same vmMatch matchID abc configured in two" +
-				" match selectors"))
+			Expect(err.Error()).Should(ContainSubstring(errorMsgSameVMMatchID))
 		})
 		It("Validate different vmMatch matchID in two vmSelectors", func() {
 			err = fakeClient.Create(context.Background(), account)
@@ -322,14 +319,14 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						{
 							VMMatch: []EntityMatch{
 								{
-									MatchID: "def",
+									MatchID: testDef,
 								},
 							},
 						},
 						{
 							VMMatch: []EntityMatch{
 								{
-									MatchID: "xyz",
+									MatchID: testXyz,
 								},
 							},
 						},
@@ -353,21 +350,21 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 					VMSelector: []VirtualMachineSelector{
 						{
 							VpcMatch: &EntityMatch{
-								MatchID: "abc",
+								MatchID: testAbc,
 							},
 							VMMatch: []EntityMatch{
 								{
-									MatchName: "def",
+									MatchName: testDef,
 								},
 							},
 						},
 						{
 							VpcMatch: &EntityMatch{
-								MatchID: "abc",
+								MatchID: testAbc,
 							},
 							VMMatch: []EntityMatch{
 								{
-									MatchName: "def",
+									MatchName: testDef,
 								},
 							},
 						},
@@ -376,8 +373,7 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			}
 			err := selector.validateMatchSections()
 			Expect(err).Should(HaveOccurred())
-			Expect(err.Error()).Should(ContainSubstring("same vpcMatch matchID abc and vmMatch matchName def" +
-				" configured"))
+			Expect(err.Error()).Should(ContainSubstring(errorMsgSameVMAndVPCMatch))
 		})
 		It("Validate different vpcMatch matchID and same vmMatch matchName in two vmSelectors", func() {
 			err = fakeClient.Create(context.Background(), account)
@@ -393,21 +389,21 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 					VMSelector: []VirtualMachineSelector{
 						{
 							VpcMatch: &EntityMatch{
-								MatchID: "abc",
+								MatchID: testAbc,
 							},
 							VMMatch: []EntityMatch{
 								{
-									MatchName: "def",
+									MatchName: testDef,
 								},
 							},
 						},
 						{
 							VpcMatch: &EntityMatch{
-								MatchID: "xyz",
+								MatchID: testXyz,
 							},
 							VMMatch: []EntityMatch{
 								{
-									MatchName: "def",
+									MatchName: testDef,
 								},
 							},
 						},
@@ -417,6 +413,7 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			err := selector.validateMatchSections()
 			Expect(err).ShouldNot(HaveOccurred())
 		})
+
 		It("Validate same vmMatch matchName(vpcMatch matchID in one) in two vmSelectors", func() {
 			err = fakeClient.Create(context.Background(), account)
 			Expect(err).Should(BeNil())
@@ -431,18 +428,18 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 					VMSelector: []VirtualMachineSelector{
 						{
 							VpcMatch: &EntityMatch{
-								MatchID: "abc",
+								MatchID: testAbc,
 							},
 							VMMatch: []EntityMatch{
 								{
-									MatchName: "def",
+									MatchName: testDef,
 								},
 							},
 						},
 						{
 							VMMatch: []EntityMatch{
 								{
-									MatchName: "def",
+									MatchName: testDef,
 								},
 							},
 						},
@@ -467,14 +464,14 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						{
 							VMMatch: []EntityMatch{
 								{
-									MatchName: "abc",
+									MatchName: testAbc,
 								},
 							},
 						},
 						{
 							VMMatch: []EntityMatch{
 								{
-									MatchName: "abc",
+									MatchName: testAbc,
 								},
 							},
 						},
@@ -483,7 +480,7 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			}
 			err := selector.validateMatchSections()
 			Expect(err).Should(HaveOccurred())
-			Expect(err.Error()).Should(ContainSubstring("same vmMatch matchName abc configured in two match selectors"))
+			Expect(err.Error()).Should(ContainSubstring(errorMsgSameVMMatchName))
 		})
 		It("Validate different vmMatch matchName in two vmSelectors", func() {
 			err = fakeClient.Create(context.Background(), account)
@@ -500,14 +497,14 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						{
 							VMMatch: []EntityMatch{
 								{
-									MatchName: "def",
+									MatchName: testDef,
 								},
 							},
 						},
 						{
 							VMMatch: []EntityMatch{
 								{
-									MatchName: "xyz",
+									MatchName: testXyz,
 								},
 							},
 						},
