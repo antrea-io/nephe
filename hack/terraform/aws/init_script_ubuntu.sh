@@ -28,6 +28,8 @@ EOF
 ${ANTREA_CONF}
 EOF
 
+  # redirecting wrapper script into a file like above kubeconfigs doesn't work, it executes the script anyways.
+  # TODO: redirect script to a file then execute the file instead of running it inline here.
   set -- --ns "${NAMESPACE}" --antrea-version "${ANTREA_VERSION}" --kubeconfig $K8S_KUBECONFIG --antrea-kubeconfig $ANTREA_KUBECONFIG
   export SYSTEMD_PAGER=""
   ${INSTALL_VM_AGENT_WRAPPER}

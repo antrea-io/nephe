@@ -271,7 +271,7 @@ func CheckCloudResourceNetworkPolicies(kubeCtl *KubeCtl, k8sClient client.Client
 					return false, nil
 				}
 				if strings.Compare(out, "Realized") != 0 {
-					logf.Log.V(1).Info("ANP realization in progress", "IDS", ids, "ANP", anp)
+					logf.Log.V(1).Info("ANP realization in progress", "VM IDs", ids, "ANP", anp)
 					return false, nil
 				}
 			}
@@ -422,7 +422,7 @@ func SetAgentConfig(c client.Client, ns *corev1.Namespace, cloudProviders, antre
 		"--target-dir", dir, "--ns", ns.Name)
 	outputBytes, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to generate antrea agent kubeconfigs %+v: %s", err, string(outputBytes))
+		return fmt.Errorf("failed to generate antrea vm agent kubeconfigs %+v: %s", err, string(outputBytes))
 	}
 
 	absPath, err := filepath.Abs("./hack/install-vm-agent-wrapper.sh")
@@ -573,17 +573,17 @@ func CollectControllerLogs(kubctl *KubeCtl, dir string) error {
 func CollectSupportBundle(kubctl *KubeCtl, dir string, cloudVPC CloudVPC, withAgent bool) {
 	logf.Log.Info("Collecting support bundles")
 	if err := CollectAgentInfo(kubctl, dir); err != nil {
-		logf.Log.Error(err, "Failed to collect OVS flows")
+		logf.Log.Error(err, "failed to collect OVS flows")
 	}
 	if err := CollectControllerLogs(kubctl, dir); err != nil {
-		logf.Log.Error(err, "Failed to collect controller logs")
+		logf.Log.Error(err, "failed to collect controller logs")
 	}
 	if err := CollectCRDs(kubctl, dir); err != nil {
-		logf.Log.Error(err, "Failed to collect CRDs")
+		logf.Log.Error(err, "failed to collect CRDs")
 	}
 	if withAgent {
 		if err := CollectVMAgentLog(cloudVPC, dir); err != nil {
-			logf.Log.Error(err, "Failed to collect VM agent logs")
+			logf.Log.Error(err, "failed to collect VM agent logs")
 		}
 	}
 }

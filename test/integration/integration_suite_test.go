@@ -138,7 +138,7 @@ var _ = BeforeSuite(func(done Done) {
 			kubeCtl.SetContext(cluster)
 			err := c.Get(context.Background(), client.ObjectKey{Name: staticVMNS.Name}, &v1.Namespace{})
 			Expect(apierrors.IsNotFound(err)).To(BeTrue(), "static ns %s not created", staticVMNS.Name)
-			tmpDir, err = os.MkdirTemp("", "integration-*")
+			tmpDir, err = os.MkdirTemp("/tmp", "integration-*")
 			Expect(err).ToNot(HaveOccurred())
 			err = utils.SetAgentConfig(c, staticVMNS, cloudProviders, antreaVersion, kubeconfig, tmpDir)
 			Expect(err).ToNot(HaveOccurred())
