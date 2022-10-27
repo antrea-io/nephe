@@ -73,7 +73,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: Basic CRD Read-Write", focusAws, focusAzure
 			if len(supportBundleDir) > 0 {
 				logf.Log.Info("Collect support bundles for test failure.")
 				fileName := utils.GenerateNameFromText(result.FullTestText, testFocus)
-				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName))
+				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName), cloudVPC, withAgent)
 			}
 		}
 	})

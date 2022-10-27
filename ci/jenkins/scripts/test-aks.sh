@@ -30,7 +30,8 @@ Setup and Run integration tests on AKS cluster with Azure VMs.
         [--azure-tenant-id <TenantID>]              Azure Service Principal Tenant ID.
         [--azure-secret <Secret>]                   Azure Service Principal Secret.
         [--azure-location <Location>]               The Azure location where the setup will be deployed. Defaults to West US 2.
-        [--owner <OwnerName>]                       Setup will be prefixed with owner name."
+        [--owner <OwnerName>]                       Setup will be prefixed with owner name.
+        [--with-agent]                              Run test with agented VMs."
 
 function print_usage {
     echoerr "$_usage"
@@ -43,6 +44,8 @@ function print_help {
 # Defaults
 export TF_VAR_owner="ci"
 export TF_VAR_location="West US 2"
+export WITH_AGENT=false
+export TEST_FOCUS=".*test-cloud-cluster.*"
 
 while [[ $# -gt 0 ]]
 do
@@ -72,6 +75,11 @@ case $key in
     --owner)
     export TF_VAR_owner="$2"
     shift 2
+    ;;
+    --with-agent)
+    export WITH_AGENT=true
+    export TEST_FOCUS=".*test-with-agent*"
+    shift 1
     ;;
     -h|--help)
     print_usage
@@ -131,4 +139,4 @@ docker tag antrea/nephe:latest projects.registry.vmware.com/antrea/nephe:latest
 $HOME/terraform/aks load projects.registry.vmware.com/antrea/nephe
 
 mkdir -p $HOME/logs
-ci/bin/integration.test -ginkgo.v -ginkgo.focus=".*test-cloud-cluster.*" -kubeconfig=$HOME/tmp/terraform-aks/kubeconfig -cloud-provider=Azure -support-bundle-dir=$HOME/logs
+ci/bin/integration.test -ginkgo.v -ginkgo.focus=$TEST_FOCUS -kubeconfig=$HOME/tmp/terraform-aks/kubeconfig -cloud-provider=Azure -support-bundle-dir=$HOME/logs -with-agent=${WITH_AGENT}

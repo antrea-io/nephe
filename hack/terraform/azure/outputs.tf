@@ -31,9 +31,9 @@ output "vnet_id" {
 output "tags" {
   description = "List of tags"
   value       = [
-    { Name = var.azure_vm_os_types[0].name },
-    { Name = var.azure_vm_os_types[1].name },
-    { Name = var.azure_vm_os_types[2].name }
+    { Name = var.with_agent ? var.azure_vm_os_types_agented[0].name : var.azure_vm_os_types[0].name },
+    { Name = var.with_agent ? var.azure_vm_os_types_agented[1].name : var.azure_vm_os_types[1].name },
+    { Name = var.with_agent ? var.azure_vm_os_types_agented[2].name : var.azure_vm_os_types[2].name }
   ]
 }
 

@@ -28,6 +28,7 @@ resource "azurerm_resource_group" "vm" {
 
 locals {
   resource_group_name = "nephe-vnet-${var.owner}-${random_string.suffix.result}"
+  azure_vm_os_types   = var.with_agent ? var.azure_vm_os_types_agented : var.azure_vm_os_types
 }
 
 locals {
@@ -44,24 +45,32 @@ resource "random_string" "suffix" {
 }
 
 data "template_file" user_data {
-  count    = length(var.azure_vm_os_types)
-  template = file(var.azure_vm_os_types[count.index].init)
+  count    = length(local.azure_vm_os_types)
+  template = file(local.azure_vm_os_types[count.index].init)
+  vars     = {
+    WITH_AGENT               = var.with_agent
+    K8S_CONF                 = var.with_agent ? file(var.antrea_agent_k8s_config) : ""
+    ANTREA_CONF              = var.with_agent ? file(var.antrea_agent_antrea_config) : ""
+    INSTALL_VM_AGENT_WRAPPER = var.with_agent ? file(var.install_vm_agent_wrapper) : ""
+    NAMESPACE                = var.namespace
+    ANTREA_VERSION           = var.antrea_version
+  }
 }
 
 module "vm_cluster" {
   source                  = "Azure/compute/azurerm"
   resource_group_name     = azurerm_resource_group.vm.name
-  count                   = length(var.azure_vm_os_types)
+  count                   = length(local.azure_vm_os_types)
   nb_instances            = 1
-  vm_os_publisher         = var.azure_vm_os_types[count.index].publisher
-  vm_os_offer             = var.azure_vm_os_types[count.index].offer
-  vm_os_sku               = var.azure_vm_os_types[count.index].sku
-  vm_hostname             = "${var.azure_vm_os_types[count.index].name}-${var.owner}"
+  vm_os_publisher         = local.azure_vm_os_types[count.index].publisher
+  vm_os_offer             = local.azure_vm_os_types[count.index].offer
+  vm_os_sku               = local.azure_vm_os_types[count.index].sku
+  vm_hostname             = "${local.azure_vm_os_types[count.index].name}-${var.owner}"
   vm_size                 = var.azure_vm_type
   vnet_subnet_id          = module.network.vnet_subnets[0]
   enable_ssh_key          = true
   ssh_key                 = var.ssh_public_key
-  remote_port             = 80
+  remote_port             = var.with_agent ? "*" : "80"
   source_address_prefixes = ["0.0.0.0/0"]
 
   custom_data = data.template_file.user_data[count.index].rendered
@@ -72,7 +81,7 @@ module "vm_cluster" {
   tags = {
     Terraform   = "true"
     Environment = "nephe"
-    Name        = var.azure_vm_os_types[count.index].name
+    Name        = local.azure_vm_os_types[count.index].name
   }
 }
 

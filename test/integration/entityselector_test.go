@@ -296,7 +296,7 @@ var _ = Describe(fmt.Sprintf("%s: Entity selector test", focusAws), func() {
 			if len(supportBundleDir) > 0 {
 				logf.Log.Info("Collect support bundles for test failure.")
 				fileName := utils.GenerateNameFromText(result.FullTestText, testFocus)
-				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName))
+				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName), cloudVPC, withAgent)
 			}
 			if preserveSetupOnFail {
 				logf.Log.V(1).Info("Preserve setup on failure")

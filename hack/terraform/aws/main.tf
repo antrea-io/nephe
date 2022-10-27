@@ -16,7 +16,8 @@ provider "aws" {}
 ##################################################################
 
 locals {
-  vpc_name = "nephe-vpc-${var.owner}-${random_string.suffix.result}"
+  vpc_name        = "nephe-vpc-${var.owner}-${random_string.suffix.result}"
+  aws_vm_os_types = var.with_agent ? var.aws_vm_os_types_agented : var.aws_vm_os_types
 }
 
 data "aws_subnets" "all" {
@@ -28,18 +29,26 @@ data "aws_subnets" "all" {
 }
 
 data "aws_ami" aws_ami {
-  count       = length(var.aws_vm_os_types)
+  count       = length(local.aws_vm_os_types)
   most_recent = true
   filter {
     name   = "name"
-    values = [var.aws_vm_os_types[count.index].ami_name_search]
+    values = [local.aws_vm_os_types[count.index].ami_name_search]
   }
-  owners = [var.aws_vm_os_types[count.index].ami_owner]
+  owners = [local.aws_vm_os_types[count.index].ami_owner]
 }
 
 data "template_file" user_data {
-  count    = length(var.aws_vm_os_types)
-  template = file(var.aws_vm_os_types[count.index].init)
+  count    = length(local.aws_vm_os_types)
+  template = file(local.aws_vm_os_types[count.index].init)
+  vars     = {
+    WITH_AGENT               = var.with_agent
+    K8S_CONF                 = var.with_agent ? file(var.antrea_agent_k8s_config) : ""
+    ANTREA_CONF              = var.with_agent ? file(var.antrea_agent_antrea_config) : ""
+    INSTALL_VM_AGENT_WRAPPER = var.with_agent ? file(var.install_vm_agent_wrapper) : ""
+    NAMESPACE                = var.namespace
+    ANTREA_VERSION           = var.antrea_version
+  }
 }
 
 data "aws_region" "current" {}
@@ -81,16 +90,16 @@ resource "aws_default_security_group" "default_security_group" {
   vpc_id = module.vpc.vpc_id
 
   ingress {
-    protocol    = "tcp"
-    from_port   = 80
-    to_port     = 80
+    protocol    = var.with_agent ? "-1" : "tcp"
+    from_port   = var.with_agent ? 0 : 80
+    to_port     = var.with_agent ? 0 : 80
     cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
+    protocol    = "-1"
     from_port   = 0
     to_port     = 0
-    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
   tags = {
@@ -104,13 +113,12 @@ resource "random_string" "suffix" {
   special = false
 }
 
-
 module "ec2_cluster" {
-  count                       = length(var.aws_vm_os_types)
+  count                       = length(local.aws_vm_os_types)
   source                      = "terraform-aws-modules/ec2-instance/aws"
   version                     = "~> 2.0"
   instance_count              = 1
-  name                        = "${module.vpc.vpc_id}-${var.aws_vm_os_types[count.index].name}-${var.owner}"
+  name                        = "${module.vpc.vpc_id}-${local.aws_vm_os_types[count.index].name}-${var.owner}"
   ami                         = data.aws_ami.aws_ami[count.index].id
   instance_type               = var.aws_vm_type
   key_name                    = var.aws_key_pair_name
@@ -122,6 +130,6 @@ module "ec2_cluster" {
   tags = {
     Terraform   = "true"
     Environment = "nephe"
-    Login       = var.aws_vm_os_types[count.index].login
+    Login       = local.aws_vm_os_types[count.index].login
   }
 }

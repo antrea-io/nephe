@@ -20,14 +20,16 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"text/template"
 	"time"
 
 	v1 "k8s.io/api/apps/v1"
-	v12 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -35,6 +37,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
+	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	k8stemplates "antrea.io/nephe/test/templates"
 )
@@ -163,7 +166,7 @@ func GetPodsFromDeployment(k8sClient client.Client, name, namespace string) ([]s
 		logf.Log.V(1).Info("Failed to find ReplicaSet", "Deployment", name)
 		return nil, nil
 	}
-	podList := &v12.PodList{}
+	podList := &corev1.PodList{}
 	pods := make([]string, 0)
 	if err := k8sClient.List(context.TODO(), podList, &client.ListOptions{Namespace: namespace}); err != nil {
 		return nil, err
@@ -180,7 +183,7 @@ func GetPodsFromDeployment(k8sClient client.Client, name, namespace string) ([]s
 
 // GetServiceClusterIPPort returns clusterIP and first port of a service.
 func GetServiceClusterIPPort(k8sClient client.Client, name, namespace string) (string, int32, error) {
-	service := &v12.Service{}
+	service := &corev1.Service{}
 	key := types.NamespacedName{Name: name, Namespace: namespace}
 	if err := k8sClient.Get(context.TODO(), key, service); err != nil {
 		return "", 0, err
@@ -219,8 +222,7 @@ func AddCloudAccount(kubeCtl *KubeCtl, params k8stemplates.CloudAccountParameter
 }
 
 // ConfigureEntitySelectorAndWait configures EntitySelector for cloud resources, and wait for them to be imported.
-func ConfigureEntitySelectorAndWait(
-	kubeCtl *KubeCtl, k8sClient client.Client, params k8stemplates.CloudEntitySelectorParameters,
+func ConfigureEntitySelectorAndWait(kubeCtl *KubeCtl, k8sClient client.Client, params k8stemplates.CloudEntitySelectorParameters,
 	kind string, num int, namespace string, isDelete bool) error {
 	if err := ConfigureK8s(kubeCtl, params, k8stemplates.CloudEntitySelector, isDelete); err != nil {
 		return err
@@ -244,7 +246,8 @@ func ConfigureEntitySelectorAndWait(
 }
 
 // CheckCloudResourceNetworkPolicies checks NetworkPolicies has been applied to cloud resources.
-func CheckCloudResourceNetworkPolicies(k8sClient client.Client, kind, namespace string, ids []string, anps []string) error {
+func CheckCloudResourceNetworkPolicies(kubeCtl *KubeCtl, k8sClient client.Client, kind, namespace string, ids, anps []string,
+	withAgent bool) error {
 	getVMANPs := func(id string) (map[string]*runtimev1alpha1.NetworkPolicyStatus, error) {
 		v := &runtimev1alpha1.VirtualMachinePolicy{}
 		fetchKey := client.ObjectKey{Name: id, Namespace: namespace}
@@ -258,6 +261,28 @@ func CheckCloudResourceNetworkPolicies(k8sClient client.Client, kind, namespace 
 	}
 
 	logf.Log.V(1).Info("Check NetworkPolicy on resources", "resources", ids, "nps", anps)
+
+	if withAgent {
+		err := wait.Poll(time.Second*5, time.Second*30, func() (bool, error) {
+			for _, anp := range anps {
+				cmd := fmt.Sprintf("get anp %s -n %s -o json -o=jsonpath={.status.phase}", anp, namespace)
+				out, err := kubeCtl.Cmd(cmd)
+				if err != nil {
+					return false, nil
+				}
+				if strings.Compare(out, "Realized") != 0 {
+					logf.Log.V(1).Info("ANP realization in progress", "VM IDs", ids, "ANP", anp)
+					return false, nil
+				}
+			}
+			return true, nil
+		})
+		if err != nil {
+			logf.Log.Error(err, "timeout waiting for ANP realization")
+		}
+		return err
+	}
+
 	if err := wait.Poll(time.Second*2, time.Second*300, func() (bool, error) {
 		var getter func(id string) (map[string]*runtimev1alpha1.NetworkPolicyStatus, error)
 		if kind == reflect.TypeOf(v1alpha1.VirtualMachine{}).Name() {
@@ -376,6 +401,42 @@ func GenerateNameFromText(fullText string, focus []string) string {
 	return strings.ReplaceAll(fullText, " ", "")
 }
 
+// SetAgentConfig configures the cluster, generates agent kubeconfigs and sets terraform env vars.
+func SetAgentConfig(c client.Client, ns *corev1.Namespace, cloudProviders, antreaVersion, kubeconfig, dir string) error {
+	err := c.Create(context.TODO(), ns)
+	if err != nil {
+		return fmt.Errorf("failed to create static vm namespace %+v", err)
+	}
+
+	// TODO: decouple cluster type with cloud provider type
+	clusterType := ""
+	switch cloudProviders {
+	case string(cloudv1alpha1.AzureCloudProvider):
+		clusterType = "aks"
+	case string(cloudv1alpha1.AWSCloudProvider):
+		clusterType = "eks"
+	}
+
+	_ = os.Setenv("KUBECONFIG", kubeconfig)
+	cmd := exec.Command("./ci/generate-agent-config.sh", "--cluster-type", clusterType, "--antrea-version", antreaVersion,
+		"--target-dir", dir, "--ns", ns.Name)
+	outputBytes, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to generate antrea vm agent kubeconfigs %+v: %s", err, string(outputBytes))
+	}
+
+	absPath, err := filepath.Abs("./hack/install-vm-agent-wrapper.sh")
+	if err != nil {
+		return err
+	}
+
+	_ = os.Setenv("TF_VAR_with_agent", "true")
+	_ = os.Setenv("TF_VAR_antrea_agent_k8s_config", dir+"/antrea-agent.kubeconfig")
+	_ = os.Setenv("TF_VAR_antrea_agent_antrea_config", dir+"/antrea-agent.antrea.kubeconfig")
+	_ = os.Setenv("TF_VAR_install_vm_agent_wrapper", absPath)
+	return nil
+}
+
 // CollectAgentInfo collect ovs dump-flows from all bridges.
 func CollectAgentInfo(kubctl *KubeCtl, dir string) error {
 	getPodsCmd := "get pods -n kube-system -o=jsonpath='{range.items[*]}{.metadata.name}{\"\\n\"}{end}'"
@@ -434,6 +495,31 @@ func CollectAgentInfo(kubctl *KubeCtl, dir string) error {
 	return nil
 }
 
+// CollectVMAgentLog collects VM agent log from all imported VMs.
+func CollectVMAgentLog(cloudVPC CloudVPC, dir string) error {
+	if cloudVPC == nil {
+		return nil
+	}
+	err := os.MkdirAll(dir, 0777)
+	if err != nil {
+		return err
+	}
+	vmCmd := []string{"cat", "/var/log/antrea/antrea-agent.log"}
+	for _, vm := range cloudVPC.GetVMs() {
+		output, err := cloudVPC.VMCmd(vm, vmCmd, 10*time.Second)
+		if err != nil {
+			continue
+		}
+		fn := path.Join(dir, vm+"-agent.log")
+		err = os.WriteFile(fn, []byte(output), 0666)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// CollectCRDs collects related CRDs in the cluster.
 func CollectCRDs(kubectl *KubeCtl, dir string) error {
 	err := os.MkdirAll(dir, 0777)
 	if err != nil {
@@ -486,21 +572,26 @@ func CollectControllerLogs(kubctl *KubeCtl, dir string) error {
 	return nil
 }
 
-// CollectSupportBundle collect antrea and nephe logs
-func CollectSupportBundle(kubctl *KubeCtl, dir string) {
+// CollectSupportBundle collect antrea and nephe logs.
+func CollectSupportBundle(kubctl *KubeCtl, dir string, cloudVPC CloudVPC, withAgent bool) {
 	logf.Log.Info("Collecting support bundles")
 	if err := CollectAgentInfo(kubctl, dir); err != nil {
-		logf.Log.Error(err, "Failed to collect OVS flows")
+		logf.Log.Error(err, "failed to collect OVS flows")
 	}
 	if err := CollectControllerLogs(kubctl, dir); err != nil {
-		logf.Log.Error(err, "Failed to collect logs")
+		logf.Log.Error(err, "failed to collect controller logs")
 	}
 	if err := CollectCRDs(kubctl, dir); err != nil {
-		logf.Log.Error(err, "Failed to collect CRDs")
+		logf.Log.Error(err, "failed to collect CRDs")
+	}
+	if withAgent {
+		if err := CollectVMAgentLog(cloudVPC, dir); err != nil {
+			logf.Log.Error(err, "failed to collect VM agent logs")
+		}
 	}
 }
 
-// WaitApiServer wait for aggregated api server to be ready
+// WaitApiServer wait for aggregated api server to be ready.
 func WaitApiServer(k8sClient client.Client, timeout time.Duration) error {
 	if err := wait.Poll(time.Second, timeout, func() (bool, error) {
 		vmpList := &runtimev1alpha1.VirtualMachinePolicyList{}

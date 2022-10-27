@@ -28,11 +28,11 @@
    for more information.
 
    ```bash
-   export TF_VAR_azure_client_id=YOUR_SERVICE_PRINCIPAL_ID
-   export TF_VAR_azure_client_secret=YOUR_SERVICE_PRINCIPAL_SECRET
-   export TF_VAR_azure_client_subscription_id=YOUR_SUBCRIPTION_ID
-   export TF_VAR_azure_client_tenant_id=YOUR_TENANT_ID
-   export TF_VAR_owner=YOUR_NAME
+   export TF_VAR_azure_client_id=<YOUR_SERVICE_PRINCIPAL_ID>
+   export TF_VAR_azure_client_secret=<YOUR_SERVICE_PRINCIPAL_SECRET>
+   export TF_VAR_azure_client_subscription_id=<YOUR_SUBCRIPTION_ID>
+   export TF_VAR_azure_client_tenant_id=<YOUR_TENANT_ID>
+   export TF_VAR_owner=<YOUR_NAME>
    ```
 
    Note: `TF_VAR_owner` may be set so that you can identify your own cloud
@@ -120,11 +120,27 @@ below environment variables, see [Prerequisites](#Prerequisites) section for
 more details.
 
 ```bash
-export TF_VAR_azure_client_id=YOUR_SERVICE_PRINCIPAL_ID
-export TF_VAR_azure_client_secret=YOUR_SERVICE_PRINCIPAL_SECRET
-export TF_VAR_azure_client_subscription_id=YOUR_SUBCRIPTION_ID
-export TF_VAR_azure_client_tenant_id=YOUR_TENANT_ID
-export TF_VAR_owner=YOUR_NAME
+export TF_VAR_azure_client_id=<YOUR_SERVICE_PRINCIPAL_ID>
+export TF_VAR_azure_client_secret=<YOUR_SERVICE_PRINCIPAL_SECRET>
+export TF_VAR_azure_client_subscription_id=<YOUR_SUBCRIPTION_ID>
+export TF_VAR_azure_client_tenant_id=<YOUR_TENANT_ID>
+export TF_VAR_owner=<YOUR_NAME>
+```
+
+To create VMs with antrea agent deployed, additionally set the following
+variables. For more information on how to generate the kubeconfig files, please
+refer to antrea [ExternalNode](https://github.com/antrea-io/antrea/blob/main/docs/external-node.md#install-antrea-agent-on-vm)
+documentation.
+
+**Note**: Terraform working directory is different from current working
+directory, please use absolute file path to avoid confusion. The install wrapper
+scripts is located under [hack/](../hack).
+
+```bash
+export TF_VAR_agent=true
+export TF_VAR_antrea_agent_k8s_config=<PATH_TO_K8S_APISERVER_KUBECONFIG>
+export TF_VAR_antrea_agent_antrea_config=<PATH_TO_ANTREA_APISERVER_KUBECONFIG>
+export TF_VAR_install_vm_agent_wrapper=<PATH_TO_INSTALL_VM_AGENT_WRAPPER_SCRIPT>
 ```
 
 ### Setup Terraform Environment

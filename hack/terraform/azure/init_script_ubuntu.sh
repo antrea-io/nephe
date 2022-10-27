@@ -13,7 +13,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Constants.
+K8S_KUBECONFIG="antrea-agent.kubeconfig"
+ANTREA_KUBECONFIG="antrea-agent.antrea.kubeconfig"
+
 sudo apt-get update
+
+if [[ ${WITH_AGENT} == true ]]; then
+  sudo apt-get install -y openvswitch-switch
+  cat <<EOF > $K8S_KUBECONFIG
+${K8S_CONF}
+EOF
+  cat <<EOF > $ANTREA_KUBECONFIG
+${ANTREA_CONF}
+EOF
+
+  # redirecting wrapper script into a file like above kubeconfigs doesn't work, it executes the script anyways.
+  # TODO: redirect script to a file then execute the file instead of running it inline here.
+  set -- --ns "${NAMESPACE}" --antrea-version "${ANTREA_VERSION}" --kubeconfig $K8S_KUBECONFIG --antrea-kubeconfig $ANTREA_KUBECONFIG
+  export SYSTEMD_PAGER=""
+  ${INSTALL_VM_AGENT_WRAPPER}
+fi
+
 sudo apt-get install -y apache2
 sudo echo "Listen 8080" >> /etc/apache2/ports.conf
 sudo systemctl restart apache2

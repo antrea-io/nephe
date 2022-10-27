@@ -64,3 +64,66 @@ variable "azure_vm_os_types" {
     }
   ]
 }
+
+variable "azure_vm_os_types_agented" {
+  type = list(object({
+    name      = string
+    offer     = string
+    publisher = string
+    sku       = string
+    init      = string
+  }))
+  default = [
+    {
+      name      = "ubuntu-host1"
+      offer     = "0001-com-ubuntu-server-focal"
+      publisher = "Canonical"
+      sku       = "20_04-lts-gen2"
+      init      = "init_script_ubuntu.sh"
+    },
+    {
+      name      = "ubuntu-host2"
+      offer     = "0001-com-ubuntu-server-focal"
+      publisher = "Canonical"
+      sku       = "20_04-lts-gen2"
+      init      = "init_script_ubuntu.sh"
+    },
+    {
+      name      = "ubuntu-host3"
+      offer     = "0001-com-ubuntu-server-focal"
+      publisher = "Canonical"
+      sku       = "20_04-lts-gen2"
+      init      = "init_script_ubuntu.sh"
+    }
+  ]
+}
+
+variable "with_agent" {
+  type    = bool
+  default = false
+}
+
+variable "namespace" {
+  type    = string
+  default = "vm-ns"
+}
+
+variable "antrea_version" {
+  type    = string
+  default = "v1.9.0"
+}
+
+variable "antrea_agent_k8s_config" {
+  type    = string
+  default = "antrea-agent.kubeconfig"
+}
+
+variable "antrea_agent_antrea_config" {
+  type    = string
+  default = "antrea-agent.antrea.kubeconfig"
+}
+
+variable "install_vm_agent_wrapper" {
+  type    = string
+  default = "install-vm-agent-wrapper.sh"
+}

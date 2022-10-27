@@ -15,6 +15,7 @@
 package integration
 
 import (
+	"context"
 	"flag"
 	"math/rand"
 	"os"
@@ -26,6 +27,9 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -44,6 +48,9 @@ const (
 	focusAws   = "test-aws"
 	focusAzure = "test-azure"
 	focusCloud = "test-cloud-cluster"
+	focusAgent = "test-with-agent"
+
+	antreaVersion = "v1.9.0"
 )
 
 var (
@@ -55,12 +62,15 @@ var (
 	preserveSetup = false
 	testFocus     = []string{focusAws, focusAzure}
 	cloudCluster  bool
+	staticVMNS    = &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vm-ns"}}
+	tmpDir        string
 
 	// flags.
 	manifest            string
 	preserveSetupOnFail bool
 	supportBundleDir    string
 	kubeconfig          string
+	withAgent           bool
 	cloudProviders      string
 	clusterContext      string
 )
@@ -69,6 +79,7 @@ func init() {
 	flag.StringVar(&manifest, "manifest-path", "./config/nephe.yml", "The relative path to manifest.")
 	flag.BoolVar(&preserveSetupOnFail, "preserve-setup-on-fail", false, "Preserve the setup if a test failed.")
 	flag.StringVar(&supportBundleDir, "support-bundle-dir", "", "Support bundles are saved in this dir when specified.")
+	flag.BoolVar(&withAgent, "with-agent", false, "Using antrea-agent on VM.")
 	flag.StringVar(&cloudProviders, "cloud-provider", string(cloudv1alpha1.AzureCloudProvider),
 		"Cloud Providers to use, separated by comma. Default is Azure.")
 	flag.StringVar(&clusterContext, "cluster-context", "", "cluster context to use. Default is empty.")
@@ -115,6 +126,16 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(c).ToNot(BeNil())
 	k8sClient = c
+
+	if withAgent {
+		kubeCtl.SetContext(cluster)
+		err := c.Get(context.Background(), client.ObjectKey{Name: staticVMNS.Name}, &v1.Namespace{})
+		Expect(apierrors.IsNotFound(err)).To(BeTrue(), "static ns %s not created", staticVMNS.Name)
+		tmpDir, err = os.MkdirTemp("/tmp", "integration-*")
+		Expect(err).ToNot(HaveOccurred())
+		err = utils.SetAgentConfig(c, staticVMNS, cloudProviders, antreaVersion, kubeconfig, tmpDir)
+		Expect(err).ToNot(HaveOccurred())
+	}
 
 	// Create VM VPC in parallel.
 	wg := sync.WaitGroup{}
@@ -198,10 +219,11 @@ var _ = AfterSuite(func(done Done) {
 	if len(cluster) == 0 {
 		cluster = "default"
 	}
+
 	By(cluster + ": Check for controllers' restarts")
 	err = utils.CheckRestart(kubeCtl)
 	if err != nil {
-		logf.Log.Error(err, "Error restarting nephe controller")
+		logf.Log.Error(err, "error restarting nephe controller")
 		controllersCored = &cluster
 	}
 
@@ -213,9 +235,17 @@ var _ = AfterSuite(func(done Done) {
 		}
 		if len(supportBundleDir) > 0 {
 			logf.Log.Info("Controllers restart detected, collect support bundles", "Cluster", *controllersCored)
-			utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, cluster, "integration"))
+			utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, cluster, "integration"), cloudVPC, withAgent)
 		}
 	}
+
+	if withAgent {
+		By(cluster + ": Deleting namespace" + staticVMNS.Name)
+		err = k8sClient.Delete(context.TODO(), staticVMNS)
+		Expect(err).ToNot(HaveOccurred())
+		_ = os.RemoveAll(tmpDir)
+	}
+
 	// Delete VM VPC in parallel.
 	wg := sync.WaitGroup{}
 	wgChan := make(chan error)

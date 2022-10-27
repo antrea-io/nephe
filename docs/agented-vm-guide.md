@@ -200,11 +200,13 @@ the public cloud VMs. The wrapper install script sets the Environment variable
 install script from antrea repository and triggers installation.
 
 The wrapper install script requires 4 arguments:
-Namespace            - Specifies the Namespace to be used by the `antrea-agent`.
-It should match with the ExternalNode Namespace.
-Antrea version       - Specifies the Antrea version to be used.
-Kubeconfig           - Provides access to the Kubernetes API server.
-Antrea Kubeconfig    - Provides access to the Antrea API server.
+
+| Argument          | Purpose                                                                                                    |
+|-------------------|------------------------------------------------------------------------------------------------------------|
+| Namespace         | Specifies the Namespace to be used by the `antrea-agent`. It should match with the ExternalNode Namespace. |
+| Antrea version    | Specifies the Antrea version to be used.                                                                   |
+| Kubeconfig        | Provides access to the Kubernetes API server.                                                              |
+| Antrea Kubeconfig | Provides access to the Antrea API server.                                                                  |
 
 For more information on how to generate the kubeconfig files, please refer to
 antrea [ExternalNode](https://github.com/antrea-io/antrea/blob/main/docs/external-node.md#install-antrea-agent-on-vm)

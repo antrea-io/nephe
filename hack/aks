@@ -92,6 +92,8 @@ function destroy {
     exit 0
   fi
   cd $RUN_PATH
+  # Remove any resources created by antrea.
+  KUBECONFIG=$RUN_PATH/kubeconfig kubectl delete -f antrea-aks.yml
   $TERRAFORM destroy -auto-approve
 }
 

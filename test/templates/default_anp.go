@@ -14,25 +14,36 @@
 
 package templates
 
-type CloudEntitySelectorParameters struct {
-	Name             string
-	Namespace        string
-	CloudAccountName string
-	VPC              string
-	Kind             string
-	Agented          bool
+type DefaultANPParameters struct {
+	Namespace string
 }
 
-const CloudEntitySelector = `
-apiVersion: crd.cloud.antrea.io/v1alpha1
-kind: CloudEntitySelector
+const DefaultANPSetup = `
+apiVersion: crd.antrea.io/v1alpha1
+kind: NetworkPolicy
 metadata:
-  name: {{.Name}}
+  name: deny-8080
   namespace: {{.Namespace}}
 spec:
-  accountName: {{.CloudAccountName}}
-  vmSelector:
-    - vpcMatch:
-        matchID: {{.VPC}}
-      agented: {{.Agented}}
+  priority: 2
+  appliedTo:
+    - externalEntitySelector:
+        matchLabels:
+          kind.nephe: virtualmachine
+  ingress:
+    - action: Drop
+      ports:
+        - protocol: TCP
+          port: 8080
+      from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+  egress:
+    - action: Drop
+      ports:
+        - protocol: TCP
+          port: 8080
+      to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
 `
