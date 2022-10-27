@@ -57,7 +57,7 @@ func (c *KubeCtl) SetContext(clusterCtx string) {
 func (c *KubeCtl) IsPresent() error {
 	cmd := c.getCommand("version")
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("kubeclt check failed, err %w, cmd %v, output %v", err, cmd.String(), string(output))
+		return fmt.Errorf("kubectl check failed, err %w, cmd %v, output %v", err, cmd.String(), string(output))
 	}
 	return nil
 }

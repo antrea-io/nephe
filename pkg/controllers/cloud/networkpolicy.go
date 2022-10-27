@@ -239,14 +239,7 @@ func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPoli
 		key := client.ObjectKey{Name: m.ExternalEntity.Name, Namespace: m.ExternalEntity.Namespace}
 		if err := r.Get(context.TODO(), key, e); err != nil {
 			if apierrors.IsNotFound(err) {
-				if ips, ok := r.fedExternalEntityIPs[key.String()]; ok {
-					for _, ip := range ips {
-						_, ipnet, _ := net.ParseCIDR(ip + "/32")
-						ipBlocks = append(ipBlocks, ipnet)
-					}
-				} else {
-					notFoundMember = append(notFoundMember, m.ExternalEntity.Name)
-				}
+				notFoundMember = append(notFoundMember, m.ExternalEntity.Name)
 				continue
 			}
 			r.Log.Error(err, "Client get ExternalEntity", "key", key)
