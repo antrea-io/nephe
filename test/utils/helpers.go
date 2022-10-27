@@ -497,6 +497,9 @@ func CollectAgentInfo(kubctl *KubeCtl, dir string) error {
 
 // CollectVMAgentLog collects VM agent log from all imported VMs.
 func CollectVMAgentLog(cloudVPC CloudVPC, dir string) error {
+	if cloudVPC == nil {
+		return nil
+	}
 	err := os.MkdirAll(dir, 0777)
 	if err != nil {
 		return err
