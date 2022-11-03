@@ -212,10 +212,17 @@ var _ = AfterSuite(func(done Done) {
 		close(done)
 		return
 	}
+
+	if kubeCtl == nil {
+		logf.Log.Info("No cluster found")
+		close(done)
+		return
+	}
+
 	var controllersCored *string
 	var err error
+	kubeCtl.SetContext(clusterContext)
 	cluster := clusterContext
-	kubeCtl.SetContext(cluster)
 	if len(cluster) == 0 {
 		cluster = "default"
 	}
@@ -223,8 +230,12 @@ var _ = AfterSuite(func(done Done) {
 	By(cluster + ": Check for controllers' restarts")
 	err = utils.CheckRestart(kubeCtl)
 	if err != nil {
-		logf.Log.Error(err, "error restarting nephe controller")
-		controllersCored = &cluster
+		if apierrors.IsNotFound(err) {
+			logf.Log.Info("nephe controller not deployed")
+		} else {
+			logf.Log.Error(err, "error restarting nephe controller")
+			controllersCored = &cluster
+		}
 	}
 
 	if controllersCored != nil {
@@ -240,7 +251,7 @@ var _ = AfterSuite(func(done Done) {
 	}
 
 	if withAgent {
-		By(cluster + ": Deleting namespace" + staticVMNS.Name)
+		By(cluster + ": Deleting namespace " + staticVMNS.Name)
 		err = k8sClient.Delete(context.TODO(), staticVMNS)
 		Expect(err).ToNot(HaveOccurred())
 		_ = os.RemoveAll(tmpDir)
