@@ -805,7 +805,7 @@
             - email-ext:
                   recipients: rahulj@vmware.com, kumaranand@vmware.com
                   content-type: html
-                  subject: Build ${{BUILD_NUMBER}} result for nephe-test-aws
+                  subject: Build ${{BUILD_NUMBER}} result for nephe-test-azure
                   body: ${{JELLY_SCRIPT,template="html"}}
                   attach-build-log: false
                   compress-log: false
