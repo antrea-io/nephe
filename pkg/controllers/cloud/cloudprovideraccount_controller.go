@@ -28,6 +28,7 @@ import (
 	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	cloudprovider "antrea.io/nephe/pkg/cloud-provider"
 	"antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
+	"antrea.io/nephe/pkg/controllers/utils"
 )
 
 // CloudProviderAccountReconciler reconciles a CloudProviderAccount object.
@@ -75,7 +76,7 @@ func (r *CloudProviderAccountReconciler) SetupWithManager(mgr ctrl.Manager) erro
 
 func (r *CloudProviderAccountReconciler) processCreate(namespacedName *types.NamespacedName,
 	account *cloudv1alpha1.CloudProviderAccount) error {
-	accountCloudType, err := account.GetAccountProviderType()
+	accountCloudType, err := utils.GetAccountProviderType(account)
 	if err != nil {
 		return err
 	}

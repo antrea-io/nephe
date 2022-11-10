@@ -125,24 +125,32 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "VirtualMachine")
 		os.Exit(1)
 	}
-	if err = (&crdv1alpha1.VirtualMachine{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "VirtualMachine")
-		os.Exit(1)
-	}
-	if err = (&crdv1alpha1.CloudEntitySelector{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "CloudEntitySelector")
-		os.Exit(1)
-	}
 
-	if err = (&crdv1alpha1.CloudProviderAccount{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "CloudProviderAccount")
-		os.Exit(1)
-	}
-
-	// Register webhook for secret
+	// Register webhook for secret.
 	mgr.GetWebhookServer().Register("/validate-v1-secret",
 		&webhook.Admission{Handler: &nephewebhook.SecretValidator{Client: mgr.GetClient(),
-			Log: logging.GetLogger("webhook").WithName("Secret")}})
+			Log: logging.GetLogger("webhook").WithName("secret")}})
+
+	// Register webhook for CloudProviderAccount Mutator.
+	mgr.GetWebhookServer().Register("/mutate-crd-cloud-antrea-io-v1alpha1-cloudprovideraccount",
+		&webhook.Admission{Handler: &nephewebhook.CPAMutator{Client: mgr.GetClient(),
+			Log: logging.GetLogger("webhook").WithName("cloudprovideraccount-resource")}})
+
+	// Register webhook for CloudProviderAccount Validator.
+	mgr.GetWebhookServer().Register("/validate-crd-cloud-antrea-io-v1alpha1-cloudprovideraccount",
+		&webhook.Admission{Handler: &nephewebhook.CPAValidator{Client: mgr.GetClient(),
+			Log: logging.GetLogger("webhook").WithName("cloudprovideraccount-resource")}})
+
+	// Register webhook for CloudEntitySelector Mutator.
+	mgr.GetWebhookServer().Register("/mutate-crd-cloud-antrea-io-v1alpha1-cloudentityselector",
+		&webhook.Admission{Handler: &nephewebhook.CESMutator{Client: mgr.GetClient(),
+			Sh:  mgr.GetScheme(),
+			Log: logging.GetLogger("webhook").WithName("cloudentityselector-resource")}})
+
+	// Register webhook for CloudEntitySelector Validator.
+	mgr.GetWebhookServer().Register("/validate-crd-cloud-antrea-io-v1alpha1-cloudentityselector",
+		&webhook.Admission{Handler: &nephewebhook.CESValidator{Client: mgr.GetClient(),
+			Log: logging.GetLogger("webhook").WithName("cloudentityselector-resource")}})
 
 	if err = (&apiserver.NepheControllerAPIServer{}).SetupWithManager(mgr,
 		npController.GetVirtualMachinePolicyIndexer(), logging.GetLogger("apiServer")); err != nil {
