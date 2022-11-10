@@ -44,7 +44,7 @@ function validate {
   for cmd in ${CMD_ARRAY[@]}; do
      which $cmd > /dev/null 2>&1
      if [ $? -ne 0 ]; then
-       echo $cmd not found, please install first
+       echo "$cmd not found, please install first"
        exit 1
      fi
   done
@@ -52,7 +52,7 @@ function validate {
   for env in ${ENV_ARRAY[@]}; do
      printenv $env > /dev/null 2>&1
      if [ $? -ne 0 ]; then
-       echo required environment variable $env is not set.
+       echo "required environment variable $env is not set"
        exit 1
      fi
   done
@@ -62,7 +62,7 @@ function apply {
   validate
   mkdir -p $RUN_PATH
   if [ $? -ne 0 ]; then
-     echo $RUN_PATH cannot be created
+     echo "$RUN_PATH cannot be created"
      exit 1
   fi
   cp -r $CONFIG_PATH/* $RUN_PATH
@@ -76,7 +76,7 @@ function apply {
     echo "eks creation failed"
     exit 1
   fi
-  echo eks cluster created.
+  echo "eks cluster created"
   $TERRAFORM output -json kubectl_config | jq -r . > $RUN_PATH/kubeconfig
 
   if [ -z $CREATE_ONLY ]; then
@@ -86,7 +86,7 @@ function apply {
      KUBECONFIG=$RUN_PATH/kubeconfig kubectl apply --validate=false -f "https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cert-manager.yaml"
   fi
 
-  echo run eks kubectl ... to acess it.
+  echo "run eks kubectl ... to acess it"
 }
 
 function destroy {
@@ -98,6 +98,11 @@ function destroy {
   # Remove any resources created by antrea.
   KUBECONFIG=$RUN_PATH/kubeconfig kubectl delete -f antrea-eks.yml
   $TERRAFORM destroy -auto-approve
+  if [[ $? -ne 0 ]]; then
+    echo "eks deletion failed"
+    exit 1
+  fi
+  echo "eks cluster deleted"
 }
 
 function load {
@@ -115,6 +120,10 @@ function output {
   fi
   cd $RUN_PATH
   $TERRAFORM output
+  if [[ $? -ne 0 ]]; then
+    echo "eks output failed"
+    exit 1
+  fi
 }
 
 while [[ $# -gt 0 ]]

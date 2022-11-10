@@ -60,7 +60,7 @@ function apply {
   validate
   mkdir -p $RUN_PATH
   if [ $? -ne 0 ]; then
-     echo $RUN_PATH cannot be created
+     echo "$RUN_PATH cannot be created"
      exit 1
   fi
   cp $CONFIG_PATH/* $RUN_PATH
@@ -75,9 +75,9 @@ function apply {
     echo "aks creation failed"
     exit 1
   fi
-  echo aks cluster created.
+  echo "aks cluster created"
   $TERRAFORM output -json kube_config | jq -r . > $RUN_PATH/kubeconfig
-  echo run aks kubectl ... to acess it.
+  echo "run aks kubectl ... to access it"
 
   if [ -z $CREATE_ONLY ]; then
      KUBECONFIG=$RUN_PATH/kubeconfig kubectl apply -f antrea-aks-node-init.yml
@@ -95,6 +95,11 @@ function destroy {
   # Remove any resources created by antrea.
   KUBECONFIG=$RUN_PATH/kubeconfig kubectl delete -f antrea-aks.yml
   $TERRAFORM destroy -auto-approve
+  if [[ $? -ne 0 ]]; then
+    echo "vm cluster deletion failed"
+    exit 1
+  fi
+  echo "aks cluster deleted"
 }
 
 function load {
@@ -112,6 +117,10 @@ function output {
   fi
   cd $RUN_PATH
   $TERRAFORM output
+  if [[ $? -ne 0 ]]; then
+    echo "aks output failed"
+    exit 1
+  fi
 }
 
 while [[ $# -gt 0 ]]

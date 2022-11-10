@@ -37,7 +37,7 @@ function print_usage {
 function apply {
   mkdir -p $RUN_PATH
   if [ $? -ne 0 ]; then
-     echo $RUN_PATH cannot be created
+     echo "$RUN_PATH cannot be created"
      exit 1
   fi
   cp $CONFIG_PATH/* $RUN_PATH
@@ -51,7 +51,7 @@ function apply {
     echo "vm cluster creation failed"
     exit 1
   fi
-  echo vm cluster created.
+  echo "vm cluster created"
 }
 
 function destroy {
@@ -60,6 +60,11 @@ function destroy {
   fi
   cd $RUN_PATH
   $TERRAFORM destroy -auto-approve
+  if [[ $? -ne 0 ]]; then
+    echo "vm cluster deletion failed"
+    exit 1
+  fi
+  echo "vm cluster deleted"
 }
 
 function output {
@@ -68,6 +73,10 @@ function output {
   fi
   cd $RUN_PATH
   $TERRAFORM output ${@}
+  if [[ $? -ne 0 ]]; then
+    echo "vm cluster output failed"
+    exit 1
+  fi
 }
 
 while [[ $# -gt 0 ]]
