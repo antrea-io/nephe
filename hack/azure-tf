@@ -30,21 +30,21 @@ _usage="Usage: $0 :
                 [output] : display vm cluster output variables
                 [help]"
 
-function print_usage {
-    echo -e "$_usage"
+function print_usage() {
+  echo -e "$_usage"
 }
 
-function apply {
+function apply() {
   mkdir -p $RUN_PATH
   if [ $? -ne 0 ]; then
-     echo "$RUN_PATH cannot be created"
-     exit 1
+    echo "$RUN_PATH cannot be created"
+    exit 1
   fi
   cp $CONFIG_PATH/* $RUN_PATH
   cd $RUN_PATH
   $TERRAFORM init
   if [ $? -ne 0 ]; then
-     exit 1
+    exit 1
   fi
   $TERRAFORM apply -auto-approve
   if [[ $? -ne 0 ]]; then
@@ -54,7 +54,7 @@ function apply {
   echo "vm cluster created"
 }
 
-function destroy {
+function destroy() {
   if [ ! -d $RUN_PATH ]; then
     exit 0
   fi
@@ -67,7 +67,7 @@ function destroy {
   echo "vm cluster deleted"
 }
 
-function output {
+function output() {
   if [ ! -d $RUN_PATH ]; then
     exit 1
   fi
@@ -79,31 +79,30 @@ function output {
   fi
 }
 
-while [[ $# -gt 0 ]]
-do
-key="$1"
-outputKey="${@:2}"
+while [[ $# -gt 0 ]]; do
+  key="$1"
+  outputKey="${@:2}"
 
-case $key in
-    create)
+  case $key in
+  create)
     apply
     exit 0
     ;;
-    destroy)
+  destroy)
     destroy
     exit 0
     ;;
-    output)
+  output)
     output $outputKey
     exit 0
     ;;
-    help)
+  help)
     print_usage
     exit 0
     ;;
-    *)    # unknown option
+  *) # unknown option
     echo -e "Unknown option $1"
     exit 1
     ;;
-esac
+  esac
 done
