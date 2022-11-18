@@ -79,23 +79,26 @@ func main() {
 		os.Exit(1)
 	}
 
+	cpaController := &controllers.CloudProviderAccountReconciler{
+		Client: mgr.GetClient(),
+		Log:    logging.GetLogger("controllers").WithName("CloudProviderAccount"),
+		Scheme: mgr.GetScheme(),
+	}
+
+	if err = cpaController.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "CloudProviderAccount")
+		os.Exit(1)
+	}
+
 	if err = (&controllers.CloudEntitySelectorReconciler{
 		Client: mgr.GetClient(),
 		Log:    logging.GetLogger("controllers").WithName("CloudEntitySelector"),
 		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
+	}).SetupWithManager(mgr, cpaController); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CloudEntitySelector")
 		os.Exit(1)
 	}
 
-	if err = (&controllers.CloudProviderAccountReconciler{
-		Client: mgr.GetClient(),
-		Log:    logging.GetLogger("controllers").WithName("CloudProviderAccount"),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "CloudProviderAccount")
-		os.Exit(1)
-	}
 	if err = (&controllers.ExternalEntityReconciler{
 		Client: mgr.GetClient(),
 		Log:    logging.GetLogger("controllers").WithName("ExternalEntity"),

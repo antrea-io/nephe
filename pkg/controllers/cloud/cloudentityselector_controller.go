@@ -17,6 +17,7 @@ package cloud
 import (
 	"context"
 	"fmt"
+	"k8s.io/client-go/tools/cache"
 	"strings"
 	"sync"
 	"time"
@@ -26,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/tools/cache"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -49,8 +49,10 @@ type CloudEntitySelectorReconciler struct {
 	Log    logr.Logger
 	Scheme *runtime.Scheme
 
-	mutex      sync.Mutex
-	accPollers map[types.NamespacedName]*accountPoller
+	mutex         sync.Mutex
+	cpaReconciler *CloudProviderAccountReconciler
+	// Needed for retrieving accPoller in processDelete
+	selectorToAccountMap map[types.NamespacedName]types.NamespacedName
 }
 
 // +kubebuilder:rbac:groups=crd.cloud.antrea.io,resources=cloudentityselectors,verbs=get;list;watch;create;update;patch;delete
@@ -74,8 +76,10 @@ func (r *CloudEntitySelectorReconciler) Reconcile(ctx context.Context, req ctrl.
 	return ctrl.Result{}, err
 }
 
-func (r *CloudEntitySelectorReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.accPollers = make(map[types.NamespacedName]*accountPoller)
+func (r *CloudEntitySelectorReconciler) SetupWithManager(mgr ctrl.Manager, cpaReconciler *CloudProviderAccountReconciler) error {
+	r.selectorToAccountMap = make(map[types.NamespacedName]types.NamespacedName)
+	r.cpaReconciler = cpaReconciler
+
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &cloudv1alpha1.VirtualMachine{},
 		virtualMachineIndexerByCloudAccount, func(obj client.Object) []string {
 			vm := obj.(*cloudv1alpha1.VirtualMachine)
@@ -94,7 +98,63 @@ func (r *CloudEntitySelectorReconciler) SetupWithManager(mgr ctrl.Manager) error
 
 func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *cloudv1alpha1.CloudEntitySelector,
 	selectorNamespacedName *types.NamespacedName) error {
-	accPoller, preExists := r.addAccountPoller(selector)
+	accountNamespacedName := &types.NamespacedName{
+		Namespace: selector.Namespace,
+		Name:      selector.Spec.AccountName,
+	}
+	account := &cloudv1alpha1.CloudProviderAccount{}
+	_ = r.Get(context.TODO(), *accountNamespacedName, account)
+
+	r.selectorToAccountMap[*selectorNamespacedName] = *accountNamespacedName
+	accPoller, preExists := r.cpaReconciler.GetAccountPoller(accountNamespacedName)
+	//accPoller, preExists := r.addAccountPoller(selector)
+	if accPoller == nil {
+		r.Log.Info("Test: calling GetAccountPoller in processCreateOrUpdate", "accountNamespacedName", accountNamespacedName.String())
+	}
+
+	accPoller.selector = selector.DeepCopy()
+
+	accPoller.vmSelector = cache.NewIndexer(
+		func(obj interface{}) (string, error) {
+			m := obj.(*cloudv1alpha1.VirtualMachineSelector)
+			// Create a unique key for each VirtualMachineSelector.
+			return fmt.Sprintf("%v-%v-%v", m.Agented, m.VpcMatch, m.VMMatch), nil
+		},
+		cache.Indexers{
+			virtualMachineSelectorMatchIndexerByID: func(obj interface{}) ([]string, error) {
+				m := obj.(*cloudv1alpha1.VirtualMachineSelector)
+				if len(m.VMMatch) == 0 {
+					return nil, nil
+				}
+				var match []string
+				for _, vmMatch := range m.VMMatch {
+					if len(vmMatch.MatchID) > 0 {
+						match = append(match, strings.ToLower(vmMatch.MatchID))
+					}
+				}
+				return match, nil
+			},
+			virtualMachineSelectorMatchIndexerByName: func(obj interface{}) ([]string, error) {
+				m := obj.(*cloudv1alpha1.VirtualMachineSelector)
+				if len(m.VMMatch) == 0 {
+					return nil, nil
+				}
+				var match []string
+				for _, vmMatch := range m.VMMatch {
+					if len(vmMatch.MatchName) > 0 {
+						match = append(match, strings.ToLower(vmMatch.MatchName))
+					}
+				}
+				return match, nil
+			},
+			virtualMachineSelectorMatchIndexerByVPC: func(obj interface{}) ([]string, error) {
+				m := obj.(*cloudv1alpha1.VirtualMachineSelector)
+				if m.VpcMatch != nil && len(m.VpcMatch.MatchID) > 0 {
+					return []string{strings.ToLower(m.VpcMatch.MatchID)}, nil
+				}
+				return nil, nil
+			},
+		})
 
 	if selector.Spec.VMSelector != nil {
 		// Indexer does not work with in-place update. Do delete->add.
@@ -155,109 +215,25 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *cloudv1a
 }
 
 func (r *CloudEntitySelectorReconciler) processDelete(selectorNamespacedName *types.NamespacedName) error {
-	poller := r.removeAccountPoller(selectorNamespacedName)
-	if poller == nil {
+	r.Log.Info("Test: in processDelete")
+	accountNamespacedName, found := r.selectorToAccountMap[*selectorNamespacedName]
+	if !found {
+
+	}
+	accPoller, _ := r.cpaReconciler.GetAccountPoller(&accountNamespacedName)
+	if accPoller == nil {
+		r.Log.Info("Test: accpoller is nil", "accountNamespacedName", accountNamespacedName.String())
 		return nil
 	}
-	cloudInterface, err := cloudprovider.GetCloudInterface(common.ProviderType(poller.cloudType))
+	cloudInterface, err := cloudprovider.GetCloudInterface(common.ProviderType(accPoller.cloudType))
 	if err != nil {
 		return err
 	}
-	cloudInterface.RemoveAccountResourcesSelector(poller.namespacedName, selectorNamespacedName.Name)
 
+	r.Log.Info("Test: calling RemoveAccountResourcesSelector")
+	cloudInterface.RemoveAccountResourcesSelector(&accountNamespacedName, selectorNamespacedName.Name)
+	accPoller.selector = nil
+
+	delete(r.selectorToAccountMap, *selectorNamespacedName)
 	return nil
-}
-
-func (r *CloudEntitySelectorReconciler) addAccountPoller(selector *cloudv1alpha1.CloudEntitySelector) (*accountPoller, bool) {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
-	selectorNamespacedName := &types.NamespacedName{
-		Namespace: selector.Namespace,
-		Name:      selector.Name,
-	}
-
-	if pollerScope, exists := r.accPollers[*selectorNamespacedName]; exists {
-		r.Log.Info("poller exists", "selector", selectorNamespacedName)
-		return pollerScope, exists
-	}
-
-	accountNamespacedName := &types.NamespacedName{
-		Namespace: selector.Namespace,
-		Name:      selector.Spec.AccountName,
-	}
-	account := &cloudv1alpha1.CloudProviderAccount{}
-	_ = r.Get(context.TODO(), *accountNamespacedName, account)
-	accountCloudType, err := account.GetAccountProviderType()
-	if err != nil {
-		return nil, false
-	}
-	poller := &accountPoller{
-		Client:            r.Client,
-		scheme:            r.Scheme,
-		log:               r.Log,
-		pollIntvInSeconds: *account.Spec.PollIntervalInSeconds,
-		cloudType:         accountCloudType,
-		namespacedName:    accountNamespacedName,
-		selector:          selector.DeepCopy(),
-		ch:                make(chan struct{}),
-	}
-	poller.vmSelector = cache.NewIndexer(
-		func(obj interface{}) (string, error) {
-			m := obj.(*cloudv1alpha1.VirtualMachineSelector)
-			// Create a unique key for each VirtualMachineSelector.
-			return fmt.Sprintf("%v-%v-%v", m.Agented, m.VpcMatch, m.VMMatch), nil
-		},
-		cache.Indexers{
-			virtualMachineSelectorMatchIndexerByID: func(obj interface{}) ([]string, error) {
-				m := obj.(*cloudv1alpha1.VirtualMachineSelector)
-				if len(m.VMMatch) == 0 {
-					return nil, nil
-				}
-				var match []string
-				for _, vmMatch := range m.VMMatch {
-					if len(vmMatch.MatchID) > 0 {
-						match = append(match, strings.ToLower(vmMatch.MatchID))
-					}
-				}
-				return match, nil
-			},
-			virtualMachineSelectorMatchIndexerByName: func(obj interface{}) ([]string, error) {
-				m := obj.(*cloudv1alpha1.VirtualMachineSelector)
-				if len(m.VMMatch) == 0 {
-					return nil, nil
-				}
-				var match []string
-				for _, vmMatch := range m.VMMatch {
-					if len(vmMatch.MatchName) > 0 {
-						match = append(match, strings.ToLower(vmMatch.MatchName))
-					}
-				}
-				return match, nil
-			},
-			virtualMachineSelectorMatchIndexerByVPC: func(obj interface{}) ([]string, error) {
-				m := obj.(*cloudv1alpha1.VirtualMachineSelector)
-				if m.VpcMatch != nil && len(m.VpcMatch.MatchID) > 0 {
-					return []string{strings.ToLower(m.VpcMatch.MatchID)}, nil
-				}
-				return nil, nil
-			},
-		})
-
-	r.accPollers[*selectorNamespacedName] = poller
-
-	r.Log.Info("poller will be created", "selector", selectorNamespacedName)
-	return poller, false
-}
-
-func (r *CloudEntitySelectorReconciler) removeAccountPoller(selectorNamespacedName *types.NamespacedName) *accountPoller {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
-	poller, found := r.accPollers[*selectorNamespacedName]
-	if found {
-		close(poller.ch)
-		delete(r.accPollers, *selectorNamespacedName)
-	}
-	return poller
 }

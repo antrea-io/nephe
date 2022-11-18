@@ -15,6 +15,7 @@
 package internal
 
 import (
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"fmt"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sync"
@@ -25,7 +26,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
-
 	"antrea.io/nephe/pkg/logging"
 )
 
@@ -37,6 +37,7 @@ type CloudAccountInterface interface {
 
 	startPeriodicInventorySync() error
 	stopPeriodicInventorySync()
+	GetVpcInventory() map[string]*runtimev1alpha1.Vpc
 }
 
 type cloudAccountConfig struct {
@@ -48,6 +49,8 @@ type cloudAccountConfig struct {
 	inventoryChannel      chan struct{}
 	logger                func() logging.Logger
 	Status                *cloudv1alpha1.CloudProviderAccountStatus
+	// store kubenetes object here
+	//Vpcs *runtimev1alpha1.Vpc
 }
 
 type CloudCredentialValidatorFunc func(client client.Client, credentials interface{}) (interface{}, error)
@@ -181,7 +184,7 @@ func (accCfg *cloudAccountConfig) performInventorySync() error {
 			defer wg.Done()
 
 			hasFilters, isFilterNil := serviceCfg.hasFiltersConfigured()
-			if !hasFilters {
+			if !hasFilters && !serviceCfg.isPollWithoutFilter() {
 				accCfg.logger().Info("fetching resources from cloud skipped", "service", serviceCfg.getName(),
 					"account", accCfg.namespacedName, "resource-filters", "not-configured")
 				return
@@ -271,4 +274,16 @@ func (accCfg *cloudAccountConfig) stopPeriodicInventorySync() {
 	for _, serviceConfig := range accCfg.serviceConfigs {
 		serviceConfig.resetCachedState()
 	}
+}
+
+func (accCfg *cloudAccountConfig) GetVpcInventory() map[string]*runtimev1alpha1.Vpc {
+	serviceConfigs := accCfg.serviceConfigs
+
+	for _, serviceConfig := range serviceConfigs {
+		if serviceConfig.getType() == CloudServiceTypeCompute {
+			return serviceConfig.getVpcInventory()
+		}
+	}
+
+	return nil
 }

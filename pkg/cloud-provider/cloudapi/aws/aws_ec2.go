@@ -25,6 +25,7 @@ import (
 	"github.com/mohae/deepcopy"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	cloudcommon "antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 	"antrea.io/nephe/pkg/cloud-provider/cloudapi/internal"
 )
@@ -40,11 +41,13 @@ type ec2ServiceConfig struct {
 	//	 - key with nil value indicates no filters. Get all instances for account.
 	//   - key with "some-filter-string" value indicates some filter. Get instances matching those filters only.
 	instanceFilters map[string][][]*ec2.Filter
+	pollVpc         bool
 }
 
 // ec2ResourcesCacheSnapshot holds the results from querying for all instances.
 type ec2ResourcesCacheSnapshot struct {
 	instances   map[cloudcommon.InstanceID]*ec2.Instance
+	vpcs        []*ec2.Vpc
 	vpcIDs      map[string]struct{}
 	vpcNameToID map[string]string
 	vpcPeers    map[string][]string
@@ -63,6 +66,7 @@ func newEC2ServiceConfig(name string, service awsServiceClientCreateInterface) (
 		resourcesCache:  &internal.CloudServiceResourcesCache{},
 		inventoryStats:  &internal.CloudServiceStats{},
 		instanceFilters: make(map[string][][]*ec2.Filter),
+		pollVpc:         true,
 	}
 	return config, nil
 }
@@ -165,6 +169,23 @@ func (ec2Cfg *ec2ServiceConfig) getCachedVpcNameToID() map[string]string {
 	return vpcNameToIDCopy
 }
 
+// getCachedVpcs returns vpcs from the cache for the account.
+func (ec2Cfg *ec2ServiceConfig) GetCachedVpcs() []*ec2.Vpc {
+	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
+	if snapshot == nil {
+		awsPluginLogger().V(4).Info("cache snapshot nil", "service", awsComputeServiceNameEC2, "account", ec2Cfg.accountName)
+		return []*ec2.Vpc{}
+	}
+	vpcs := snapshot.(*ec2ResourcesCacheSnapshot).vpcs
+	vpcsToReturn := make([]*ec2.Vpc, 0, len(vpcs))
+	for _, instance := range vpcs {
+		vpcsToReturn = append(vpcsToReturn, instance)
+	}
+	awsPluginLogger().V(1).Info("cached vpcs", "service", awsComputeServiceNameEC2, "account", ec2Cfg.accountName,
+		"vpcs", len(vpcsToReturn))
+	return vpcsToReturn
+}
+
 // getVpcPeers returns all the peers of a vpc.
 func (ec2Cfg *ec2ServiceConfig) getVpcPeers(vpcID string) []string {
 	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
@@ -181,8 +202,10 @@ func (ec2Cfg *ec2ServiceConfig) getVpcPeers(vpcID string) []string {
 
 // getInstances gets instance for the account from aws EC2 API.
 func (ec2Cfg *ec2ServiceConfig) getInstances() ([]*ec2.Instance, error) {
+	awsPluginLogger().V(0).Info("Test: in get instances from cloud")
 	filters, _ := ec2Cfg.getInstanceResourceFilters()
 	if filters == nil {
+		awsPluginLogger().V(0).Info("Test: no filters configured")
 		var validInstanceStateFilters []*ec2.Filter
 		validInstanceStateFilters = append(validInstanceStateFilters, buildEc2FilterForValidInstanceStates())
 		request := &ec2.DescribeInstancesInput{Filters: validInstanceStateFilters}
@@ -212,6 +235,11 @@ func (ec2Cfg *ec2ServiceConfig) getInstances() ([]*ec2.Instance, error) {
 
 // doInstancesInventoryWorker gets inventory from cloud for given cloud account.
 func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
+	vpcs, e := ec2Cfg.getVpcs()
+	if e != nil {
+		awsPluginLogger().V(0).Info("error fetching vpcs", "account", ec2Cfg.accountName, "error", e)
+	}
+
 	instances, e := ec2Cfg.getInstances()
 	if e != nil {
 		awsPluginLogger().V(0).Info("error fetching ec2 instances", "account", ec2Cfg.accountName, "error", e)
@@ -219,14 +247,14 @@ func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
 		exists := struct{}{}
 		vpcIDs := make(map[string]struct{})
 		instanceIDs := make(map[cloudcommon.InstanceID]*ec2.Instance)
-		vpcNameToID, _ := ec2Cfg.buildMapVpcNameToID()
+		vpcNameToID, _ := ec2Cfg.buildMapVpcNameToID(vpcs)
 		vpcPeers, _ := ec2Cfg.buildMapVpcPeers()
 		for _, instance := range instances {
 			id := cloudcommon.InstanceID(strings.ToLower(aws.StringValue(instance.InstanceId)))
 			instanceIDs[id] = instance
 			vpcIDs[strings.ToLower(*instance.VpcId)] = exists
 		}
-		ec2Cfg.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{instanceIDs, vpcIDs, vpcNameToID, vpcPeers})
+		ec2Cfg.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{instanceIDs, vpcs, vpcIDs, vpcNameToID, vpcPeers})
 	}
 	ec2Cfg.inventoryStats.UpdateInventoryPollStats(e)
 
@@ -246,6 +274,7 @@ func (ec2Cfg *ec2ServiceConfig) SetResourceFilters(selector *v1alpha1.CloudEntit
 }
 
 func (ec2Cfg *ec2ServiceConfig) RemoveResourceFilters(selectorName string) {
+	awsPluginLogger().V(0).Info("Test: in RemoveResourceFilters")
 	delete(ec2Cfg.instanceFilters, selectorName)
 }
 
@@ -295,14 +324,9 @@ func (ec2Cfg *ec2ServiceConfig) UpdateServiceConfig(newConfig internal.CloudServ
 	ec2Cfg.apiClient = newEc2ServiceConfig.apiClient
 }
 
-func (ec2Cfg *ec2ServiceConfig) buildMapVpcNameToID() (map[string]string, error) {
+func (ec2Cfg *ec2ServiceConfig) buildMapVpcNameToID(vpcs []*ec2.Vpc) (map[string]string, error) {
 	vpcNameToID := make(map[string]string)
-	result, err := ec2Cfg.apiClient.describeVpcsWrapper(nil)
-	if err != nil {
-		awsPluginLogger().V(0).Info("error describing vpcs", "error", err)
-		return vpcNameToID, err
-	}
-	for _, vpc := range result.Vpcs {
+	for _, vpc := range vpcs {
 		if len(vpc.Tags) == 0 {
 			awsPluginLogger().V(4).Info("vpc name not found", "account", ec2Cfg.accountName, "vpc", vpc)
 			continue
@@ -332,4 +356,40 @@ func (ec2Cfg *ec2ServiceConfig) buildMapVpcPeers() (map[string][]string, error) 
 		vpcPeers[requesterID] = append(vpcPeers[requesterID], accepterID)
 	}
 	return vpcPeers, nil
+}
+
+func (ec2Cfg *ec2ServiceConfig) IsPollWithoutFilter() bool {
+	return ec2Cfg.pollVpc
+}
+
+func (ec2Cfg *ec2ServiceConfig) getVpcs() ([]*ec2.Vpc, error) {
+	awsPluginLogger().V(0).Info("Test: in getVpcs from cloud")
+	result, err := ec2Cfg.apiClient.describeVpcsWrapper(nil)
+	if err != nil {
+		awsPluginLogger().V(0).Info("error describing vpcs", "error", err)
+		return nil, err
+	}
+	return result.Vpcs, nil
+}
+
+func (ec2Cfg *ec2ServiceConfig) GetVpcInventory() map[string]*runtimev1alpha1.Vpc {
+	vpcs := ec2Cfg.GetCachedVpcs()
+
+	// Convert to kubernetes object and return a map indexed using vpcid
+	vpcList := map[string]*runtimev1alpha1.Vpc{}
+	for _, vpc := range vpcs {
+		vpcObj := new(runtimev1alpha1.Vpc)
+		if len(vpc.Tags) != 0 {
+			for _, tag := range vpc.Tags {
+				if *(tag.Key) == "Name" {
+					vpcObj.Info.Name = *(tag.Value)
+					break
+				}
+			}
+		}
+		vpcObj.Info.Id = *vpc.VpcId
+		vpcList[*vpc.VpcId] = vpcObj
+	}
+
+	return vpcList
 }

@@ -53,6 +53,7 @@ type accountPoller struct {
 }
 
 func (p *accountPoller) doAccountPoller() {
+	p.log.Info("Test: in doAccountPoller")
 	cloudInterface, e := cloudprovider.GetCloudInterface(common.ProviderType(p.cloudType))
 	if e != nil {
 		p.log.Info("failed to get cloud interface", "account", p.namespacedName, "error", e)
@@ -76,11 +77,21 @@ func (p *accountPoller) doAccountPoller() {
 	if e != nil {
 		p.log.Info("failed to update account status", "account", p.namespacedName, "err", e)
 	}
-	virtualMachines := p.getComputeResources(cloudInterface)
 
-	e = p.doVirtualMachineOperations(virtualMachines)
-	if e != nil {
-		p.log.Info("failed to perform virtual-machine operations", "account", p.namespacedName, "error", e)
+	// Whenever vpcs fetched from cloud, update global vpcCache(with vpc list applicable for this account).
+	err := BuildVpcInventory(cloudInterface, p.log, account.Namespace, p.namespacedName, string(account.UID))
+	if err != nil {
+		p.log.Info("failed to build vpc inventory")
+	}
+
+	// If CES is not added, do not call doVirtualMachineOperations.
+	if p.selector != nil {
+		p.log.Info("Test: calling getComputeResources for getting instances from snapshot")
+		virtualMachines := p.getComputeResources(cloudInterface)
+		e = p.doVirtualMachineOperations(virtualMachines)
+		if e != nil {
+			p.log.Info("failed to perform virtual-machine operations", "account", p.namespacedName, "error", e)
+		}
 	}
 }
 

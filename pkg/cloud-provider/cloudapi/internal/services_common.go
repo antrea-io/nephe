@@ -19,13 +19,15 @@ import (
 	"time"
 
 	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 )
 
 type CloudServiceName string
 type CloudServiceType string
 
 const (
-	CloudServiceTypeCompute = CloudServiceType("Compute")
+	CloudServiceTypeCompute           = CloudServiceType("Compute")
+	VpcIndexerByAccountNameSpacedName = "account.namespaced.name"
 )
 
 type CloudServiceCommon struct {
@@ -61,6 +63,10 @@ type CloudServiceInterface interface {
 	GetType() CloudServiceType
 	// ResetCachedState clears any internal state build by the service as part of cloud resource discovery.
 	ResetCachedState()
+
+	IsPollWithoutFilter() bool
+
+	GetVpcInventory() map[string]*runtimev1alpha1.Vpc
 }
 
 func (cfg *CloudServiceCommon) updateServiceConfig(newConfig CloudServiceInterface) {
@@ -125,6 +131,20 @@ func (cfg *CloudServiceCommon) resetCachedState() {
 	defer cfg.mutex.Unlock()
 
 	cfg.serviceInterface.ResetCachedState()
+}
+
+func (cfg *CloudServiceCommon) isPollWithoutFilter() bool {
+	cfg.mutex.Lock()
+	defer cfg.mutex.Unlock()
+
+	return cfg.serviceInterface.IsPollWithoutFilter()
+}
+
+func (cfg *CloudServiceCommon) getVpcInventory() map[string]*runtimev1alpha1.Vpc {
+	cfg.mutex.Lock()
+	defer cfg.mutex.Unlock()
+
+	return cfg.serviceInterface.GetVpcInventory()
 }
 
 type CloudServiceResourceCRDs struct {

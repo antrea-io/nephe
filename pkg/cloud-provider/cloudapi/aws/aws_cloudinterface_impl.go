@@ -15,6 +15,7 @@
 package aws
 
 import (
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -102,4 +103,16 @@ func (c *awsCloud) RemoveAccountResourcesSelector(accNamespacedName *types.Names
 
 func (c *awsCloud) GetAccountStatus(accNamespacedName *types.NamespacedName) (*cloudv1alpha1.CloudProviderAccountStatus, error) {
 	return c.cloudCommon.GetStatus(accNamespacedName)
+}
+
+func (c *awsCloud) AddInventoryPoller(accountNamespacedName *types.NamespacedName) error {
+	return c.cloudCommon.AddInventoryPoller(accountNamespacedName)
+}
+
+func (c *awsCloud) DeleteInventoryPoller(accountNamespacedName *types.NamespacedName) error {
+	return c.cloudCommon.DeleteInventoryPoller(accountNamespacedName)
+}
+
+func (c *awsCloud) GetVpcInventory(accountNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.Vpc, error) {
+	return c.cloudCommon.GetVpcInventory(accountNamespacedName)
 }

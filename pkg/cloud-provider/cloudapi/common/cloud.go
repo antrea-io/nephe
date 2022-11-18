@@ -15,6 +15,7 @@
 package common
 
 import (
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -63,6 +64,9 @@ type AccountMgmtInterface interface {
 	RemoveAccountResourcesSelector(accNamespacedName *types.NamespacedName, selector string)
 	// GetAccountStatus gets accounts status.
 	GetAccountStatus(accNamespacedName *types.NamespacedName) (*cloudv1alpha1.CloudProviderAccountStatus, error)
+	AddInventoryPoller(accountNamespacedName *types.NamespacedName) error
+	DeleteInventoryPoller(accountNamespacedName *types.NamespacedName) error
+	GetVpcInventory(accountNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.Vpc, error)
 }
 
 // ComputeInterface is an abstract providing set of methods to get Instance details to be implemented by cloud providers.

@@ -15,6 +15,7 @@
 package azure
 
 import (
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -102,4 +103,16 @@ func (c *azureCloud) RemoveAccountResourcesSelector(accNamespacedName *types.Nam
 
 func (c *azureCloud) GetAccountStatus(accNamespacedName *types.NamespacedName) (*cloudv1alpha1.CloudProviderAccountStatus, error) {
 	return c.cloudCommon.GetStatus(accNamespacedName)
+}
+
+func (c *azureCloud) AddInventoryPoller(accountNamespacedName *types.NamespacedName) error {
+	return c.cloudCommon.AddInventoryPoller(accountNamespacedName)
+}
+
+func (c *azureCloud) DeleteInventoryPoller(accountNamespacedName *types.NamespacedName) error {
+	return c.cloudCommon.DeleteInventoryPoller(accountNamespacedName)
+}
+
+func (c *azureCloud) GetVpcInventory(accountNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.Vpc, error) {
+	return c.cloudCommon.GetVpcInventory(accountNamespacedName)
 }

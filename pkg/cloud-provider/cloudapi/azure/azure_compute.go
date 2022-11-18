@@ -15,6 +15,7 @@
 package azure
 
 import (
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"context"
 	"fmt"
 	"strings"
@@ -26,6 +27,7 @@ import (
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	cloudcommon "antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 	"antrea.io/nephe/pkg/cloud-provider/cloudapi/internal"
+	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2021-03-01/network"
 )
 
 type computeServiceConfig struct {
@@ -45,6 +47,7 @@ type computeResourcesCacheSnapshot struct {
 	virtualMachines map[cloudcommon.InstanceID]*virtualMachineTable
 	vnetIDs         map[string]struct{}
 	vnetPeers       map[string][][]string
+	vnets           []network.VirtualNetwork
 }
 
 func newComputeServiceConfig(name string, service azureServiceClientCreateInterface,
@@ -202,18 +205,22 @@ func (computeCfg *computeServiceConfig) getComputeResourceFilters() ([]*string, 
 }
 
 func (computeCfg *computeServiceConfig) DoResourceInventory() error {
+	vpcs, e := computeCfg.getVpcs()
+	if e != nil {
+		azurePluginLogger().V(0).Info("error fetching vpcs", "error", e)
+	}
 	virtualMachines, err := computeCfg.getVirtualMachines()
 	if err == nil {
 		exists := struct{}{}
 		vnetIDs := make(map[string]struct{})
-		vpcPeers, _ := computeCfg.buildMapVpcPeers()
+		vpcPeers, _ := computeCfg.buildMapVpcPeers(vpcs)
 		vmIDToInfoMap := make(map[cloudcommon.InstanceID]*virtualMachineTable)
 		for _, vm := range virtualMachines {
 			id := cloudcommon.InstanceID(strings.ToLower(*vm.ID))
 			vmIDToInfoMap[id] = vm
 			vnetIDs[*vm.VnetID] = exists
 		}
-		computeCfg.resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{vmIDToInfoMap, vnetIDs, vpcPeers})
+		computeCfg.resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{vmIDToInfoMap, vnetIDs, vpcPeers, vpcs})
 	}
 
 	return err
@@ -288,13 +295,18 @@ func (computeCfg *computeServiceConfig) UpdateServiceConfig(newConfig internal.C
 	computeCfg.credentials = newComputeServiceConfig.credentials
 }
 
-func (computeCfg *computeServiceConfig) buildMapVpcPeers() (map[string][][]string, error) {
-	vpcPeers := make(map[string][][]string)
+func (computeCfg *computeServiceConfig) getVpcs() ([]network.VirtualNetwork, error) {
 	results, err := computeCfg.vnetAPIClient.listAllComplete(context.Background())
 	if err != nil {
-		azurePluginLogger().V(0).Info("error getting peering connections", "error", err)
+		azurePluginLogger().V(0).Info("error getting list of vnets", "error", err)
 		return nil, err
 	}
+	return results, nil
+}
+
+func (computeCfg *computeServiceConfig) buildMapVpcPeers(results []network.VirtualNetwork) (map[string][][]string, error) {
+	vpcPeers := make(map[string][][]string)
+
 	for _, result := range results {
 		if len(*result.VirtualNetworkPropertiesFormat.VirtualNetworkPeerings) > 0 {
 			for _, peerConn := range *result.VirtualNetworkPropertiesFormat.VirtualNetworkPeerings {
@@ -309,4 +321,32 @@ func (computeCfg *computeServiceConfig) buildMapVpcPeers() (map[string][][]strin
 		}
 	}
 	return vpcPeers, nil
+}
+
+func (computeCfg *computeServiceConfig) IsPollWithoutFilter() bool {
+	return true
+}
+
+func (computeCfg *computeServiceConfig) GetVpcInventory() map[string]*runtimev1alpha1.Vpc {
+	snapshot := computeCfg.resourcesCache.GetSnapshot()
+	if snapshot == nil {
+		azurePluginLogger().V(4).Info("compute service cache snapshot nil", "type", providerType, "account", computeCfg.accountName)
+		return nil
+	}
+	annotationsMap := map[string]string{
+		internal.VpcIndexerByAccountNameSpacedName: computeCfg.accountName,
+	}
+	// Convert to kubernetes object and return a map indexed using vpcid
+	vpcList := map[string]*runtimev1alpha1.Vpc{}
+	for _, vpc := range snapshot.(*computeResourcesCacheSnapshot).vnets {
+		if *vpc.Location == computeCfg.credentials.region {
+			vpcObj := new(runtimev1alpha1.Vpc)
+			vpcObj.ObjectMeta.Annotations = annotationsMap
+			vpcObj.Info.Name = *vpc.Name
+			vpcObj.Info.Id = *vpc.ID
+			vpcList[*vpc.ID] = vpcObj
+		}
+	}
+
+	return vpcList
 }
