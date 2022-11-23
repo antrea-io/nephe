@@ -43,7 +43,9 @@ Setup a VM to run nephe e2e tests.
         --resourcePool          Resource pool that is used to deploy vm.
         --vcNetwork             Network that is used to deploy vm.
         --virtualMachine        VM template that is used to deploy vm.
-        --testType              The type of tests that will be triggered."
+        --testType              The type of tests that will be triggered.
+        --dockerUser            Username for docker account.
+        --dockerPassword        Password for docker account."
 
 function echoerr {
     >&2 echo "$@"
@@ -106,6 +108,14 @@ case $key in
     testType="$2"
     shift 2
     ;;
+    --dockerUser)
+    dockerUser="$2"
+    shift 2
+    ;;
+    --dockerPassword)
+    dockerPassword="$2"
+    shift 2
+    ;;
 esac
 done
 
@@ -145,6 +155,9 @@ testbed_name="nephe-test-${testType}-${buildNumber}"
 
 # Fetch dynamic vm ip addr
 ip_addr=`cat terraform.tfstate.d/${testbed_name}/terraform.tfstate | jq -r .outputs.vm_ips.value[0]`
+
+# Docker login
+ssh -i id_rsa ubuntu@${ip_addr} "docker login --username=$dockerUser --password=$dockerPassword"
 
 #TODO: Scp'ing the code. Need to find better way
 ssh -i id_rsa ubuntu@${ip_addr} "mkdir ~/nephe"
