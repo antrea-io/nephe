@@ -150,8 +150,10 @@ function install_required_packages() {
 }
 
 function update_antrea_url() {
-    ANTREA_BRANCH="release-$(echo $ANTREA_VERSION | cut -b 2-5)"
-    ANTREA_INSTALL_SCRIPT="https://github.com/antrea-io/antrea/releases/download/${ANTREA_VERSION}/install-vm.sh"
+    ANTREA_BRANCH="release-$(echo $ANTREA_VERSION | cut -b 2-4)"
+    # Temporary change to use script from nephe repo.
+    # ANTREA_INSTALL_SCRIPT="https://github.com/antrea-io/antrea/releases/download/${ANTREA_VERSION}/install-vm.sh"
+    ANTREA_INSTALL_SCRIPT="https://raw.githubusercontent.com/antrea-io/nephe/temp/hack/install-vm.sh"
     AGENT_BIN="https://github.com/antrea-io/antrea/releases/download/${ANTREA_VERSION}/antrea-agent-linux-x86_64"
     ANTREA_CONFIG="https://raw.githubusercontent.com/antrea-io/antrea/${ANTREA_BRANCH}/build/yamls/externalnode/conf/antrea-agent.conf"
 }
@@ -217,7 +219,7 @@ function install() {
     chmod +x "${tmp_dir}"/$ANTREA_AGENT_BIN
     "${tmp_dir}"/$INSTALL_SCRIPT --ns "$NAMESPACE" --bin "${tmp_dir}"/${ANTREA_AGENT_BIN} \
         --config "${tmp_dir}"/${ANTREA_AGENT_CONF} --kubeconfig "$KUBECONFIG" \
-        --antrea-kubeconfig "$ANTREA_KUBECONFIG" --nodename "$NODENAME"
+        --antrea-kubeconfig "$ANTREA_KUBECONFIG" --nodename "$NODENAME" --containerize
     echo "Set antrea-agent Service Environment variable NODE_NAME=$NODENAME"
     # Delete the temporary directory.
     rm -rf "${tmp_dir}"
