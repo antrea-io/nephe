@@ -151,7 +151,7 @@ var _ = BeforeSuite(func(done Done) {
 			if vpc.IsConfigured() {
 				return
 			}
-			err := vpc.Reapply(time.Second * 300)
+			err := vpc.Reapply(time.Second * 600)
 			wgChan <- err
 		}()
 	}

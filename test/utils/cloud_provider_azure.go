@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/wait"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/utils"
@@ -202,8 +203,9 @@ func (p *azureVPC) Reapply(timeout time.Duration) error {
 	}
 	p.output = output
 	// Wait for servers on VMs come to live.
-	err = wait.Poll(time.Second*5, time.Second*240, func() (bool, error) {
+	err = wait.Poll(time.Second*10, time.Second*600, func() (bool, error) {
 		for _, ip := range p.GetVMIPs() {
+			logf.Log.Info("Debug: Running curl", "ip", ip)
 			cmd := exec.Command("timeout", []string{"5", "curl", "http://" + ip}...)
 			if _, err = cmd.CombinedOutput(); err != nil {
 				return false, nil

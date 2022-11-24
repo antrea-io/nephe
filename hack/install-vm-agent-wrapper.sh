@@ -123,6 +123,9 @@ function check_os_prerequisites() {
         ubuntu)
           return
         ;;
+        rhel)
+          return
+        ;;
     esac
     echoerr "Unsupported $OS platform"
     exit 2

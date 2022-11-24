@@ -82,14 +82,14 @@ variable "azure_vm_os_types_agented" {
       init      = "init_script_ubuntu.sh"
     },
     {
-      name      = "ubuntu-host2"
-      offer     = "0001-com-ubuntu-server-focal"
-      publisher = "Canonical"
-      sku       = "20_04-lts-gen2"
-      init      = "init_script_ubuntu.sh"
+      name      = "rhel-host"
+      offer     = "RHEL-SAP-HA"
+      publisher = "RedHat"
+      sku       = "8_4"
+      init      = "init_script_rhel.sh"
     },
     {
-      name      = "ubuntu-host3"
+      name      = "ubuntu-host2"
       offer     = "0001-com-ubuntu-server-focal"
       publisher = "Canonical"
       sku       = "20_04-lts-gen2"

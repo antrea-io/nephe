@@ -177,7 +177,7 @@ func (p *awsVPC) Reapply(timeout time.Duration) error {
 	}
 	p.output = output
 	// Wait for servers on VMs come to live.
-	err = wait.Poll(time.Second*5, time.Second*240, func() (bool, error) {
+	err = wait.Poll(time.Second*10, time.Second*600, func() (bool, error) {
 		for _, ip := range p.GetVMIPs() {
 			cmd := exec.Command("timeout", []string{"5", "curl", "http://" + ip}...)
 			if _, err = cmd.CombinedOutput(); err != nil {
