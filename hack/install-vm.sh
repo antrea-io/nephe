@@ -169,18 +169,17 @@ install_container_runtime() {
     echo "Installing container runtime on $OS_NAME"
     case "$OS_NAME" in
         ubuntu)
-        # Uninstall older versions of Docker(called docker, docker.io, or docker-engine).
+        # Uninstall older versions of Docker.
         docker_uninstall_packages="docker docker-engine docker.io containerd runc"
-        docker_install_packages="docker-ce docker-ce-cli containerd.io"
-        dependent_packages="ca-certificates curl gnupg lsb-release"
-        docker_gpg_key="/usr/share/keyrings/docker-archive-keyring.gpg"
-        docker_download_url="https://download.docker.com/linux/ubuntu"
         apt-get remove ${docker_uninstall_packages}
         cmd="apt-get update"
         execute_command "$cmd" 1m
+        dependent_packages="ca-certificates curl gnupg lsb-release"
         cmd="apt-get install -y ${dependent_packages}"
         execute_command "$cmd" 1m
+        docker_gpg_key="/usr/share/keyrings/docker-archive-keyring.gpg"
         rm -rf ${docker_gpg_key}
+        docker_download_url="https://download.docker.com/linux/ubuntu"
         timeout --preserve-status --foreground 10s curl -fsSL ${docker_download_url}/gpg | sudo gpg --dearmor -o ${docker_gpg_key}
         # Setup a stable repository
         echo \
@@ -188,8 +187,25 @@ install_container_runtime() {
         $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
         cmd="apt-get update"
         execute_command "$cmd" 1m
+        docker_install_packages="docker-ce docker-ce-cli containerd.io"
         cmd="apt-get install -y ${docker_install_packages}"
         execute_command "$cmd" 2m
+        ;;
+        rhel)
+        # Uninstall older versions of Docker.
+        docker_uninstall_packages="docker docker-client docker-client-latest docker-common docker-latest docker-latest-logrotate docker-logrotate docker-engine podman runc"
+        sudo yum remove ${docker_unistall_packages}
+        cmd="sudo yum install -y yum-utils"
+        execute_command "$cmd" 1m
+        # We are using cent os docker images for rhel as suggested in official website.
+        docker_download_url="https://download.docker.com/linux/centos/docker-ce.repo"
+        cmd="sudo yum-config-manager --add-repo ${docker_download_url}"
+        execute_command "$cmd" 1m
+        docker_install_packages="docker-ce docker-ce-cli containerd.io docker-compose-plugin"
+        cmd="sudo yum install -y ${docker_install_packages}"
+        execute_command "$cmd" 1m
+        cmd="sudo systemctl start docker"
+        execute_command "$cmd" 1m
         ;;
     esac
 }
@@ -287,7 +303,7 @@ load_ovs_modules() {
     done
 }
 
-exec > >(tee $AGENT_LOG_DIR/vm-watchdog.log) 2>&1
+exec > >(tee $AGENT_LOG_DIR/antrea-agent-service.log) 2>&1
 
 docker info
 if [[ $? -ne 0 ]]; then
