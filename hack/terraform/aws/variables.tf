@@ -6,7 +6,7 @@ variable owner {
 }
 
 variable aws_vm_type {
-  default = "t2.micro"
+  default = "t2.medium"
 }
 
 variable peer_vpc_id {
