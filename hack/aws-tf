@@ -59,6 +59,11 @@ function destroy {
     exit 0
   fi
   cd $RUN_PATH
+  ./delete_dependency.sh
+  if [ $? -ne 0 ]; then
+    echo "dependencies deletion failed"
+    exit 1
+  fi
   $TERRAFORM destroy -auto-approve
 }
 
