@@ -10,7 +10,7 @@ output "primary_nics" {
 
 output "vpc_security_group_ids" {
   description = "List of VPC security group ids assigned to the instances"
-  value       = module.ec2_cluster[*].vpc_security_group_ids[0]
+  value       = module.ec2_cluster[0].vpc_security_group_ids[0]
 }
 
 output "vpc_id" {
