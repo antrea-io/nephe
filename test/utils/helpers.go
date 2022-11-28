@@ -378,10 +378,13 @@ func CheckRestart(kubctl *KubeCtl) error {
 	controllers := []string{"nephe-controller"}
 	for _, c := range controllers {
 		cmd := fmt.Sprintf(
-			"get pods -l control-plane=%s -n nephe-system -o=jsonpath={.items[0].status.containerStatuses[0].restartCount}", c)
+			"get pods -l control-plane=%s -n nephe-system -o=jsonpath={.items[*].status.containerStatuses[0].restartCount}", c)
 		out, err := kubctl.Cmd(cmd)
 		if err != nil {
 			return err
+		}
+		if out == "" {
+			return errors.NewNotFound(corev1.Resource("pods"), c)
 		}
 		if out != "0" {
 			return fmt.Errorf("%s has restarted %s times", c, out)
@@ -415,6 +418,8 @@ func SetAgentConfig(c client.Client, ns *corev1.Namespace, cloudProviders, antre
 		clusterType = "aks"
 	case string(cloudv1alpha1.AWSCloudProvider):
 		clusterType = "eks"
+	default:
+		return fmt.Errorf("unsupported cloud provider: %v", cloudProviders)
 	}
 
 	_ = os.Setenv("KUBECONFIG", kubeconfig)
