@@ -250,13 +250,6 @@ var _ = AfterSuite(func(done Done) {
 		}
 	}
 
-	if withAgent {
-		By(cluster + ": Deleting namespace " + staticVMNS.Name)
-		err = k8sClient.Delete(context.TODO(), staticVMNS)
-		Expect(err).ToNot(HaveOccurred())
-		_ = os.RemoveAll(tmpDir)
-	}
-
 	// Delete VM VPC in parallel.
 	wg := sync.WaitGroup{}
 	wgChan := make(chan error)
@@ -284,6 +277,14 @@ var _ = AfterSuite(func(done Done) {
 		}
 		Expect(err).ToNot(HaveOccurred())
 	}
+
+	if withAgent {
+		By(cluster + ": Deleting namespace " + staticVMNS.Name)
+		err = k8sClient.Delete(context.TODO(), staticVMNS)
+		Expect(err).ToNot(HaveOccurred())
+		_ = os.RemoveAll(tmpDir)
+	}
+
 	// Last, consider controller core as failure.
 	Expect(controllersCored).To(BeNil(), "Controller restart detected")
 	close(done)
