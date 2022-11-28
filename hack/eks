@@ -32,64 +32,64 @@ _usage="Usage: $0 :
                 [load] : load container image from local machine to eks cluster
                 [--help|h]"
 
-function print_help {
-    echo "Try '$0 --help' for more information."
+function print_help() {
+  echo "Try '$0 --help' for more information."
 }
 
-function print_usage {
-    echo "$_usage"
+function print_usage() {
+  echo "$_usage"
 }
 
-function validate {
+function validate() {
   for cmd in ${CMD_ARRAY[@]}; do
-     which $cmd > /dev/null 2>&1
-     if [ $? -ne 0 ]; then
-       echo $cmd not found, please install first
-       exit 1
-     fi
+    which $cmd >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+      echo "$cmd not found, please install first"
+      exit 1
+    fi
   done
 
   for env in ${ENV_ARRAY[@]}; do
-     printenv $env > /dev/null 2>&1
-     if [ $? -ne 0 ]; then
-       echo required environment variable $env is not set.
-       exit 1
-     fi
+    printenv $env >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+      echo "required environment variable $env is not set"
+      exit 1
+    fi
   done
 }
 
-function apply {
+function apply() {
   validate
   mkdir -p $RUN_PATH
   if [ $? -ne 0 ]; then
-     echo $RUN_PATH cannot be created
-     exit 1
+    echo "$RUN_PATH cannot be created"
+    exit 1
   fi
   cp -r $CONFIG_PATH/* $RUN_PATH
   cd $RUN_PATH
   $TERRAFORM init
   if [ $? -ne 0 ]; then
-     exit 1
+    exit 1
   fi
   $TERRAFORM apply -auto-approve
   if [[ $? -ne 0 ]]; then
     echo "eks creation failed"
     exit 1
   fi
-  echo eks cluster created.
-  $TERRAFORM output -json kubectl_config | jq -r . > $RUN_PATH/kubeconfig
+  echo "eks cluster created"
+  $TERRAFORM output -json kubectl_config | jq -r . >$RUN_PATH/kubeconfig
 
   if [ -z $CREATE_ONLY ]; then
-     KUBECONFIG=$RUN_PATH/kubeconfig kubectl apply -f antrea-eks-node-init.yml
-     KUBECONFIG=$RUN_PATH/kubeconfig kubectl apply -f antrea-eks.yml
-     KUBECONFIG=$RUN_PATH/kubeconfig kubectl create namespace cert-manager
-     KUBECONFIG=$RUN_PATH/kubeconfig kubectl apply --validate=false -f "https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cert-manager.yaml"
+    KUBECONFIG=$RUN_PATH/kubeconfig kubectl apply -f antrea-eks-node-init.yml
+    KUBECONFIG=$RUN_PATH/kubeconfig kubectl apply -f antrea-eks.yml
+    KUBECONFIG=$RUN_PATH/kubeconfig kubectl create namespace cert-manager
+    KUBECONFIG=$RUN_PATH/kubeconfig kubectl apply --validate=false -f "https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cert-manager.yaml"
   fi
 
-  echo run eks kubectl ... to acess it.
+  echo "run eks kubectl ... to access it"
 }
 
-function destroy {
+function destroy() {
   validate
   if [ ! -d $RUN_PATH ]; then
     exit 0
@@ -98,9 +98,14 @@ function destroy {
   # Remove any resources created by antrea.
   KUBECONFIG=$RUN_PATH/kubeconfig kubectl delete -f antrea-eks.yml
   $TERRAFORM destroy -auto-approve
+  if [[ $? -ne 0 ]]; then
+    echo "eks deletion failed"
+    exit 1
+  fi
+  echo "eks cluster deleted"
 }
 
-function load {
+function load() {
   image=$1
   nodes=$(KUBECONFIG=$RUN_PATH/kubeconfig kubectl get nodes -o json | jq -r '.items[] | .status | .addresses[] | select(.type == "ExternalIP") |.address')
   for node in $(echo $nodes); do
@@ -109,51 +114,54 @@ function load {
   done
 }
 
-function output {
+function output() {
   if [ ! -d $RUN_PATH ]; then
     exit 1
   fi
   cd $RUN_PATH
   $TERRAFORM output
+  if [[ $? -ne 0 ]]; then
+    echo "eks output failed"
+    exit 1
+  fi
 }
 
-while [[ $# -gt 0 ]]
-do
-key="$1"
+while [[ $# -gt 0 ]]; do
+  key="$1"
 
-case $key in
-    create)
-      shift 1
+  case $key in
+  create)
+    shift 1
     ;;
-    --create-only)
-      CREATE_ONLY=true
-      shift 1
+  --create-only)
+    CREATE_ONLY=true
+    shift 1
     ;;
-    destroy)
-      destroy
-      exit 0
+  destroy)
+    destroy
+    exit 0
     ;;
-    output)
-      output
-      exit 0
+  output)
+    output
+    exit 0
     ;;
-    kubectl)
-      KUBECONFIG=$RUN_PATH/kubeconfig kubectl ${@:2}
-      exit $?
+  kubectl)
+    KUBECONFIG=$RUN_PATH/kubeconfig kubectl ${@:2}
+    exit $?
     ;;
-    load)
-      load $2
-      exit $?
+  load)
+    load $2
+    exit $?
     ;;
-    -h|--help)
+  -h | --help)
     print_usage
     exit 0
     ;;
-    *)    # unknown option
+  *) # unknown option
     echo "Unknown option $1"
     exit 1
     ;;
-esac
+  esac
 done
 
 apply
