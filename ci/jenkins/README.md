@@ -76,8 +76,6 @@ cloud will be automatically updated with the new changes.
 
 ## List of jenkins Jobs
 
-[![Build Status](https://jenkins.antrea-ci.rocks/buildStatus/icon?job=nephe-test-aws&subject=AWS%20Tests%20On%20Kind)](https://jenkins.antrea-ci.rocks/view/nephe/job/nephe-test-aws/) [![Build Status](https://jenkins.antrea-ci.rocks/buildStatus/icon?job=nephe-test-azure&subject=Azure%20Tests%20On%20Kind)](https://jenkins.antrea-ci.rocks/view/nephe/job/nephe-test-azure/)
-
 - `nephe-test-e2e-aws-for-pull-request`: Run end-to-end AWS tests on a Kind cluster with AWS VMs
 - `nephe-test-e2e-azure-for-pull-request`: Run end-to-end Azure tests on a Kind cluster with Azure VMs
 - `nephe-test-e2e-eks-for-pull-request`: Run end-to-end AWS tests on EKS cluster with AWS VMs
