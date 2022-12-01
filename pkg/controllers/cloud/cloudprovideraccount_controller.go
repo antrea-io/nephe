@@ -93,6 +93,25 @@ func (r *CloudProviderAccountReconciler) processDelete(namespacedName *types.Nam
 	if err != nil {
 		return err
 	}
+
+	// Delete CloudEntitySelectors that are linked to CloudProviderAccount,
+	// so that cache and filters that use the CloudProviderAccount is
+	// cleared.
+	cesList := &cloudv1alpha1.CloudEntitySelectorList{}
+	err = r.Client.List(context.TODO(), cesList, &client.ListOptions{})
+	if err != nil {
+		r.Log.Info("Failed to fetch CloudEntitySelectorList, err:%v", err)
+	}
+	for _, ces := range cesList.Items {
+		if ces.Spec.AccountName == namespacedName.Name &&
+			ces.Namespace == namespacedName.Namespace {
+			err = r.Client.Delete(context.TODO(), &ces)
+			if err != nil {
+				r.Log.Info("Ignore CloudEntitySelector delete error", "Name", ces.Name)
+			}
+			break
+		}
+	}
 	cloudInterface.RemoveProviderAccount(namespacedName)
 	r.removeAccountProviderType(namespacedName)
 
