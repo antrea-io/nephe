@@ -156,6 +156,7 @@ func (c completedConfig) New(scheme *runtime.Scheme, codecs serializer.CodecFact
 	}
 
 	vmpStorage := virtualmachinepolicy.NewREST(c.ExtraConfig.vmpIndexer, logger.WithName("VirtualMachinePolicy"))
+	//vPCstrorage is also needed here
 
 	cpGroup := genericapiserver.NewDefaultAPIGroupInfo(runtimev1alpha1.GroupVersion.Group, scheme, metav1.ParameterCodec, codecs)
 	cpv1alpha1Storage := map[string]rest.Storage{}
