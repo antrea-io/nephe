@@ -59,6 +59,7 @@ data "template_file" user_data {
 
 module "vm_cluster" {
   source                  = "Azure/compute/azurerm"
+  version                 = "4.0.0"
   resource_group_name     = azurerm_resource_group.vm.name
   count                   = length(local.azure_vm_os_types)
   nb_instances            = 1
