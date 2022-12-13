@@ -17,7 +17,11 @@ package cloud
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"reflect"
+	"strings"
+	"sync"
+	"time"
 
 	"github.com/go-logr/logr"
 	"go.uber.org/multierr"
@@ -26,17 +30,19 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"strings"
 
 	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	cloudprovider "antrea.io/nephe/pkg/cloud-provider"
 	"antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
+	"antrea.io/nephe/pkg/controllers/inventory"
+	"antrea.io/nephe/pkg/logging"
 )
 
 const (
-	accountResourceToCreate = "TO_CREATE"
-	accountResourceToDelete = "TO_DELETE"
-	accountResourceToUpdate = "TO_UPDATE"
+	accountResourceToCreate       = "TO_CREATE"
+	accountResourceToDelete       = "TO_DELETE"
+	accountResourceToUpdate       = "TO_UPDATE"
+	errorMsgAccountPollerNotFound = "account poller not found"
 )
 
 type accountPoller struct {
@@ -50,6 +56,136 @@ type accountPoller struct {
 	selector          *cloudv1alpha1.CloudEntitySelector
 	vmSelector        cache.Indexer
 	ch                chan struct{}
+	inventory         *inventory.Inventory
+}
+
+type Poller struct {
+	accPollers map[types.NamespacedName]*accountPoller
+	mutex      sync.Mutex
+	log        logr.Logger
+}
+
+// InitPollers function creates an instance of Poller struct and initializes it.
+func InitPollers() *Poller {
+	poller := &Poller{
+		accPollers: make(map[types.NamespacedName]*accountPoller),
+		log:        logging.GetLogger("Poller").WithName("AccountPoller"),
+	}
+	return poller
+}
+
+// addAccountPoller creates an account poller for a given account and adds it to accPollers map.
+func (p *Poller) addAccountPoller(cloudType cloudv1alpha1.CloudProvider, namespacedName *types.NamespacedName,
+	account *cloudv1alpha1.CloudProviderAccount, r *CloudProviderAccountReconciler) (*accountPoller, bool) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	if pollerScope, exists := p.accPollers[*namespacedName]; exists {
+		p.log.Info("poller exists", "account", namespacedName)
+		return pollerScope, exists
+	}
+
+	poller := &accountPoller{
+		Client:            r.Client,
+		scheme:            r.Scheme,
+		log:               p.log,
+		pollIntvInSeconds: *account.Spec.PollIntervalInSeconds,
+		cloudType:         cloudType,
+		namespacedName:    namespacedName,
+		selector:          nil,
+		ch:                make(chan struct{}),
+		inventory:         r.Inventory,
+	}
+	p.accPollers[*namespacedName] = poller
+
+	p.log.Info("poller will be created", "account", namespacedName)
+	return poller, false
+}
+
+// removeAccountPoller removes an account poller from accPollers map.
+func (p *Poller) removeAccountPoller(namespacedName *types.NamespacedName) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	poller, found := p.accPollers[*namespacedName]
+	if found {
+		close(poller.ch)
+		delete(p.accPollers, *namespacedName)
+	}
+}
+
+// getCloudType fetches cloud provider type from the accountPoller object for a given account.
+func (p *Poller) getCloudType(name *types.NamespacedName) (cloudv1alpha1.CloudProvider, error) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	if pollerScope, exists := p.accPollers[*name]; exists {
+		return pollerScope.cloudType, nil
+	}
+	return "", fmt.Errorf("account poller not found, account %s", name.String())
+}
+
+// updateAccountPoller updates accountPoller object with CES specifics information.
+func (p *Poller) updateAccountPoller(name *types.NamespacedName, selector *cloudv1alpha1.CloudEntitySelector) (error, *accountPoller) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	accPoller, found := p.accPollers[*name]
+	if !found {
+		return fmt.Errorf("%s %s", errorMsgSelectorAddFail, name.String()), nil
+	}
+
+	// Populate selector specific fields in the accPoller created by CPA.
+	accPoller.selector = selector.DeepCopy()
+
+	accPoller.vmSelector = cache.NewIndexer(
+		func(obj interface{}) (string, error) {
+			m := obj.(*cloudv1alpha1.VirtualMachineSelector)
+			// Create a unique key for each VirtualMachineSelector.
+			return fmt.Sprintf("%v-%v-%v", m.Agented, m.VpcMatch, m.VMMatch), nil
+		},
+		cache.Indexers{
+			virtualMachineSelectorMatchIndexerByID: func(obj interface{}) ([]string, error) {
+				m := obj.(*cloudv1alpha1.VirtualMachineSelector)
+				if len(m.VMMatch) == 0 {
+					return nil, nil
+				}
+				var match []string
+				for _, vmMatch := range m.VMMatch {
+					if len(vmMatch.MatchID) > 0 {
+						match = append(match, strings.ToLower(vmMatch.MatchID))
+					}
+				}
+				return match, nil
+			},
+			virtualMachineSelectorMatchIndexerByName: func(obj interface{}) ([]string, error) {
+				m := obj.(*cloudv1alpha1.VirtualMachineSelector)
+				if len(m.VMMatch) == 0 {
+					return nil, nil
+				}
+				var match []string
+				for _, vmMatch := range m.VMMatch {
+					if len(vmMatch.MatchName) > 0 {
+						match = append(match, strings.ToLower(vmMatch.MatchName))
+					}
+				}
+				return match, nil
+			},
+			virtualMachineSelectorMatchIndexerByVPC: func(obj interface{}) ([]string, error) {
+				m := obj.(*cloudv1alpha1.VirtualMachineSelector)
+				if m.VpcMatch != nil && len(m.VpcMatch.MatchID) > 0 {
+					return []string{strings.ToLower(m.VpcMatch.MatchID)}, nil
+				}
+				return nil, nil
+			},
+		})
+
+	// Stop and start goroutine in order to trigger account poller soon after CES add/update.
+	close(accPoller.ch)
+	accPoller.ch = make(chan struct{})
+	go wait.Until(accPoller.doAccountPoller, time.Duration(accPoller.pollIntvInSeconds)*time.Second, accPoller.ch)
+
+	return nil, accPoller
 }
 
 func (p *accountPoller) doAccountPoller() {
@@ -76,11 +212,25 @@ func (p *accountPoller) doAccountPoller() {
 	if e != nil {
 		p.log.Info("failed to update account status", "account", p.namespacedName, "err", e)
 	}
-	virtualMachines := p.getComputeResources(cloudInterface)
 
-	e = p.doVirtualMachineOperations(virtualMachines)
+	vpcMap, e := cloudInterface.GetVpcInventory(p.namespacedName)
 	if e != nil {
-		p.log.Info("failed to perform virtual-machine operations", "account", p.namespacedName, "error", e)
+		p.log.Info("failed to fetch cloud vpc list from internal snapshot", "account",
+			p.namespacedName.String(), "error", e)
+	}
+
+	err := p.inventory.BuildVpcCache(vpcMap, p.namespacedName)
+	if err != nil {
+		p.log.Info("failed to build vpc inventory", "account", p.namespacedName.String(), "error", err)
+	}
+
+	// Perform VM Operations only when CES is added.
+	if p.selector != nil {
+		virtualMachines := p.getComputeResources(cloudInterface)
+		e = p.doVirtualMachineOperations(virtualMachines)
+		if e != nil {
+			p.log.Info("failed to perform virtual-machine operations", "account", p.namespacedName, "error", e)
+		}
 	}
 }
 

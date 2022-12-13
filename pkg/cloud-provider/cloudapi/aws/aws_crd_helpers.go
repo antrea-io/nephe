@@ -20,7 +20,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/utils"
+	"antrea.io/nephe/pkg/controllers/inventory"
 )
 
 const ResourceNameTagKey = "Name"
@@ -75,4 +77,31 @@ func ec2InstanceToVirtualMachineCRD(instance *ec2.Instance, namespace string, ac
 	return utils.GenerateVirtualMachineCRD(cloudID, strings.ToLower(cloudName), strings.ToLower(cloudID), namespace,
 		strings.ToLower(cloudNetwork), cloudNetwork, v1alpha1.VMState(*instance.State.Name), tags, networkInterfaces,
 		providerType, accountId)
+}
+
+// ec2VpcToInternalVpcObject converts ec2 vpc object to vpc runtime object.
+func ec2VpcToInternalVpcObject(vpc *ec2.Vpc, namespace string, accountName string, region string) *runtimev1alpha1.Vpc {
+	cloudName := ""
+	tags := make(map[string]string, 0)
+	if len(vpc.Tags) != 0 {
+		for _, tag := range vpc.Tags {
+			tags[*(tag.Key)] = *(tag.Value)
+		}
+		if value, found := tags["Name"]; found {
+			cloudName = value
+		}
+	}
+	cidrs := make([]string, 0)
+	if len(vpc.CidrBlockAssociationSet) != 0 {
+		for _, cidr := range vpc.CidrBlockAssociationSet {
+			cidrs = append(cidrs, *cidr.CidrBlock)
+		}
+	}
+	labelsMap := map[string]string{
+		inventory.VpcLabelAccountName: accountName,
+		inventory.VpcLabelRegion:      region,
+	}
+
+	return utils.GenerateInternalVpcObject(*vpc.VpcId, namespace, labelsMap, cloudName, *vpc.VpcId, tags,
+		v1alpha1.AWSCloudProvider, region, cidrs)
 }

@@ -186,6 +186,53 @@ spec:
 EOF
 ```
 
+After a `CloudProviderAccount` CR is added, VPCs are polled from cloud for the
+configured region. From this VPC inventory, VPC ID or VPC Name can be used in
+`CloudEntitySelector` configuration to onboard vms belonging to the VPC of interest.
+
+```bash
+kubectl get vpc -A
+```
+
+```text
+# Output
+NAMESPACE   NAME                    CLOUD PROVIDER   REGION
+sample-ns   vpc-0f54c9f1b395038ab   AWS              us-west-1
+sample-ns   vpc-04269a331ab6cd649   AWS              us-west-1
+sample-ns   vpc-047156bebab1083c9   AWS              us-west-1
+```
+
+Use describe on VPC object to get `Id` or `Name` field and use it in vpcMatch
+section of `CloudEntitySelector` configuration.
+
+```bash
+kubectl describe vpc vpc-0f54c9f1b395038ab -n sample-ns
+```
+
+```text
+# Output
+Name:         vpc-0f54c9f1b395038ab
+Namespace:    sample-ns
+Labels:       account-name=cloudprovideraccount-aws-sample
+              region=us-west-1
+Annotations:  <none>
+API Version:  runtime.cloud.antrea.io/v1alpha1
+Kind:         Vpc
+Metadata:
+  Creation Timestamp:  <nil>
+Spec:
+  Cidrs:
+    10.0.0.0/16
+  Cloud Provider:  AWS
+  Id:              vpc-0f54c9f1b395038ab
+  Name:            test-us-west1-vpc
+  Region:          us-west-1
+  Tags:
+    Name:         test-us-west1-vpc
+    Terraform:    true
+Events:           <none>
+```
+
 If there are any virtual machines in VPC `VPC_ID`, those virtual machines will
 be imported. Invoke kubectl commands to get the details of imported VMs.
 

@@ -17,9 +17,13 @@ package azure
 import (
 	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2021-03-01/network"
+
 	"antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 	"antrea.io/nephe/pkg/cloud-provider/utils"
+	"antrea.io/nephe/pkg/controllers/inventory"
 )
 
 var azureStateMap = map[string]v1alpha1.VMState{
@@ -101,4 +105,26 @@ func computeInstanceToVirtualMachineCRD(instance *virtualMachineTable, namespace
 	return utils.GenerateVirtualMachineCRD(crdName, strings.ToLower(cloudName), strings.ToLower(cloudID), namespace,
 		strings.ToLower(cloudNetworkID), cloudNetworkShortID,
 		state, tags, networkInterfaces, providerType, accountId)
+}
+
+// ComputeVpcToInternalVpcObject converts vnet object from cloud format(network.VirtualNetwork) to vpc runtime object.
+func ComputeVpcToInternalVpcObject(vnet *network.VirtualNetwork, namespace string, accountName string,
+	region string) *runtimev1alpha1.Vpc {
+	crdName := utils.GenerateShortResourceIdentifier(*vnet.ID, *vnet.Name)
+	tags := make(map[string]string, 0)
+	if len(vnet.Tags) != 0 {
+		for k, v := range vnet.Tags {
+			tags[k] = *v
+		}
+	}
+	cidrs := make([]string, 0)
+	if vnet.AddressSpace != nil && vnet.AddressSpace.AddressPrefixes != nil {
+		cidrs = append(cidrs, *vnet.AddressSpace.AddressPrefixes...)
+	}
+	labelsMap := map[string]string{
+		inventory.VpcLabelAccountName: accountName,
+		inventory.VpcLabelRegion:      region,
+	}
+	return utils.GenerateInternalVpcObject(crdName, namespace, labelsMap, *vnet.Name, *vnet.ID, tags,
+		v1alpha1.AzureCloudProvider, region, cidrs)
 }

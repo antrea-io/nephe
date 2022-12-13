@@ -17,17 +17,20 @@ package cloud
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	cloudprovider "antrea.io/nephe/pkg/cloud-provider"
 	"antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
+	"antrea.io/nephe/pkg/controllers/inventory"
 	"antrea.io/nephe/pkg/controllers/utils"
 )
 
@@ -40,6 +43,8 @@ type CloudProviderAccountReconciler struct {
 
 	mutex               sync.Mutex
 	accountProviderType map[types.NamespacedName]common.ProviderType
+	Inventory           *inventory.Inventory
+	Poller              *Poller
 }
 
 // nolint:lll
@@ -85,15 +90,44 @@ func (r *CloudProviderAccountReconciler) processCreate(namespacedName *types.Nam
 	if err != nil {
 		return err
 	}
-	return cloudInterface.AddProviderAccount(r.Client, account)
+	err = cloudInterface.AddProviderAccount(r.Client, account)
+	if err != nil {
+		return err
+	}
+
+	err = cloudInterface.AddInventoryPoller(namespacedName)
+	if err != nil {
+		return err
+	}
+
+	accPoller, preExists := r.Poller.addAccountPoller(accountCloudType, namespacedName, account, r)
+
+	if !preExists {
+		go wait.Until(accPoller.doAccountPoller, time.Duration(accPoller.pollIntvInSeconds)*time.Second, accPoller.ch)
+	}
+
+	return nil
 }
 
 func (r *CloudProviderAccountReconciler) processDelete(namespacedName *types.NamespacedName) error {
+	r.Log.V(1).Info("Remove account poller", "account", namespacedName.String())
+	r.Poller.removeAccountPoller(namespacedName)
+
+	err := r.Inventory.DeleteVpcCache(namespacedName)
+	if err != nil {
+		return err
+	}
+
 	cloudType := r.getAccountProviderType(namespacedName)
 	cloudInterface, err := cloudprovider.GetCloudInterface(cloudType)
 	if err != nil {
 		return err
 	}
+	err = cloudInterface.DeleteInventoryPoller(namespacedName)
+	if err != nil {
+		return err
+	}
+
 	cloudInterface.RemoveProviderAccount(namespacedName)
 	r.removeAccountProviderType(namespacedName)
 
