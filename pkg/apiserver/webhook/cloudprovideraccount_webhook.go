@@ -73,7 +73,6 @@ func (m *CPAMutator) Handle(ctx context.Context, req admission.Request) admissio
 	}
 
 	m.Log.V(1).Info("CPA Mutator", "name", account.Name)
-
 	if account.Spec.PollIntervalInSeconds == nil {
 		var defaultIntv uint = 60
 		account.Spec.PollIntervalInSeconds = &defaultIntv

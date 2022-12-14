@@ -74,9 +74,8 @@ func (v *CESMutator) Handle(ctx context.Context, req admission.Request) admissio
 	}
 
 	v.Log.V(1).Info("CES Mutator", "name", selector.Name)
-
 	// make sure selector has owner reference.
-	// set owner account only if resource cloudprovideraccount with cloudentiryselector account name in this namespace exists.
+	// set owner account only if resource CloudProviderAccount with CloudEntitySelector account name in this Namespace exists.
 	ownerReference := metav1.GetControllerOf(selector)
 	accountNameSpacedName := &types.NamespacedName{
 		Namespace: selector.Namespace,
