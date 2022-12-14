@@ -9,26 +9,6 @@ webhooks:
       service:
         name: nephe-controller-webhook-service
         namespace: system
-        path: /mutate-crd-cloud-antrea-io-v1alpha1-virtualmachine
-    failurePolicy: Fail
-    name: mvirtualmachine.kb.io
-    rules:
-      - apiGroups:
-          - crd.cloud.antrea.io
-        apiVersions:
-          - v1alpha1
-        operations:
-          - CREATE
-          - UPDATE
-        resources:
-          - virtualmachines
-    sideEffects: None
-    admissionReviewVersions: ["v1", "v1beta1"]
-  - clientConfig:
-      caBundle: Cg==
-      service:
-        name: nephe-controller-webhook-service
-        namespace: system
         path: /mutate-crd-cloud-antrea-io-v1alpha1-cloudentityselector
     failurePolicy: Fail
     name: mcloudentityselector.kb.io
@@ -71,26 +51,6 @@ metadata:
   creationTimestamp: null
   name: nephe-controller-validating-webhook-configuration
 webhooks:
-  - clientConfig:
-      caBundle: Cg==
-      service:
-        name: nephe-controller-webhook-service
-        namespace: system
-        path: /validate-crd-cloud-antrea-io-v1alpha1-virtualmachine
-    failurePolicy: Fail
-    name: vvirtualmachine.kb.io
-    rules:
-      - apiGroups:
-          - crd.cloud.antrea.io
-        apiVersions:
-          - v1alpha1
-        operations:
-          - CREATE
-          - UPDATE
-        resources:
-          - virtualmachines
-    sideEffects: None
-    admissionReviewVersions: ["v1", "v1beta1"]
   - clientConfig:
       caBundle: Cg==
       service:

@@ -15,8 +15,12 @@
 package utils
 
 import (
+	"fmt"
+
 	"antrea.io/nephe/apis/crd/v1alpha1"
 )
+
+var ErrorMsgUnknownCloudProvider = "missing cloud provider config. Please add AWS or Azure Config"
 
 // GetVMIPAddresses returns IP addresses of all network interfaces attached to the vm.
 func GetVMIPAddresses(vm *v1alpha1.VirtualMachine) []v1alpha1.IPAddress {
@@ -29,4 +33,15 @@ func GetVMIPAddresses(vm *v1alpha1.VirtualMachine) []v1alpha1.IPAddress {
 		ips = append(ips, value.IPs...)
 	}
 	return ips
+}
+
+// GetAccountProviderType returns cloud provider type from CPA.
+func GetAccountProviderType(account *v1alpha1.CloudProviderAccount) (v1alpha1.CloudProvider, error) {
+	if account.Spec.AWSConfig != nil {
+		return v1alpha1.AWSCloudProvider, nil
+	} else if account.Spec.AzureConfig != nil {
+		return v1alpha1.AzureCloudProvider, nil
+	} else {
+		return "", fmt.Errorf("%s", ErrorMsgUnknownCloudProvider)
+	}
 }

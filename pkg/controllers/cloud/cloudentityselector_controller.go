@@ -33,6 +33,7 @@ import (
 	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	cloudprovider "antrea.io/nephe/pkg/cloud-provider"
 	"antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
+	"antrea.io/nephe/pkg/controllers/utils"
 )
 
 const (
@@ -188,7 +189,7 @@ func (r *CloudEntitySelectorReconciler) addAccountPoller(selector *cloudv1alpha1
 	}
 	account := &cloudv1alpha1.CloudProviderAccount{}
 	_ = r.Get(context.TODO(), *accountNamespacedName, account)
-	accountCloudType, err := account.GetAccountProviderType()
+	accountCloudType, err := utils.GetAccountProviderType(account)
 	if err != nil {
 		return nil, false
 	}
