@@ -16,36 +16,52 @@
 # This script destroys vms when test are finished. There two args for this
 # script. The first arg is testbed_name (terraform workspace name). The 
 # second is password for vc.
-set -e
+set -ex
 
-tesbted_name="$1"
+testbed_name="$1"
 vc_passwd="$2"
-var_file="$3"
-if [ -z ${var_file} ]; then
-  var_file="terraform.tfstate.d/${tesbted_name}/vars.tfvars"
+terraform_dir="$3"
+vsphere_server_1="$4"
+if [ ! -z "${vsphere_server_1}" ]; then
+  vsphere_server=${vsphere_server_1}
 fi
 
-if [ -z "${tesbted_name}" ]; then
+if [ -z "${testbed_name}" ]; then
   echo "Usage: $0 <testbed_name>"
   exit 1
 fi
 
-if [ ! -e ".terraform" ]; then
-  terraform init
+if [ -z ${terraform_dir} ]; then
+  var_file="terraform.tfstate.d/${testbed_name}/vars.tfvars"
+  terraform_dir="terraform.tfstate.d/${testbed_name}"
+  if [ ! -e ".terraform" ]; then
+    terraform init
+  fi
+else
+  var_file="${terraform_dir}/${testbed_name}/vars.tfvars"
+  tf_var_file="${terraform_dir}/terraform-${vsphere_server}.tfvars"
+  terraform_dir="${terraform_dir}/${testbed_name}"
+  if [ -e ${var_file} ]; then
+    terraform workspace new ${testbed_name}
+  fi
 fi
 
-if [ ! -e "terraform.tfstate.d/${tesbted_name}" ]; then
-  echo "${tesbted_name} doesn't exist in local workspace"
-  exit 1
+echo ${terraform_dir} ${var_file}
+if [ ! -e "${terraform_dir}" ]; then
+  echo "${testbed_name} doesn't exist in local workspace"
+  exit 0
 fi
 
-echo ====== Deleting ${tesbted_name} from Local Workspace ======
-terraform workspace "select" "${tesbted_name}"
+echo ====== Deleting ${testbed_name} from Local Workspace ======
+terraform workspace "select" "${testbed_name}"
 source ${var_file}
-terraform destroy -lock=false -auto-approve -var vsphere_password=${vc_passwd} -var-file=terraform-${vsphere_server}.tfvars "-var-file=${var_file}" -parallelism=20
+if [ -z ${tf_var_file} ]; then
+  tf_var_file="terraform-${vsphere_server}.tfvars"
+fi
+terraform destroy -lock=false -auto-approve -var vsphere_password=${vc_passwd} -var-file=${tf_var_file} "-var-file=${var_file}" -parallelism=20
 terraform workspace "select" default
-terraform workspace delete "${tesbted_name}"
-echo ====== Deleted ${tesbted_name} from Local Workspace ======
-echo ====== Deleting ${tesbted_name} from Shared Workspace ======
-rm -rf "${HOME}/terraform.tfstate.d/current/${tesbted_name}"
-echo ====== Deleted ${tesbted_name} from Shared Workspace ======
+terraform workspace delete "${testbed_name}"
+echo ====== Deleted ${testbed_name} from Local Workspace ======
+echo ====== Deleting ${testbed_name} from Shared Workspace ======
+rm -rf "${HOME}/terraform.tfstate.d/current/${testbed_name}"
+echo ====== Deleted ${testbed_name} from Shared Workspace ======

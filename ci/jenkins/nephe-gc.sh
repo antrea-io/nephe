@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # Copyright 2022 Antrea Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,12 +14,14 @@
 # limitations under the License.
 
 # This script helps to cleanup stale dynamic vm for nephe. It accepts two parameters,
-# `goVcPassword` is password for vc the dynamic vm is deployed on, `terraform-dir` is
+# `goVcPassword` is password for vc the dynamic vm is deployed on, `terraformDir` is
 # the path to store vm information.
 
+set -x
 _usage="Usage: $0 [--goVcPassword <Password for VC>]
   --goVcPassword          Password to the user name for VC.
-  --terraform-dir         directory for terraform."
+  --terraformDir          directory for terraform.
+  --vSphereServer         vSphereServer that is deploying vm."
 
 # This is the max timeout we think the dynamic vm is stale.
 timeout=14400
@@ -45,8 +46,12 @@ case $key in
     goVcPassword="$2"
     shift 2
     ;;
-  --terraform-dir)
+  --terraformDir)
     terraformDir="$2"
+    shift 2
+    ;;
+  --vSphereServer)
+    vSphereServer="$2"
     shift 2
     ;;
   -h|--help)
@@ -67,13 +72,16 @@ fi
 echo ${terraformDir}
 chmod +x ./ci/jenkins/destroy.sh
 for testbed_name in $(ls ${terraformDir}); do
+  if [ -z ${testbed_name} ]; then
+    continue
+  fi
   if [ -d ${terraformDir}/${testbed_name} ]; then
-    start_time=$(date "+%s" --date `cat "${terraformDir}/${testbed_name}"/terraform.tfstate|jq -r .resources[6].instances[0].attributes.change_version`)
+    start_time=$(date "+%s" --date `cat "${terraformDir}/${testbed_name}"/terraform.tfstate|jq -r .resources[-1].instances[0].attributes.change_version`)
     curr_time=$(date "+%s")
     delta=$((${curr_time}-${start_time}))
-    if [ ${delta} > ${timeout} ]; then
+    if [ ${delta} -gt ${timeout} ]; then
       echo "testbed ${testbed_name} is stale, and it will be destroyed"
-      ./ci/jenkins/destroy.sh "${testbed_name}" "${goVcPassword}" "${terraformDir}"
+      ./ci/jenkins/destroy.sh "${testbed_name}" "${goVcPassword}" "${terraformDir}" "${vSphereServer}"
     else
       echo "testbed ${testbed_name} is in use"
     fi
