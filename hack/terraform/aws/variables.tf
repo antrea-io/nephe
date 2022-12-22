@@ -6,7 +6,7 @@ variable owner {
 }
 
 variable aws_vm_type {
-  default = "t2.medium"
+  default = "t2.micro"
 }
 
 variable peer_vpc_id {
@@ -71,18 +71,18 @@ variable "aws_vm_os_types_agented" {
       ami_owner       = "099720109477"
     },
     {
-      name            = "rhel"
-      login           = "ec2-user"
-      init            = "init_script_rhel.sh"
-      ami_name_search = "RHEL_HA-8.4.0_HVM-20210504-x86_64-2-Hourly2-GP2"
-      ami_owner       = "309956199498"
-    },
-    {
       name            = "ubuntu2"
       login           = "ubuntu"
       init            = "init_script_ubuntu.sh"
       ami_name_search = "ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"
       ami_owner       = "099720109477"
+    },
+    {
+      name            = "rhel"
+      login           = "ec2-user"
+      init            = "init_script_rhel.sh"
+      ami_name_search = "RHEL_HA-8.4.0_HVM-20210504-x86_64-2-Hourly2-GP2"
+      ami_owner       = "309956199498"
     },
   ]
 }
