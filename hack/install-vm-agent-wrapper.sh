@@ -220,9 +220,9 @@ function install() {
     echo "Running antrea $INSTALL_SCRIPT script"
     chmod +x "${tmp_dir}"/$INSTALL_SCRIPT
     chmod +x "${tmp_dir}"/$ANTREA_AGENT_BIN
-    "${tmp_dir}"/$INSTALL_SCRIPT --ns "$NAMESPACE" --bin "${tmp_dir}"/${ANTREA_AGENT_BIN} \
-        --config "${tmp_dir}"/${ANTREA_AGENT_CONF} --kubeconfig "$KUBECONFIG" \
-        --antrea-kubeconfig "$ANTREA_KUBECONFIG" --nodename "$NODENAME" --containerize
+    "${tmp_dir}"/$INSTALL_SCRIPT --ns "$NAMESPACE" --config "${tmp_dir}"/${ANTREA_AGENT_CONF} \
+        --kubeconfig "$KUBECONFIG" --antrea-kubeconfig "$ANTREA_KUBECONFIG" \
+        --antrea-version "$ANTREA_VERSION" --nodename "$NODENAME" --containerize
     echo "Set antrea-agent Service Environment variable NODE_NAME=$NODENAME"
     # Delete the temporary directory.
     rm -rf "${tmp_dir}"

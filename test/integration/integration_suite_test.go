@@ -204,7 +204,7 @@ var _ = BeforeSuite(func(done Done) {
 		cloudVPC = cloudVPCs[provider]
 	}
 	close(done)
-}, 600)
+}, 1200)
 
 var _ = AfterSuite(func(done Done) {
 	if preserveSetup {
