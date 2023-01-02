@@ -154,9 +154,7 @@ function install_required_packages() {
 
 function update_antrea_url() {
     ANTREA_BRANCH="release-$(echo $ANTREA_VERSION | cut -b 2-4)"
-    # Temporary change to use script from nephe repo.
-    # ANTREA_INSTALL_SCRIPT="https://github.com/antrea-io/antrea/releases/download/${ANTREA_VERSION}/install-vm.sh"
-    ANTREA_INSTALL_SCRIPT="https://raw.githubusercontent.com/antrea-io/nephe/temp/hack/install-vm.sh"
+    ANTREA_INSTALL_SCRIPT="https://github.com/antrea-io/antrea/releases/download/${ANTREA_VERSION}/install-vm.sh"
     AGENT_BIN="https://github.com/antrea-io/antrea/releases/download/${ANTREA_VERSION}/antrea-agent-linux-x86_64"
     ANTREA_CONFIG="https://raw.githubusercontent.com/antrea-io/antrea/${ANTREA_BRANCH}/build/yamls/externalnode/conf/antrea-agent.conf"
 }
