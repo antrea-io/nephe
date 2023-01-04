@@ -466,6 +466,5 @@ func (p *accountPoller) isVMAgented(vm *cloudv1alpha1.VirtualMachine) bool {
 	if vmSelectorMatch == nil {
 		return false
 	}
-	p.log.V(1).Info("found agented VM match", "VMSelector", vmSelectorMatch)
 	return vmSelectorMatch.Agented
 }
