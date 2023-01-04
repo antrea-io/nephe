@@ -157,7 +157,17 @@ testbed_name="nephe-test-${testType}-${buildNumber}"
 ip_addr=`cat terraform.tfstate.d/${testbed_name}/terraform.tfstate | jq -r .outputs.vm_ips.value[0]`
 
 # Docker login
-ssh -i id_rsa ubuntu@${ip_addr} "docker login --username=$dockerUser --password=$dockerPassword"
+set +e
+for i in `seq 30`; do
+    ssh -i id_rsa ubuntu@${ip_addr} "docker login --username=$dockerUser --password=$dockerPassword"
+    if [[ "$?" -ne 0 ]]; then
+        sleep 10s
+        echo "Docker login failed. Retrying"
+        continue
+    fi
+    break
+done
+set -e
 
 #TODO: Scp'ing the code. Need to find better way
 ssh -i id_rsa ubuntu@${ip_addr} "mkdir ~/nephe"
