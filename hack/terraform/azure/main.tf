@@ -88,6 +88,7 @@ module "vm_cluster" {
 
 module "network" {
   source              = "Azure/vnet/azurerm"
+  version             = "3.1.0"
   resource_group_name = azurerm_resource_group.vm.name
   address_space       = [var.network_address_space]
   subnet_prefixes     = [var.subnet_prefix]
