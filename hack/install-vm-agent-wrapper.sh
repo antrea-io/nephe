@@ -153,7 +153,8 @@ function install_required_packages() {
 }
 
 function update_antrea_url() {
-    ANTREA_BRANCH="release-$(echo $ANTREA_VERSION | cut -b 2-4)"
+    # Generate branch name release-1.XX from version v1.XX.0.
+    ANTREA_BRANCH="release-$(echo $ANTREA_VERSION  | grep -o "[0-9]\.[0-9][0-9]")"
     ANTREA_INSTALL_SCRIPT="https://github.com/antrea-io/antrea/releases/download/${ANTREA_VERSION}/install-vm.sh"
     AGENT_BIN="https://github.com/antrea-io/antrea/releases/download/${ANTREA_VERSION}/antrea-agent-linux-x86_64"
     ANTREA_CONFIG="https://raw.githubusercontent.com/antrea-io/antrea/${ANTREA_BRANCH}/build/yamls/externalnode/conf/antrea-agent.conf"

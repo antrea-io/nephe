@@ -64,21 +64,21 @@ variable "aws_vm_os_types_agented" {
   }))
   default = [
     {
-      name            = "ubuntu1"
+      name            = "ubuntu-host1"
       login           = "ubuntu"
       init            = "init_script_ubuntu.sh"
       ami_name_search = "ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"
       ami_owner       = "099720109477"
     },
     {
-      name            = "ubuntu2"
+      name            = "ubuntu-host2"
       login           = "ubuntu"
       init            = "init_script_ubuntu.sh"
       ami_name_search = "ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"
       ami_owner       = "099720109477"
     },
     {
-      name            = "rhel"
+      name            = "rhel-host3"
       login           = "ec2-user"
       init            = "init_script_rhel.sh"
       ami_name_search = "RHEL_HA-8.4.0_HVM-20210504-x86_64-2-Hourly2-GP2"
