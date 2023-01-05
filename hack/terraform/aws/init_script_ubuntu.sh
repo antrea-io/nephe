@@ -20,7 +20,6 @@ ANTREA_KUBECONFIG="antrea-agent.antrea.kubeconfig"
 sudo apt-get update
 
 if [[ ${WITH_AGENT} == true ]]; then
-  #sudo apt-get install -y openvswitch-switch
   cat <<EOF > $K8S_KUBECONFIG
 ${K8S_CONF}
 EOF

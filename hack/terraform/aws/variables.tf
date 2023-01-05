@@ -31,21 +31,21 @@ variable "aws_vm_os_types" {
   }))
   default = [
     {
-      name            = "ubuntu1"
+      name            = "ubuntu-host1"
       login           = "ubuntu"
       init            = "init_script_ubuntu.sh"
       ami_name_search = "ubuntu/images/hvm-ssd/ubuntu-xenial-16.04-amd64-server-*"
       ami_owner       = "099720109477"
     },
     {
-      name            = "ubuntu2"
+      name            = "ubuntu-host2"
       login           = "ubuntu"
       init            = "init_script_ubuntu.sh"
       ami_name_search = "ubuntu/images/hvm-ssd/ubuntu-xenial-16.04-amd64-server-*"
       ami_owner       = "099720109477"
     },
     {
-      name            = "amzn"
+      name            = "amzn-host3"
       login           = "ec2-user"
       init            = "init_script_amzn.sh"
       ami_name_search = "amzn-ami-hvm-*x86_64*"

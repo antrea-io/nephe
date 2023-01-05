@@ -22,10 +22,11 @@ import (
 	"strings"
 	"time"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
-	"antrea.io/nephe/pkg/cloud-provider/utils"
 	k8stemplates "antrea.io/nephe/test/templates"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	"antrea.io/nephe/apis/crd/v1alpha1"
+	"antrea.io/nephe/pkg/cloud-provider/utils"
 )
 
 type azureVPC struct {

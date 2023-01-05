@@ -89,7 +89,7 @@ variable "azure_vm_os_types_agented" {
       init      = "init_script_ubuntu.sh"
     },
     {
-      name      = "rhel-host"
+      name      = "rhel-host3"
       offer     = "RHEL-SAP-HA"
       publisher = "RedHat"
       sku       = "8_4"
