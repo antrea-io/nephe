@@ -1261,7 +1261,6 @@ func (n *networkPolicy) update(anp *antreanetworking.NetworkPolicy, recompute bo
 			_, removedAddr = diffAddressGrp(n.Rules, anp.Rules)
 			r.Log.V(1).Info("AddressGroup changes in NetworkPolicy", "old", n.Rules, "new", anp.Rules,
 				"diff", removedAddr)
-			// TODO: observation count?
 			n.Rules = anp.Rules
 			n.Generation = anp.Generation
 			if err := r.networkPolicyIndexer.Add(n); err != nil {

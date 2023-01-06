@@ -54,7 +54,7 @@ const (
 	virtualMachineIndexerByCloudName            = "metadata.annotations.cloud-assigned-name"
 
 	operationCount    = 15
-	cloudSyncInterval = 0x80 // 128 Seconds
+	cloudSyncInterval = 0xff // 256 Seconds
 
 	// NetworkPolicy controller is ready to sync after it receives bookmarks from
 	// networkpolicy, addrssGroup and appliedToGroup.
@@ -129,6 +129,7 @@ func (r *NetworkPolicyReconciler) isNetworkPolicySupported(anp *antreanetworking
 	return nil
 }
 
+// updateRuleRealizationStatus check rule realization status on all appliedTo groups for a np and send status.
 func (r *NetworkPolicyReconciler) updateRuleRealizationStatus(np *networkPolicy, err error) {
 	if err == nil {
 		for _, at := range np.AppliedToGroups {
@@ -168,7 +169,7 @@ func (r *NetworkPolicyReconciler) sendRuleRealizationStatus(anp *antreanetworkin
 		status.Nodes[0].RealizationFailure = true
 		status.Nodes[0].Message = err.Error()
 	}
-	r.Log.V(1).Info("Updating rule realization.", "NP", anp.Name, "Namespace", anp.Namespace, "err", err, "generation", anp.Generation)
+	r.Log.V(1).Info("Updating rule realization.", "NP", anp.Name, "Namespace", anp.Namespace, "err", err)
 	if e := r.antreaClient.NetworkPolicies().UpdateStatus(context.TODO(), status.Name, status); e != nil {
 		r.Log.Error(e, "rule realization send failed.", "NP", anp.Name, "Namespace", anp.Namespace)
 	}
