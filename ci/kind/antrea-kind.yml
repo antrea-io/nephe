@@ -635,6 +635,23 @@ spec:
                                   oneOf:
                                     - format: ipv4
                                     - format: ipv6
+                      l7Protocols:
+                        type: array
+                        items:
+                          type: object
+                          oneOf:
+                            - required: [http]
+                          properties:
+                            http:
+                              type: object
+                              properties:
+                                host:
+                                  type: string
+                                method:
+                                  type: string
+                                  enum: ['GET', 'POST', 'PUT', 'HEAD', 'DELETE', 'TRACE', 'OPTIONS', 'CONNECT', 'PATCH']
+                                path:
+                                  type: string
                       from:
                         type: array
                         items:
@@ -737,6 +754,9 @@ spec:
                                   type: array
                                 matchLabels:
                                   x-kubernetes-preserve-unknown-fields: true
+                            scope:
+                              type: string
+                              enum: ['Cluster', 'ClusterSet']
                       name:
                         type: string
                       enableLogging:
@@ -863,6 +883,23 @@ spec:
                                   oneOf:
                                     - format: ipv4
                                     - format: ipv6
+                      l7Protocols:
+                        type: array
+                        items:
+                          type: object
+                          oneOf:
+                            - required: [http]
+                          properties:
+                            http:
+                              type: object
+                              properties:
+                                host:
+                                  type: string
+                                method:
+                                  type: string
+                                  enum: ['GET', 'POST', 'PUT', 'HEAD', 'DELETE', 'TRACE', 'OPTIONS', 'CONNECT', 'PATCH']
+                                path:
+                                  type: string
                       to:
                         type: array
                         items:
@@ -978,6 +1015,8 @@ spec:
                             name:
                               type: string
                             namespace:
+                              type: string
+                            scope:
                               type: string
                       name:
                         type: string
@@ -1347,11 +1386,12 @@ spec:
       storage: true
   scope: Namespaced
   names:
-    kind: ExternalNode
     plural: externalnodes
+    singular: externalnode
+    kind: ExternalNode
     shortNames:
       - en
-    singular: externalnode
+
 ---
 # Source: crds/ippool.yaml
 apiVersion: apiextensions.k8s.io/v1
@@ -1683,6 +1723,23 @@ spec:
                                   oneOf:
                                     - format: ipv4
                                     - format: ipv6
+                      l7Protocols:
+                        type: array
+                        items:
+                          type: object
+                          oneOf:
+                            - required: [http]
+                          properties:
+                            http:
+                              type: object
+                              properties:
+                                host:
+                                  type: string
+                                method:
+                                  type: string
+                                  enum: ['GET', 'POST', 'PUT', 'HEAD', 'DELETE', 'TRACE', 'OPTIONS', 'CONNECT', 'PATCH']
+                                path:
+                                  type: string
                       from:
                         type: array
                         items:
@@ -1792,6 +1849,9 @@ spec:
                                   x-kubernetes-preserve-unknown-fields: true
                             group:
                               type: string
+                            scope:
+                              type: string
+                              enum: ['Cluster', 'ClusterSet']
                       name:
                         type: string
                       enableLogging:
@@ -1884,6 +1944,23 @@ spec:
                                   oneOf:
                                     - format: ipv4
                                     - format: ipv6
+                      l7Protocols:
+                        type: array
+                        items:
+                          type: object
+                          oneOf:
+                            - required: [http]
+                          properties:
+                            http:
+                              type: object
+                              properties:
+                                host:
+                                  type: string
+                                method:
+                                  type: string
+                                  enum: ['GET', 'POST', 'PUT', 'HEAD', 'DELETE', 'TRACE', 'OPTIONS', 'CONNECT', 'PATCH']
+                                path:
+                                  type: string
                       to:
                         type: array
                         items:
@@ -2005,6 +2082,8 @@ spec:
                             name:
                               type: string
                             namespace:
+                              type: string
+                            scope:
                               type: string
                       name:
                         type: string
@@ -2155,7 +2234,7 @@ spec:
                   properties:
                     authType:
                       type: string
-                      enum: ["BearerToken", "APIKey"]
+                      enum: ["BearerToken", "APIKey", "BasicAuthentication"]
                     authSecret:
                       type: object
                       properties:
@@ -2432,6 +2511,10 @@ spec:
                             translatedDstIP:
                               type: string
                             tunnelDstIP:
+                              type: string
+                            egressIP:
+                              type: string
+                            egress:
                               type: string
                 capturedPacket:
                   properties:
@@ -2907,6 +2990,13 @@ data:
     # Enable certificated-based authentication for IPsec.
     #  IPsecCertAuth: false
 
+    # Enable collecting support bundle files with SupportBundleCollection CRD.
+    #  SupportBundleCollection: false
+
+    # Enable users to protect their applications by specifying how they are allowed to communicate with others, taking
+    # into account application context.
+    #  L7NetworkPolicy: false
+
     # Name of the OpenVSwitch bridge antrea-agent will create and use.
     # Make sure it doesn't conflict with your existing OpenVSwitch bridges.
     ovsBridge: "br-int"
@@ -3142,6 +3232,9 @@ data:
     # The Namespace where Antrea Multi-cluster Controller is running.
     # The default is antrea-agent's Namespace.
       namespace: ""
+    # Enable StretchedNetworkPolicy which could be enforced on cross-cluster traffic.
+    # This feature is supported only with encap mode.
+      enableStretchedNetworkPolicy: false
   antrea-cni.conflist: |
     {
         "cniVersion":"0.3.0",
@@ -3208,6 +3301,16 @@ data:
     # Enable managing ExternalNode for unmanaged VM/BM.
       ExternalNode: true
 
+    # Enable collecting support bundle files with SupportBundleCollection CRD.
+    #  SupportBundleCollection: false
+
+    # Enable multi-cluster features.
+    #  Multicluster: false
+
+    # Enable users to protect their applications by specifying how they are allowed to communicate with others, taking
+    # into account application context.
+    #  L7NetworkPolicy: false
+
     # The port for the antrea-controller APIServer to serve on.
     # Note that if it's set to another value, the `containerPort` of the `api` port of the
     # `antrea-controller` container must be set to the same value.
@@ -3263,6 +3366,11 @@ data:
       #   tls.crt: <CA certificate>
       #   tls.key: <CA private key>
       selfSignedCA: true
+
+    multicluster:
+      # Enable StretchedNetworkPolicy which allow Antrea-native policies to select peers
+      # from other clusters in a ClusterSet.
+      enableStretchedNetworkPolicy: false
 ---
 # Source: antrea/templates/crds/group.yaml
 apiVersion: apiextensions.k8s.io/v1
@@ -3487,6 +3595,20 @@ rules:
       - create
       - get
   - apiGroups:
+      - controlplane.antrea.io
+    resources:
+      - supportbundlecollections
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups:
+      - controlplane.antrea.io
+    resources:
+      - supportbundlecollections/status
+    verbs:
+      - create
+  - apiGroups:
       - authentication.k8s.io
     resources:
       - tokenreviews
@@ -3596,6 +3718,7 @@ rules:
     - multicluster.crd.antrea.io
     resources:
     - clusterinfoimports
+    - labelidentities
     verbs:
     - get
     - list
@@ -3971,6 +4094,28 @@ rules:
       - get
       - list
       - watch
+  - apiGroups:
+      - crd.antrea.io
+    resources:
+      - supportbundlecollections
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups:
+      - crd.antrea.io
+    resources:
+      - supportbundlecollections/status
+    verbs:
+      - update
+  - apiGroups:
+      - multicluster.crd.antrea.io
+    resources:
+      - labelidentities
+    verbs:
+      - get
+      - list
+      - watch
 ---
 # Source: antrea/templates/crds-rbac/clusterroles.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -4148,7 +4293,7 @@ spec:
         kubectl.kubernetes.io/default-container: antrea-agent
         # Automatically restart Pods with a RollingUpdate if the ConfigMap changes
         # See https://helm.sh/docs/howto/charts_tips_and_tricks/#automatically-roll-deployments
-        checksum/config: b609bc3b220de28b3fe935093fc7d99dfdc533916597e906a6c627c6233fedbc
+        checksum/config: dc23e723afc8c100dc8bdc6b2f8a2774baf7dcf7a8eb0a34e168057d75b9f245
       labels:
         app: antrea
         component: antrea-agent
@@ -4168,7 +4313,7 @@ spec:
       serviceAccountName: antrea-agent
       initContainers:
         - name: install-cni
-          image: "projects.registry.vmware.com/antrea/antrea-ubuntu:v1.9.0"
+          image: "projects.registry.vmware.com/antrea/antrea-ubuntu:v1.10.0"
           imagePullPolicy: IfNotPresent
           resources:
             requests:
@@ -4202,7 +4347,7 @@ spec:
             mountPath: /var/run/antrea
       containers:
         - name: antrea-agent
-          image: "projects.registry.vmware.com/antrea/antrea-ubuntu:v1.9.0"
+          image: "projects.registry.vmware.com/antrea/antrea-ubuntu:v1.10.0"
           imagePullPolicy: IfNotPresent
           command: ["antrea-agent"]
           # Log to both "/var/log/antrea/" and stderr (so "kubectl logs" can work).-
@@ -4294,7 +4439,7 @@ spec:
           - name: xtables-lock
             mountPath: /run/xtables.lock
         - name: antrea-ovs
-          image: "projects.registry.vmware.com/antrea/antrea-ubuntu:v1.9.0"
+          image: "projects.registry.vmware.com/antrea/antrea-ubuntu:v1.10.0"
           imagePullPolicy: IfNotPresent
           resources:
             requests:
@@ -4388,7 +4533,7 @@ spec:
       annotations:
         # Automatically restart Pod if the ConfigMap changes
         # See https://helm.sh/docs/howto/charts_tips_and_tricks/#automatically-roll-deployments
-        checksum/config: b609bc3b220de28b3fe935093fc7d99dfdc533916597e906a6c627c6233fedbc
+        checksum/config: dc23e723afc8c100dc8bdc6b2f8a2774baf7dcf7a8eb0a34e168057d75b9f245
       labels:
         app: antrea
         component: antrea-controller
@@ -4407,7 +4552,7 @@ spec:
       serviceAccountName: antrea-controller
       containers:
         - name: antrea-controller
-          image: "projects.registry.vmware.com/antrea/antrea-ubuntu:v1.9.0"
+          image: "projects.registry.vmware.com/antrea/antrea-ubuntu:v1.10.0"
           imagePullPolicy: IfNotPresent
           resources:
             requests:
@@ -4700,6 +4845,21 @@ webhooks:
         apiGroups: ["crd.antrea.io"]
         apiVersions: ["v1alpha2"]
         resources: ["ippools"]
+        scope: "Cluster"
+    admissionReviewVersions: ["v1", "v1beta1"]
+    sideEffects: None
+    timeoutSeconds: 5
+  - name: "supportbundlecollectionvalidator.antrea.io"
+    clientConfig:
+      service:
+        name: "antrea"
+        namespace: kube-system
+        path: "/validate/supportbundlecollection"
+    rules:
+      - operations: ["UPDATE", "DELETE"]
+        apiGroups: ["crd.antrea.io"]
+        apiVersions: ["v1alpha1"]
+        resources: ["supportbundlecollections"]
         scope: "Cluster"
     admissionReviewVersions: ["v1", "v1beta1"]
     sideEffects: None

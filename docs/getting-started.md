@@ -23,7 +23,7 @@
 
 - [Kubectl](https://kubernetes.io/docs/tasks/tools/) installed.
 - An active Kubernetes cluster, accessible using kubectl.
-- [Antrea](https://github.com/antrea-io/antrea/) deployed. Recommend v1.9.
+- [Antrea](https://github.com/antrea-io/antrea/) deployed. Recommend v1.10.
 - [Cert-Manager](https://github.com/jetstack/cert-manager) deployed. Recommend
   v1.8.
 
