@@ -247,12 +247,14 @@ var _ = Describe("AWS Cloud Security", func() {
 				AccountID:     testAccountNamespacedName.String(),
 				CloudProvider: string(v1alpha1.AWSCloudProvider),
 			}
-			ingress := []*securitygroup.IngressRule{{
-				FromPort:           aws.Int(22),
-				FromSrcIP:          []*net.IPNet{},
-				FromSecurityGroups: []*securitygroup.CloudResourceID{&webSgIdentifier.CloudResourceID},
-				Protocol:           aws.Int(6),
-			}}
+			addRule := []*securitygroup.CloudRule{{
+				Rule: &securitygroup.IngressRule{
+					FromPort:           aws.Int(22),
+					FromSrcIP:          []*net.IPNet{},
+					FromSecurityGroups: []*securitygroup.CloudResourceID{&webSgIdentifier.CloudResourceID},
+					Protocol:           aws.Int(6),
+				}},
+			}
 			output := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier.CloudResourceID, true, false)
 			outputAt := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier.CloudResourceID, false, false)
 			output.SecurityGroups = append(output.SecurityGroups, outputAt.SecurityGroups...)
@@ -273,7 +275,7 @@ var _ = Describe("AWS Cloud Security", func() {
 			mockawsEC2.EXPECT().revokeSecurityGroupEgress(gomock.Any()).Times(0)
 			mockawsEC2.EXPECT().authorizeSecurityGroupEgress(gomock.Any()).Times(0)
 
-			err := cloudInterface.UpdateSecurityGroupRules(webSgIdentifier, ingress, []*securitygroup.EgressRule{})
+			err := cloudInterface.UpdateSecurityGroupRules(webSgIdentifier, addRule, []*securitygroup.CloudRule{}, addRule)
 			Expect(err).Should(BeNil())
 		})
 
@@ -287,12 +289,13 @@ var _ = Describe("AWS Cloud Security", func() {
 				AccountID:     testAccountNamespacedName.String(),
 				CloudProvider: string(v1alpha1.AWSCloudProvider),
 			}
-			egress := []*securitygroup.EgressRule{{
-				ToPort:           aws.Int(22),
-				ToDstIP:          []*net.IPNet{},
-				ToSecurityGroups: []*securitygroup.CloudResourceID{&webSgIdentifier.CloudResourceID},
-				Protocol:         aws.Int(6),
-			}}
+			addRule := []*securitygroup.CloudRule{{
+				Rule: &securitygroup.EgressRule{
+					ToPort:           aws.Int(22),
+					ToDstIP:          []*net.IPNet{},
+					ToSecurityGroups: []*securitygroup.CloudResourceID{&webSgIdentifier.CloudResourceID},
+					Protocol:         aws.Int(6),
+				}}}
 			output := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier.CloudResourceID, true, false)
 			outputAt := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier.CloudResourceID, false, false)
 			output.SecurityGroups = append(output.SecurityGroups, outputAt.SecurityGroups...)
@@ -313,125 +316,7 @@ var _ = Describe("AWS Cloud Security", func() {
 					Expect(len(req.IpPermissions)).To(Equal(1))
 				})
 
-			err := cloudInterface.UpdateSecurityGroupRules(webSgIdentifier, []*securitygroup.IngressRule{}, egress)
-			Expect(err).Should(BeNil())
-		})
-
-		It("Should delta update ingress rules successfully", func() {
-			webSgIdentifier := &securitygroup.CloudResource{
-				Type: securitygroup.CloudResourceTypeVM,
-				CloudResourceID: securitygroup.CloudResourceID{
-					Name: "Web",
-					Vpc:  testVpcID01,
-				},
-				AccountID:     testAccountNamespacedName.String(),
-				CloudProvider: string(v1alpha1.AWSCloudProvider),
-			}
-			ingress := []*securitygroup.IngressRule{{
-				FromPort:           aws.Int(22),
-				FromSrcIP:          []*net.IPNet{},
-				FromSecurityGroups: []*securitygroup.CloudResourceID{&webSgIdentifier.CloudResourceID},
-				Protocol:           aws.Int(6),
-			}, {
-				FromPort:           aws.Int(80),
-				FromSrcIP:          []*net.IPNet{},
-				FromSecurityGroups: []*securitygroup.CloudResourceID{&webSgIdentifier.CloudResourceID},
-				Protocol:           aws.Int(6),
-			}}
-			output := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier.CloudResourceID, true, false)
-			outputAt := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier.CloudResourceID, false, false)
-			outputAt.SecurityGroups[0].IpPermissions = []*ec2.IpPermission{{
-				FromPort:         aws.Int64(80),
-				ToPort:           aws.Int64(80),
-				IpProtocol:       aws.String("tcp"),
-				UserIdGroupPairs: []*ec2.UserIdGroupPair{{GroupId: output.SecurityGroups[0].GroupId}},
-			}, {
-				FromPort:         aws.Int64(8080),
-				ToPort:           aws.Int64(8080),
-				IpProtocol:       aws.String("tcp"),
-				UserIdGroupPairs: []*ec2.UserIdGroupPair{{GroupId: output.SecurityGroups[0].GroupId}},
-			}}
-			output.SecurityGroups = append(output.SecurityGroups, outputAt.SecurityGroups...)
-			input := constructEc2DescribeSecurityGroupsInput(webSgIdentifier.Vpc,
-				map[string]struct{}{webSgIdentifier.GetCloudName(true): {}, webSgIdentifier.GetCloudName(false): {}})
-
-			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Any()).Return(output, nil).Times(1).
-				Do(func(req *ec2.DescribeSecurityGroupsInput) {
-					sortSliceStringPointer(req.Filters[1].Values)
-					sortSliceStringPointer(input.Filters[1].Values)
-					Expect(req).To(Equal(input))
-				})
-			mockawsEC2.EXPECT().revokeSecurityGroupIngress(gomock.Any()).Times(1).
-				Do(func(req *ec2.RevokeSecurityGroupIngressInput) {
-					Expect(len(req.IpPermissions)).To(Equal(1))
-				})
-			mockawsEC2.EXPECT().authorizeSecurityGroupIngress(gomock.Any()).Times(1).
-				Do(func(req *ec2.AuthorizeSecurityGroupIngressInput) {
-					Expect(len(req.IpPermissions)).To(Equal(1))
-				})
-			mockawsEC2.EXPECT().revokeSecurityGroupEgress(gomock.Any()).Times(0)
-			mockawsEC2.EXPECT().authorizeSecurityGroupEgress(gomock.Any()).Times(0)
-
-			err := cloudInterface.UpdateSecurityGroupRules(webSgIdentifier, ingress, []*securitygroup.EgressRule{})
-			Expect(err).Should(BeNil())
-		})
-
-		It("Should delta update egress rules successfully", func() {
-			webSgIdentifier := &securitygroup.CloudResource{
-				Type: securitygroup.CloudResourceTypeVM,
-				CloudResourceID: securitygroup.CloudResourceID{
-					Name: "Web",
-					Vpc:  testVpcID01,
-				},
-				AccountID:     testAccountNamespacedName.String(),
-				CloudProvider: string(v1alpha1.AWSCloudProvider),
-			}
-			egress := []*securitygroup.EgressRule{{
-				ToPort:           aws.Int(22),
-				ToDstIP:          []*net.IPNet{},
-				ToSecurityGroups: []*securitygroup.CloudResourceID{&webSgIdentifier.CloudResourceID},
-				Protocol:         aws.Int(6),
-			}, {
-				ToPort:           aws.Int(80),
-				ToDstIP:          []*net.IPNet{},
-				ToSecurityGroups: []*securitygroup.CloudResourceID{&webSgIdentifier.CloudResourceID},
-				Protocol:         aws.Int(6),
-			}}
-			output := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier.CloudResourceID, true, false)
-			outputAt := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier.CloudResourceID, false, false)
-			outputAt.SecurityGroups[0].IpPermissionsEgress = []*ec2.IpPermission{{
-				FromPort:         aws.Int64(80),
-				ToPort:           aws.Int64(80),
-				IpProtocol:       aws.String("tcp"),
-				UserIdGroupPairs: []*ec2.UserIdGroupPair{{GroupId: output.SecurityGroups[0].GroupId}},
-			}, {
-				FromPort:         aws.Int64(8080),
-				ToPort:           aws.Int64(8080),
-				IpProtocol:       aws.String("tcp"),
-				UserIdGroupPairs: []*ec2.UserIdGroupPair{{GroupId: output.SecurityGroups[0].GroupId}},
-			}}
-			output.SecurityGroups = append(output.SecurityGroups, outputAt.SecurityGroups...)
-			input := constructEc2DescribeSecurityGroupsInput(webSgIdentifier.Vpc,
-				map[string]struct{}{webSgIdentifier.GetCloudName(true): {}, webSgIdentifier.GetCloudName(false): {}})
-
-			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Any()).Return(output, nil).Times(1).
-				Do(func(req *ec2.DescribeSecurityGroupsInput) {
-					sortSliceStringPointer(req.Filters[1].Values)
-					sortSliceStringPointer(input.Filters[1].Values)
-					Expect(req).To(Equal(input))
-				})
-			mockawsEC2.EXPECT().revokeSecurityGroupIngress(gomock.Any()).Times(0)
-			mockawsEC2.EXPECT().authorizeSecurityGroupIngress(gomock.Any()).Times(0)
-			mockawsEC2.EXPECT().revokeSecurityGroupEgress(gomock.Any()).Times(1).
-				Do(func(req *ec2.RevokeSecurityGroupEgressInput) {
-					Expect(len(req.IpPermissions)).To(Equal(1))
-				})
-			mockawsEC2.EXPECT().authorizeSecurityGroupEgress(gomock.Any()).Times(1).
-				Do(func(req *ec2.AuthorizeSecurityGroupEgressInput) {
-					Expect(len(req.IpPermissions)).To(Equal(1))
-				})
-
-			err := cloudInterface.UpdateSecurityGroupRules(webSgIdentifier, []*securitygroup.IngressRule{}, egress)
+			err := cloudInterface.UpdateSecurityGroupRules(webSgIdentifier, addRule, []*securitygroup.CloudRule{}, addRule)
 			Expect(err).Should(BeNil())
 		})
 	})

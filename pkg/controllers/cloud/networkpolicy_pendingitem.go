@@ -244,7 +244,7 @@ func (s *securityGroupImpl) runPendingItemImpl(c cloudSecurityGroup, memberOnly 
 		if s.state != securityGroupStateGarbageCollectState {
 			if ag, ok := c.(*appliedToSecurityGroup); ok {
 				ag.hasMembers = false
-				_ = ag.updateRules(r)
+				_ = ag.updateAllRules(r)
 			} else {
 				_ = s.updateImpl(c, nil, nil, memberOnly, r)
 			}
@@ -263,7 +263,7 @@ func (s *securityGroupImpl) runPendingItemImpl(c cloudSecurityGroup, memberOnly 
 		err = s.deleteImpl(c, memberOnly, r)
 	} else if op == securityGroupOperationClearMembers || op == securityGroupOperationUpdateRules {
 		ag := c.(*appliedToSecurityGroup)
-		err = ag.updateRules(r)
+		err = ag.updateAllRules(r)
 	}
 	if err != nil {
 		// TODO

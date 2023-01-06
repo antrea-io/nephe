@@ -221,17 +221,17 @@ func (mr *MockCloudInterfaceMockRecorder) UpdateSecurityGroupMembers(addressGrou
 }
 
 // UpdateSecurityGroupRules mocks base method.
-func (m *MockCloudInterface) UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResource, ingressRules []*securitygroup.IngressRule, egressRules []*securitygroup.EgressRule) error {
+func (m *MockCloudInterface) UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResource, addRules, rmRules, targetRules []*securitygroup.CloudRule) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateSecurityGroupRules", addressGroupIdentifier, ingressRules, egressRules)
+	ret := m.ctrl.Call(m, "UpdateSecurityGroupRules", addressGroupIdentifier, addRules, rmRules, targetRules)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateSecurityGroupRules indicates an expected call of UpdateSecurityGroupRules.
-func (mr *MockCloudInterfaceMockRecorder) UpdateSecurityGroupRules(addressGroupIdentifier, ingressRules, egressRules interface{}) *gomock.Call {
+func (mr *MockCloudInterfaceMockRecorder) UpdateSecurityGroupRules(addressGroupIdentifier, addRules, rmRules, targetRules interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSecurityGroupRules", reflect.TypeOf((*MockCloudInterface)(nil).UpdateSecurityGroupRules), addressGroupIdentifier, ingressRules, egressRules)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSecurityGroupRules", reflect.TypeOf((*MockCloudInterface)(nil).UpdateSecurityGroupRules), addressGroupIdentifier, addRules, rmRules, targetRules)
 }
 
 // MockAccountMgmtInterface is a mock of AccountMgmtInterface interface.
@@ -458,15 +458,15 @@ func (mr *MockSecurityInterfaceMockRecorder) UpdateSecurityGroupMembers(addressG
 }
 
 // UpdateSecurityGroupRules mocks base method.
-func (m *MockSecurityInterface) UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResource, ingressRules []*securitygroup.IngressRule, egressRules []*securitygroup.EgressRule) error {
+func (m *MockSecurityInterface) UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResource, addRules, rmRules, targetRules []*securitygroup.CloudRule) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateSecurityGroupRules", addressGroupIdentifier, ingressRules, egressRules)
+	ret := m.ctrl.Call(m, "UpdateSecurityGroupRules", addressGroupIdentifier, addRules, rmRules, targetRules)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateSecurityGroupRules indicates an expected call of UpdateSecurityGroupRules.
-func (mr *MockSecurityInterfaceMockRecorder) UpdateSecurityGroupRules(addressGroupIdentifier, ingressRules, egressRules interface{}) *gomock.Call {
+func (mr *MockSecurityInterfaceMockRecorder) UpdateSecurityGroupRules(addressGroupIdentifier, addRules, rmRules, targetRules interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSecurityGroupRules", reflect.TypeOf((*MockSecurityInterface)(nil).UpdateSecurityGroupRules), addressGroupIdentifier, ingressRules, egressRules)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSecurityGroupRules", reflect.TypeOf((*MockSecurityInterface)(nil).UpdateSecurityGroupRules), addressGroupIdentifier, addRules, rmRules, targetRules)
 }

@@ -381,26 +381,24 @@ var _ = Describe("Azure Cloud Security", func() {
 
 				fromSrcIP := getFromSrcIP(testCidrStr)
 
-				ingressrules := []*securitygroup.IngressRule{
-					{
+				addRules := []*securitygroup.CloudRule{{
+					Rule: &securitygroup.IngressRule{
 						Protocol:  &testProtocol,
 						FromPort:  &testFromPort,
 						FromSrcIP: fromSrcIP,
-					},
-				}
-
-				egressrules := []*securitygroup.EgressRule{
+					}},
 					{
-						Protocol: &testProtocol,
-						ToPort:   &testToPort,
-						ToDstIP:  fromSrcIP,
-						ToSecurityGroups: []*securitygroup.CloudResourceID{
-							&webAddressGroupIdentifier03.CloudResourceID,
-						},
-					},
+						Rule: &securitygroup.EgressRule{
+							Protocol: &testProtocol,
+							ToPort:   &testToPort,
+							ToDstIP:  fromSrcIP,
+							ToSecurityGroups: []*securitygroup.CloudResourceID{
+								&webAddressGroupIdentifier03.CloudResourceID,
+							},
+						}},
 				}
 
-				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, ingressrules, egressrules)
+				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*securitygroup.CloudRule{}, addRules)
 				Expect(err).Should(BeNil())
 			})
 
@@ -417,26 +415,24 @@ var _ = Describe("Azure Cloud Security", func() {
 
 				fromSrcIP := getFromSrcIP(testCidrStr)
 
-				ingressrules := []*securitygroup.IngressRule{
-					{
+				addRules := []*securitygroup.CloudRule{{
+					Rule: &securitygroup.IngressRule{
 						Protocol:  &testProtocol,
 						FromPort:  &testFromPort,
 						FromSrcIP: fromSrcIP,
-					},
-				}
-
-				egressrules := []*securitygroup.EgressRule{
+					}},
 					{
-						Protocol: &testProtocol,
-						ToPort:   &testToPort,
-						ToDstIP:  fromSrcIP,
-						ToSecurityGroups: []*securitygroup.CloudResourceID{
-							&webAddressGroupIdentifier03.CloudResourceID,
-						},
-					},
+						Rule: &securitygroup.EgressRule{
+							Protocol: &testProtocol,
+							ToPort:   &testToPort,
+							ToDstIP:  fromSrcIP,
+							ToSecurityGroups: []*securitygroup.CloudResourceID{
+								&webAddressGroupIdentifier03.CloudResourceID,
+							},
+						}},
 				}
 
-				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, ingressrules, egressrules)
+				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*securitygroup.CloudRule{}, addRules)
 				Expect(err).Should(Not(BeNil()))
 			})
 
@@ -461,26 +457,24 @@ var _ = Describe("Azure Cloud Security", func() {
 					&ipNet,
 				}
 
-				ingressrules := []*securitygroup.IngressRule{
-					{
+				addRules := []*securitygroup.CloudRule{{
+					Rule: &securitygroup.IngressRule{
 						Protocol:  &testProtocol,
 						FromPort:  &testFromPort,
 						FromSrcIP: fromSrcIP,
-					},
-				}
-
-				egressrules := []*securitygroup.EgressRule{
+					}},
 					{
-						Protocol: &testProtocol,
-						ToPort:   &testToPort,
-						ToDstIP:  fromSrcIP,
-						ToSecurityGroups: []*securitygroup.CloudResourceID{
-							&webAddressGroupIdentifier03.CloudResourceID,
-						},
-					},
+						Rule: &securitygroup.EgressRule{
+							Protocol: &testProtocol,
+							ToPort:   &testToPort,
+							ToDstIP:  fromSrcIP,
+							ToSecurityGroups: []*securitygroup.CloudResourceID{
+								&webAddressGroupIdentifier03.CloudResourceID,
+							},
+						}},
 				}
 
-				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, ingressrules, egressrules)
+				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*securitygroup.CloudRule{}, addRules)
 				Expect(err).Should(BeNil())
 			})
 		})

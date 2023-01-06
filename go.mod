@@ -130,6 +130,8 @@ require (
 	sigs.k8s.io/json v0.0.0-20211208200746-9f7c6b3444d2 // indirect
 )
 
+require github.com/satori/go.uuid v1.2.0
+
 // antrea dependency.
 replace (
 	// Variadic arguments are not supported in 1.6 and controller-runtime module

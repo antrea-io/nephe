@@ -15,10 +15,13 @@
 package securitygroup
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"reflect"
 	"strings"
+
+	uuid "github.com/satori/go.uuid"
 
 	cloud "antrea.io/nephe/apis/crd/v1alpha1"
 )
@@ -107,6 +110,8 @@ const (
 	NepheControllerAppliedToPrefix    = NepheControllerPrefix + "at-"
 )
 
+var baseUUID = uuid.NewV4()
+
 var ProtocolNameNumMap = map[string]int{
 	"icmp":   1,
 	"igmp":   2,
@@ -153,6 +158,10 @@ func (c *CloudResourceID) String() string {
 	return c.Name + "/" + c.Vpc
 }
 
+type Rule interface {
+	isRule()
+}
+
 // IngressRule specifies one ingress rule of cloud SecurityGroup.
 type IngressRule struct {
 	FromPort           *int
@@ -161,12 +170,27 @@ type IngressRule struct {
 	Protocol           *int
 }
 
+func (i *IngressRule) isRule() {}
+
 // EgressRule specifies one egress rule of cloud SecurityGroup.
 type EgressRule struct {
 	ToPort           *int
 	ToDstIP          []*net.IPNet
 	ToSecurityGroups []*CloudResourceID
 	Protocol         *int
+}
+
+func (e *EgressRule) isRule() {}
+
+type CloudRule struct {
+	Rule          Rule
+	NetworkPolicy string `json:"-"`
+	AppliedToGrp  string
+}
+
+func (c *CloudRule) GetUUID() string {
+	bytes, _ := json.Marshal(c)
+	return uuid.NewV5(baseUUID, string(bytes)).String()
 }
 
 // SynchronizationContent returns a SecurityGroup content in cloud.
@@ -202,7 +226,7 @@ type CloudSecurityGroupAPI interface {
 	// egressRules must have been already created.
 	// For appliedSecurityGroup, call with ingressRules=nil and egressRules=nil (clear rules) can be invoked
 	// only if SG has no members.
-	UpdateSecurityGroupRules(name *CloudResource, ingressRules []*IngressRule, egressRules []*EgressRule) <-chan error
+	UpdateSecurityGroupRules(name *CloudResource, addRules, rmRules, targetRules []*CloudRule) <-chan error
 
 	// GetSecurityGroupSyncChan returns a channel that networkPolicy controller waits on to retrieve complete SGs
 	// configured by cloud plug-in.

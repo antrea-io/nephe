@@ -84,7 +84,7 @@ func updateSecurityRuleNameAndPriority(existingRules []network.SecurityRule, new
 	return rules
 }
 
-func convertIngressToAzureNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.IngressRule,
+func convertIngressToAzureNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.CloudRule,
 	agAsgMapByNepheControllerName map[string]network.ApplicationSecurityGroup,
 	atAsgMapByNepheControllerName map[string]network.ApplicationSecurityGroup) ([]network.SecurityRule, error) {
 	var securityRules []network.SecurityRule
@@ -96,7 +96,8 @@ func convertIngressToAzureNsgSecurityRules(appliedToGroupID *securitygroup.Cloud
 
 	rulePriority := int32(ruleStartPriority)
 	description := appliedToGroupID.GetCloudName(false)
-	for _, rule := range rules {
+	for _, obj := range rules {
+		rule := obj.Rule.(*securitygroup.IngressRule)
 		if rule == nil {
 			continue
 		}
@@ -139,14 +140,15 @@ func convertIngressToAzureNsgSecurityRules(appliedToGroupID *securitygroup.Cloud
 	return securityRules, nil
 }
 
-func convertIngressToAzurePeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.IngressRule,
+func convertIngressToAzurePeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.CloudRule,
 	agAsgMapByNepheControllerName map[string]network.ApplicationSecurityGroup,
 	ruleIP *string) ([]network.SecurityRule, error) {
 	var securityRules []network.SecurityRule
 
 	rulePriority := int32(ruleStartPriority)
 	description := appliedToGroupID.GetCloudName(false)
-	for _, rule := range rules {
+	for _, obj := range rules {
+		rule := obj.Rule.(*securitygroup.IngressRule)
 		if rule == nil {
 			continue
 		}
@@ -203,7 +205,7 @@ func convertIngressToAzurePeerNsgSecurityRules(appliedToGroupID *securitygroup.C
 	return securityRules, nil
 }
 
-func convertEgressToAzureNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.EgressRule,
+func convertEgressToAzureNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.CloudRule,
 	agAsgMapByNepheControllerName map[string]network.ApplicationSecurityGroup,
 	atAsgMapByNepheControllerName map[string]network.ApplicationSecurityGroup) ([]network.SecurityRule, error) {
 	var securityRules []network.SecurityRule
@@ -215,7 +217,8 @@ func convertEgressToAzureNsgSecurityRules(appliedToGroupID *securitygroup.CloudR
 
 	rulePriority := int32(ruleStartPriority)
 	description := appliedToGroupID.GetCloudName(false)
-	for _, rule := range rules {
+	for _, obj := range rules {
+		rule := obj.Rule.(*securitygroup.EgressRule)
 		if rule == nil {
 			continue
 		}
@@ -257,14 +260,15 @@ func convertEgressToAzureNsgSecurityRules(appliedToGroupID *securitygroup.CloudR
 	return securityRules, nil
 }
 
-func convertEgressToAzurePeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.EgressRule,
+func convertEgressToAzurePeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.CloudRule,
 	agAsgMapByNepheControllerName map[string]network.ApplicationSecurityGroup,
 	ruleIP *string) ([]network.SecurityRule, error) {
 	var securityRules []network.SecurityRule
 
 	rulePriority := int32(ruleStartPriority)
 	description := appliedToGroupID.GetCloudName(false)
-	for _, rule := range rules {
+	for _, obj := range rules {
+		rule := obj.Rule.(*securitygroup.EgressRule)
 		if rule == nil {
 			continue
 		}

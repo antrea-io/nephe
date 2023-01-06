@@ -90,8 +90,7 @@ func (a *appliedToSecurityGroup) sync(c *securitygroup.SynchronizationContent,
 		np := i.(*networkPolicy)
 
 		if !np.computeRules(r) {
-			log.V(1).Info("Skip sync, networkPolicy not ready", "Name", np.Name, "Namespace", np.Namespace)
-			return
+			log.V(1).Info("np not ready", "Name", np.Name, "Namespace", np.Namespace)
 		}
 		for _, iRule := range np.ingressRules {
 			proto := 0
@@ -135,9 +134,21 @@ func (a *appliedToSecurityGroup) sync(c *securitygroup.SynchronizationContent,
 		}
 	}
 	if c == nil {
-		_ = a.updateRules(r)
+		_ = a.updateAllRules(r)
 		return
 	}
+
+	rules, err := r.cloudRuleIndexer.ByIndex(cloudRuleIndexerByAppliedToGrp, a.id.String())
+	if err != nil {
+		log.Error(err, "get cloudRule indexer", "Key", a.id.String())
+		return
+	}
+	cloudRuleMap := make(map[string]*securitygroup.CloudRule)
+	for _, obj := range rules {
+		rule := obj.(*securitygroup.CloudRule)
+		cloudRuleMap[rule.GetUUID()] = rule
+	}
+
 	// Rough compare rules
 	for _, iRule := range c.IngressRules {
 		proto := 0
@@ -157,6 +168,16 @@ func (a *appliedToSecurityGroup) sync(c *securitygroup.SynchronizationContent,
 		}
 		for _, sg := range iRule.FromSecurityGroups {
 			items[sg.String()]--
+		}
+		rule := &securitygroup.CloudRule{
+			Rule:         &iRule,
+			AppliedToGrp: a.id.String(),
+		}
+		ruleUUID := rule.GetUUID()
+		if _, found := cloudRuleMap[ruleUUID]; found {
+			delete(cloudRuleMap, ruleUUID)
+		} else {
+			_ = r.cloudRuleIndexer.Update(rule)
 		}
 	}
 	for _, eRule := range c.EgressRules {
@@ -178,12 +199,25 @@ func (a *appliedToSecurityGroup) sync(c *securitygroup.SynchronizationContent,
 		for _, sg := range eRule.ToSecurityGroups {
 			items[sg.String()]--
 		}
+		rule := &securitygroup.CloudRule{
+			Rule:         &eRule,
+			AppliedToGrp: a.id.String(),
+		}
+		ruleUUID := rule.GetUUID()
+		if _, found := cloudRuleMap[ruleUUID]; found {
+			delete(cloudRuleMap, ruleUUID)
+		} else {
+			_ = r.cloudRuleIndexer.Update(rule)
+		}
+	}
+	for _, rule := range cloudRuleMap {
+		_ = r.cloudRuleIndexer.Delete(rule)
 	}
 	for k, i := range items {
 		if i != 0 {
 			log.V(1).Info("Update appliedToSecurityGroup rules", "Name",
 				a.id.CloudResourceID.String(), "CloudSecurityGroup", c, "Item", k, "Diff", i)
-			_ = a.updateRules(r)
+			_ = a.updateAllRules(r)
 			return
 		}
 	}

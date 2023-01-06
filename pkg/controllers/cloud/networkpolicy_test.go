@@ -444,9 +444,19 @@ var _ = Describe("NetworkPolicy", func() {
 			var ruleCall *mock.Call
 			if sgConfig.sgRuleNoOrder {
 				ruleCall = mockCloudSecurityAPI.EXPECT().UpdateSecurityGroupRules(
-					grpID, mock.Any(), mock.Any()).
+					grpID, mock.Any(), mock.Any(), mock.Any()).
 					Return(ch).After(createCall).MaxTimes(sgConfig.appSgRuleTimes).
-					Do(func(id *securitygroup.CloudResource, in []*securitygroup.IngressRule, eg []*securitygroup.EgressRule) {
+					Do(func(id *securitygroup.CloudResource, add, rm, target []*securitygroup.CloudRule) {
+						in := make([]*securitygroup.IngressRule, 0)
+						eg := make([]*securitygroup.EgressRule, 0)
+						for _, rule := range target {
+							switch rule.Rule.(type) {
+							case *securitygroup.IngressRule:
+								in = append(in, rule.Rule.(*securitygroup.IngressRule))
+							case *securitygroup.EgressRule:
+								eg = append(eg, rule.Rule.(*securitygroup.EgressRule))
+							}
+						}
 						Expect(len(in)).To(Equal(1))
 						Expect(len(eg)).To(Equal(1))
 						Expect(sortIngressRuleIPs(in[0])).To(Equal(sortIngressRuleIPs(ingressRule)))
@@ -454,9 +464,19 @@ var _ = Describe("NetworkPolicy", func() {
 					})
 			} else {
 				ruleCall = mockCloudSecurityAPI.EXPECT().UpdateSecurityGroupRules(
-					grpID, mock.Any(), mock.Any()).
+					grpID, mock.Any(), mock.Any(), mock.Any()).
 					Return(ch).After(createCall).Times(sgConfig.appSgRuleTimes).
-					Do(func(id *securitygroup.CloudResource, in []*securitygroup.IngressRule, eg []*securitygroup.EgressRule) {
+					Do(func(id *securitygroup.CloudResource, add, rm, target []*securitygroup.CloudRule) {
+						in := make([]*securitygroup.IngressRule, 0)
+						eg := make([]*securitygroup.EgressRule, 0)
+						for _, rule := range target {
+							switch rule.Rule.(type) {
+							case *securitygroup.IngressRule:
+								in = append(in, rule.Rule.(*securitygroup.IngressRule))
+							case *securitygroup.EgressRule:
+								eg = append(eg, rule.Rule.(*securitygroup.EgressRule))
+							}
+						}
 						Expect(len(in)).To(Equal(1))
 						Expect(len(eg)).To(Equal(1))
 						Expect(sortIngressRuleIPs(in[0])).To(Equal(sortIngressRuleIPs(ingressRule)))
@@ -607,9 +627,19 @@ var _ = Describe("NetworkPolicy", func() {
 					AccountID: accountID,
 				}
 				mockCloudSecurityAPI.EXPECT().UpdateSecurityGroupRules(
-					grpID, mock.Any(), mock.Any()).
+					grpID, mock.Any(), mock.Any(), mock.Any()).
 					Return(ch).
-					Do(func(_ *securitygroup.CloudResource, in []*securitygroup.IngressRule, eg []*securitygroup.EgressRule) {
+					Do(func(_ *securitygroup.CloudResource, add, rm, target []*securitygroup.CloudRule) {
+						in := make([]*securitygroup.IngressRule, 0)
+						eg := make([]*securitygroup.EgressRule, 0)
+						for _, rule := range target {
+							switch rule.Rule.(type) {
+							case *securitygroup.IngressRule:
+								in = append(in, rule.Rule.(*securitygroup.IngressRule))
+							case *securitygroup.EgressRule:
+								eg = append(eg, rule.Rule.(*securitygroup.EgressRule))
+							}
+						}
 						Expect(len(in)).To(Equal(1))
 						Expect(len(eg)).To(Equal(1))
 						Expect(sortIngressRuleIPs(in[0])).To(Equal(sortIngressRuleIPs(ingressRule)))
@@ -635,9 +665,19 @@ var _ = Describe("NetworkPolicy", func() {
 					AccountID: accountID,
 				}
 				mockCloudSecurityAPI.EXPECT().UpdateSecurityGroupRules(
-					grpID, mock.Any(), mock.Any()).
+					grpID, mock.Any(), mock.Any(), mock.Any()).
 					Return(ch).
-					Do(func(_ *securitygroup.CloudResource, in []*securitygroup.IngressRule, eg []*securitygroup.EgressRule) {
+					Do(func(_ *securitygroup.CloudResource, add, rm, target []*securitygroup.CloudRule) {
+						in := make([]*securitygroup.IngressRule, 0)
+						eg := make([]*securitygroup.EgressRule, 0)
+						for _, rule := range target {
+							switch rule.Rule.(type) {
+							case *securitygroup.IngressRule:
+								in = append(in, rule.Rule.(*securitygroup.IngressRule))
+							case *securitygroup.EgressRule:
+								eg = append(eg, rule.Rule.(*securitygroup.EgressRule))
+							}
+						}
 						Expect(len(in)).To(Equal(1))
 						Expect(len(eg)).To(Equal(1))
 						Expect(sortIngressRuleIPs(in[0])).To(Equal(sortIngressRuleIPs(ingressRule)))
