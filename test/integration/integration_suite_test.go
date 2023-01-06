@@ -45,10 +45,12 @@ import (
 )
 
 const (
-	focusAws   = "test-aws"
-	focusAzure = "test-azure"
-	focusCloud = "test-cloud-cluster"
-	focusAgent = "test-with-agent"
+	focusAws        = "test-aws"
+	focusAzure      = "test-azure"
+	focusAwsDebug   = "test-aws-debug"
+	focusAzureDebug = "test-azure-debug"
+	focusCloud      = "test-cloud-cluster"
+	focusAgent      = "test-with-agent"
 
 	antreaVersion = "v1.10.0"
 )
