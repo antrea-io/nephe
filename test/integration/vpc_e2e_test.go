@@ -20,25 +20,113 @@ import (
 	"math/rand"
 	"path"
 	"reflect"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
+	cloudUtils "antrea.io/nephe/pkg/cloud-provider/utils"
 	"antrea.io/nephe/test/utils"
 )
 
-var _ = Describe(fmt.Sprintf("%s,%s: Cloud Resource VPC", focusAwsDebug, focusAzureDebug), func() {
-
+var _ = Describe(fmt.Sprintf("%s,%s: VPC Inventory", focusAws, focusAzure), func() {
 	var (
-		ns = staticVMNS
+		namespace     *v1.Namespace
+		vmIDs         []string
+		vpcID         string
+		vpcName       string
+		cloudProvider string
+		kind          string
+		vpcObjectName string
 	)
 
+	createNS := func() {
+		logf.Log.Info("Create", "namespace", namespace.Name)
+		err := k8sClient.Create(context.TODO(), namespace)
+		Expect(err).ToNot(HaveOccurred())
+	}
+
+	deleteNS := func() {
+		logf.Log.Info("Delete", "namespace", namespace.Name)
+		err := k8sClient.Delete(context.TODO(), namespace)
+		Expect(err).ToNot(HaveOccurred())
+	}
+
+	verifyVpcInventory := func(vpcObjectName string, vpcID string) error {
+		err := wait.Poll(time.Second*5, time.Second*30, func() (bool, error) {
+			// Find if vpc with expected Id is present in the vpc inventory.
+			cmd := fmt.Sprintf("get vpc %v -n %v -o json -o=jsonpath={.spec.Id}", vpcObjectName, namespace.Name)
+			out, err := kubeCtl.Cmd(cmd)
+			logf.Log.V(1).Info("Got VPC", "VpcID", out)
+			if err != nil {
+				logf.Log.V(1).Info("Failed to get VPC", "VPC object name", vpcObjectName, "err", err)
+				return false, nil
+			}
+			Expect(out).To(Equal(vpcID))
+			return true, nil
+		})
+		return err
+	}
+
+	verifyNoVpcInventory := func() error {
+		err := wait.Poll(time.Second*5, time.Second*30, func() (bool, error) {
+			// Find if any VPCs are imported from cloud.
+			cmd := fmt.Sprintf("get vpc -n %v -o json -o json -o=jsonpath={.items}", namespace.Name)
+			out, err := kubeCtl.Cmd(cmd)
+			if err != nil {
+				logf.Log.V(1).Info("Failed to get VPCs", "namespace", namespace.Name, "err", err)
+				return false, nil
+			}
+			Expect(out).To(ContainSubstring("[]"))
+			return true, nil
+		})
+		return err
+	}
+
+	verifyNoVmInventory := func() error {
+		err := wait.Poll(time.Second*5, time.Second*30, func() (bool, error) {
+			// Find if any vms are imported from cloud.
+			cmd := fmt.Sprintf("get vm -n %v -o json -o json -o=jsonpath={.items}", namespace.Name)
+			out, err := kubeCtl.Cmd(cmd)
+			if err != nil {
+				logf.Log.V(1).Info("Failed to get vms", "namespace", namespace.Name, "err", err)
+				return false, nil
+			}
+			Expect(out).To(ContainSubstring("[]"))
+			return true, nil
+		})
+		return err
+	}
+
 	BeforeEach(func() {
-		logf.Log.Info("BeforeEach", "namespace", ns)
+		if preserveSetupOnFail {
+			preserveSetup = true
+		}
+
+		vmIDs = cloudVPC.GetVMs()
+		vpcID = strings.ToLower(cloudVPC.GetVPCID())
+		vpcName = cloudVPC.GetVPCName()
+		cloudProvider = strings.Split(cloudProviders, ",")[0]
+		kind = reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()
+
+		namespace = &v1.Namespace{}
+		namespace.Name = "vpc-test" + "-" + fmt.Sprintf("%x", rand.Int())
+		createNS()
+
+		// Generate kubernetes object name for vpc object.
+		switch cloudProvider {
+		case string(v1alpha1.AWSCloudProvider):
+			vpcObjectName = vpcID
+		case string(v1alpha1.AzureCloudProvider):
+			vpcObjectName = cloudUtils.GenerateShortResourceIdentifier(vpcID, vpcName)
+		default:
+			logf.Log.Error(nil, "invalid provider", "Provider", cloudProvider)
+		}
 	})
 
 	AfterEach(func() {
@@ -54,78 +142,65 @@ var _ = Describe(fmt.Sprintf("%s,%s: Cloud Resource VPC", focusAwsDebug, focusAz
 				return
 			}
 		}
+		preserveSetup = false
 
 		// cleanup the test configuration by deleting the namespace.
-		if ns == nil {
+		if namespace == nil {
 			return
 		}
-		logf.Log.V(1).Info("Delete namespace", "ns", ns.Name)
-		err := k8sClient.Delete(context.TODO(), ns)
-		Expect(err).ToNot(HaveOccurred())
+		deleteNS()
 	})
 
-	It("Basic Test for VPC", func() {
-		vmIDs := cloudVPC.GetVMs()
-		vpcID := cloudVPC.GetVPCID()
-		cloudProviders
-		vpcName := cloudVPC.GetVPCName()
-		kind := reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()
-		logf.Log.Info("Debug:", "vmIDs", vmIDs, "vcpID", vpcID, "vpcName", vpcName)
-		// Create a Namespace
-		if len(ns.Status.Phase) == 0 {
-			// Create ns if not already present.
-			ns.Name = "test-cloud-e2e-" + fmt.Sprintf("%x", rand.Int())
-			ns.Labels = map[string]string{"name": ns.Name}
-			err := k8sClient.Create(context.TODO(), ns)
-			Expect(err).ToNot(HaveOccurred())
-			logf.Log.V(1).Info("Created namespace", "ns", ns.Name)
-		}
-
-		logf.Log.V(1).Info("Configure and create CPA")
-		accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account"+ns.Name, ns.Name, cloudCluster)
+	It("CPA Add/Delete", func() {
+		By("Configure CPA and verify VPC inventory")
+		accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account"+namespace.Name, namespace.Name, cloudCluster)
 		err := utils.AddCloudAccount(kubeCtl, accountParams)
 		Expect(err).ToNot(HaveOccurred())
 
-		logf.Log.V(1).Info("Get vpcID of VM Cluster", "vpcID", vpcID)
-		err = wait.Poll(time.Second*5, time.Second*30, func() (bool, error) {
-			// Fixme: Azure Generate hash for resource ID and update VPCId
-			cmd := fmt.Sprintf("get vpc -A -o json")
-			out, err := kubeCtl.Cmd(cmd)
-			logf.Log.V(1).Info("VPC list", "vpcs", out)
-			cmd = fmt.Sprintf("get vpc %v -n %v -o json -o=jsonpath={.spec.Id}", vpcID, ns.Name)
-			out, err = kubeCtl.Cmd(cmd)
-			logf.Log.V(1).Info("Got VPC", "vpcId", out)
-			if err != nil {
-				logf.Log.V(1).Info("Failed to get vpc", "vpcID", vpcID, "err", err)
-				return false, nil
-			}
-			Expect(out).To(Equal(vpcID))
-			return true, nil
-		})
-		Expect(err).ToNot(HaveOccurred(), "timeout waiting to retrieve vpc")
+		logf.Log.V(1).Info("Get VpcID from VPC inventory", "VpcID", vpcID)
+		err = verifyVpcInventory(vpcObjectName, vpcID)
+		Expect(err).ToNot(HaveOccurred(), "timeout waiting to retrieve a VPC")
+		logf.Log.V(1).Info("Verify VMs are not imported", "namespace", namespace.Name)
+		err = verifyNoVmInventory()
+		Expect(err).ToNot(HaveOccurred(), "timeout waiting to get vm list")
 
-		// Configure CES.
-		entityParams := cloudVPC.GetEntitySelectorParameters("test-entity-selector"+ns.Name, ns.Name, kind)
-		logf.Log.V(1).Info("Create CES and verify VM inventory", "ces", entityParams.Name)
-		err = utils.ConfigureEntitySelectorAndWait(kubeCtl, k8sClient, entityParams, kind, len(vmIDs), ns.Name, false)
+		By("Delete CPA and verify VPC inventory is not imported")
+		err = utils.DeleteCloudAccount(kubeCtl, accountParams)
 		Expect(err).ToNot(HaveOccurred())
-
-		logf.Log.V(1).Info("Delete CES and verify VM inventory should be deleted", "ces", entityParams.Name)
-		err = utils.ConfigureEntitySelectorAndWait(kubeCtl, k8sClient, entityParams, kind, 0, ns.Name, true)
-		Expect(err).ToNot(HaveOccurred())
-
-		logf.Log.V(1).Info("Get vpcID of VM Cluster after CES deletion", "vpcID", vpcID)
-		err = wait.Poll(time.Second*5, time.Second*30, func() (bool, error) {
-			cmd := fmt.Sprintf("get vpc %v -n %v -o json -o=jsonpath={.spec.Id}", vpcID, ns.Name)
-			out, err := kubeCtl.Cmd(cmd)
-			if err != nil {
-				logf.Log.V(1).Info("Failed to get vpc", "vpcID", vpcID, "err", err)
-				return false, nil
-			}
-			Expect(out).To(Equal(vpcID))
-			return true, nil
-		})
-		Expect(err).ToNot(HaveOccurred(), "timeout waiting to retrieve vpc")
+		err = verifyNoVpcInventory()
+		Expect(err).ToNot(HaveOccurred(), "timeout waiting to get VPC list")
 	})
+	It("CES Add/Delete", func() {
+		accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account"+namespace.Name, namespace.Name, cloudCluster)
+		err := utils.AddCloudAccount(kubeCtl, accountParams)
+		Expect(err).ToNot(HaveOccurred())
 
+		By("Configure CES and verify VM inventory")
+		entityParams := cloudVPC.GetEntitySelectorParameters("test-entity-selector"+namespace.Name, namespace.Name, kind)
+		logf.Log.V(1).Info("Create CES and verify VM inventory is imported", "ces", entityParams.Name)
+		err = utils.ConfigureEntitySelectorAndWait(kubeCtl, k8sClient, entityParams, kind, len(vmIDs), namespace.Name, false)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Delete CES and verify cloud inventory")
+		logf.Log.V(1).Info("Delete CES and verify VM inventory is deleted", "ces", entityParams.Name)
+		err = utils.ConfigureEntitySelectorAndWait(kubeCtl, k8sClient, entityParams, kind, 0, namespace.Name, true)
+		Expect(err).ToNot(HaveOccurred())
+
+		logf.Log.V(1).Info("Verify VPC inventory exists after CES delete", "VpcID", vpcID)
+		err = verifyVpcInventory(vpcObjectName, vpcID)
+		Expect(err).ToNot(HaveOccurred(), "timeout waiting to retrieve a VPC")
+	})
+	It("Restart Controller", func() {
+		accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account"+namespace.Name, namespace.Name, cloudCluster)
+		err := utils.AddCloudAccount(kubeCtl, accountParams)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Restart Controller and verify VPC Inventory populates after restart")
+		err = utils.RestartOrWaitDeployment(k8sClient, "nephe-controller", "nephe-system", time.Second*200, true)
+		Expect(err).ToNot(HaveOccurred())
+		time.Sleep(time.Second * 45)
+		logf.Log.V(1).Info("Get vpcID from VPC inventory", "VpcID", vpcID)
+		err = verifyVpcInventory(vpcObjectName, vpcID)
+		Expect(err).ToNot(HaveOccurred(), "timeout waiting to retrieve a VPC")
+	})
 })
