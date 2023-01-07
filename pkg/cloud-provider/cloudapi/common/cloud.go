@@ -77,7 +77,8 @@ type SecurityInterface interface {
 	// CreateSecurityGroup creates cloud security group corresponding to provided address group, if it does not already exist.
 	// If it exists, returns the existing cloud SG ID
 	CreateSecurityGroup(addressGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) (*string, error)
-	// UpdateSecurityGroupRules updates cloud security group corresponding to provided address group with provided ingress and egress rules
+	// UpdateSecurityGroupRules updates cloud security group corresponding to provided address group with provided rules.
+	// addRules and rmRules are the changed rules, targetRules are the entire set of rules in security group.
 	UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResource, addRules, rmRules,
 		targetRules []*securitygroup.CloudRule) error
 	// UpdateSecurityGroupMembers updates membership of cloud security group corresponding to provided address group. Only

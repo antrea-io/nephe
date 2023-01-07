@@ -129,28 +129,32 @@ func (r *NetworkPolicyReconciler) isNetworkPolicySupported(anp *antreanetworking
 	return nil
 }
 
-// updateRuleRealizationStatus check rule realization status on all appliedTo groups for a np and send status.
+// updateRuleRealizationStatus checks rule realization status on all appliedTo groups for a np and send status.
 func (r *NetworkPolicyReconciler) updateRuleRealizationStatus(np *networkPolicy, err error) {
-	if err == nil {
-		for _, at := range np.AppliedToGroups {
-			sgs, e := r.appliedToSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, at)
+	if err != nil {
+		r.sendRuleRealizationStatus(&np.NetworkPolicy, err)
+		return
+	}
+
+	for _, at := range np.AppliedToGroups {
+		sgs, e := r.appliedToSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, at)
+		if e != nil {
+			r.Log.Error(e, "get appliedToSG indexer", "sg", at)
+			return
+		}
+		for _, obj := range sgs {
+			sg := obj.(*appliedToSecurityGroup)
+			e = sg.checkRealization(r, np)
+			// current update rule success but other sgs are not, do nothing and let other sgs handle their update status.
 			if e != nil {
-				r.Log.Error(e, "get appliedToSG indexer", "sg", at)
 				return
-			}
-			for _, obj := range sgs {
-				sg := obj.(*appliedToSecurityGroup)
-				e = sg.checkRealization(r, np)
-				if e != nil {
-					return
-				}
 			}
 		}
 	}
-	r.sendRuleRealizationStatus(&np.NetworkPolicy, err)
+	r.sendRuleRealizationStatus(&np.NetworkPolicy, nil)
 }
 
-// sendRuleRealizationStatus send anp realization status to antrea controller.
+// sendRuleRealizationStatus sends anp realization status to antrea controller.
 func (r *NetworkPolicyReconciler) sendRuleRealizationStatus(anp *antreanetworking.NetworkPolicy, err error) {
 	status := &antreanetworking.NetworkPolicyStatus{
 		ObjectMeta: metav1.ObjectMeta{
@@ -667,8 +671,8 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		},
 		cache.Indexers{
 			cloudRuleIndexerByAppliedToGrp: func(obj interface{}) ([]string, error) {
-				ru := obj.(*securitygroup.CloudRule)
-				return []string{ru.AppliedToGrp}, nil
+				rule := obj.(*securitygroup.CloudRule)
+				return []string{rule.AppliedToGrp}, nil
 			},
 		})
 	r.virtualMachinePolicyIndexer = cache.NewIndexer(

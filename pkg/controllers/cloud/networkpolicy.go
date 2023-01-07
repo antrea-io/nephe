@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"net"
 	"reflect"
-	"sort"
 	"strings"
 
 	"github.com/mohae/deepcopy"
@@ -745,14 +744,10 @@ func (a *appliedToSecurityGroup) updateAllRules(r *NetworkPolicyReconciler) erro
 		return fmt.Errorf("unable to get networkPolicy with key %s from indexer: %w", a.id.Name, err)
 	}
 	if len(nps) == 0 {
-		a.clearMember(r)
+		a.clearMembers(r)
 		return nil
 	}
 
-	// sort by np creation time in ascending order.
-	sort.Slice(nps, func(i, j int) bool {
-		return nps[i].(*networkPolicy).GetCreationTimestamp().Unix() < nps[j].(*networkPolicy).GetCreationTimestamp().Unix()
-	})
 	for _, obj := range nps {
 		np := obj.(*networkPolicy)
 		a.updateANPRules(r, np)
@@ -761,7 +756,7 @@ func (a *appliedToSecurityGroup) updateAllRules(r *NetworkPolicyReconciler) erro
 	return nil
 }
 
-// updateANPRules invokes cloud plug-in to update rules of appliedToSecurityGroup for a single ANP.
+// updateANPRules invokes cloud plug-in to update rules of appliedToSecurityGroup for a given ANP.
 func (a *appliedToSecurityGroup) updateANPRules(r *NetworkPolicyReconciler, np *networkPolicy) {
 	if !a.isReady() || a.deletePending || !np.rulesReady {
 		return
@@ -770,27 +765,27 @@ func (a *appliedToSecurityGroup) updateANPRules(r *NetworkPolicyReconciler, np *
 	nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAppliedToGrp, a.id.Name)
 	if err != nil {
 		r.Log.Error(err, "get networkPolicy indexer", "sg", a.id.String())
-		r.sendRuleRealizationStatus(&np.NetworkPolicy, err)
+		r.sendRuleRealizationStatus(&np.NetworkPolicy, fmt.Errorf("internal error when updating rules for sg %s anp %s",
+			a.id.String(), np.getNamespacedName()))
 		return
 	}
 	if len(nps) == 0 {
-		a.clearMember(r)
+		a.clearMembers(r)
 		return
 	}
-	_, targetRules := a.combineRules(nps)
+	// get full set of current rules for this security group.
+	targetRules := a.combineRules(nps)
 
-	ruleMap, ruleSlice := a.combineRules([]interface{}{np})
-	if ruleMap == nil {
-		return
-	}
-	addRules, rmRules, err := a.computeRules(r, ruleMap, np.getNamespacedName())
+	// get current rules for given np to compute rule update delta.
+	rules := a.combineRules([]interface{}{np})
+	addRules, rmRules, err := a.computeRules(r, rules, np.getNamespacedName())
 	if err != nil {
 		r.sendRuleRealizationStatus(&np.NetworkPolicy, err)
 		return
 	}
 
 	r.Log.V(1).Info("AppliedToSecurityGroup update rules for anp", "anp", np.Name, "name", a.id.Name,
-		"rules", ruleSlice)
+		"rules", rules)
 	ch := securitygroup.CloudSecurityGroup.UpdateSecurityGroupRules(&a.id, addRules, rmRules, targetRules)
 
 	go func() {
@@ -808,7 +803,8 @@ func (a *appliedToSecurityGroup) updateANPRules(r *NetworkPolicyReconciler, np *
 	}()
 }
 
-func (a *appliedToSecurityGroup) clearMember(r *NetworkPolicyReconciler) {
+// clearMembers removes all members from a security group.
+func (a *appliedToSecurityGroup) clearMembers(r *NetworkPolicyReconciler) {
 	if a.hasMembers {
 		r.Log.V(1).Info("AppliedToSecurityGroup clear members with no rules", "Name", a.id.Name)
 		ch := securitygroup.CloudSecurityGroup.UpdateSecurityGroupMembers(&a.id, nil, false)
@@ -823,15 +819,14 @@ func (a *appliedToSecurityGroup) clearMember(r *NetworkPolicyReconciler) {
 	a.hasRules = false
 }
 
-// combineRules convert and combine all rules from given anps to securitygroup.CloudRule.
-func (a *appliedToSecurityGroup) combineRules(nps []interface{}) (map[string]*securitygroup.CloudRule, []*securitygroup.CloudRule) {
-	ruleMap := make(map[string]*securitygroup.CloudRule, 0)
-	ruleSlice := make([]*securitygroup.CloudRule, 0)
+// combineRules converts and combines all rules from given anps to securitygroup.CloudRule.
+func (a *appliedToSecurityGroup) combineRules(nps []interface{}) []*securitygroup.CloudRule {
+	rules := make([]*securitygroup.CloudRule, 0)
 	for _, i := range nps {
 		np := i.(*networkPolicy)
 		npName := np.getNamespacedName()
 		if !np.rulesReady {
-			return nil, nil
+			continue
 		}
 		for _, r := range np.ingressRules {
 			rule := &securitygroup.CloudRule{
@@ -839,8 +834,7 @@ func (a *appliedToSecurityGroup) combineRules(nps []interface{}) (map[string]*se
 				NetworkPolicy: npName,
 				AppliedToGrp:  a.id.String(),
 			}
-			ruleMap[rule.GetUUID()] = rule
-			ruleSlice = append(ruleSlice, rule)
+			rules = append(rules, rule)
 		}
 		for _, r := range np.egressRules {
 			rule := &securitygroup.CloudRule{
@@ -848,51 +842,62 @@ func (a *appliedToSecurityGroup) combineRules(nps []interface{}) (map[string]*se
 				NetworkPolicy: npName,
 				AppliedToGrp:  a.id.String(),
 			}
-			ruleMap[rule.GetUUID()] = rule
-			ruleSlice = append(ruleSlice, rule)
+			rules = append(rules, rule)
 		}
 	}
-	return ruleMap, ruleSlice
+	return rules
 }
 
-// computeRules compute the rule update delta of an anp.
-func (a *appliedToSecurityGroup) computeRules(r *NetworkPolicyReconciler, rules map[string]*securitygroup.CloudRule,
+// computeRules computes the rule update delta of an anp by comparing current rules in np and previous rules in indexer.
+func (a *appliedToSecurityGroup) computeRules(r *NetworkPolicyReconciler, currentRules []*securitygroup.CloudRule,
 	npName string) ([]*securitygroup.CloudRule, []*securitygroup.CloudRule, error) {
 	addRules := make([]*securitygroup.CloudRule, 0)
 	removeRules := make([]*securitygroup.CloudRule, 0)
 
-	currentRules, err := r.cloudRuleIndexer.ByIndex(cloudRuleIndexerByAppliedToGrp, a.id.String())
 	currentRuleMap := make(map[string]*securitygroup.CloudRule)
+	for _, rule := range currentRules {
+		currentRuleMap[rule.GetUUID()] = rule
+	}
+
+	previousRules, err := r.cloudRuleIndexer.ByIndex(cloudRuleIndexerByAppliedToGrp, a.id.String())
 	if err != nil {
 		r.Log.Error(err, "get cloudRule indexer", "sg", a.id.String())
 		return nil, nil, err
 	}
-	for _, obj := range currentRules {
-		currentRule := obj.(*securitygroup.CloudRule)
-		ruleUUID := currentRule.GetUUID()
-		currentRuleMap[ruleUUID] = currentRule
 
-		if currentRule.NetworkPolicy == "" {
-			currentRule.NetworkPolicy = npName
-			_ = r.cloudRuleIndexer.Update(currentRule)
+	// for each previous rule:
+	// same rule with same np found in current rules  -> rule already applied, no-op.
+	// no rule with same np found                     -> rule removed, delete.
+	// same rule with different np found              -> duplicate rules with other np, err.
+	// no rule with different np found                -> no-op.
+	previousRuleMap := make(map[string]*securitygroup.CloudRule)
+	for _, obj := range previousRules {
+		previousRule := obj.(*securitygroup.CloudRule)
+		ruleUUID := previousRule.GetUUID()
+		// build previous rule map as we go.
+		previousRuleMap[ruleUUID] = previousRule
+
+		// FIXME: update the indexer at other places
+		if previousRule.NetworkPolicy == "" {
+			previousRule.NetworkPolicy = npName
+			_ = r.cloudRuleIndexer.Update(previousRule)
 		}
 
-		// same np same rule, skip; same np diff rule, delete; diff np same rule, err; diff np diff rule, skip
-		sameNP := currentRule.NetworkPolicy == npName
-		rule, found := rules[ruleUUID]
-		if !sameNP && found {
-			err = fmt.Errorf("duplicate rules with anp %s", currentRule.NetworkPolicy)
-			r.Log.Error(err, "unable to compute rules", "rule", rule, "anp", npName)
+		sameNP := previousRule.NetworkPolicy == npName
+		currentRule, sameRule := currentRuleMap[ruleUUID]
+		if sameRule && !sameNP {
+			err = fmt.Errorf("duplicate rules with anp %s", previousRule.NetworkPolicy)
+			r.Log.Error(err, "unable to compute rules", "rule", currentRule, "anp", npName)
 			return nil, nil, err
 		}
-		if sameNP && !found {
-			removeRules = append(removeRules, currentRule)
+		if !sameRule && sameNP {
+			removeRules = append(removeRules, previousRule)
 		}
 	}
 
-	for _, rule := range rules {
-		if _, found := currentRuleMap[rule.GetUUID()]; !found {
-			// mark in-progress?
+	// add rules that are not in previous rules.
+	for _, rule := range currentRules {
+		if _, found := previousRuleMap[rule.GetUUID()]; !found {
 			addRules = append(addRules, rule)
 		}
 	}
@@ -900,14 +905,17 @@ func (a *appliedToSecurityGroup) computeRules(r *NetworkPolicyReconciler, rules 
 	return addRules, removeRules, nil
 }
 
+// checkRealization checks for exact match between desired rule state in given np and realized rule state in indexer.
 func (a *appliedToSecurityGroup) checkRealization(r *NetworkPolicyReconciler, np *networkPolicy) error {
 	currentRules, err := r.cloudRuleIndexer.ByIndex(cloudRuleIndexerByAppliedToGrp, a.id.String())
-	currentRuleMap := make(map[string]*securitygroup.CloudRule)
 	if err != nil {
 		return err
 	}
+
+	currentRuleMap := make(map[string]*securitygroup.CloudRule)
 	for _, obj := range currentRules {
 		rule := obj.(*securitygroup.CloudRule)
+		// sg might have rules from other nps, ignore those rules.
 		if rule.NetworkPolicy != np.getNamespacedName() {
 			continue
 		}
@@ -952,7 +960,7 @@ func (a *appliedToSecurityGroup) updateAddrGroupReference(r *NetworkPolicyReconc
 	if err != nil {
 		return fmt.Errorf("unable to get networkPolicy with key %s from indexer: %w", a.id.Name, err)
 	}
-	rules, _ := a.combineRules(nps)
+	rules := a.combineRules(nps)
 
 	// combine rules to get latest addrGroupRefs.
 	currentRefs := make(map[string]bool)

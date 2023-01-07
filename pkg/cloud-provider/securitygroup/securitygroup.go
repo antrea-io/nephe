@@ -110,15 +110,16 @@ const (
 	NepheControllerAppliedToPrefix    = NepheControllerPrefix + "at-"
 )
 
-var baseUUID = uuid.NewV4()
-
-var ProtocolNameNumMap = map[string]int{
-	"icmp":   1,
-	"igmp":   2,
-	"tcp":    6,
-	"udp":    17,
-	"icmpv6": 58,
-}
+var (
+	baseUUID           = uuid.NewV4()
+	ProtocolNameNumMap = map[string]int{
+		"icmp":   1,
+		"igmp":   2,
+		"tcp":    6,
+		"udp":    17,
+		"icmpv6": 58,
+	}
+)
 
 var (
 	CloudResourceTypeVM  = CloudResourceType(reflect.TypeOf(cloud.VirtualMachine{}).Name())
@@ -189,6 +190,7 @@ type CloudRule struct {
 }
 
 func (c *CloudRule) GetUUID() string {
+	// TODO: do not marshal entire object
 	bytes, _ := json.Marshal(c)
 	return uuid.NewV5(baseUUID, string(bytes)).String()
 }
