@@ -22,11 +22,11 @@ import (
 	"strings"
 	"time"
 
+	k8stemplates "antrea.io/nephe/test/templates"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/utils"
-	k8stemplates "antrea.io/nephe/test/templates"
 )
 
 type azureVPC struct {
@@ -202,15 +202,18 @@ func (p *azureVPC) Reapply(timeout time.Duration) error {
 	}
 	p.output = output
 	// Wait for servers on VMs come to live.
-	err = wait.Poll(time.Second*5, time.Second*240, func() (bool, error) {
-		for _, ip := range p.GetVMIPs() {
+	for _, ip := range p.GetVMIPs() {
+		err = wait.Poll(time.Second*10, time.Second*600, func() (bool, error) {
 			cmd := exec.Command("timeout", []string{"5", "curl", "http://" + ip}...)
 			if _, err = cmd.CombinedOutput(); err != nil {
 				return false, nil
 			}
+			return true, nil
+		})
+		if err != nil {
+			return fmt.Errorf("failed to run curl ip %v, err %v", ip, err)
 		}
-		return true, nil
-	})
+	}
 	return err
 }
 

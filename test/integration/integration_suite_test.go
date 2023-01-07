@@ -151,7 +151,9 @@ var _ = BeforeSuite(func(done Done) {
 			if vpc.IsConfigured() {
 				return
 			}
-			err := vpc.Reapply(time.Second * 300)
+			// Increasing the timeout to accommodate the time needed to
+			// install docker and antrea-agent on the rhel VM.
+			err := vpc.Reapply(time.Second * 600)
 			wgChan <- err
 		}()
 	}
@@ -204,7 +206,7 @@ var _ = BeforeSuite(func(done Done) {
 		cloudVPC = cloudVPCs[provider]
 	}
 	close(done)
-}, 600)
+}, 1200)
 
 var _ = AfterSuite(func(done Done) {
 	if preserveSetup {
