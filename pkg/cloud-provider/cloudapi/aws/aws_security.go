@@ -723,38 +723,38 @@ func (c *awsCloud) UpdateSecurityGroupRules(addressGroupIdentifier *securitygrou
 	cloudSGObjToAddRules := cloudSGNameToCloudSGObj[addressGroupIdentifier.GetCloudName(false)]
 
 	// rollback operation for cloud api failures
-	rollbackAddIngress := false
 	rollbackRmIngress := false
-	rollbackAddEgress := false
+	rollbackAddIngress := false
+	rollbackRmEgress := false
 	defer func() {
-		if rollbackAddIngress {
-			_ = ec2Service.realizeIngressIPPermissions(cloudSGObjToAddRules, addInRule, cloudSGNameToCloudSGObj, true)
-		}
 		if rollbackRmIngress {
 			_ = ec2Service.realizeIngressIPPermissions(cloudSGObjToAddRules, rmInRule, cloudSGNameToCloudSGObj, false)
 		}
-		if rollbackAddEgress {
-			_ = ec2Service.realizeEgressIPPermissions(cloudSGObjToAddRules, addERule, cloudSGNameToCloudSGObj, true)
+		if rollbackAddIngress {
+			_ = ec2Service.realizeIngressIPPermissions(cloudSGObjToAddRules, addInRule, cloudSGNameToCloudSGObj, true)
+		}
+		if rollbackRmEgress {
+			_ = ec2Service.realizeEgressIPPermissions(cloudSGObjToAddRules, rmERule, cloudSGNameToCloudSGObj, false)
 		}
 	}()
 
 	// realize security group ingress and egress permissions
-	if err = ec2Service.realizeIngressIPPermissions(cloudSGObjToAddRules, addInRule, cloudSGNameToCloudSGObj, false); err != nil {
-		return err
-	}
 	if err = ec2Service.realizeIngressIPPermissions(cloudSGObjToAddRules, rmInRule, cloudSGNameToCloudSGObj, true); err != nil {
-		rollbackAddIngress = true
 		return err
 	}
-	if err = ec2Service.realizeEgressIPPermissions(cloudSGObjToAddRules, addERule, cloudSGNameToCloudSGObj, false); err != nil {
-		rollbackAddIngress = true
+	if err = ec2Service.realizeIngressIPPermissions(cloudSGObjToAddRules, addInRule, cloudSGNameToCloudSGObj, false); err != nil {
 		rollbackRmIngress = true
 		return err
 	}
 	if err = ec2Service.realizeEgressIPPermissions(cloudSGObjToAddRules, rmERule, cloudSGNameToCloudSGObj, true); err != nil {
-		rollbackAddIngress = true
 		rollbackRmIngress = true
-		rollbackAddEgress = true
+		rollbackAddIngress = true
+		return err
+	}
+	if err = ec2Service.realizeEgressIPPermissions(cloudSGObjToAddRules, addERule, cloudSGNameToCloudSGObj, false); err != nil {
+		rollbackRmIngress = true
+		rollbackAddIngress = true
+		rollbackRmEgress = true
 		return err
 	}
 

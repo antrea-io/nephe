@@ -15,13 +15,13 @@
 package securitygroup
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
 	"reflect"
 	"strings"
-
-	uuid "github.com/satori/go.uuid"
 
 	cloud "antrea.io/nephe/apis/crd/v1alpha1"
 )
@@ -111,7 +111,6 @@ const (
 )
 
 var (
-	baseUUID           = uuid.NewV4()
 	ProtocolNameNumMap = map[string]int{
 		"icmp":   1,
 		"igmp":   2,
@@ -189,10 +188,12 @@ type CloudRule struct {
 	AppliedToGrp  string
 }
 
-func (c *CloudRule) GetUUID() string {
-	// TODO: do not marshal entire object
+func (c *CloudRule) GetHash() string {
+	hash := sha1.New()
 	bytes, _ := json.Marshal(c)
-	return uuid.NewV5(baseUUID, string(bytes)).String()
+	hash.Write(bytes)
+	hashValue := hex.EncodeToString(hash.Sum(nil))
+	return hashValue
 }
 
 // SynchronizationContent returns a SecurityGroup content in cloud.

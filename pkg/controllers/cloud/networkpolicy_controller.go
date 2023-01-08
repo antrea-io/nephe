@@ -650,7 +650,7 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			tracker := obj.(*cloudResourceNPTracker)
 			return tracker.cloudResource.String(), nil
 		},
-		// cloudResourceNPTracker indexed by appliedToSecurityGroup
+		// cloudResourceNPTracker indexed by appliedToSecurityGroup.
 		cache.Indexers{
 			cloudResourceNPTrackerIndexerByAppliedToGrp: func(obj interface{}) ([]string, error) {
 				tracker := obj.(*cloudResourceNPTracker)
@@ -664,11 +664,14 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return sgs, nil
 			},
 		})
+	// cloudRuleIndexer stores the realized rules on the cloud.
 	r.cloudRuleIndexer = cache.NewIndexer(
+		// Each cloudRule is uniquely identified by its UUID.
 		func(obj interface{}) (string, error) {
-			ru := obj.(*securitygroup.CloudRule)
-			return ru.GetUUID(), nil
+			rule := obj.(*securitygroup.CloudRule)
+			return rule.GetHash(), nil
 		},
+		// cloudRules indexed by appliedToSecurityGroup.
 		cache.Indexers{
 			cloudRuleIndexerByAppliedToGrp: func(obj interface{}) ([]string, error) {
 				rule := obj.(*securitygroup.CloudRule)
