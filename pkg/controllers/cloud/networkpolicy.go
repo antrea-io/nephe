@@ -856,7 +856,8 @@ func (a *appliedToSecurityGroup) combineRules(nps []interface{}) []*securitygrou
 }
 
 // claimUnownedRules claims unowned rules in cloud rule indexer that matches with given np rules.
-func (a *appliedToSecurityGroup) claimUnownedRules(r *NetworkPolicyReconciler, currentRuleMap map[string]*securitygroup.CloudRule, npNamespacedName string) {
+func (a *appliedToSecurityGroup) claimUnownedRules(r *NetworkPolicyReconciler, currentRuleMap map[string]*securitygroup.CloudRule,
+	npNamespacedName string) {
 	previousRules, err := r.cloudRuleIndexer.ByIndex(cloudRuleIndexerByAppliedToGrp, a.id.CloudResourceID.String())
 	if err != nil {
 		r.Log.Error(err, "get cloudRule indexer", "sg", a.id.CloudResourceID.String())
