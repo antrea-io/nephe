@@ -236,6 +236,8 @@ To install `antrea-agent`, run the below command:
   --antrea-kubeconfig ./antrea-agent.antrea.kubeconfig
 ```
 
+Note: **`Antrea Agent` is installed in a `Docker` container.**
+
 ### Installation On Windows VMs
 
 Download the [wrapper install script](../hack/install-vm-agent-wrapper.ps1) from a

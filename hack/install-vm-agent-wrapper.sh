@@ -123,6 +123,9 @@ function check_os_prerequisites() {
         ubuntu)
           return
         ;;
+        rhel)
+          return
+        ;;
     esac
     echoerr "Unsupported $OS platform"
     exit 2
@@ -150,7 +153,8 @@ function install_required_packages() {
 }
 
 function update_antrea_url() {
-    ANTREA_BRANCH="release-$(echo $ANTREA_VERSION | cut -b 2-5)"
+    # Generate branch name release-1.XX from version v1.XX.0.
+    ANTREA_BRANCH="release-$(echo $ANTREA_VERSION  | grep -o "[0-9]\.[0-9][0-9]")"
     ANTREA_INSTALL_SCRIPT="https://github.com/antrea-io/antrea/releases/download/${ANTREA_VERSION}/install-vm.sh"
     AGENT_BIN="https://github.com/antrea-io/antrea/releases/download/${ANTREA_VERSION}/antrea-agent-linux-x86_64"
     ANTREA_CONFIG="https://raw.githubusercontent.com/antrea-io/antrea/${ANTREA_BRANCH}/build/yamls/externalnode/conf/antrea-agent.conf"
@@ -215,9 +219,9 @@ function install() {
     echo "Running antrea $INSTALL_SCRIPT script"
     chmod +x "${tmp_dir}"/$INSTALL_SCRIPT
     chmod +x "${tmp_dir}"/$ANTREA_AGENT_BIN
-    "${tmp_dir}"/$INSTALL_SCRIPT --ns "$NAMESPACE" --bin "${tmp_dir}"/${ANTREA_AGENT_BIN} \
-        --config "${tmp_dir}"/${ANTREA_AGENT_CONF} --kubeconfig "$KUBECONFIG" \
-        --antrea-kubeconfig "$ANTREA_KUBECONFIG" --nodename "$NODENAME"
+    "${tmp_dir}"/$INSTALL_SCRIPT --ns "$NAMESPACE" --config "${tmp_dir}"/${ANTREA_AGENT_CONF} \
+        --kubeconfig "$KUBECONFIG" --antrea-kubeconfig "$ANTREA_KUBECONFIG" \
+        --antrea-version "$ANTREA_VERSION" --nodename "$NODENAME" --containerize
     echo "Set antrea-agent Service Environment variable NODE_NAME=$NODENAME"
     # Delete the temporary directory.
     rm -rf "${tmp_dir}"

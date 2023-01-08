@@ -88,7 +88,7 @@ func StartOrWaitDeployment(k8sClient client.Client, name, namespace string, repl
 		}
 		return true, nil
 	}); err != nil {
-		return err
+		return fmt.Errorf("failed to get nephe deployment, err: %v", err)
 	}
 	// Give time for deployment to re-discover.
 	time.Sleep(time.Second * 2)
