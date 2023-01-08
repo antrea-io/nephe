@@ -18,7 +18,6 @@ import (
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 	"context"
-	"fmt"
 	"k8s.io/apimachinery/pkg/watch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -85,142 +84,64 @@ func (a *appliedToSecurityGroup) sync(c *securitygroup.SynchronizationContent,
 		log.Error(err, "Get networkPolicy by indexer", "Index", networkPolicyIndexerByAppliedToGrp, "Key", a.id.Name)
 		return
 	}
-	items := make(map[string]int)
-	for _, i := range nps {
-		np := i.(*networkPolicy)
 
-		if !np.computeRules(r) {
-			log.V(1).Info("np not ready", "Name", np.Name, "Namespace", np.Namespace)
-		}
-		for _, iRule := range np.ingressRules {
-			proto := 0
-			if iRule.Protocol != nil {
-				proto = *iRule.Protocol
-			}
-			port := 0
-			if iRule.FromPort != nil {
-				port = *iRule.FromPort
-			}
-			if proto > 0 || port > 0 {
-				portStr := fmt.Sprintf("protocol=%v,port=%v", proto, port)
-				items[portStr]++
-			}
-			for _, ip := range iRule.FromSrcIP {
-				items[ip.String()]++
-			}
-			for _, sg := range iRule.FromSecurityGroups {
-				items[sg.String()]++
-			}
-		}
-		for _, eRule := range np.egressRules {
-			proto := 0
-			if eRule.Protocol != nil {
-				proto = *eRule.Protocol
-			}
-			port := 0
-			if eRule.ToPort != nil {
-				port = *eRule.ToPort
-			}
-			if proto > 0 || port > 0 {
-				portStr := fmt.Sprintf("protocol=%v,port=%v", proto, port)
-				items[portStr]++
-			}
-			for _, ip := range eRule.ToDstIP {
-				items[ip.String()]++
-			}
-			for _, sg := range eRule.ToSecurityGroups {
-				items[sg.String()]++
-			}
-		}
-	}
 	if c == nil {
 		_ = a.updateAllRules(r)
 		return
 	}
 
-	rules, err := r.cloudRuleIndexer.ByIndex(cloudRuleIndexerByAppliedToGrp, a.id.String())
+	rules, err := r.cloudRuleIndexer.ByIndex(cloudRuleIndexerByAppliedToGrp, a.id.CloudResourceID.String())
 	if err != nil {
-		log.Error(err, "get cloudRule indexer", "Key", a.id.String())
+		log.Error(err, "get cloudRule indexer", "Key", a.id.CloudResourceID.String())
 		return
 	}
 	cloudRuleMap := make(map[string]*securitygroup.CloudRule)
+	indexerUpdate := false
 	for _, obj := range rules {
 		rule := obj.(*securitygroup.CloudRule)
-		cloudRuleMap[rule.GetUUID()] = rule
+		cloudRuleMap[rule.GetHash()] = rule
 	}
 
-	// Rough compare rules
+	// add new cloud rules into indexer.
 	for _, iRule := range c.IngressRules {
-		proto := 0
-		if iRule.Protocol != nil {
-			proto = *iRule.Protocol
-		}
-		port := 0
-		if iRule.FromPort != nil {
-			port = *iRule.FromPort
-		}
-		if proto > 0 || port > 0 {
-			portStr := fmt.Sprintf("protocol=%v,port=%v", proto, port)
-			items[portStr]--
-		}
-		for _, ip := range iRule.FromSrcIP {
-			items[ip.String()]--
-		}
-		for _, sg := range iRule.FromSecurityGroups {
-			items[sg.String()]--
-		}
 		rule := &securitygroup.CloudRule{
 			Rule:         &iRule,
-			AppliedToGrp: a.id.String(),
+			AppliedToGrp: a.id.CloudResourceID.String(),
 		}
-		ruleUUID := rule.GetUUID()
+		ruleUUID := rule.GetHash()
 		if _, found := cloudRuleMap[ruleUUID]; found {
 			delete(cloudRuleMap, ruleUUID)
 		} else {
+			indexerUpdate = true
 			_ = r.cloudRuleIndexer.Update(rule)
 		}
 	}
 	for _, eRule := range c.EgressRules {
-		proto := 0
-		if eRule.Protocol != nil {
-			proto = *eRule.Protocol
-		}
-		port := 0
-		if eRule.ToPort != nil {
-			port = *eRule.ToPort
-		}
-		if proto > 0 || port > 0 {
-			portStr := fmt.Sprintf("protocol=%v,port=%v", proto, port)
-			items[portStr]--
-		}
-		for _, ip := range eRule.ToDstIP {
-			items[ip.String()]--
-		}
-		for _, sg := range eRule.ToSecurityGroups {
-			items[sg.String()]--
-		}
 		rule := &securitygroup.CloudRule{
 			Rule:         &eRule,
-			AppliedToGrp: a.id.String(),
+			AppliedToGrp: a.id.CloudResourceID.String(),
 		}
-		ruleUUID := rule.GetUUID()
+		ruleUUID := rule.GetHash()
 		if _, found := cloudRuleMap[ruleUUID]; found {
 			delete(cloudRuleMap, ruleUUID)
 		} else {
+			indexerUpdate = true
 			_ = r.cloudRuleIndexer.Update(rule)
 		}
 	}
+	// remove rules no longer exist in cloud from indexer.
 	for _, rule := range cloudRuleMap {
+		indexerUpdate = true
 		_ = r.cloudRuleIndexer.Delete(rule)
 	}
-	for k, i := range items {
-		if i != 0 {
-			log.V(1).Info("Update appliedToSecurityGroup rules", "Name",
-				a.id.CloudResourceID.String(), "CloudSecurityGroup", c, "Item", k, "Diff", i)
-			_ = a.updateAllRules(r)
-			return
-		}
+
+	if indexerUpdate {
+		log.V(1).Info("Update appliedToSecurityGroup rules", "Name",
+			a.id.CloudResourceID.String(), "CloudSecurityGroup", c)
+		_ = a.updateAllRules(r)
+		return
 	}
+
 	// rule machines
 	if len(nps) > 0 {
 		if !a.hasRules {
