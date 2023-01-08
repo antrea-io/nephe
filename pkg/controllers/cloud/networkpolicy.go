@@ -1150,10 +1150,12 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler) (ingressList []*s
 	ready = true
 	rule := r.rule
 	if rule.Direction == antreanetworking.DirectionIn {
-		ingress := &securitygroup.IngressRule{}
+		iRules := make([]*securitygroup.IngressRule, 0)
 		for _, ip := range rule.From.IPBlocks {
+			ingress := &securitygroup.IngressRule{}
 			ipNet := net.IPNet{IP: net.IP(ip.CIDR.IP), Mask: net.CIDRMask(int(ip.CIDR.PrefixLength), 32)}
 			ingress.FromSrcIP = append(ingress.FromSrcIP, &ipNet)
+			iRules = append(iRules, ingress)
 		}
 		for _, ag := range rule.From.AddressGroups {
 			sgs, err := rr.addrSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, ag)
@@ -1168,39 +1170,52 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler) (ingressList []*s
 			}
 			for _, i := range sgs {
 				sg := i.(*addrSecurityGroup)
-				ingress.FromSrcIP = append(ingress.FromSrcIP, sg.getIPs()...)
+				for _, ip := range sg.getIPs() {
+					ingress := &securitygroup.IngressRule{}
+					ingress.FromSrcIP = append(ingress.FromSrcIP, ip)
+					iRules = append(iRules, ingress)
+				}
 				id := sg.getID()
 				if len(id.Vpc) > 0 {
+					ingress := &securitygroup.IngressRule{}
 					ingress.FromSecurityGroups = append(ingress.FromSecurityGroups, &id)
+					iRules = append(iRules, ingress)
 				}
 			}
 		}
-		if ingress.Protocol == nil && ingress.FromSecurityGroups == nil && ingress.FromSrcIP == nil {
+		if len(iRules) == 0 {
 			return
 		}
 		if rule.Services == nil {
-			ingressList = append(ingressList, ingress)
+			ingressList = append(ingressList, iRules...)
 			return
 		}
 		for _, s := range rule.Services {
-			ii := deepcopy.Copy(ingress).(*securitygroup.IngressRule)
+			var protocol *int
+			var fromPort *int
 			if s.Protocol != nil {
 				if p, ok := AntreaProtocolMap[*s.Protocol]; ok {
-					ii.Protocol = &p
+					protocol = &p
 				}
 			}
 			if s.Port != nil {
 				port := int(s.Port.IntVal)
-				ii.FromPort = &port
+				fromPort = &port
 			}
-			ingressList = append(ingressList, ii)
+			for _, ingress := range iRules {
+				ingress.FromPort = fromPort
+				ingress.Protocol = protocol
+				ingressList = append(ingressList, ingress)
+			}
 		}
 		return
 	}
-	egress := &securitygroup.EgressRule{}
+	eRules := make([]*securitygroup.EgressRule, 0)
 	for _, ip := range rule.To.IPBlocks {
+		egress := &securitygroup.EgressRule{}
 		ipNet := net.IPNet{IP: net.IP(ip.CIDR.IP), Mask: net.CIDRMask(int(ip.CIDR.PrefixLength), 32)}
 		egress.ToDstIP = append(egress.ToDstIP, &ipNet)
+		eRules = append(eRules, egress)
 	}
 	for _, ag := range rule.To.AddressGroups {
 		sgs, err := rr.addrSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, ag)
@@ -1215,33 +1230,43 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler) (ingressList []*s
 		}
 		for _, i := range sgs {
 			sg := i.(*addrSecurityGroup)
-			egress.ToDstIP = append(egress.ToDstIP, sg.getIPs()...)
+			for _, ip := range sg.getIPs() {
+				egress := &securitygroup.EgressRule{}
+				egress.ToDstIP = append(egress.ToDstIP, ip)
+				eRules = append(eRules, egress)
+			}
 			id := sg.getID()
 			if len(id.Vpc) > 0 {
+				egress := &securitygroup.EgressRule{}
 				egress.ToSecurityGroups = append(egress.ToSecurityGroups, &id)
+				eRules = append(eRules, egress)
 			}
 		}
 	}
-	if egress.Protocol == nil && egress.ToSecurityGroups == nil && egress.ToDstIP == nil {
+	if len(eRules) == 0 {
 		return
 	}
 	if rule.Services == nil {
-		egressList = append(egressList, egress)
+		egressList = append(egressList, eRules...)
 		return
 	}
 	for _, s := range rule.Services {
-		// No deep copy ??
-		ee := deepcopy.Copy(egress).(*securitygroup.EgressRule)
+		var protocol *int
+		var fromPort *int
 		if s.Protocol != nil {
 			if p, ok := AntreaProtocolMap[*s.Protocol]; ok {
-				ee.Protocol = &p
+				protocol = &p
 			}
 		}
 		if s.Port != nil {
 			port := int(s.Port.IntVal)
-			ee.ToPort = &port
+			fromPort = &port
 		}
-		egressList = append(egressList, ee)
+		for _, egress := range eRules {
+			egress.ToPort = fromPort
+			egress.Protocol = protocol
+			egressList = append(egressList, egress)
+		}
 	}
 	return
 }

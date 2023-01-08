@@ -446,7 +446,7 @@ func convertToNepheControllerRulesByAppliedToSGName(azureSecurityRules *[]networ
 				continue
 			}
 			rules := nepheControllerATSgNameToIngressRules[sgName]
-			rules = append(rules, ingressRule)
+			rules = append(rules, ingressRule...)
 			nepheControllerATSgNameToIngressRules[sgName] = rules
 		} else {
 			egressRule, err := convertFromAzureSecurityRuleToNepheControllerEgressRule(azureSecurityRule, vnetID)
@@ -455,7 +455,7 @@ func convertToNepheControllerRulesByAppliedToSGName(azureSecurityRules *[]networ
 				continue
 			}
 			rules := nepheControllerATSgNameToEgressRules[sgName]
-			rules = append(rules, egressRule)
+			rules = append(rules, egressRule...)
 			nepheControllerATSgNameToEgressRules[sgName] = rules
 		}
 	}
@@ -463,41 +463,67 @@ func convertToNepheControllerRulesByAppliedToSGName(azureSecurityRules *[]networ
 	return nepheControllerATSgNameToIngressRules, nepheControllerATSgNameToEgressRules
 }
 
-func convertFromAzureSecurityRuleToNepheControllerIngressRule(rule network.SecurityRule, vnetID string) (securitygroup.IngressRule, error) {
+func convertFromAzureSecurityRuleToNepheControllerIngressRule(rule network.SecurityRule,
+	vnetID string) ([]securitygroup.IngressRule, error) {
+	ingressList := make([]securitygroup.IngressRule, 0)
+
 	port := convertFromAzurePortToNepheControllerPort(rule.DestinationPortRange)
 	srcIP := convertFromAzurePrefixesToNepheControllerIPs(rule.SourceAddressPrefix, rule.SourceAddressPrefixes)
 	securityGroups := convertFromAzureASGsToNepheControllerSecurityGroups(rule.SourceApplicationSecurityGroups, vnetID)
 	protoNum, err := convertFromAzureProtocolToNepheControllerProtocol(rule.Protocol)
 	if err != nil {
-		return securitygroup.IngressRule{}, err
+		return nil, err
 	}
-	ingressRule := securitygroup.IngressRule{
-		FromPort:           port,
-		FromSrcIP:          srcIP,
-		FromSecurityGroups: securityGroups,
-		Protocol:           protoNum,
+	for _, ip := range srcIP {
+		ingressRule := securitygroup.IngressRule{
+			FromPort:  port,
+			FromSrcIP: []*net.IPNet{ip},
+			Protocol:  protoNum,
+		}
+		ingressList = append(ingressList, ingressRule)
+	}
+	for _, sg := range securityGroups {
+		ingressRule := securitygroup.IngressRule{
+			FromPort:           port,
+			FromSecurityGroups: []*securitygroup.CloudResourceID{sg},
+			Protocol:           protoNum,
+		}
+		ingressList = append(ingressList, ingressRule)
 	}
 
-	return ingressRule, nil
+	return ingressList, nil
 }
 
-func convertFromAzureSecurityRuleToNepheControllerEgressRule(rule network.SecurityRule, vnetID string) (securitygroup.EgressRule, error) {
+func convertFromAzureSecurityRuleToNepheControllerEgressRule(rule network.SecurityRule,
+	vnetID string) ([]securitygroup.EgressRule, error) {
+	egressList := make([]securitygroup.EgressRule, 0)
+
 	port := convertFromAzurePortToNepheControllerPort(rule.DestinationPortRange)
 	dstIP := convertFromAzurePrefixesToNepheControllerIPs(rule.DestinationAddressPrefix, rule.DestinationAddressPrefixes)
 	securityGroups := convertFromAzureASGsToNepheControllerSecurityGroups(rule.DestinationApplicationSecurityGroups, vnetID)
 	protoNum, err := convertFromAzureProtocolToNepheControllerProtocol(rule.Protocol)
 	if err != nil {
-		return securitygroup.EgressRule{}, err
+		return nil, err
 	}
 
-	egressRule := securitygroup.EgressRule{
-		ToPort:           port,
-		ToDstIP:          dstIP,
-		ToSecurityGroups: securityGroups,
-		Protocol:         protoNum,
+	for _, ip := range dstIP {
+		egressRule := securitygroup.EgressRule{
+			ToPort:   port,
+			ToDstIP:  []*net.IPNet{ip},
+			Protocol: protoNum,
+		}
+		egressList = append(egressList, egressRule)
+	}
+	for _, sg := range securityGroups {
+		egressRule := securitygroup.EgressRule{
+			ToPort:           port,
+			ToSecurityGroups: []*securitygroup.CloudResourceID{sg},
+			Protocol:         protoNum,
+		}
+		egressList = append(egressList, egressRule)
 	}
 
-	return egressRule, err
+	return egressList, err
 }
 
 func convertFromAzureProtocolToNepheControllerProtocol(azureProtoName network.SecurityRuleProtocol) (*int, error) {
