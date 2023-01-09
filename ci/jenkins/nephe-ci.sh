@@ -174,6 +174,8 @@ ssh -i id_rsa ubuntu@${ip_addr} "mkdir ~/nephe"
 scp -r -i id_rsa ${OLDPWD}/* ubuntu@${ip_addr}:~/nephe
 
 function cleanup_testbed() {
+    ssh -i id_rsa ubuntu@${ip_addr} "docker logout"
+
     echo "=== Retrieve logs ==="
     scp -r -i id_rsa ubuntu@${ip_addr}:~/logs ${OLDPWD}
 
