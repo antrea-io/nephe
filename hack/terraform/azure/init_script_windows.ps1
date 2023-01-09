@@ -29,8 +29,8 @@ if (Test-Path "$sshPath") {
 
 $FileContent = '${SSH_PUBLIC_KEY}'
 Set-Content -Path "$sshPath\authorized_keys" -Value $FileContent
-$LatestContent = Get-Content "$sshPath\authorized_keys"
 
+# Run install script for antrea-agent installation.
 $InstallArgs = "-Namespace ${NAMESPACE} -AntreaVersion ${ANTREA_VERSION} -KubeConfigPath $TempDir\antrea-agent.kubeconfig -AntreaKubeConfigPath $TempDir\antrea-agent.antrea.kubeconfig"
 $cmd = "$TempDir\install-vm-agent-wrapper.ps1 $InstallArgs"
 Invoke-Expression $cmd

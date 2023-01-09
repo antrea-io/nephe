@@ -99,8 +99,10 @@ function InitCloud() {
 }
 
 function UpdateAntreaURL() {
-    # Generate branch name release-1.XX from version v1.XX.0.
-    $Script:AntreaBranch = "release-$($AntreaVersion.Substring(1, $AntreaVersion.LastIndexOf('.')-1))"
+    # Convert v1.xx.0 to 1.xx
+    $tempVersion = $AntreaVersion.Substring(0, $AntreaVersion.Length-2)
+    $branchTag = $tempVersion.Substring(1)
+    $Script:AntreaBranch = "release-${branchTag}"
     $Script:AntreaInstallScript = "https://github.com/antrea-io/antrea/releases/download/${AntreaVersion}/install-vm.ps1"
     $Script:AgentBin = "https://github.com/antrea-io/antrea/releases/download/${AntreaVersion}/antrea-agent-windows-x86_64.exe"
     $Script:AntreaConfig = "https://raw.githubusercontent.com/antrea-io/antrea/${AntreaBranch}/build/yamls/externalnode/conf/antrea-agent.conf"
