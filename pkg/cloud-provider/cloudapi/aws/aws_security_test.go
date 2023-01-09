@@ -320,6 +320,62 @@ var _ = Describe("AWS Cloud Security", func() {
 			Expect(err).Should(BeNil())
 		})
 	})
+	Context("GetEnforcedSecurity", func() {
+		It("Should sync cloud security groups and rules", func() {
+			webAddressGroupIdentifier := &securitygroup.CloudResource{
+				Type: securitygroup.CloudResourceTypeVM,
+				CloudResourceID: securitygroup.CloudResourceID{
+					Name: "Web",
+					Vpc:  testVpcID01,
+				},
+				AccountID:     testAccountNamespacedName.String(),
+				CloudProvider: string(v1alpha1.AWSCloudProvider),
+			}
+
+			input := &ec2.DescribeSecurityGroupsInput{
+				Filters: []*ec2.Filter{{
+					Name:   aws.String(awsFilterKeyVPCID),
+					Values: []*string{aws.String(testVpcID01)},
+				}},
+			}
+			agOutput := constructEc2DescribeSecurityGroupsOutput(&webAddressGroupIdentifier.CloudResourceID, true, false)
+			irule := &ec2.IpPermission{
+				FromPort:         aws.Int64(22),
+				IpProtocol:       aws.String("tcp"),
+				IpRanges:         []*ec2.IpRange{{CidrIp: aws.String("1.1.1.1/32")}, {CidrIp: aws.String("2.2.2.2/32")}},
+				Ipv6Ranges:       []*ec2.Ipv6Range{},
+				PrefixListIds:    []*ec2.PrefixListId{},
+				ToPort:           aws.Int64(22),
+				UserIdGroupPairs: []*ec2.UserIdGroupPair{{GroupId: agOutput.SecurityGroups[0].GroupId}},
+			}
+			erule := &ec2.IpPermission{
+				FromPort:         aws.Int64(80),
+				IpProtocol:       aws.String("tcp"),
+				IpRanges:         []*ec2.IpRange{{CidrIp: aws.String("2.2.2.2/32")}, {CidrIp: aws.String("1.1.1.1/32")}},
+				Ipv6Ranges:       []*ec2.Ipv6Range{},
+				PrefixListIds:    []*ec2.PrefixListId{},
+				ToPort:           aws.Int64(80),
+				UserIdGroupPairs: []*ec2.UserIdGroupPair{{GroupId: agOutput.SecurityGroups[0].GroupId}},
+			}
+			output := constructEc2DescribeSecurityGroupsOutput(&webAddressGroupIdentifier.CloudResourceID, false, false)
+			for _, sg := range output.SecurityGroups {
+				sg.IpPermissions = append(sg.IpPermissions, irule)
+				sg.IpPermissionsEgress = append(sg.IpPermissionsEgress, erule)
+			}
+			output.SecurityGroups = append(output.SecurityGroups, agOutput.SecurityGroups...)
+
+			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Eq(input)).Return(output, nil).Times(1)
+
+			syncContent := cloudInterface.GetEnforcedSecurity()
+			Expect(len(syncContent)).To(Equal(2))
+			for _, c := range syncContent {
+				if !c.MembershipOnly {
+					Expect(len(c.IngressRules)).To(Equal(3))
+					Expect(len(c.EgressRules)).To(Equal(3))
+				}
+			}
+		})
+	})
 })
 
 func constructEc2DescribeSecurityGroupsInput(vpcID string, sgNamesSet map[string]struct{}) *ec2.DescribeSecurityGroupsInput {
@@ -346,6 +402,7 @@ func constructEc2DescribeSecurityGroupsOutput(identifier *securitygroup.CloudRes
 			securityGroup := &ec2.SecurityGroup{
 				GroupId:   aws.String(fmt.Sprintf("%v", rand.Intn(10))),
 				GroupName: aws.String(identifier.GetCloudName(membershipOnly)),
+				VpcId:     aws.String(testVpcID01),
 			}
 			securityGroups = append(securityGroups, securityGroup)
 		}
