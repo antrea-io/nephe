@@ -122,7 +122,7 @@ func (computeCfg *computeServiceConfig) getCachedVirtualMachines() []*virtualMac
 		instancesToReturn = append(instancesToReturn, virtualMachine)
 	}
 
-	azurePluginLogger().V(1).Info("cached instances", "service", azureComputeServiceNameCompute, "account", computeCfg.accountName,
+	azurePluginLogger().V(1).Info("cached vm instances", "service", azureComputeServiceNameCompute, "account", computeCfg.accountName,
 		"instances", len(instancesToReturn))
 	return instancesToReturn
 }
@@ -159,16 +159,16 @@ func (computeCfg *computeServiceConfig) getVnetPeers(vnetID string) [][]string {
 func (computeCfg *computeServiceConfig) getVirtualMachines() ([]*virtualMachineTable, error) {
 	filters, hasFilters := computeCfg.getComputeResourceFilters()
 	if !hasFilters {
-		azurePluginLogger().V(1).Info("fetching resources from cloud skipped",
+		azurePluginLogger().V(1).Info("fetching vm resources from cloud skipped",
 			"account", computeCfg.accountName, "resource-filters", "not-configured")
 		return nil, nil
 	}
 
 	if filters == nil {
-		azurePluginLogger().V(1).Info("fetching resources from cloud",
+		azurePluginLogger().V(1).Info("fetching vm resources from cloud",
 			"account", computeCfg.accountName, "resource-filters", "all(nil)")
 	} else {
-		azurePluginLogger().V(1).Info("fetching resources from cloud",
+		azurePluginLogger().V(1).Info("fetching vm resources from cloud",
 			"account", computeCfg.accountName, "resource-filters", "configured")
 	}
 	var subscriptions []string
@@ -183,7 +183,7 @@ func (computeCfg *computeServiceConfig) getVirtualMachines() ([]*virtualMachineT
 		virtualMachines = append(virtualMachines, virtualMachineRows...)
 	}
 
-	azurePluginLogger().V(1).Info("instances from cloud",
+	azurePluginLogger().V(1).Info("vm instances from cloud",
 		"service", azureComputeServiceNameCompute, "account", computeCfg.accountName, "instances", len(virtualMachines))
 
 	return virtualMachines, nil
@@ -352,11 +352,11 @@ func (computeCfg *computeServiceConfig) GetVpcInventory() map[string]*runtimev1a
 	vpcMap := map[string]*runtimev1alpha1.Vpc{}
 	for _, vpc := range snapshot.(*computeResourcesCacheSnapshot).vnets {
 		if strings.EqualFold(*vpc.Location, computeCfg.credentials.region) {
-			vpcObj := ComputeVpcToInternalVpcObject(&vpc, tokens[0], tokens[1], computeCfg.credentials.region)
-			vpcMap[*vpc.ID] = vpcObj
+			vpcObj := ComputeVpcToInternalVpcObject(&vpc, tokens[0], tokens[1], strings.ToLower(computeCfg.credentials.region))
+			vpcMap[strings.ToLower(*vpc.ID)] = vpcObj
 		}
 	}
-	azurePluginLogger().V(1).Info("vpcs", "service", azureComputeServiceNameCompute,
+	azurePluginLogger().V(1).Info("cached vpcs", "service", azureComputeServiceNameCompute,
 		"account", computeCfg.accountName, "vpc objects", len(vpcMap))
 
 	return vpcMap

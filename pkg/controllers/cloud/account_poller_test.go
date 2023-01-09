@@ -15,7 +15,6 @@
 package cloud
 
 import (
-	"antrea.io/nephe/pkg/controllers/inventory"
 	"context"
 	"sync"
 
@@ -33,6 +32,7 @@ import (
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
+	"antrea.io/nephe/pkg/controllers/inventory"
 	"antrea.io/nephe/pkg/controllers/utils"
 )
 

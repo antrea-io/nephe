@@ -17,7 +17,6 @@ package cloud
 import (
 	"context"
 	"fmt"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"reflect"
 	"strings"
 	"sync"
@@ -27,6 +26,7 @@ import (
 	"go.uber.org/multierr"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -69,7 +69,7 @@ type Poller struct {
 func InitPollers() *Poller {
 	poller := &Poller{
 		accPollers: make(map[types.NamespacedName]*accountPoller),
-		log:        logging.GetLogger("Poller").WithName("AccountPoller"),
+		log:        logging.GetLogger("poller").WithName("AccountPoller"),
 	}
 	return poller
 }
@@ -96,49 +96,8 @@ func (p *Poller) addAccountPoller(cloudType cloudv1alpha1.CloudProvider, namespa
 		ch:                make(chan struct{}),
 		inventory:         r.Inventory,
 	}
-	p.accPollers[*namespacedName] = poller
 
-	p.log.Info("poller will be created", "account", namespacedName)
-	return poller, false
-}
-
-// removeAccountPoller removes an account poller from accPollers map.
-func (p *Poller) removeAccountPoller(namespacedName *types.NamespacedName) {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
-
-	poller, found := p.accPollers[*namespacedName]
-	if found {
-		close(poller.ch)
-		delete(p.accPollers, *namespacedName)
-	}
-}
-
-// getCloudType fetches cloud provider type from the accountPoller object for a given account.
-func (p *Poller) getCloudType(name *types.NamespacedName) (cloudv1alpha1.CloudProvider, error) {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
-
-	if pollerScope, exists := p.accPollers[*name]; exists {
-		return pollerScope.cloudType, nil
-	}
-	return "", fmt.Errorf("account poller not found, account %s", name.String())
-}
-
-// updateAccountPoller updates accountPoller object with CES specifics information.
-func (p *Poller) updateAccountPoller(name *types.NamespacedName, selector *cloudv1alpha1.CloudEntitySelector) (error, *accountPoller) {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
-
-	accPoller, found := p.accPollers[*name]
-	if !found {
-		return fmt.Errorf("%s %s", errorMsgSelectorAddFail, name.String()), nil
-	}
-
-	// Populate selector specific fields in the accPoller created by CPA.
-	accPoller.selector = selector.DeepCopy()
-
-	accPoller.vmSelector = cache.NewIndexer(
+	poller.vmSelector = cache.NewIndexer(
 		func(obj interface{}) (string, error) {
 			m := obj.(*cloudv1alpha1.VirtualMachineSelector)
 			// Create a unique key for each VirtualMachineSelector.
@@ -180,12 +139,79 @@ func (p *Poller) updateAccountPoller(name *types.NamespacedName, selector *cloud
 			},
 		})
 
-	// Stop and start goroutine in order to trigger account poller soon after CES add/update.
+	p.accPollers[*namespacedName] = poller
+	p.log.Info("poller will be created", "account", namespacedName)
+	return poller, false
+}
+
+// removeAccountPoller removes an account poller from accPollers map.
+func (p *Poller) removeAccountPoller(namespacedName *types.NamespacedName) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	poller, found := p.accPollers[*namespacedName]
+	if found {
+		close(poller.ch)
+		delete(p.accPollers, *namespacedName)
+	}
+}
+
+// getCloudType fetches cloud provider type from the accountPoller object for a given account.
+func (p *Poller) getCloudType(name *types.NamespacedName) (cloudv1alpha1.CloudProvider, error) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	if pollerScope, exists := p.accPollers[*name]; exists {
+		return pollerScope.cloudType, nil
+	}
+	return "", fmt.Errorf("account poller not found, account %s", name.String())
+}
+
+// updateAccountPoller updates accountPoller object with CES specific information.
+func (p *Poller) updateAccountPoller(name *types.NamespacedName, selector *cloudv1alpha1.CloudEntitySelector) (error, *accountPoller) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	accPoller, found := p.accPollers[*name]
+	if !found {
+		return fmt.Errorf("%s %s", errorMsgSelectorAddFail, name.String()), nil
+	}
+
+	if selector.Spec.VMSelector != nil {
+		// Indexer does not work with in-place update. Do delete->add.
+		for _, vmSelector := range accPoller.vmSelector.List() {
+			if err := accPoller.vmSelector.Delete(vmSelector.(*cloudv1alpha1.VirtualMachineSelector)); err != nil {
+				p.log.Error(err, "unable to delete selector from indexer",
+					"VMSelector", vmSelector.(*cloudv1alpha1.VirtualMachineSelector))
+			}
+		}
+
+		for i := range selector.Spec.VMSelector {
+			if err := accPoller.vmSelector.Add(&selector.Spec.VMSelector[i]); err != nil {
+				p.log.Error(err, "unable to add selector into indexer",
+					"VMSelector", selector.Spec.VMSelector[i])
+			}
+		}
+	} else {
+		for _, vmSelector := range accPoller.vmSelector.List() {
+			if err := accPoller.vmSelector.Delete(vmSelector.(*cloudv1alpha1.VirtualMachineSelector)); err != nil {
+				p.log.Error(err, "unable to delete selector from indexer",
+					"VMSelector", vmSelector.(*cloudv1alpha1.VirtualMachineSelector))
+			}
+		}
+	}
+
+	// Populate selector specific fields in the accPoller created by CPA, needed for setting owner reference in VM CR.
+	accPoller.selector = selector.DeepCopy()
+
+	return nil, accPoller
+}
+
+// restartAccountPoller stops and starts account poller goroutine.
+func (p *Poller) restartAccountPoller(accPoller *accountPoller) {
 	close(accPoller.ch)
 	accPoller.ch = make(chan struct{})
 	go wait.Until(accPoller.doAccountPoller, time.Duration(accPoller.pollIntvInSeconds)*time.Second, accPoller.ch)
-
-	return nil, accPoller
 }
 
 func (p *accountPoller) doAccountPoller() {

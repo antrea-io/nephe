@@ -186,9 +186,8 @@ spec:
 EOF
 ```
 
-After a `CloudProviderAccount` CR is added, VPCs are polled from cloud for the
-configured region. From this VPC inventory, VPC ID or VPC Name can be used in
-`CloudEntitySelector` configuration to onboard vms belonging to the VPC of interest.
+Also, after a `CloudProviderAccount` CR is added, VPCs are automatically polled
+for the configured region. Invoke kubectl commands to get the details of imported VPCs.
 
 ```bash
 kubectl get vpc -A

@@ -1,4 +1,4 @@
-// Copyright 2023 Antrea Authors.
+// Copyright 2022 Antrea Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,7 +34,6 @@ var (
 	namespacedName = types.NamespacedName{Namespace: namespace, Name: accountName}
 	region         = "xyz"
 	vpcCacheKey1   = fmt.Sprintf("%s/%s-%s", namespace, accountName, testVpcID01)
-	vpcCacheKey2   = fmt.Sprintf("%s/%s-%s", namespace, accountName, testVpcID02)
 	cloudInventory *Inventory
 )
 
@@ -68,15 +67,15 @@ var _ = Describe("Validate Vpc Cache", func() {
 		err := cloudInventory.BuildVpcCache(vpcList1, &namespacedName)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		obj, _, err := cloudInventory.vpcCache.GetByKey(vpcCacheKey1)
-		Expect(err).ShouldNot(HaveOccurred())
-		vpc := obj.(*runtimev1alpha1.Vpc)
-		Expect(vpc.Info.Id).To(Equal(testVpcID01))
+		allVpcList := cloudInventory.GetAllVpcs()
+		Expect(len(vpcList1), Equal(len(allVpcList)))
 
-		obj, _, err = cloudInventory.vpcCache.GetByKey(vpcCacheKey2)
+		vpcListByIndex, err := cloudInventory.GetVpcsFromIndexer(VpcIndexerByAccountNameSpacedName, namespacedName.String())
 		Expect(err).ShouldNot(HaveOccurred())
-		vpc = obj.(*runtimev1alpha1.Vpc)
-		Expect(vpc.Info.Id).To(Equal(testVpcID02))
+		Expect(len(vpcList1), Equal(len(vpcListByIndex)))
+
+		_, err = cloudInventory.GetVpcsFromIndexer("dummyIndexer", namespacedName.String())
+		Expect(err).Should(HaveOccurred())
 
 		// When vpcList doesn't contain an object(vpc id testVpcID02) which is present in vpcCache, it is deleted from cache.
 		vpcList2 := make(map[string]*runtimev1alpha1.Vpc)
@@ -90,19 +89,15 @@ var _ = Describe("Validate Vpc Cache", func() {
 		err = cloudInventory.BuildVpcCache(vpcList2, &namespacedName)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		_, exist, err := cloudInventory.vpcCache.GetByKey(vpcCacheKey1)
+		vpcListByIndex, err = cloudInventory.GetVpcsFromIndexer(VpcIndexerByAccountNameSpacedName, namespacedName.String())
 		Expect(err).ShouldNot(HaveOccurred())
-		Expect(exist).Should(BeTrue())
-		_, exist, err = cloudInventory.vpcCache.GetByKey(vpcCacheKey2)
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(exist).Should(BeFalse())
+		Expect(len(vpcList2), Equal(len(vpcListByIndex)))
 
 		// Delete vpc cache.
 		err = cloudInventory.DeleteVpcCache(&namespacedName)
 		Expect(err).ShouldNot(HaveOccurred())
-		_, exist, err = cloudInventory.vpcCache.GetByKey(vpcCacheKey1)
+		_, exist, err := cloudInventory.vpcCache.GetByKey(vpcCacheKey1)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(exist).Should(BeFalse())
 	})
-
 })

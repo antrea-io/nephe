@@ -17,6 +17,7 @@ package cloud
 import (
 	"context"
 	"fmt"
+
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -95,44 +96,9 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *cloudv1a
 		Name:      selector.Spec.AccountName,
 	}
 	r.selectorToAccountMap[*selectorNamespacedName] = *accountNamespacedName
-
 	err, accPoller := r.Poller.updateAccountPoller(accountNamespacedName, selector)
 	if err != nil {
 		return err
-	}
-
-	if selector.Spec.VMSelector != nil {
-		// Indexer does not work with in-place update. Do delete->add.
-		for _, vmSelector := range accPoller.vmSelector.List() {
-			if err := accPoller.vmSelector.Delete(vmSelector.(*cloudv1alpha1.VirtualMachineSelector)); err != nil {
-				r.Log.Error(err, "unable to delete selector from indexer",
-					"VMSelector", vmSelector.(*cloudv1alpha1.VirtualMachineSelector))
-			}
-		}
-
-		for i := range selector.Spec.VMSelector {
-			if err := accPoller.vmSelector.Add(&selector.Spec.VMSelector[i]); err != nil {
-				r.Log.Error(err, "unable to add selector into indexer",
-					"VMSelector", selector.Spec.VMSelector[i])
-			}
-		}
-
-		vmList := &cloudv1alpha1.VirtualMachineList{}
-		if err := r.List(context.TODO(), vmList, client.MatchingFields{
-			virtualMachineIndexerByCloudAccount: selector.Name}, client.InNamespace(selector.Namespace)); err != nil {
-			r.Log.Error(err, "unable to get virtual machines for external entity selector",
-				"Name", selector.Name)
-		} else {
-			var vms []*cloudv1alpha1.VirtualMachine
-			for i := range vmList.Items {
-				vm := &vmList.Items[i]
-				// vm selector changed, trigger to recompute.
-				vms = append(vms, vm)
-			}
-			if err := accPoller.doVirtualMachineOperations(vms); err != nil {
-				r.Log.Error(err, "unable to update virtual machines")
-			}
-		}
 	}
 
 	cloudInterface, err := cloudprovider.GetCloudInterface(common.ProviderType(accPoller.cloudType))
@@ -147,6 +113,10 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *cloudv1a
 		r.Log.Info("selector add failed", "selector", selectorNamespacedName)
 		return err
 	}
+
+	// Stop and start goroutine in order to trigger account poller soon after CES add/update.
+	r.Log.Info("restarting poller in CES", "account", accountNamespacedName)
+	r.Poller.restartAccountPoller(accPoller)
 
 	return nil
 }

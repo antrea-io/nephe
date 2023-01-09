@@ -40,10 +40,10 @@ const (
 	VpcLabelRegion      = "region"
 )
 
-// InitInventory creates and instance of Inventory struct and initializes inventory with cache indexers.
+// InitInventory creates an instance of Inventory struct and initializes inventory with cache indexers.
 func InitInventory() *Inventory {
 	inventory := &Inventory{
-		log: logging.GetLogger("Inventory").WithName("Cloud"),
+		log: logging.GetLogger("inventory").WithName("Cloud"),
 	}
 	inventory.vpcCache = cache.NewIndexer(
 		func(obj interface{}) (string, error) {
@@ -73,11 +73,7 @@ func InitInventory() *Inventory {
 
 // BuildVpcCache using vpc list from cloud, update vpc cache(with vpcs applicable for the current cloud account).
 func (inventory *Inventory) BuildVpcCache(vpcMap map[string]*runtimev1alpha1.Vpc, namespacedName *types.NamespacedName) error {
-	vpcsInCache, err := inventory.vpcCache.ByIndex(VpcIndexerByAccountNameSpacedName, namespacedName.String())
-	if err != nil {
-		return fmt.Errorf("fetching vpc list from vpc cache failed, "+
-			"index %v, error %v", *namespacedName, err)
-	}
+	vpcsInCache, _ := inventory.vpcCache.ByIndex(VpcIndexerByAccountNameSpacedName, namespacedName.String())
 
 	// Remove vpcs in vpc cache which are not found in vpc list fetched from cloud.
 	for _, i := range vpcsInCache {

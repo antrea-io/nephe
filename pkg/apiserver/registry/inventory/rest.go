@@ -1,0 +1,184 @@
+// Copyright 2022 Antrea Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package inventory
+
+import (
+	"context"
+	"strings"
+
+	logger "github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metatable "k8s.io/apimachinery/pkg/api/meta/table"
+	"k8s.io/apimachinery/pkg/apis/meta/internalversion"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apiserver/pkg/endpoints/request"
+	"k8s.io/apiserver/pkg/registry/rest"
+
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/controllers/inventory"
+)
+
+// REST implements rest.Storage for VPC Inventory.
+type REST struct {
+	cloudInventory *inventory.Inventory
+	logger         logger.Logger
+}
+
+var (
+	_ rest.Scoper = &REST{}
+	_ rest.Getter = &REST{}
+	_ rest.Lister = &REST{}
+)
+
+// NewREST returns a REST object that will work against API services.
+func NewREST(cloudInventory *inventory.Inventory, l logger.Logger) *REST {
+	return &REST{
+		cloudInventory: cloudInventory,
+		logger:         l,
+	}
+}
+
+func (r *REST) New() runtime.Object {
+	return &runtimev1alpha1.Vpc{}
+}
+
+func (r *REST) NewList() runtime.Object {
+	return &runtimev1alpha1.VpcList{}
+}
+
+func (r *REST) Get(ctx context.Context, name string, _ *metav1.GetOptions) (runtime.Object, error) {
+	ns, ok := request.NamespaceFrom(ctx)
+	if !ok || len(ns) == 0 {
+		return nil, errors.NewBadRequest("Namespace cannot be empty.")
+	}
+	namespacedName := ns + "/" + name
+
+	objs, err := r.cloudInventory.GetVpcsFromIndexer(inventory.VpcIndexerByVpcNamespacedName, namespacedName)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(objs) == 0 {
+		return nil, errors.NewNotFound(runtimev1alpha1.Resource("vpc"), name)
+	}
+	vpc := objs[0].(*runtimev1alpha1.Vpc)
+	return vpc, nil
+}
+
+func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (runtime.Object, error) {
+	// List only supports four types of input options
+	// 1. All namespace
+	// 2. Labelselector with only the specific namespace, the only valid labelselectors are "account-name=<accountname>" and "region=<region>"
+	// 3. Fieldselector with only the specific namespace, the only valid fieldselectors is "metadata.name=<metadata.name>"
+	// 4. Specific Namespace
+	accountName := ""
+	region := ""
+	if options != nil && options.LabelSelector != nil && options.LabelSelector.String() != "" {
+		labelSelectorStrings := strings.Split(options.LabelSelector.String(), ",")
+		for _, labelSelectorString := range labelSelectorStrings {
+			labelKeyAndValue := strings.Split(labelSelectorString, "=")
+			if labelKeyAndValue[0] == "account-name" {
+				accountName = labelKeyAndValue[1]
+			} else if labelKeyAndValue[0] == "region" {
+				region = strings.ToLower(labelKeyAndValue[1])
+			} else {
+				return nil, errors.NewBadRequest("unsupported label selector, supported labels are: account-name and region")
+			}
+		}
+	}
+
+	name := ""
+	if options != nil && options.FieldSelector != nil && options.FieldSelector.String() != "" {
+		fieldSelectorStrings := strings.Split(options.FieldSelector.String(), ",")
+		for _, fieldSelectorString := range fieldSelectorStrings {
+			fieldKeyAndValue := strings.Split(fieldSelectorString, "=")
+			if fieldKeyAndValue[0] == "metadata.name" {
+				name = fieldKeyAndValue[1]
+			} else {
+				return nil, errors.NewBadRequest("unsupported field selector, supported labels is: metadata.name")
+			}
+		}
+	}
+
+	ns, _ := request.NamespaceFrom(ctx)
+	var objs []interface{}
+	if ns == "" && (accountName != "" || region != "" || name != "") {
+		return nil, errors.NewBadRequest("cannot query filter with all namepsace. Namespace should be specified")
+	}
+
+	if ns == "" {
+		objs = r.cloudInventory.GetAllVpcs()
+	} else if accountName != "" {
+		accountNameSpace := types.NamespacedName{
+			Name:      accountName,
+			Namespace: ns,
+		}
+		objs, _ = r.cloudInventory.GetVpcsFromIndexer(inventory.VpcIndexerByAccountNameSpacedName, accountNameSpace.String())
+	} else if name != "" {
+		namespacedName := types.NamespacedName{
+			Name:      name,
+			Namespace: ns,
+		}
+		objs, _ = r.cloudInventory.GetVpcsFromIndexer(inventory.VpcIndexerByVpcNamespacedName, namespacedName.String())
+	} else if region != "" {
+		namespacedRegion := types.NamespacedName{
+			Name:      region,
+			Namespace: ns,
+		}
+		objs, _ = r.cloudInventory.GetVpcsFromIndexer(inventory.VpcIndexerByNamespacedRegion, namespacedRegion.String())
+	} else {
+		objs, _ = r.cloudInventory.GetVpcsFromIndexer(inventory.VpcIndexerByNamespace, ns)
+	}
+	vpcList := &runtimev1alpha1.VpcList{}
+	for _, obj := range objs {
+		vpc := obj.(*runtimev1alpha1.Vpc)
+		vpcList.Items = append(vpcList.Items, *vpc)
+	}
+
+	return vpcList, nil
+}
+
+func (r *REST) NamespaceScoped() bool {
+	return true
+}
+
+func (r *REST) ConvertToTable(ctx context.Context, obj runtime.Object, tableOptions runtime.Object) (*metav1.Table, error) {
+	table := &metav1.Table{
+		ColumnDefinitions: []metav1.TableColumnDefinition{
+			{Name: "NAME", Type: "string", Description: "Name"},
+			{Name: "CLOUD PROVIDER", Type: "string", Description: "Cloud Provider"},
+			{Name: "REGION", Type: "string", Description: "Region"},
+		},
+	}
+	if m, err := meta.ListAccessor(obj); err == nil {
+		table.ResourceVersion = m.GetResourceVersion()
+		table.Continue = m.GetContinue()
+		table.RemainingItemCount = m.GetRemainingItemCount()
+	} else {
+		if m, err := meta.CommonAccessor(obj); err == nil {
+			table.ResourceVersion = m.GetResourceVersion()
+		}
+	}
+	var err error
+	table.Rows, err = metatable.MetaToTableRow(obj,
+		func(obj runtime.Object, m metav1.Object, name, age string) ([]interface{}, error) {
+			vpc := obj.(*runtimev1alpha1.Vpc)
+			return []interface{}{vpc.Name, vpc.Info.CloudProvider, vpc.Info.Region}, nil
+		})
+	return table, err
+}

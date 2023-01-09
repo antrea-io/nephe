@@ -87,7 +87,7 @@ func ec2VpcToInternalVpcObject(vpc *ec2.Vpc, namespace string, accountName strin
 		for _, tag := range vpc.Tags {
 			tags[*(tag.Key)] = *(tag.Value)
 		}
-		if value, found := tags["Name"]; found {
+		if value, found := tags[ResourceNameTagKey]; found {
 			cloudName = value
 		}
 	}
@@ -102,6 +102,6 @@ func ec2VpcToInternalVpcObject(vpc *ec2.Vpc, namespace string, accountName strin
 		inventory.VpcLabelRegion:      region,
 	}
 
-	return utils.GenerateInternalVpcObject(*vpc.VpcId, namespace, labelsMap, cloudName, *vpc.VpcId, tags,
-		v1alpha1.AWSCloudProvider, region, cidrs)
+	return utils.GenerateInternalVpcObject(*vpc.VpcId, namespace, labelsMap, strings.ToLower(cloudName),
+		strings.ToLower(*vpc.VpcId), tags, v1alpha1.AWSCloudProvider, region, cidrs)
 }

@@ -125,6 +125,6 @@ func ComputeVpcToInternalVpcObject(vnet *network.VirtualNetwork, namespace strin
 		inventory.VpcLabelAccountName: accountName,
 		inventory.VpcLabelRegion:      region,
 	}
-	return utils.GenerateInternalVpcObject(crdName, namespace, labelsMap, *vnet.Name, *vnet.ID, tags,
-		v1alpha1.AzureCloudProvider, region, cidrs)
+	return utils.GenerateInternalVpcObject(crdName, namespace, labelsMap, strings.ToLower(*vnet.Name),
+		strings.ToLower(*vnet.ID), tags, v1alpha1.AzureCloudProvider, region, cidrs)
 }
