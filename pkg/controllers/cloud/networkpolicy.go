@@ -1203,9 +1203,10 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler) (ingressList []*s
 				fromPort = &port
 			}
 			for _, ingress := range iRules {
-				ingress.FromPort = fromPort
-				ingress.Protocol = protocol
-				ingressList = append(ingressList, ingress)
+				i := deepcopy.Copy(ingress).(*securitygroup.IngressRule)
+				i.FromPort = fromPort
+				i.Protocol = protocol
+				ingressList = append(ingressList, i)
 			}
 		}
 		return
@@ -1263,9 +1264,10 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler) (ingressList []*s
 			fromPort = &port
 		}
 		for _, egress := range eRules {
-			egress.ToPort = fromPort
-			egress.Protocol = protocol
-			egressList = append(egressList, egress)
+			e := deepcopy.Copy(egress).(*securitygroup.EgressRule)
+			e.ToPort = fromPort
+			e.Protocol = protocol
+			egressList = append(egressList, e)
 		}
 	}
 	return
