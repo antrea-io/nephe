@@ -1243,6 +1243,7 @@ func (n *networkPolicy) update(anp *antreanetworking.NetworkPolicy, recompute bo
 			r.Log.V(1).Info("AddressGroup changes in NetworkPolicy", "old", n.Rules, "new", anp.Rules,
 				"diff", removedAddr)
 			n.Rules = anp.Rules
+			n.Generation = anp.Generation
 			if err := r.networkPolicyIndexer.Add(n); err != nil {
 				r.Log.Error(err, "Add networkPolicy indexer", "Name", n.Name)
 			}
@@ -1257,6 +1258,7 @@ func (n *networkPolicy) update(anp *antreanetworking.NetworkPolicy, recompute bo
 			}
 			addedAppliedTo, removedAppliedTo = diffAppliedToGrp(n.AppliedToGroups, anp.AppliedToGroups)
 			n.AppliedToGroups = anp.AppliedToGroups
+			n.Generation = anp.Generation
 			if err := r.networkPolicyIndexer.Add(n); err != nil {
 				r.Log.Error(err, "Add networkPolicy indexer", "Name", n.Name)
 			}
