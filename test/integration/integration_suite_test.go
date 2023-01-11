@@ -71,6 +71,7 @@ var (
 	supportBundleDir    string
 	kubeconfig          string
 	withAgent           bool
+	withWindows         bool
 	cloudProviders      string
 	clusterContext      string
 )
@@ -79,7 +80,8 @@ func init() {
 	flag.StringVar(&manifest, "manifest-path", "./config/nephe.yml", "The relative path to manifest.")
 	flag.BoolVar(&preserveSetupOnFail, "preserve-setup-on-fail", false, "Preserve the setup if a test failed.")
 	flag.StringVar(&supportBundleDir, "support-bundle-dir", "", "Support bundles are saved in this dir when specified.")
-	flag.BoolVar(&withAgent, "with-agent", false, "Using antrea-agent on VM.")
+	flag.BoolVar(&withAgent, "with-agent", false, "Using antrea-agent on Linux VM.")
+	flag.BoolVar(&withWindows, "with-windows", false, "Using antrea-agent on Windows VM")
 	flag.StringVar(&cloudProviders, "cloud-provider", string(cloudv1alpha1.AzureCloudProvider),
 		"Cloud Providers to use, separated by comma. Default is Azure.")
 	flag.StringVar(&clusterContext, "cluster-context", "", "cluster context to use. Default is empty.")
@@ -127,13 +129,19 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(c).ToNot(BeNil())
 	k8sClient = c
 
+	if withWindows {
+		// When running tests on Windows VM, withWindows and withAgent needs to be set.
+		Expect(withAgent).To(BeTrue())
+	}
+
 	if withAgent {
 		kubeCtl.SetContext(cluster)
 		err := c.Get(context.Background(), client.ObjectKey{Name: staticVMNS.Name}, &v1.Namespace{})
 		Expect(apierrors.IsNotFound(err)).To(BeTrue(), "static ns %s not created", staticVMNS.Name)
 		tmpDir, err = os.MkdirTemp("/tmp", "integration-*")
 		Expect(err).ToNot(HaveOccurred())
-		err = utils.SetAgentConfig(c, staticVMNS, cloudProviders, antreaVersion, kubeconfig, tmpDir)
+		By("Generating antrea-agent configuration files")
+		err = utils.SetAgentConfig(c, staticVMNS, cloudProviders, antreaVersion, kubeconfig, tmpDir, withWindows)
 		Expect(err).ToNot(HaveOccurred())
 	}
 
@@ -153,7 +161,7 @@ var _ = BeforeSuite(func(done Done) {
 			}
 			// Increasing the timeout to accommodate the time needed to
 			// install docker and antrea-agent on the rhel VM.
-			err := vpc.Reapply(time.Second * 600)
+			err := vpc.Reapply(time.Second*600, withAgent)
 			wgChan <- err
 		}()
 	}
@@ -164,10 +172,7 @@ var _ = BeforeSuite(func(done Done) {
 
 	nepheControllerManifest := string(bytes)
 	kubeCtl.SetContext(cluster)
-	if len(cluster) == 0 {
-		cluster = "default"
-	}
-	By(cluster + ": Check cert-manager is ready, may wait longer for docker pull")
+	By("Check cert-manager is ready, may wait longer for docker pull")
 	// Increase the timeout for now to get past CI/CD timeout at this point to see what is causing it.
 	err = utils.RestartOrWaitDeployment(k8sClient, "cert-manager", "cert-manager", time.Second*240, false)
 	Expect(err).ToNot(HaveOccurred())
@@ -176,15 +181,15 @@ var _ = BeforeSuite(func(done Done) {
 	err = utils.RestartOrWaitDeployment(k8sClient, "cert-manager-webhook", "cert-manager", time.Second*120, false)
 	Expect(err).ToNot(HaveOccurred())
 
-	By(cluster + ": Check antrea controller is ready, may wait longer for docker pull")
+	By("Check antrea controller is ready, may wait longer for docker pull")
 	err = utils.RestartOrWaitDeployment(k8sClient, "antrea-controller", "kube-system", time.Second*120, false)
 	Expect(err).ToNot(HaveOccurred())
 
-	By(cluster + ": Applying nephe controller manifest")
+	By("Applying nephe controller manifest")
 	err = kubeCtl.Apply("", []byte(nepheControllerManifest))
 	Expect(err).ToNot(HaveOccurred())
 
-	By(cluster + ": Check nephe controller is ready")
+	By("Check nephe controller is ready")
 	err = utils.RestartOrWaitDeployment(k8sClient, "nephe-controller", "nephe-system", time.Second*120, false)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -229,7 +234,7 @@ var _ = AfterSuite(func(done Done) {
 		cluster = "default"
 	}
 
-	By(cluster + ": Check for controllers' restarts")
+	By("Check for controllers' restarts")
 	err = utils.CheckRestart(kubeCtl)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -248,7 +253,7 @@ var _ = AfterSuite(func(done Done) {
 		}
 		if len(supportBundleDir) > 0 {
 			logf.Log.Info("Controllers restart detected, collect support bundles", "Cluster", *controllersCored)
-			utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, cluster, "integration"), cloudVPC, withAgent)
+			utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, cluster, "integration"), cloudVPC, withAgent, withWindows)
 		}
 	}
 
@@ -281,7 +286,7 @@ var _ = AfterSuite(func(done Done) {
 	}
 
 	if withAgent {
-		By(cluster + ": Deleting namespace " + staticVMNS.Name)
+		By("Deleting namespace " + staticVMNS.Name)
 		err = k8sClient.Delete(context.TODO(), staticVMNS)
 		Expect(err).ToNot(HaveOccurred())
 		_ = os.RemoveAll(tmpDir)

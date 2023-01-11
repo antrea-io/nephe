@@ -170,26 +170,25 @@ func (p *awsVPC) Delete(timeout time.Duration) error {
 	return nil
 }
 
-func (p *awsVPC) Reapply(timeout time.Duration) error {
+func (p *awsVPC) Reapply(timeout time.Duration, withAgent bool) error {
 	output, err := createAWSVPC(timeout)
 	if err != nil {
 		return err
 	}
 	p.output = output
-	// Wait for servers on VMs come to live.
-	for _, ip := range p.GetVMIPs() {
-		err = wait.Poll(time.Second*10, time.Second*600, func() (bool, error) {
-			cmd := exec.Command("timeout", []string{"5", "curl", "http://" + ip}...)
-			if _, err = cmd.CombinedOutput(); err != nil {
-				return false, nil
+	if !withAgent {
+		// Wait for servers on VMs come to live.
+		err = wait.Poll(time.Second*5, time.Second*240, func() (bool, error) {
+			for _, ip := range p.GetVMIPs() {
+				cmd := exec.Command("timeout", []string{"5", "curl", "http://" + ip}...)
+				if _, err = cmd.CombinedOutput(); err != nil {
+					return false, nil
+				}
 			}
 			return true, nil
 		})
-		if err != nil {
-			return fmt.Errorf("failed to run curl ip %v, err %v", ip, err)
-		}
 	}
-	return nil
+	return err
 }
 
 func (p *awsVPC) GetCloudAccountParameters(name, namespace string, cloudCluster bool) k8stemplates.CloudAccountParameters {

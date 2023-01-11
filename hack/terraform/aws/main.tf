@@ -17,7 +17,8 @@ provider "aws" {}
 
 locals {
   vpc_name        = "nephe-vpc-${var.owner}-${random_string.suffix.result}"
-  aws_vm_os_types = var.with_agent ? var.aws_vm_os_types_agented : var.aws_vm_os_types
+  aws_vm_os_types = var.with_agent ? (var.with_windows ? var.aws_vm_os_types_agented_windows : var.aws_vm_os_types_agented) : var.aws_vm_os_types
+  aws_vm_type     = var.with_windows ? var.aws_win_vm_type : var.aws_vm_type
 }
 
 data "aws_subnets" "all" {
@@ -48,6 +49,7 @@ data "template_file" user_data {
     INSTALL_VM_AGENT_WRAPPER = var.with_agent ? file(var.install_vm_agent_wrapper) : ""
     NAMESPACE                = var.namespace
     ANTREA_VERSION           = var.antrea_version
+    SSH_PUBLIC_KEY           = file(var.ssh_public_key)
   }
 }
 
@@ -120,7 +122,7 @@ module "ec2_cluster" {
   instance_count              = 1
   name                        = "${module.vpc.vpc_id}-${local.aws_vm_os_types[count.index].name}-${var.owner}"
   ami                         = data.aws_ami.aws_ami[count.index].id
-  instance_type               = var.aws_vm_type
+  instance_type               = local.aws_vm_type
   key_name                    = var.aws_key_pair_name
   monitoring                  = true
   subnet_id                   = tolist(data.aws_subnets.all.ids)[0]

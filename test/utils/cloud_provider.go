@@ -38,7 +38,7 @@ type CloudVPC interface {
 
 	VMCmd(vm string, vmCmd []string, timeout time.Duration) (string, error)
 	Delete(duration time.Duration) error
-	Reapply(duration time.Duration) error
+	Reapply(duration time.Duration, withAgent bool) error
 	GetCloudAccountParameters(name, namespace string, cloudCluster bool) k8stemplates.CloudAccountParameters
 	GetEntitySelectorParameters(name, namespace, kind string) k8stemplates.CloudEntitySelectorParameters
 }

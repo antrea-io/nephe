@@ -27,9 +27,11 @@ import (
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
+	cpautils "antrea.io/nephe/pkg/cloud-provider/utils"
 	k8stemplates "antrea.io/nephe/test/templates"
 	"antrea.io/nephe/test/utils"
 )
@@ -71,7 +73,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			if len(supportBundleDir) > 0 {
 				logf.Log.Info("Collect support bundles for test failure.")
 				fileName := utils.GenerateNameFromText(result.FullTestText, testFocus)
-				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName), cloudVPC, withAgent)
+				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName), cloudVPC, withAgent, withWindows)
 				bundleCollected = true
 			}
 			if preserveSetupOnFail {
@@ -84,7 +86,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			if !bundleCollected && err != nil && len(supportBundleDir) > 0 {
 				logf.Log.Info("Collect support bundles for clean-up failure.")
 				fileName := utils.GenerateNameFromText(result.FullTestText, testFocus)
-				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName), cloudVPC, withAgent)
+				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName), cloudVPC, withAgent, withWindows)
 			}
 
 			if !withAgent {
@@ -190,6 +192,23 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			}
 		}
 
+		verifyAntreaAgentConnection := func(vm string) {
+			err := wait.Poll(time.Second*20, time.Second*600, func() (bool, error) {
+				cmd := fmt.Sprintf("get aai virtualmachine-%s -o json -o=jsonpath={.agentConditions[0].status}", vm)
+				out, err := kubeCtl.Cmd(cmd)
+				if err != nil {
+					logf.Log.V(1).Info("Failed to get AntreaAgentInfo", "err", err)
+					return false, nil
+				}
+				if strings.Compare(out, "True") != 0 {
+					logf.Log.V(1).Info("Waiting for antrea-agent connection update", "vm", vm)
+					return false, nil
+				}
+				return true, nil
+			})
+			Expect(err).ToNot(HaveOccurred(), "timeout waiting for antrea-agent connection")
+		}
+
 		if withAgent {
 			// To Keep tests happy, add default ingress/egress deny rule
 			// TODO: Update the tests later to remove this rule
@@ -198,6 +217,17 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			}
 			err := utils.ConfigureK8s(kubeCtl, defaultANPParameters, k8stemplates.DefaultANPSetup, false)
 			Expect(err).ToNot(HaveOccurred(), "failed to add default ANP rule")
+
+			// Check antrea-agent has connected to antrea-controller.
+			for _, vpc := range cloudVPCs {
+				for i, vm := range vpc.GetVMIDs() {
+					if cloudProviders == "Azure" {
+						vmName := cpautils.GenerateShortResourceIdentifier(strings.ToLower(vm), vpc.GetVMNames()[i])
+						vm = vmName
+					}
+					verifyAntreaAgentConnection(vm)
+				}
+			}
 		}
 
 		anpParams = k8stemplates.ANPParameters{
