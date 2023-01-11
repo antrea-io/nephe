@@ -137,7 +137,8 @@ var _ = Describe("Account poller", func() {
 			err = reconciler.Poller.updateAccountPoller(&testAccountNamespacedName, selector)
 			Expect(err).To(BeNil())
 
-			reconciler.Poller.removeAccountPoller(&testAccountNamespacedName)
+			err = reconciler.Poller.removeAccountPoller(&testAccountNamespacedName)
+			Expect(err).ShouldNot(HaveOccurred())
 			_, err = reconciler.Poller.getCloudType(&testAccountNamespacedName)
 			Expect(err.Error()).Should(ContainSubstring(errorMsgAccountPollerNotFound))
 		})

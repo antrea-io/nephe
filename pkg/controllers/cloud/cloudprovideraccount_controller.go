@@ -111,9 +111,12 @@ func (r *CloudProviderAccountReconciler) processCreate(namespacedName *types.Nam
 
 func (r *CloudProviderAccountReconciler) processDelete(namespacedName *types.NamespacedName) error {
 	r.Log.V(1).Info("remove account poller", "account", namespacedName.String())
-	r.Poller.removeAccountPoller(namespacedName)
+	err := r.Poller.removeAccountPoller(namespacedName)
+	if err != nil {
+		return err
+	}
 
-	err := r.Inventory.DeleteVpcCache(namespacedName)
+	err = r.Inventory.DeleteVpcCache(namespacedName)
 	if err != nil {
 		return err
 	}

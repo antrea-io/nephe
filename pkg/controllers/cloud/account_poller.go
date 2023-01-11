@@ -143,18 +143,28 @@ func (p *Poller) addAccountPoller(cloudType cloudv1alpha1.CloudProvider, namespa
 }
 
 // removeAccountPoller removes an account poller from accPollers map.
-func (p *Poller) removeAccountPoller(namespacedName *types.NamespacedName) {
+func (p *Poller) removeAccountPoller(namespacedName *types.NamespacedName) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
 	poller, found := p.accPollers[*namespacedName]
 	if found {
+		if poller.selector != nil {
+			cloudInterface, err := cloudprovider.GetCloudInterface(common.ProviderType(poller.cloudType))
+			if err != nil {
+				return err
+			}
+			cloudInterface.RemoveAccountResourcesSelector(namespacedName, poller.selector.Name)
+		}
+
 		if poller.ch != nil {
 			close(poller.ch)
 			poller.ch = nil
 		}
 		delete(p.accPollers, *namespacedName)
 	}
+
+	return nil
 }
 
 // getCloudType fetches cloud provider type from the accountPoller object for a given account.
