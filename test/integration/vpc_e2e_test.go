@@ -30,7 +30,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
-	cloudUtils "antrea.io/nephe/pkg/cloud-provider/utils"
+	cloudutils "antrea.io/nephe/pkg/cloud-provider/utils"
 	"antrea.io/nephe/test/utils"
 )
 
@@ -52,52 +52,35 @@ var _ = Describe(fmt.Sprintf("%s,%s: VPC Inventory", focusAws, focusAzure), func
 	}
 
 	deleteNS := func() {
+		Expect(namespace).ToNot(BeNil())
 		logf.Log.Info("Delete", "namespace", namespace.Name)
 		err := k8sClient.Delete(context.TODO(), namespace)
 		Expect(err).ToNot(HaveOccurred())
 	}
 
-	verifyVpcInventory := func(vpcObjectName string, vpcID string) error {
+	// verifyInventory provides an option to get VPC by VPC CR Name or get all VPCs or get all VMs.
+	verifyInventory := func(vpcObjectName string, getAllVpcs, getAllVms, expectedEmptyOutput bool, expectedOutput string) error {
 		err := wait.Poll(time.Second*5, time.Second*30, func() (bool, error) {
-			// Find if vpc with expected Id is present in the vpc inventory.
-			cmd := fmt.Sprintf("get vpc %v -n %v -o json -o=jsonpath={.spec.Id}", vpcObjectName, namespace.Name)
-			out, err := kubeCtl.Cmd(cmd)
-			logf.Log.V(1).Info("Got VPC", "VpcID", out)
-			if err != nil {
-				logf.Log.V(1).Info("Failed to get VPC", "VPC object name", vpcObjectName, "err", err)
-				return false, nil
+			var cmd string
+			if getAllVpcs {
+				cmd = fmt.Sprintf("get vpc -n %v -o json -o json -o=jsonpath={.items}", namespace.Name)
+			} else if getAllVms {
+				cmd = fmt.Sprintf("get vm -n %v -o json -o json -o=jsonpath={.items}", namespace.Name)
+			} else {
+				// Find if expected vpcId is present in the vpc inventory.
+				cmd = fmt.Sprintf("get vpc %v -n %v -o json -o=jsonpath={.spec.Id}", vpcObjectName, namespace.Name)
 			}
-			Expect(out).To(Equal(vpcID))
-			return true, nil
-		})
-		return err
-	}
 
-	verifyNoVpcInventory := func() error {
-		err := wait.Poll(time.Second*5, time.Second*30, func() (bool, error) {
-			// Find if any VPCs are imported from cloud.
-			cmd := fmt.Sprintf("get vpc -n %v -o json -o json -o=jsonpath={.items}", namespace.Name)
 			out, err := kubeCtl.Cmd(cmd)
 			if err != nil {
-				logf.Log.V(1).Info("Failed to get VPCs", "namespace", namespace.Name, "err", err)
+				logf.Log.V(1).Info("Failed to get", "namespace", namespace.Name, "err", err)
 				return false, nil
 			}
-			Expect(out).To(ContainSubstring("[]"))
-			return true, nil
-		})
-		return err
-	}
-
-	verifyNoVmInventory := func() error {
-		err := wait.Poll(time.Second*5, time.Second*30, func() (bool, error) {
-			// Find if any vms are imported from cloud.
-			cmd := fmt.Sprintf("get vm -n %v -o json -o json -o=jsonpath={.items}", namespace.Name)
-			out, err := kubeCtl.Cmd(cmd)
-			if err != nil {
-				logf.Log.V(1).Info("Failed to get vms", "namespace", namespace.Name, "err", err)
-				return false, nil
+			if expectedEmptyOutput {
+				Expect(out).To(ContainSubstring("[]"))
+			} else {
+				Expect(out).To(Equal(expectedOutput))
 			}
-			Expect(out).To(ContainSubstring("[]"))
 			return true, nil
 		})
 		return err
@@ -123,7 +106,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: VPC Inventory", focusAws, focusAzure), func
 		case string(v1alpha1.AWSCloudProvider):
 			vpcObjectName = vpcID
 		case string(v1alpha1.AzureCloudProvider):
-			vpcObjectName = cloudUtils.GenerateShortResourceIdentifier(vpcID, vpcName)
+			vpcObjectName = cloudutils.GenerateShortResourceIdentifier(vpcID, vpcName)
 		default:
 			logf.Log.Error(nil, "invalid provider", "Provider", cloudProvider)
 		}
@@ -135,7 +118,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: VPC Inventory", focusAws, focusAzure), func
 			if len(supportBundleDir) > 0 {
 				logf.Log.Info("Collect support bundles for test failure.")
 				fileName := utils.GenerateNameFromText(result.FullTestText, testFocus)
-				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName), cloudVPC, withAgent)
+				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName), cloudVPC, withAgent, withWindows)
 			}
 			if preserveSetupOnFail {
 				logf.Log.V(1).Info("Preserve setup on failure")
@@ -143,11 +126,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: VPC Inventory", focusAws, focusAzure), func
 			}
 		}
 		preserveSetup = false
-
 		// cleanup the test configuration by deleting the namespace.
-		if namespace == nil {
-			return
-		}
 		deleteNS()
 	})
 
@@ -158,16 +137,16 @@ var _ = Describe(fmt.Sprintf("%s,%s: VPC Inventory", focusAws, focusAzure), func
 		Expect(err).ToNot(HaveOccurred())
 
 		logf.Log.V(1).Info("Get VpcID from VPC inventory", "VpcID", vpcID)
-		err = verifyVpcInventory(vpcObjectName, vpcID)
+		err = verifyInventory(vpcObjectName, false, false, false, vpcID)
 		Expect(err).ToNot(HaveOccurred(), "timeout waiting to retrieve a VPC")
 		logf.Log.V(1).Info("Verify VMs are not imported", "namespace", namespace.Name)
-		err = verifyNoVmInventory()
+		err = verifyInventory("", false, true, true, "")
 		Expect(err).ToNot(HaveOccurred(), "timeout waiting to get vm list")
 
 		By("Delete CPA and verify VPC inventory is not imported")
 		err = utils.DeleteCloudAccount(kubeCtl, accountParams)
 		Expect(err).ToNot(HaveOccurred())
-		err = verifyNoVpcInventory()
+		err = verifyInventory("", true, false, true, "")
 		Expect(err).ToNot(HaveOccurred(), "timeout waiting to get VPC list")
 	})
 	It("CES Add/Delete", func() {
@@ -187,7 +166,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: VPC Inventory", focusAws, focusAzure), func
 		Expect(err).ToNot(HaveOccurred())
 
 		logf.Log.V(1).Info("Verify VPC inventory exists after CES delete", "VpcID", vpcID)
-		err = verifyVpcInventory(vpcObjectName, vpcID)
+		err = verifyInventory(vpcObjectName, false, false, false, vpcID)
 		Expect(err).ToNot(HaveOccurred(), "timeout waiting to retrieve a VPC")
 	})
 	It("Restart Controller", func() {
@@ -200,7 +179,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: VPC Inventory", focusAws, focusAzure), func
 		Expect(err).ToNot(HaveOccurred())
 		time.Sleep(time.Second * 45)
 		logf.Log.V(1).Info("Get vpcID from VPC inventory", "VpcID", vpcID)
-		err = verifyVpcInventory(vpcObjectName, vpcID)
+		err = verifyInventory(vpcObjectName, false, false, false, vpcID)
 		Expect(err).ToNot(HaveOccurred(), "timeout waiting to retrieve a VPC")
 	})
 })

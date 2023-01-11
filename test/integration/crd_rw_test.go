@@ -152,6 +152,9 @@ var _ = Describe(fmt.Sprintf("%s,%s: Basic CRD Read-Write", focusAws, focusAzure
 		logf.Log.Info("Delete", "account", account.Name)
 		err := k8sClient.Delete(context.TODO(), account)
 		Expect(err).ToNot(HaveOccurred())
+		logf.Log.Info("Delete", "secret", secret.Name)
+		err = k8sClient.Delete(context.TODO(), secret)
+		Expect(err).ToNot(HaveOccurred())
 	}
 
 	table.DescribeTable("Modifying CRDs",

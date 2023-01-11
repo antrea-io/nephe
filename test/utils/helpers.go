@@ -200,7 +200,7 @@ func AddCloudAccount(kubeCtl *KubeCtl, params k8stemplates.CloudAccountParameter
 	case string(v1alpha1.AzureCloudProvider):
 		t = k8stemplates.AzureCloudAccount
 	default:
-		return fmt.Errorf("unknowner cloud provider %v", params.Provider)
+		return fmt.Errorf("unknown cloud provider %v", params.Provider)
 	}
 
 	// apply secret
@@ -230,7 +230,7 @@ func DeleteCloudAccount(kubeCtl *KubeCtl, params k8stemplates.CloudAccountParame
 	case string(v1alpha1.AzureCloudProvider):
 		t = k8stemplates.AzureCloudAccount
 	default:
-		return fmt.Errorf("unknowner cloud provider %v", params.Provider)
+		return fmt.Errorf("unknown cloud provider %v", params.Provider)
 	}
 
 	// secret
