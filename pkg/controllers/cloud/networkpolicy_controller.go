@@ -437,11 +437,12 @@ func (r *NetworkPolicyReconciler) processNetworkPolicy(event watch.Event) error 
 		r.Log.V(1).Info("processNetworkPolicy unknown message type", "type", event.Type, "obj", event.Object)
 		return nil
 	}
+
+	r.Log.V(1).Info("Received NetworkPolicy event", "type", event.Type, "obj", anp)
+
 	if r.processBookMark(event.Type) {
 		return nil
 	}
-
-	r.Log.V(1).Info("Received NetworkPolicy event", "type", event.Type, "obj", anp)
 	if err := r.isNetworkPolicySupported(anp); err != nil {
 		r.sendRuleRealizationStatus(anp, err)
 		return err
@@ -513,6 +514,10 @@ func (r *NetworkPolicyReconciler) Start(stop context.Context) error {
 	if err := r.resetWatchers(); err != nil {
 		r.Log.Error(err, "Start watchers")
 	}
+
+	// TODO: remove sleep and implement re-sync on controller restart
+	// sleeping 30s waiting for CPA and CES to finish re-sync on restart before processing any events.
+	time.Sleep(30 * time.Second)
 
 	r.Log.Info("Re-sync finished, listening to new events")
 	ticker := time.NewTicker(time.Second)

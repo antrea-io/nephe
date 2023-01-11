@@ -766,8 +766,10 @@ func (a *appliedToSecurityGroup) updateANPRules(r *NetworkPolicyReconciler, np *
 	nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAppliedToGrp, a.id.Name)
 	if err != nil {
 		r.Log.Error(err, "get networkPolicy indexer", "sg", a.id.Name)
-		r.sendRuleRealizationStatus(&np.NetworkPolicy, fmt.Errorf("internal error when updating rules for sg %s anp %s",
-			a.id.Name, npNamespacedName))
+		err = fmt.Errorf("internal error when updating rules for sg %s anp %s", a.id.Name, npNamespacedName)
+		r.sendRuleRealizationStatus(&np.NetworkPolicy, err)
+		a.status = err
+		_ = a.updateNPTracker(r)
 		return
 	}
 	if len(nps) == 0 {
@@ -788,6 +790,8 @@ func (a *appliedToSecurityGroup) updateANPRules(r *NetworkPolicyReconciler, np *
 	addRules, rmRules, err := a.computeRules(r, currentRuleMap, npNamespacedName)
 	if err != nil {
 		r.sendRuleRealizationStatus(&np.NetworkPolicy, err)
+		a.status = err
+		_ = a.updateNPTracker(r)
 		return
 	}
 
@@ -831,10 +835,10 @@ func (a *appliedToSecurityGroup) combineRules(nps []interface{}) []*securitygrou
 	rules := make([]*securitygroup.CloudRule, 0)
 	for _, i := range nps {
 		np := i.(*networkPolicy)
-		npNamespacedName := np.getNamespacedName()
 		if !np.rulesReady {
 			continue
 		}
+		npNamespacedName := np.getNamespacedName()
 		for _, r := range np.ingressRules {
 			rule := &securitygroup.CloudRule{
 				Rule:          deepcopy.Copy(r).(*securitygroup.IngressRule),
@@ -870,6 +874,7 @@ func (a *appliedToSecurityGroup) claimUnownedRules(r *NetworkPolicyReconciler, c
 
 		_, sameRule := currentRuleMap[ruleHash]
 		if sameRule && previousRule.NetworkPolicy == "" {
+			r.Log.V(1).Info("claim unowned rule", "rule", previousRule)
 			previousRule.NetworkPolicy = npNamespacedName
 			_ = r.cloudRuleIndexer.Update(previousRule)
 		}
@@ -913,8 +918,8 @@ func (a *appliedToSecurityGroup) computeRules(r *NetworkPolicyReconciler, curren
 	}
 
 	// add rules that are not in previous rules.
-	for _, rule := range currentRuleMap {
-		if _, found := previousRuleMap[rule.GetHash()]; !found {
+	for hash, rule := range currentRuleMap {
+		if _, found := previousRuleMap[hash]; !found {
 			addRules = append(addRules, rule)
 		}
 	}
@@ -1058,18 +1063,25 @@ func (a *appliedToSecurityGroup) getStatus() error {
 	return &InProgress{}
 }
 
+func (a *appliedToSecurityGroup) updateNPTracker(r *NetworkPolicyReconciler) error {
+	trackers, err := r.cloudResourceNPTrackerIndexer.ByIndex(cloudResourceNPTrackerIndexerByAppliedToGrp,
+		a.id.CloudResourceID.String())
+	if err != nil {
+		r.Log.Error(err, "Get cloud resource tracker indexer", "Key", a.id.Name)
+		return err
+	}
+	for _, i := range trackers {
+		tracker := i.(*cloudResourceNPTracker)
+		tracker.markDirty()
+	}
+	return nil
+}
+
 // notify calls into appliedToSecurityGroup to report operation status from cloud plug-in.
 func (a *appliedToSecurityGroup) notify(op securityGroupOperation, status error, r *NetworkPolicyReconciler) error {
 	defer func() {
-		trackers, err := r.cloudResourceNPTrackerIndexer.ByIndex(cloudResourceNPTrackerIndexerByAppliedToGrp,
-			a.id.CloudResourceID.String())
-		if err != nil {
-			r.Log.Error(err, "Get cloud resource tracker indexer", "Key", a.id.Name)
+		if err := a.updateNPTracker(r); err != nil {
 			return
-		}
-		for _, i := range trackers {
-			tracker := i.(*cloudResourceNPTracker)
-			tracker.markDirty()
 		}
 		a.notifyImpl(a, false, op, status, r)
 	}()

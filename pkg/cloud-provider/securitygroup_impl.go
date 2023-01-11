@@ -95,6 +95,11 @@ func (sg *SecurityGroupImpl) UpdateSecurityGroupRules(addressGroupIdentifier *se
 	go func() {
 		defer close(ch)
 
+		if len(addRules) == 0 && len(rmRules) == 0 {
+			ch <- nil
+			return
+		}
+
 		cloudInterface, err := getCloudInterfaceForCloudResource(addressGroupIdentifier)
 		if err != nil {
 			ch <- err

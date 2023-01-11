@@ -146,6 +146,7 @@ func (a *appliedToSecurityGroup) sync(c *securitygroup.SynchronizationContent,
 		log.Error(err, "get cloudRule indexer", "Key", a.id.CloudResourceID.String())
 		return
 	}
+	indexerUpdate := false
 	cloudRuleMap := make(map[string]*securitygroup.CloudRule)
 	for _, obj := range rules {
 		rule := obj.(*securitygroup.CloudRule)
@@ -172,14 +173,16 @@ func (a *appliedToSecurityGroup) sync(c *securitygroup.SynchronizationContent,
 		for _, sg := range iRule.FromSecurityGroups {
 			items[sg.String()]--
 		}
+		i := iRule
 		rule := &securitygroup.CloudRule{
-			Rule:         &iRule,
+			Rule:         &i,
 			AppliedToGrp: a.id.CloudResourceID.String(),
 		}
-		ruleUUID := rule.GetHash()
-		if _, found := cloudRuleMap[ruleUUID]; found {
-			delete(cloudRuleMap, ruleUUID)
+		ruleHash := rule.GetHash()
+		if _, found := cloudRuleMap[ruleHash]; found {
+			delete(cloudRuleMap, ruleHash)
 		} else {
+			indexerUpdate = true
 			_ = r.cloudRuleIndexer.Update(rule)
 		}
 	}
@@ -202,20 +205,28 @@ func (a *appliedToSecurityGroup) sync(c *securitygroup.SynchronizationContent,
 		for _, sg := range eRule.ToSecurityGroups {
 			items[sg.String()]--
 		}
+		e := eRule
 		rule := &securitygroup.CloudRule{
-			Rule:         &eRule,
+			Rule:         &e,
 			AppliedToGrp: a.id.CloudResourceID.String(),
 		}
-		ruleUUID := rule.GetHash()
-		if _, found := cloudRuleMap[ruleUUID]; found {
-			delete(cloudRuleMap, ruleUUID)
+		ruleHash := rule.GetHash()
+		if _, found := cloudRuleMap[ruleHash]; found {
+			delete(cloudRuleMap, ruleHash)
 		} else {
+			indexerUpdate = true
 			_ = r.cloudRuleIndexer.Update(rule)
 		}
 	}
 	// remove rules no longer exist in cloud from indexer.
 	for _, rule := range cloudRuleMap {
+		indexerUpdate = true
 		_ = r.cloudRuleIndexer.Delete(rule)
+	}
+
+	if indexerUpdate {
+		_ = a.updateAllRules(r)
+		return
 	}
 
 	for k, i := range items {
