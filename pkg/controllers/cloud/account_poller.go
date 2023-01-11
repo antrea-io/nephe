@@ -20,13 +20,11 @@ import (
 	"reflect"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/go-logr/logr"
 	"go.uber.org/multierr"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -151,7 +149,10 @@ func (p *Poller) removeAccountPoller(namespacedName *types.NamespacedName) {
 
 	poller, found := p.accPollers[*namespacedName]
 	if found {
-		close(poller.ch)
+		if poller.ch != nil {
+			close(poller.ch)
+			poller.ch = nil
+		}
 		delete(p.accPollers, *namespacedName)
 	}
 }
@@ -168,13 +169,13 @@ func (p *Poller) getCloudType(name *types.NamespacedName) (cloudv1alpha1.CloudPr
 }
 
 // updateAccountPoller updates accountPoller object with CES specific information.
-func (p *Poller) updateAccountPoller(name *types.NamespacedName, selector *cloudv1alpha1.CloudEntitySelector) (error, *accountPoller) {
+func (p *Poller) updateAccountPoller(name *types.NamespacedName, selector *cloudv1alpha1.CloudEntitySelector) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
 	accPoller, found := p.accPollers[*name]
 	if !found {
-		return fmt.Errorf("%s %s", errorMsgSelectorAddFail, name.String()), nil
+		return fmt.Errorf("%s %s", errorMsgSelectorAddFail, name.String())
 	}
 
 	if selector.Spec.VMSelector != nil {
@@ -204,14 +205,7 @@ func (p *Poller) updateAccountPoller(name *types.NamespacedName, selector *cloud
 	// Populate selector specific fields in the accPoller created by CPA, needed for setting owner reference in VM CR.
 	accPoller.selector = selector.DeepCopy()
 
-	return nil, accPoller
-}
-
-// restartAccountPoller stops and starts account poller goroutine.
-func (p *Poller) restartAccountPoller(accPoller *accountPoller) {
-	close(accPoller.ch)
-	accPoller.ch = make(chan struct{})
-	go wait.Until(accPoller.doAccountPoller, time.Duration(accPoller.pollIntvInSeconds)*time.Second, accPoller.ch)
+	return nil
 }
 
 func (p *accountPoller) doAccountPoller() {

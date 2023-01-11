@@ -95,29 +95,29 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *cloudv1a
 		Namespace: selector.Namespace,
 		Name:      selector.Spec.AccountName,
 	}
+	cloudType, err := r.Poller.getCloudType(accountNamespacedName)
+	if err != nil {
+		return fmt.Errorf("%s %s", errorMsgSelectorAddFail, selectorNamespacedName.Name)
+	}
+
+	cloudInterface, err := cloudprovider.GetCloudInterface(common.ProviderType(cloudType))
+	if err != nil {
+		return err
+	}
+
 	r.selectorToAccountMap[*selectorNamespacedName] = *accountNamespacedName
-	err, accPoller := r.Poller.updateAccountPoller(accountNamespacedName, selector)
-	if err != nil {
-		return err
-	}
-
-	cloudInterface, err := cloudprovider.GetCloudInterface(common.ProviderType(accPoller.cloudType))
-	if err != nil {
-		_ = r.processDelete(selectorNamespacedName)
-		return err
-	}
-
-	err = cloudInterface.AddAccountResourceSelector(accPoller.namespacedName, selector)
+	err = cloudInterface.AddAccountResourceSelector(accountNamespacedName, selector)
 	if err != nil {
 		_ = r.processDelete(selectorNamespacedName)
 		r.Log.Info("selector add failed", "selector", selectorNamespacedName)
 		return err
 	}
 
-	// Stop and start goroutine in order to trigger account poller soon after CES add/update.
-	r.Log.Info("restarting poller in CES", "account", accountNamespacedName)
-	r.Poller.restartAccountPoller(accPoller)
-
+	err = r.Poller.updateAccountPoller(accountNamespacedName, selector)
+	if err != nil {
+		_ = r.processDelete(selectorNamespacedName)
+		return err
+	}
 	return nil
 }
 

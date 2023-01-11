@@ -134,7 +134,7 @@ var _ = Describe("Account poller", func() {
 			Expect(provider).To(Not(BeNil()))
 			Expect(err).To(BeNil())
 
-			err, _ = reconciler.Poller.updateAccountPoller(&testAccountNamespacedName, selector)
+			err = reconciler.Poller.updateAccountPoller(&testAccountNamespacedName, selector)
 			Expect(err).To(BeNil())
 
 			reconciler.Poller.removeAccountPoller(&testAccountNamespacedName)

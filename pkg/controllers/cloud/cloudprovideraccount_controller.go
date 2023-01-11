@@ -110,7 +110,7 @@ func (r *CloudProviderAccountReconciler) processCreate(namespacedName *types.Nam
 }
 
 func (r *CloudProviderAccountReconciler) processDelete(namespacedName *types.NamespacedName) error {
-	r.Log.V(1).Info("Remove account poller", "account", namespacedName.String())
+	r.Log.V(1).Info("remove account poller", "account", namespacedName.String())
 	r.Poller.removeAccountPoller(namespacedName)
 
 	err := r.Inventory.DeleteVpcCache(namespacedName)
