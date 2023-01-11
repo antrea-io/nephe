@@ -57,6 +57,7 @@ func buildEc2UserIDGroupPairs(addressGroupIdentifiers []*securitygroup.CloudReso
 	return userIDGroupPairs
 }
 
+// buildEc2CloudSgNamesFromRules builds all needed ec2 security group names from address groups in rules and target appliedTo group.
 func buildEc2CloudSgNamesFromRules(addressGroupIdentifier *securitygroup.CloudResourceID, ingressRules []*securitygroup.CloudRule,
 	egressRules []*securitygroup.CloudRule) map[string]struct{} {
 	cloudSgNames := make(map[string]struct{})
@@ -195,6 +196,7 @@ func (ec2Cfg *ec2ServiceConfig) getCloudSecurityGroupsWithNameFromCloud(vpcIDs [
 	return addressGroupNameToCloudSGObj, nil
 }
 
+// realizeIngressIPPermissions invokes cloud api and realizes ingress rules on the cloud security group.
 func (ec2Cfg *ec2ServiceConfig) realizeIngressIPPermissions(cloudSgObj *ec2.SecurityGroup, rules []*securitygroup.CloudRule,
 	cloudSGNameToObj map[string]*ec2.SecurityGroup, isDelete bool) error {
 	newIpPermissions := make([]*ec2.IpPermission, 0)
@@ -236,6 +238,7 @@ func (ec2Cfg *ec2ServiceConfig) realizeIngressIPPermissions(cloudSgObj *ec2.Secu
 	return nil
 }
 
+// realizeEgressIPPermissions invokes cloud api and realizes egress rules on the cloud security group.
 func (ec2Cfg *ec2ServiceConfig) realizeEgressIPPermissions(cloudSgObj *ec2.SecurityGroup, rules []*securitygroup.CloudRule,
 	cloudSGNameToObj map[string]*ec2.SecurityGroup, isDelete bool) error {
 	newIpPermissions := make([]*ec2.IpPermission, 0)
@@ -666,19 +669,20 @@ func (c *awsCloud) CreateSecurityGroup(addressGroupIdentifier *securitygroup.Clo
 	return securityGroupObj.GroupId, nil
 }
 
+// UpdateSecurityGroupRules invokes cloud api and performs delta update on rules on the cloud using addRules and rmRules.
 func (c *awsCloud) UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResource,
 	addRules, rmRules, _ []*securitygroup.CloudRule) error {
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	addInRule := make([]*securitygroup.CloudRule, 0)
-	rmInRule := make([]*securitygroup.CloudRule, 0)
+	addIRule := make([]*securitygroup.CloudRule, 0)
+	rmIRule := make([]*securitygroup.CloudRule, 0)
 	addERule := make([]*securitygroup.CloudRule, 0)
 	rmERule := make([]*securitygroup.CloudRule, 0)
 	for _, rule := range addRules {
 		switch rule.Rule.(type) {
 		case *securitygroup.IngressRule:
-			addInRule = append(addInRule, rule)
+			addIRule = append(addIRule, rule)
 		case *securitygroup.EgressRule:
 			addERule = append(addERule, rule)
 		}
@@ -686,7 +690,7 @@ func (c *awsCloud) UpdateSecurityGroupRules(addressGroupIdentifier *securitygrou
 	for _, rule := range rmRules {
 		switch rule.Rule.(type) {
 		case *securitygroup.IngressRule:
-			rmInRule = append(rmInRule, rule)
+			rmIRule = append(rmIRule, rule)
 		case *securitygroup.EgressRule:
 			rmERule = append(rmERule, rule)
 		}
@@ -705,7 +709,7 @@ func (c *awsCloud) UpdateSecurityGroupRules(addressGroupIdentifier *securitygrou
 	ec2Service := serviceCfg.(*ec2ServiceConfig)
 
 	// build from addressGroups, cloudSgNames from rules
-	cloudSgNames := buildEc2CloudSgNamesFromRules(&addressGroupIdentifier.CloudResourceID, append(addInRule, rmInRule...),
+	cloudSgNames := buildEc2CloudSgNamesFromRules(&addressGroupIdentifier.CloudResourceID, append(addIRule, rmIRule...),
 		append(addERule, rmERule...))
 
 	// make sure all required security groups pre-exist
@@ -728,10 +732,10 @@ func (c *awsCloud) UpdateSecurityGroupRules(addressGroupIdentifier *securitygrou
 	rollbackRmEgress := false
 	defer func() {
 		if rollbackRmIngress {
-			_ = ec2Service.realizeIngressIPPermissions(cloudSGObjToAddRules, rmInRule, cloudSGNameToCloudSGObj, false)
+			_ = ec2Service.realizeIngressIPPermissions(cloudSGObjToAddRules, rmIRule, cloudSGNameToCloudSGObj, false)
 		}
 		if rollbackAddIngress {
-			_ = ec2Service.realizeIngressIPPermissions(cloudSGObjToAddRules, addInRule, cloudSGNameToCloudSGObj, true)
+			_ = ec2Service.realizeIngressIPPermissions(cloudSGObjToAddRules, addIRule, cloudSGNameToCloudSGObj, true)
 		}
 		if rollbackRmEgress {
 			_ = ec2Service.realizeEgressIPPermissions(cloudSGObjToAddRules, rmERule, cloudSGNameToCloudSGObj, false)
@@ -739,10 +743,10 @@ func (c *awsCloud) UpdateSecurityGroupRules(addressGroupIdentifier *securitygrou
 	}()
 
 	// realize security group ingress and egress permissions
-	if err = ec2Service.realizeIngressIPPermissions(cloudSGObjToAddRules, rmInRule, cloudSGNameToCloudSGObj, true); err != nil {
+	if err = ec2Service.realizeIngressIPPermissions(cloudSGObjToAddRules, rmIRule, cloudSGNameToCloudSGObj, true); err != nil {
 		return err
 	}
-	if err = ec2Service.realizeIngressIPPermissions(cloudSGObjToAddRules, addInRule, cloudSGNameToCloudSGObj, false); err != nil {
+	if err = ec2Service.realizeIngressIPPermissions(cloudSGObjToAddRules, addIRule, cloudSGNameToCloudSGObj, false); err != nil {
 		rollbackRmIngress = true
 		return err
 	}

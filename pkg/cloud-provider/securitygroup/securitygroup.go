@@ -110,15 +110,13 @@ const (
 	NepheControllerAppliedToPrefix    = NepheControllerPrefix + "at-"
 )
 
-var (
-	ProtocolNameNumMap = map[string]int{
-		"icmp":   1,
-		"igmp":   2,
-		"tcp":    6,
-		"udp":    17,
-		"icmpv6": 58,
-	}
-)
+var ProtocolNameNumMap = map[string]int{
+	"icmp":   1,
+	"igmp":   2,
+	"tcp":    6,
+	"udp":    17,
+	"icmpv6": 58,
+}
 
 var (
 	CloudResourceTypeVM  = CloudResourceType(reflect.TypeOf(cloud.VirtualMachine{}).Name())

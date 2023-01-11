@@ -263,6 +263,7 @@ func (computeCfg *computeServiceConfig) processAsgAttachDetachConcurrently(asgOb
 	return err
 }
 
+// buildEffectiveNSGSecurityRulesToApply prepares the update rule cloud api payload from internal rules.
 func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(appliedToGroupID *securitygroup.CloudResourceID,
 	ingressRules []*securitygroup.CloudRule, egressRules []*securitygroup.CloudRule, perVnetAppliedToNsgName string,
 	rgName string) ([]network.SecurityRule, error) {
@@ -324,6 +325,7 @@ func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(ap
 	return rules, nil
 }
 
+// buildEffectivePeerNSGSecurityRulesToApply prepares the update rule cloud api payload from internal rules that require peering.
 func (computeCfg *computeServiceConfig) buildEffectivePeerNSGSecurityRulesToApply(appliedToGroupID *securitygroup.CloudResourceID,
 	ingressRules []*securitygroup.CloudRule, egressRules []*securitygroup.CloudRule, perVnetAppliedToNsgName string,
 	rgName string, ruleIP *string) ([]network.SecurityRule, error) {
@@ -766,6 +768,7 @@ func (c *azureCloud) CreateSecurityGroup(addressGroupIdentifier *securitygroup.C
 	return to.StringPtr(cloudSecurityGroupID), nil
 }
 
+// UpdateSecurityGroupRules invokes cloud api and performs rule update on the cloud using security group's full set of rules in targetRules.
 func (c *azureCloud) UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResource,
 	_, _, targetRules []*securitygroup.CloudRule) error {
 	mutex.Lock()

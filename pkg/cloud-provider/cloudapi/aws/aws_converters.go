@@ -104,6 +104,7 @@ func convertFromSecurityGroupPair(cloudGroups []*ec2.UserIdGroupPair, managedSGs
 	return cloudResourceIDs
 }
 
+// convertFromIPPermissionToIngressRule converts cloud ingress rules from ec2.IpPermission to internal securitygroup.IngressRule.
 func convertFromIPPermissionToIngressRule(ipPermissions []*ec2.IpPermission, managedSGs map[string]*ec2.SecurityGroup,
 	unmanagedSGs map[string]*ec2.SecurityGroup) []securitygroup.IngressRule {
 	var ingressRules []securitygroup.IngressRule
@@ -132,6 +133,7 @@ func convertFromIPPermissionToIngressRule(ipPermissions []*ec2.IpPermission, man
 	return ingressRules
 }
 
+// convertFromIPPermissionToEgressRule converts cloud egress rules from ec2.IpPermission to internal securitygroup.EgressRule.
 func convertFromIPPermissionToEgressRule(ipPermissions []*ec2.IpPermission, managedSGs map[string]*ec2.SecurityGroup,
 	unmanagedSGs map[string]*ec2.SecurityGroup) []securitygroup.EgressRule {
 	var egressRules []securitygroup.EgressRule
