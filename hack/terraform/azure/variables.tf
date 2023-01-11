@@ -32,6 +32,10 @@ variable azure_vm_type {
   default = "Standard_DS1_v2"
 }
 
+variable azure_win_vm_type {
+  default = "Standard_D2s_v3"
+}
+
 variable "azure_vm_os_types" {
   type = list(object({
     name      = string
@@ -98,7 +102,45 @@ variable "azure_vm_os_types_agented" {
   ]
 }
 
+variable "azure_vm_os_types_agented_windows" {
+  type = list(object({
+    name      = string
+    image     = string
+    init      = string
+    rg        = string
+    gallery   = string
+  }))
+  default = [
+    {
+      name      = "win-1"
+      image     = "WindowsNepheCI"
+      init      = "init_script_windows.ps1"
+      rg        = "nephe-ci"
+      gallery   = "NepheGallery"
+    },
+    {
+      name      = "win-2"
+      image     = "WindowsNepheCI"
+      init      = "init_script_windows.ps1"
+      rg        = "nephe-ci"
+      gallery   = "NepheGallery"
+    },
+    {
+      name      = "win-3"
+      image     = "WindowsNepheCI"
+      init      = "init_script_windows.ps1"
+      rg        = "nephe-ci"
+      gallery   = "NepheGallery"
+    }
+  ]
+}
+
 variable "with_agent" {
+  type    = bool
+  default = false
+}
+
+variable "with_windows" {
   type    = bool
   default = false
 }
@@ -126,4 +168,9 @@ variable "antrea_agent_antrea_config" {
 variable "install_vm_agent_wrapper" {
   type    = string
   default = "install-vm-agent-wrapper.sh"
+}
+
+variable "username" {
+  type    = string
+  default = "azureuser"
 }

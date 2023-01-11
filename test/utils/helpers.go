@@ -263,11 +263,12 @@ func CheckCloudResourceNetworkPolicies(kubeCtl *KubeCtl, k8sClient client.Client
 	logf.Log.V(1).Info("Check NetworkPolicy on resources", "resources", ids, "nps", anps)
 
 	if withAgent {
-		err := wait.Poll(time.Second*5, time.Second*30, func() (bool, error) {
+		err := wait.Poll(time.Second*5, time.Second*60, func() (bool, error) {
 			for _, anp := range anps {
 				cmd := fmt.Sprintf("get anp %s -n %s -o json -o=jsonpath={.status.phase}", anp, namespace)
 				out, err := kubeCtl.Cmd(cmd)
 				if err != nil {
+					logf.Log.V(1).Info("Get ANP status", "err", err)
 					return false, nil
 				}
 				if strings.Compare(out, "Realized") != 0 {
@@ -405,7 +406,8 @@ func GenerateNameFromText(fullText string, focus []string) string {
 }
 
 // SetAgentConfig configures the cluster, generates agent kubeconfigs and sets terraform env vars.
-func SetAgentConfig(c client.Client, ns *corev1.Namespace, cloudProviders, antreaVersion, kubeconfig, dir string) error {
+func SetAgentConfig(c client.Client, ns *corev1.Namespace, cloudProviders, antreaVersion, kubeconfig, dir string,
+	withWindows bool) error {
 	err := c.Create(context.TODO(), ns)
 	if err != nil {
 		return fmt.Errorf("failed to create static vm namespace %+v", err)
@@ -430,7 +432,13 @@ func SetAgentConfig(c client.Client, ns *corev1.Namespace, cloudProviders, antre
 		return fmt.Errorf("failed to generate antrea vm agent kubeconfigs %+v: %s", err, string(outputBytes))
 	}
 
-	absPath, err := filepath.Abs("./hack/install-vm-agent-wrapper.sh")
+	var absPath string
+	if withWindows {
+		absPath, err = filepath.Abs("./hack/install-vm-agent-wrapper.ps1")
+	} else {
+		absPath, err = filepath.Abs("./hack/install-vm-agent-wrapper.sh")
+	}
+
 	if err != nil {
 		return err
 	}
@@ -439,6 +447,9 @@ func SetAgentConfig(c client.Client, ns *corev1.Namespace, cloudProviders, antre
 	_ = os.Setenv("TF_VAR_antrea_agent_k8s_config", dir+"/antrea-agent.kubeconfig")
 	_ = os.Setenv("TF_VAR_antrea_agent_antrea_config", dir+"/antrea-agent.antrea.kubeconfig")
 	_ = os.Setenv("TF_VAR_install_vm_agent_wrapper", absPath)
+	if withWindows {
+		_ = os.Setenv("TF_VAR_with_windows", "true")
+	}
 	return nil
 }
 
@@ -501,7 +512,7 @@ func CollectAgentInfo(kubctl *KubeCtl, dir string) error {
 }
 
 // CollectVMAgentLog collects VM agent log from all imported VMs.
-func CollectVMAgentLog(cloudVPC CloudVPC, dir string) error {
+func CollectVMAgentLog(cloudVPC CloudVPC, dir string, withWindows bool) error {
 	if cloudVPC == nil {
 		return nil
 	}
@@ -510,6 +521,10 @@ func CollectVMAgentLog(cloudVPC CloudVPC, dir string) error {
 		return err
 	}
 	vmCmd := []string{"cat", "/var/log/antrea/antrea-agent.log"}
+	if withWindows {
+		vmCmd = []string{"cat", "C:/antrea-agent/logs/antrea-agent.log"}
+	}
+
 	for _, vm := range cloudVPC.GetVMs() {
 		output, err := cloudVPC.VMCmd(vm, vmCmd, 10*time.Second)
 		if err != nil {
@@ -578,7 +593,7 @@ func CollectControllerLogs(kubctl *KubeCtl, dir string) error {
 }
 
 // CollectSupportBundle collect antrea and nephe logs.
-func CollectSupportBundle(kubctl *KubeCtl, dir string, cloudVPC CloudVPC, withAgent bool) {
+func CollectSupportBundle(kubctl *KubeCtl, dir string, cloudVPC CloudVPC, withAgent bool, withWindows bool) {
 	logf.Log.Info("Collecting support bundles")
 	if err := CollectAgentInfo(kubctl, dir); err != nil {
 		logf.Log.Error(err, "failed to collect OVS flows")
@@ -590,7 +605,7 @@ func CollectSupportBundle(kubctl *KubeCtl, dir string, cloudVPC CloudVPC, withAg
 		logf.Log.Error(err, "failed to collect CRDs")
 	}
 	if withAgent {
-		if err := CollectVMAgentLog(cloudVPC, dir); err != nil {
+		if err := CollectVMAgentLog(cloudVPC, dir, withWindows); err != nil {
 			logf.Log.Error(err, "failed to collect VM agent logs")
 		}
 	}
