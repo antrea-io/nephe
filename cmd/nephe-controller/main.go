@@ -163,7 +163,7 @@ func main() {
 			Log: logging.GetLogger("webhook").WithName("cloudentityselector-resource")}})
 
 	if err = (&apiserver.NepheControllerAPIServer{}).SetupWithManager(mgr,
-		npController.GetVirtualMachinePolicyIndexer(), logging.GetLogger("apiServer")); err != nil {
+		npController.GetVirtualMachinePolicyIndexer(), cloudInventory, logging.GetLogger("apiServer")); err != nil {
 		setupLog.Error(err, "unable to create APIServer")
 		os.Exit(1)
 	}

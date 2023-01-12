@@ -30,7 +30,9 @@ import (
 	controllerruntime "sigs.k8s.io/controller-runtime"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	vpc_inventory "antrea.io/nephe/pkg/apiserver/registry/inventory"
 	"antrea.io/nephe/pkg/apiserver/registry/virtualmachinepolicy"
+	"antrea.io/nephe/pkg/controllers/inventory"
 )
 
 var (
@@ -45,7 +47,8 @@ var (
 // ExtraConfig holds custom apiserver config.
 type ExtraConfig struct {
 	// virtual machine policy indexer.
-	vmpIndexer cache.Indexer
+	vmpIndexer     cache.Indexer
+	cloudInventory *inventory.Inventory
 }
 
 // Config defines the config for the apiserver.
@@ -54,7 +57,7 @@ type Config struct {
 	ExtraConfig   ExtraConfig
 }
 
-func NewConfig(codecs serializer.CodecFactory, indexer cache.Indexer) (*Config, error) {
+func NewConfig(codecs serializer.CodecFactory, vmpIndexer cache.Indexer, cloudInventory *inventory.Inventory) (*Config, error) {
 	recommend := genericoptions.NewRecommendedOptions("", nil)
 	serverConfig := genericapiserver.NewRecommendedConfig(codecs)
 	recommend.SecureServing.BindPort = apiServerPort
@@ -80,7 +83,8 @@ func NewConfig(codecs serializer.CodecFactory, indexer cache.Indexer) (*Config, 
 	config := &Config{
 		GenericConfig: serverConfig,
 		ExtraConfig: ExtraConfig{
-			vmpIndexer: indexer,
+			vmpIndexer:     vmpIndexer,
+			cloudInventory: cloudInventory,
 		},
 	}
 	return config, nil
@@ -103,11 +107,13 @@ func (s *NepheControllerAPIServer) Start(stop context.Context) error {
 
 func (s *NepheControllerAPIServer) SetupWithManager(
 	mgr controllerruntime.Manager,
-	indexer cache.Indexer,
+	vmpIndexer cache.Indexer,
+	cloudInventory *inventory.Inventory,
 	logger logger.Logger) error {
 	s.logger = logger
 	codecs := serializer.NewCodecFactory(mgr.GetScheme())
-	apiConfig, err := NewConfig(codecs, indexer)
+
+	apiConfig, err := NewConfig(codecs, vmpIndexer, cloudInventory)
 	if err != nil {
 		s.logger.Error(err, "unable to create APIServer config")
 		return err
@@ -155,10 +161,12 @@ func (c completedConfig) New(scheme *runtime.Scheme, codecs serializer.CodecFact
 		return nil, err
 	}
 
+	vpcStorage := vpc_inventory.NewREST(c.ExtraConfig.cloudInventory, logger.WithName("VpcInventory"))
 	vmpStorage := virtualmachinepolicy.NewREST(c.ExtraConfig.vmpIndexer, logger.WithName("VirtualMachinePolicy"))
 
 	cpGroup := genericapiserver.NewDefaultAPIGroupInfo(runtimev1alpha1.GroupVersion.Group, scheme, metav1.ParameterCodec, codecs)
 	cpv1alpha1Storage := map[string]rest.Storage{}
+	cpv1alpha1Storage["vpc"] = vpcStorage
 	cpv1alpha1Storage["virtualmachinepolicy"] = vmpStorage
 
 	cpGroup.VersionedResourcesStorageMap["v1alpha1"] = cpv1alpha1Storage
