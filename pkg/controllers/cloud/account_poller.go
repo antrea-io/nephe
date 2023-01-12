@@ -233,14 +233,15 @@ func (p *accountPoller) doAccountPoller() {
 
 	discoveredStatus, e := cloudInterface.GetAccountStatus(p.namespacedName)
 	if e != nil {
-		p.log.Info("failed to get account status", "account", p.namespacedName, "error", e)
-	} else {
-		updateAccountStatus(&account.Status, discoveredStatus)
+		(*discoveredStatus).Error = fmt.Sprintf("failed to get status, err %v", e)
 	}
 
-	e = p.Client.Status().Update(context.TODO(), account)
-	if e != nil {
-		p.log.Info("failed to update account status", "account", p.namespacedName, "err", e)
+	if account.Status != *discoveredStatus {
+		updateAccountStatus(&account.Status, discoveredStatus)
+		e = p.Client.Status().Update(context.TODO(), account)
+		if e != nil {
+			p.log.Info("failed to update account status", "account", p.namespacedName, "err", e)
+		}
 	}
 
 	vpcMap, e := cloudInterface.GetVpcInventory(p.namespacedName)
