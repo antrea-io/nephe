@@ -45,3 +45,7 @@ type VpcList struct {
 
 	Items []Vpc `json:"items"`
 }
+
+func init() {
+	SchemeBuilder.Register(&Vpc{}, &VpcList{})
+}
