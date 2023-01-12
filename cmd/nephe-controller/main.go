@@ -31,6 +31,7 @@ import (
 	"antrea.io/nephe/pkg/apiserver"
 	nephewebhook "antrea.io/nephe/pkg/apiserver/webhook"
 	controllers "antrea.io/nephe/pkg/controllers/cloud"
+	"antrea.io/nephe/pkg/controllers/inventory"
 	"antrea.io/nephe/pkg/logging"
 	// +kubebuilder:scaffold:imports
 )
@@ -79,19 +80,28 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Initialize vpc inventory cache.
+	cloudInventory := inventory.InitInventory()
+
+	// Initialize Account poller map.
+	poller := controllers.InitPollers()
+
 	if err = (&controllers.CloudEntitySelectorReconciler{
 		Client: mgr.GetClient(),
 		Log:    logging.GetLogger("controllers").WithName("CloudEntitySelector"),
 		Scheme: mgr.GetScheme(),
+		Poller: poller,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CloudEntitySelector")
 		os.Exit(1)
 	}
 
 	if err = (&controllers.CloudProviderAccountReconciler{
-		Client: mgr.GetClient(),
-		Log:    logging.GetLogger("controllers").WithName("CloudProviderAccount"),
-		Scheme: mgr.GetScheme(),
+		Client:    mgr.GetClient(),
+		Log:       logging.GetLogger("controllers").WithName("CloudProviderAccount"),
+		Scheme:    mgr.GetScheme(),
+		Inventory: cloudInventory,
+		Poller:    poller,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CloudProviderAccount")
 		os.Exit(1)
@@ -153,7 +163,7 @@ func main() {
 			Log: logging.GetLogger("webhook").WithName("cloudentityselector-resource")}})
 
 	if err = (&apiserver.NepheControllerAPIServer{}).SetupWithManager(mgr,
-		npController.GetVirtualMachinePolicyIndexer(), logging.GetLogger("apiServer")); err != nil {
+		npController.GetVirtualMachinePolicyIndexer(), cloudInventory, logging.GetLogger("apiServer")); err != nil {
 		setupLog.Error(err, "unable to create APIServer")
 		os.Exit(1)
 	}

@@ -23,6 +23,7 @@ import (
 	reflect "reflect"
 
 	v1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	v1alpha10 "antrea.io/nephe/apis/runtime/v1alpha1"
 	securitygroup "antrea.io/nephe/pkg/cloud-provider/securitygroup"
 	gomock "github.com/golang/mock/gomock"
 	types "k8s.io/apimachinery/pkg/types"
@@ -66,6 +67,20 @@ func (mr *MockCloudInterfaceMockRecorder) AddAccountResourceSelector(accNamespac
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddAccountResourceSelector", reflect.TypeOf((*MockCloudInterface)(nil).AddAccountResourceSelector), accNamespacedName, selector)
 }
 
+// AddInventoryPoller mocks base method.
+func (m *MockCloudInterface) AddInventoryPoller(accountNamespacedName *types.NamespacedName) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddInventoryPoller", accountNamespacedName)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AddInventoryPoller indicates an expected call of AddInventoryPoller.
+func (mr *MockCloudInterfaceMockRecorder) AddInventoryPoller(accountNamespacedName interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddInventoryPoller", reflect.TypeOf((*MockCloudInterface)(nil).AddInventoryPoller), accountNamespacedName)
+}
+
 // AddProviderAccount mocks base method.
 func (m *MockCloudInterface) AddProviderAccount(client client.Client, account *v1alpha1.CloudProviderAccount) error {
 	m.ctrl.T.Helper()
@@ -93,6 +108,20 @@ func (m *MockCloudInterface) CreateSecurityGroup(addressGroupIdentifier *securit
 func (mr *MockCloudInterfaceMockRecorder) CreateSecurityGroup(addressGroupIdentifier, membershipOnly interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSecurityGroup", reflect.TypeOf((*MockCloudInterface)(nil).CreateSecurityGroup), addressGroupIdentifier, membershipOnly)
+}
+
+// DeleteInventoryPoller mocks base method.
+func (m *MockCloudInterface) DeleteInventoryPoller(accountNamespacedName *types.NamespacedName) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteInventoryPoller", accountNamespacedName)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteInventoryPoller indicates an expected call of DeleteInventoryPoller.
+func (mr *MockCloudInterfaceMockRecorder) DeleteInventoryPoller(accountNamespacedName interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteInventoryPoller", reflect.TypeOf((*MockCloudInterface)(nil).DeleteInventoryPoller), accountNamespacedName)
 }
 
 // DeleteSecurityGroup mocks base method.
@@ -136,6 +165,21 @@ func (m *MockCloudInterface) GetEnforcedSecurity() []securitygroup.Synchronizati
 func (mr *MockCloudInterfaceMockRecorder) GetEnforcedSecurity() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnforcedSecurity", reflect.TypeOf((*MockCloudInterface)(nil).GetEnforcedSecurity))
+}
+
+// GetVpcInventory mocks base method.
+func (m *MockCloudInterface) GetVpcInventory(accountNamespacedName *types.NamespacedName) (map[string]*v1alpha10.Vpc, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetVpcInventory", accountNamespacedName)
+	ret0, _ := ret[0].(map[string]*v1alpha10.Vpc)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetVpcInventory indicates an expected call of GetVpcInventory.
+func (mr *MockCloudInterfaceMockRecorder) GetVpcInventory(accountNamespacedName interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVpcInventory", reflect.TypeOf((*MockCloudInterface)(nil).GetVpcInventory), accountNamespacedName)
 }
 
 // Instances mocks base method.
@@ -271,6 +315,20 @@ func (mr *MockAccountMgmtInterfaceMockRecorder) AddAccountResourceSelector(accNa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddAccountResourceSelector", reflect.TypeOf((*MockAccountMgmtInterface)(nil).AddAccountResourceSelector), accNamespacedName, selector)
 }
 
+// AddInventoryPoller mocks base method.
+func (m *MockAccountMgmtInterface) AddInventoryPoller(accountNamespacedName *types.NamespacedName) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddInventoryPoller", accountNamespacedName)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AddInventoryPoller indicates an expected call of AddInventoryPoller.
+func (mr *MockAccountMgmtInterfaceMockRecorder) AddInventoryPoller(accountNamespacedName interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddInventoryPoller", reflect.TypeOf((*MockAccountMgmtInterface)(nil).AddInventoryPoller), accountNamespacedName)
+}
+
 // AddProviderAccount mocks base method.
 func (m *MockAccountMgmtInterface) AddProviderAccount(client client.Client, account *v1alpha1.CloudProviderAccount) error {
 	m.ctrl.T.Helper()
@@ -283,6 +341,20 @@ func (m *MockAccountMgmtInterface) AddProviderAccount(client client.Client, acco
 func (mr *MockAccountMgmtInterfaceMockRecorder) AddProviderAccount(client, account interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddProviderAccount", reflect.TypeOf((*MockAccountMgmtInterface)(nil).AddProviderAccount), client, account)
+}
+
+// DeleteInventoryPoller mocks base method.
+func (m *MockAccountMgmtInterface) DeleteInventoryPoller(accountNamespacedName *types.NamespacedName) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteInventoryPoller", accountNamespacedName)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteInventoryPoller indicates an expected call of DeleteInventoryPoller.
+func (mr *MockAccountMgmtInterfaceMockRecorder) DeleteInventoryPoller(accountNamespacedName interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteInventoryPoller", reflect.TypeOf((*MockAccountMgmtInterface)(nil).DeleteInventoryPoller), accountNamespacedName)
 }
 
 // GetAccountStatus mocks base method.
@@ -298,6 +370,21 @@ func (m *MockAccountMgmtInterface) GetAccountStatus(accNamespacedName *types.Nam
 func (mr *MockAccountMgmtInterfaceMockRecorder) GetAccountStatus(accNamespacedName interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccountStatus", reflect.TypeOf((*MockAccountMgmtInterface)(nil).GetAccountStatus), accNamespacedName)
+}
+
+// GetVpcInventory mocks base method.
+func (m *MockAccountMgmtInterface) GetVpcInventory(accountNamespacedName *types.NamespacedName) (map[string]*v1alpha10.Vpc, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetVpcInventory", accountNamespacedName)
+	ret0, _ := ret[0].(map[string]*v1alpha10.Vpc)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetVpcInventory indicates an expected call of GetVpcInventory.
+func (mr *MockAccountMgmtInterfaceMockRecorder) GetVpcInventory(accountNamespacedName interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVpcInventory", reflect.TypeOf((*MockAccountMgmtInterface)(nil).GetVpcInventory), accountNamespacedName)
 }
 
 // RemoveAccountResourcesSelector mocks base method.

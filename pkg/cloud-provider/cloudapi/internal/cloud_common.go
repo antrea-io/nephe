@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/logging"
 )
 
@@ -55,6 +56,12 @@ type CloudCommonInterface interface {
 	RemoveSelector(accNamespacedName *types.NamespacedName, selectorName string)
 
 	GetStatus(accNamespacedName *types.NamespacedName) (*cloudv1alpha1.CloudProviderAccountStatus, error)
+
+	AddInventoryPoller(accountNamespacedName *types.NamespacedName) error
+
+	DeleteInventoryPoller(accountNamespacedName *types.NamespacedName) error
+
+	GetVpcInventory(accountNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.Vpc, error)
 }
 
 type cloudCommon struct {
@@ -198,6 +205,7 @@ func (c *cloudCommon) AddSelector(accountNamespacedName *types.NamespacedName, s
 		serviceCfg.setResourceFilters(selector)
 	}
 
+	// Invoke this function to force inventory scan for vms soon after CES add.
 	err := accCfg.startPeriodicInventorySync()
 	if err != nil {
 		return fmt.Errorf("inventory sync failed [ account : %v, err: %v ]", *accountNamespacedName, err)
@@ -216,8 +224,6 @@ func (c *cloudCommon) RemoveSelector(accNamespacedName *types.NamespacedName, se
 	for _, serviceCfg := range accCfg.GetServiceConfigs() {
 		serviceCfg.removeResourceFilters(selectorName)
 	}
-
-	accCfg.stopPeriodicInventorySync()
 }
 
 func (c *cloudCommon) GetStatus(accountNamespacedName *types.NamespacedName) (*cloudv1alpha1.CloudProviderAccountStatus, error) {
@@ -227,4 +233,46 @@ func (c *cloudCommon) GetStatus(accountNamespacedName *types.NamespacedName) (*c
 	}
 
 	return accCfg.GetStatus(), nil
+}
+
+// AddInventoryPoller adds a periodic poller for fetching cloud inventory.
+func (c *cloudCommon) AddInventoryPoller(accountNamespacedName *types.NamespacedName) error {
+	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
+	if !found {
+		return fmt.Errorf("account not found %v", *accountNamespacedName)
+	}
+
+	err := accCfg.startPeriodicInventorySync()
+	if err != nil {
+		return fmt.Errorf("inventory sync failed [ account : %v, err: %v ]", *accountNamespacedName, err)
+	}
+
+	return nil
+}
+
+// DeleteInventoryPoller deletes an existing poller created for polling cloud inventory along with clearing set filters.
+func (c *cloudCommon) DeleteInventoryPoller(accountNamespacedName *types.NamespacedName) error {
+	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
+	if !found {
+		return fmt.Errorf("account not found %v", *accountNamespacedName)
+	}
+
+	accCfg.stopPeriodicInventorySync()
+	return nil
+}
+
+// GetVpcInventory gets a map of vpcs applicable for the account.
+func (c *cloudCommon) GetVpcInventory(accountNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.Vpc, error) {
+	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
+	if !found {
+		return nil, fmt.Errorf("unable to find cloud account:%v", *accountNamespacedName)
+	}
+
+	serviceConfigs := accCfg.GetServiceConfigs()
+	for _, serviceConfig := range serviceConfigs {
+		if serviceConfig.getType() == CloudServiceTypeCompute {
+			return serviceConfig.getVpcInventory(), nil
+		}
+	}
+	return nil, nil
 }

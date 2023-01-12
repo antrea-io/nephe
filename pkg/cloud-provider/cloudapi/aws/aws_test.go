@@ -17,6 +17,7 @@ package aws
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"sort"
 	"time"
@@ -118,7 +119,117 @@ var _ = Describe("AWS cloud", func() {
 				mockawsCloudHelper.EXPECT().newServiceSdkConfigProvider(gomock.Any()).Return(mockawsService, nil)
 				mockawsService.EXPECT().compute().Return(mockawsEC2, nil).AnyTimes()
 			})
+			It("On account add expect cloud api call for retrieving vpc list", func() {
+				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret"}`
 
+				secret = &corev1.Secret{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      testAccountNamespacedName.Name,
+						Namespace: testAccountNamespacedName.Namespace,
+					},
+					Data: map[string][]byte{
+						"credentials": []byte(credential),
+					},
+				}
+				instanceIds := []string{}
+				vpcIDs := []string{"testVpcID01", "testVpcID02"}
+				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).AnyTimes()
+				mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).Times(0)
+				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(createVpcObject(vpcIDs), nil).AnyTimes()
+				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
+					nil).AnyTimes()
+
+				_ = fakeClient.Create(context.Background(), secret)
+				c := newAWSCloud(mockawsCloudHelper)
+
+				err := c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(BeNil())
+				accCfg, found := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
+				Expect(found).To(BeTrue())
+				Expect(accCfg).To(Not(BeNil()))
+
+				errPolAdd := c.AddInventoryPoller(&testAccountNamespacedName)
+				Expect(errPolAdd).Should(BeNil())
+
+				err = checkVpcPollResult(c, testAccountNamespacedName, vpcIDs)
+				Expect(err).Should(BeNil())
+			})
+			It("Fetch vpc list from snapshot", func() {
+				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret"}`
+
+				secret = &corev1.Secret{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      testAccountNamespacedName.Name,
+						Namespace: testAccountNamespacedName.Namespace,
+					},
+					Data: map[string][]byte{
+						"credentials": []byte(credential),
+					},
+				}
+				instanceIds := []string{}
+				vpcIDs := []string{"testVpcID01", "testVpcID02"}
+				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).AnyTimes()
+				mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).Times(0)
+				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(createVpcObject(vpcIDs), nil).AnyTimes()
+				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
+					nil).AnyTimes()
+
+				_ = fakeClient.Create(context.Background(), secret)
+				c := newAWSCloud(mockawsCloudHelper)
+
+				err := c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(BeNil())
+				accCfg, found := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
+				Expect(found).To(BeTrue())
+				Expect(accCfg).To(Not(BeNil()))
+
+				errPolAdd := c.AddInventoryPoller(&testAccountNamespacedName)
+				Expect(errPolAdd).Should(BeNil())
+
+				vpcMap, err := c.GetVpcInventory(&testAccountNamespacedName)
+				Expect(err).Should(BeNil())
+				Expect(len(vpcMap)).Should(Equal(len(vpcIDs)))
+			})
+			It("Stop cloud inventory poll on poller delete", func() {
+				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret"}`
+
+				secret = &corev1.Secret{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      testAccountNamespacedName.Name,
+						Namespace: testAccountNamespacedName.Namespace,
+					},
+					Data: map[string][]byte{
+						"credentials": []byte(credential),
+					},
+				}
+				instanceIds := []string{}
+				vpcIDs := []string{"testVpcID01", "testVpcID02"}
+				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).AnyTimes()
+				mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).Times(0)
+				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(createVpcObject(vpcIDs), nil).AnyTimes()
+				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
+					nil).AnyTimes()
+
+				_ = fakeClient.Create(context.Background(), secret)
+				c := newAWSCloud(mockawsCloudHelper)
+
+				err := c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(BeNil())
+				accCfg, found := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
+				Expect(found).To(BeTrue())
+				Expect(accCfg).To(Not(BeNil()))
+
+				errPolAdd := c.AddInventoryPoller(&testAccountNamespacedName)
+				Expect(errPolAdd).Should(BeNil())
+
+				errPolDel := c.DeleteInventoryPoller(&testAccountNamespacedName)
+				Expect(errPolDel).Should(BeNil())
+
+				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).Times(0)
+				mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).Times(0)
+				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(&ec2.DescribeVpcsOutput{}, nil).Times(0)
+				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{}, nil).Times(0)
+			})
 			It("Should discover few instances with get ALL selector using credentials", func() {
 				instanceIds := []string{"i-01", "i-02"}
 				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret"}`
@@ -207,20 +318,6 @@ var _ = Describe("AWS cloud", func() {
 
 				err = checkAccountAddSuccessCondition(c, testAccountNamespacedName, instanceIds)
 				Expect(err).Should(BeNil())
-			})
-			It("Should not call cloud api's with NO selector", func() {
-				instanceIds := []string{}
-				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).Times(0)
-				mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).Times(0)
-				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(&ec2.DescribeVpcsOutput{}, nil).Times(0)
-				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{}, nil).Times(0)
-				_ = fakeClient.Create(context.Background(), secret)
-				c := newAWSCloud(mockawsCloudHelper)
-				err := c.AddProviderAccount(fakeClient, account)
-				Expect(err).Should(BeNil())
-				accCfg, found := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
-				Expect(found).To(BeTrue())
-				Expect(accCfg).To(Not(BeNil()))
 			})
 		})
 	})
@@ -587,6 +684,32 @@ func getEc2InstanceObject(instanceIDs []string) []*ec2.Instance {
 	return ec2Instances
 }
 
+func createVpcObject(vpcIDs []string) *ec2.DescribeVpcsOutput {
+	vpcsOutput := new(ec2.DescribeVpcsOutput)
+
+	for i := range vpcIDs {
+		key := "Name"
+		value := vpcIDs[i]
+		tags := make([]*ec2.Tag, 0)
+		tag := &ec2.Tag{Key: &key, Value: &value}
+		tags = append(tags, tag)
+		cidrBlock := new(ec2.VpcCidrBlockAssociation)
+		cidr := "192.1.0.0/24"
+		cidrBlock.CidrBlock = &cidr
+		cidrBlockAssociationSet := make([]*ec2.VpcCidrBlockAssociation, 0)
+		cidrBlockAssociationSet = append(cidrBlockAssociationSet, cidrBlock)
+
+		vpc := &ec2.Vpc{
+			VpcId:                   &vpcIDs[i],
+			CidrBlockAssociationSet: cidrBlockAssociationSet,
+			Tags:                    tags,
+		}
+
+		vpcsOutput.Vpcs = append(vpcsOutput.Vpcs, vpc)
+	}
+	return vpcsOutput
+}
+
 func checkAccountAddSuccessCondition(c *awsCloud, namespacedName types.NamespacedName, ids []string) error {
 	conditionFunc := func() (done bool, e error) {
 		accCfg, found := c.cloudCommon.GetCloudAccountByName(&namespacedName)
@@ -604,6 +727,33 @@ func checkAccountAddSuccessCondition(c *awsCloud, namespacedName types.Namespace
 		sort.Strings(instanceIds)
 		sort.Strings(ids)
 		equal := reflect.DeepEqual(instanceIds, ids)
+		if equal {
+			return true, nil
+		}
+		return false, nil
+	}
+
+	return wait.PollImmediate(1*time.Second, 5*time.Second, conditionFunc)
+}
+
+func checkVpcPollResult(c *awsCloud, namespacedName types.NamespacedName, ids []string) error {
+	conditionFunc := func() (done bool, e error) {
+		accCfg, found := c.cloudCommon.GetCloudAccountByName(&namespacedName)
+		if !found {
+			return true, errors.New("failed to find account")
+		}
+
+		serviceConfig, _ := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
+		vpcs := serviceConfig.(*ec2ServiceConfig).GetCachedVpcs()
+		vpcIDs := make([]string, 0, len(vpcs))
+		for _, vpc := range vpcs {
+			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("vpc id %s", *vpc.VpcId)))
+			vpcIDs = append(vpcIDs, *vpc.VpcId)
+		}
+
+		sort.Strings(vpcIDs)
+		sort.Strings(ids)
+		equal := reflect.DeepEqual(vpcIDs, ids)
 		if equal {
 			return true, nil
 		}
