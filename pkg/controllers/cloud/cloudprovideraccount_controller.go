@@ -95,14 +95,14 @@ func (r *CloudProviderAccountReconciler) processCreate(namespacedName *types.Nam
 		return err
 	}
 
-	err = cloudInterface.AddInventoryPoller(namespacedName)
-	if err != nil {
-		return err
-	}
-
 	accPoller, preExists := r.Poller.addAccountPoller(accountCloudType, namespacedName, account, r)
 
 	if !preExists {
+		err = cloudInterface.AddInventoryPoller(namespacedName)
+		if err != nil {
+			_ = r.Poller.removeAccountPoller(namespacedName)
+			return err
+		}
 		go wait.Until(accPoller.doAccountPoller, time.Duration(accPoller.pollIntvInSeconds)*time.Second, accPoller.ch)
 	}
 
