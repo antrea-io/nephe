@@ -221,6 +221,37 @@ func AddCloudAccount(kubeCtl *KubeCtl, params k8stemplates.CloudAccountParameter
 	return nil
 }
 
+// DeleteCloudAccount deletes cloud account name from namespace.
+func DeleteCloudAccount(kubeCtl *KubeCtl, params k8stemplates.CloudAccountParameters) error {
+	var t string
+	switch params.Provider {
+	case string(v1alpha1.AWSCloudProvider):
+		t = k8stemplates.AWSCloudAccount
+	case string(v1alpha1.AzureCloudProvider):
+		t = k8stemplates.AzureCloudAccount
+	default:
+		return fmt.Errorf("unknowner cloud provider %v", params.Provider)
+	}
+
+	// secret
+	s := k8stemplates.AccountSecretParameters{
+		Name:       params.SecretRef.Name,
+		Namespace:  params.SecretRef.Namespace,
+		Key:        params.SecretRef.Key,
+		Credential: base64.StdEncoding.EncodeToString([]byte(params.SecretRef.Credential)),
+	}
+
+	// delete CloudProviderAccount
+	if err := ConfigureK8s(kubeCtl, params, t, true); err != nil {
+		return err
+	}
+
+	if err := ConfigureK8s(kubeCtl, s, k8stemplates.AccountSecret, true); err != nil {
+		return err
+	}
+	return nil
+}
+
 // ConfigureEntitySelectorAndWait configures EntitySelector for cloud resources, and wait for them to be imported.
 func ConfigureEntitySelectorAndWait(kubeCtl *KubeCtl, k8sClient client.Client, params k8stemplates.CloudEntitySelectorParameters,
 	kind string, num int, namespace string, isDelete bool) error {
