@@ -15,6 +15,9 @@
 package securitygroup
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net"
 	"reflect"
@@ -153,6 +156,10 @@ func (c *CloudResourceID) String() string {
 	return c.Name + "/" + c.Vpc
 }
 
+type Rule interface {
+	isRule()
+}
+
 // IngressRule specifies one ingress rule of cloud SecurityGroup.
 type IngressRule struct {
 	FromPort           *int
@@ -161,12 +168,31 @@ type IngressRule struct {
 	Protocol           *int
 }
 
+func (i *IngressRule) isRule() {}
+
 // EgressRule specifies one egress rule of cloud SecurityGroup.
 type EgressRule struct {
 	ToPort           *int
 	ToDstIP          []*net.IPNet
 	ToSecurityGroups []*CloudResourceID
 	Protocol         *int
+}
+
+func (e *EgressRule) isRule() {}
+
+type CloudRule struct {
+	Hash          string `json:"-"`
+	Rule          Rule
+	NetworkPolicy string `json:"-"`
+	AppliedToGrp  string
+}
+
+func (c *CloudRule) GetHash() string {
+	hash := sha1.New()
+	bytes, _ := json.Marshal(c)
+	hash.Write(bytes)
+	hashValue := hex.EncodeToString(hash.Sum(nil))
+	return hashValue
 }
 
 // SynchronizationContent returns a SecurityGroup content in cloud.
@@ -200,9 +226,7 @@ type CloudSecurityGroupAPI interface {
 	// UpdateSecurityGroupRules updates SecurityGroup name's ingress/egress rules in entirety.
 	// SecurityGroup name must already been created. SecurityGroups referred to in ingressRules and
 	// egressRules must have been already created.
-	// For appliedSecurityGroup, call with ingressRules=nil and egressRules=nil (clear rules) can be invoked
-	// only if SG has no members.
-	UpdateSecurityGroupRules(name *CloudResource, ingressRules []*IngressRule, egressRules []*EgressRule) <-chan error
+	UpdateSecurityGroupRules(name *CloudResource, addRules, rmRules, allRules []*CloudRule) <-chan error
 
 	// GetSecurityGroupSyncChan returns a channel that networkPolicy controller waits on to retrieve complete SGs
 	// configured by cloud plug-in.

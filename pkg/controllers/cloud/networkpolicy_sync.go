@@ -15,12 +15,15 @@
 package cloud
 
 import (
-	"antrea.io/nephe/apis/crd/v1alpha1"
-	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 	"context"
 	"fmt"
+
+	"github.com/mohae/deepcopy"
 	"k8s.io/apimachinery/pkg/watch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"antrea.io/nephe/apis/crd/v1alpha1"
+	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 )
 
 // sync synchronizes securityGroup memberships with cloud.
@@ -90,8 +93,7 @@ func (a *appliedToSecurityGroup) sync(c *securitygroup.SynchronizationContent,
 		np := i.(*networkPolicy)
 
 		if !np.computeRules(r) {
-			log.V(1).Info("Skip sync, networkPolicy not ready", "Name", np.Name, "Namespace", np.Namespace)
-			return
+			log.V(1).Info("np not ready", "Name", np.Name, "Namespace", np.Namespace)
 		}
 		for _, iRule := range np.ingressRules {
 			proto := 0
@@ -134,10 +136,24 @@ func (a *appliedToSecurityGroup) sync(c *securitygroup.SynchronizationContent,
 			}
 		}
 	}
+
 	if c == nil {
-		_ = a.updateRules(r)
+		_ = a.updateAllRules(r)
 		return
 	}
+
+	rules, err := r.cloudRuleIndexer.ByIndex(cloudRuleIndexerByAppliedToGrp, a.id.CloudResourceID.String())
+	if err != nil {
+		log.Error(err, "get cloudRule indexer", "Key", a.id.CloudResourceID.String())
+		return
+	}
+	indexerUpdate := false
+	cloudRuleMap := make(map[string]*securitygroup.CloudRule)
+	for _, obj := range rules {
+		rule := obj.(*securitygroup.CloudRule)
+		cloudRuleMap[rule.Hash] = rule
+	}
+
 	// Rough compare rules
 	for _, iRule := range c.IngressRules {
 		proto := 0
@@ -157,6 +173,18 @@ func (a *appliedToSecurityGroup) sync(c *securitygroup.SynchronizationContent,
 		}
 		for _, sg := range iRule.FromSecurityGroups {
 			items[sg.String()]--
+		}
+		i := deepcopy.Copy(iRule).(securitygroup.IngressRule)
+		rule := &securitygroup.CloudRule{
+			Rule:         &i,
+			AppliedToGrp: a.id.CloudResourceID.String(),
+		}
+		rule.Hash = rule.GetHash()
+		if _, found := cloudRuleMap[rule.Hash]; found {
+			delete(cloudRuleMap, rule.Hash)
+		} else {
+			indexerUpdate = true
+			_ = r.cloudRuleIndexer.Update(rule)
 		}
 	}
 	for _, eRule := range c.EgressRules {
@@ -178,15 +206,39 @@ func (a *appliedToSecurityGroup) sync(c *securitygroup.SynchronizationContent,
 		for _, sg := range eRule.ToSecurityGroups {
 			items[sg.String()]--
 		}
+		e := deepcopy.Copy(eRule).(securitygroup.EgressRule)
+		rule := &securitygroup.CloudRule{
+			Rule:         &e,
+			AppliedToGrp: a.id.CloudResourceID.String(),
+		}
+		rule.Hash = rule.GetHash()
+		if _, found := cloudRuleMap[rule.Hash]; found {
+			delete(cloudRuleMap, rule.Hash)
+		} else {
+			indexerUpdate = true
+			_ = r.cloudRuleIndexer.Update(rule)
+		}
 	}
+	// remove rules no longer exist in cloud from indexer.
+	for _, rule := range cloudRuleMap {
+		indexerUpdate = true
+		_ = r.cloudRuleIndexer.Delete(rule)
+	}
+
+	if indexerUpdate {
+		_ = a.updateAllRules(r)
+		return
+	}
+
 	for k, i := range items {
 		if i != 0 {
 			log.V(1).Info("Update appliedToSecurityGroup rules", "Name",
 				a.id.CloudResourceID.String(), "CloudSecurityGroup", c, "Item", k, "Diff", i)
-			_ = a.updateRules(r)
+			_ = a.updateAllRules(r)
 			return
 		}
 	}
+
 	// rule machines
 	if len(nps) > 0 {
 		if !a.hasRules {

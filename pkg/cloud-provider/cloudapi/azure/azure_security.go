@@ -263,8 +263,9 @@ func (computeCfg *computeServiceConfig) processAsgAttachDetachConcurrently(asgOb
 	return err
 }
 
+// buildEffectiveNSGSecurityRulesToApply prepares the update rule cloud api payload from internal rules.
 func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(appliedToGroupID *securitygroup.CloudResourceID,
-	ingressRules []*securitygroup.IngressRule, egressRules []*securitygroup.EgressRule, perVnetAppliedToNsgName string,
+	ingressRules []*securitygroup.CloudRule, egressRules []*securitygroup.CloudRule, perVnetAppliedToNsgName string,
 	rgName string) ([]network.SecurityRule, error) {
 	// get current rules for applied to SG azure NSG
 	nsgObj, err := computeCfg.nsgAPIClient.get(context.Background(), rgName, perVnetAppliedToNsgName, "")
@@ -304,12 +305,12 @@ func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(ap
 		return []network.SecurityRule{}, err
 	}
 
-	newIngressSecurityRules, err := convertIngressToAzureNsgSecurityRules(appliedToGroupID, ingressRules,
+	newIngressSecurityRules, err := convertIngressToNsgSecurityRules(appliedToGroupID, ingressRules,
 		agAsgMapByNepheControllerName, atAsgMapByNepheControllerName)
 	if err != nil {
 		return []network.SecurityRule{}, err
 	}
-	newEgressSecurityRules, err := convertEgressToAzureNsgSecurityRules(appliedToGroupID, egressRules,
+	newEgressSecurityRules, err := convertEgressToNsgSecurityRules(appliedToGroupID, egressRules,
 		agAsgMapByNepheControllerName, atAsgMapByNepheControllerName)
 	if err != nil {
 		return []network.SecurityRule{}, err
@@ -324,8 +325,9 @@ func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(ap
 	return rules, nil
 }
 
+// buildEffectivePeerNSGSecurityRulesToApply prepares the update rule cloud api payload from internal rules that require peering.
 func (computeCfg *computeServiceConfig) buildEffectivePeerNSGSecurityRulesToApply(appliedToGroupID *securitygroup.CloudResourceID,
-	ingressRules []*securitygroup.IngressRule, egressRules []*securitygroup.EgressRule, perVnetAppliedToNsgName string,
+	ingressRules []*securitygroup.CloudRule, egressRules []*securitygroup.CloudRule, perVnetAppliedToNsgName string,
 	rgName string, ruleIP *string) ([]network.SecurityRule, error) {
 	// get current rules for applied to SG azure NSG
 	nsgObj, err := computeCfg.nsgAPIClient.get(context.Background(), rgName, perVnetAppliedToNsgName, "")
@@ -364,12 +366,12 @@ func (computeCfg *computeServiceConfig) buildEffectivePeerNSGSecurityRulesToAppl
 		return []network.SecurityRule{}, err
 	}
 
-	newIngressSecurityRules, err := convertIngressToAzurePeerNsgSecurityRules(appliedToGroupID, ingressRules,
+	newIngressSecurityRules, err := convertIngressToPeerNsgSecurityRules(appliedToGroupID, ingressRules,
 		agAsgMapByNepheControllerName, ruleIP)
 	if err != nil {
 		return []network.SecurityRule{}, err
 	}
-	newEgressSecurityRules, err := convertEgressToAzurePeerNsgSecurityRules(appliedToGroupID, egressRules,
+	newEgressSecurityRules, err := convertEgressToPeerNsgSecurityRules(appliedToGroupID, egressRules,
 		agAsgMapByNepheControllerName, ruleIP)
 	if err != nil {
 		return []network.SecurityRule{}, err
@@ -626,7 +628,7 @@ func (computeCfg *computeServiceConfig) getATGroupView(nepheControllerATSGNameTo
 			continue
 		}
 		nepheControllerATSgNameToIngressRulesMap, nepheControllerATSgNameToEgressRulesMap :=
-			convertToNepheControllerRulesByAppliedToSGName(networkSecurityGroup.SecurityRules, vnetIDLowercase)
+			convertToInternalRulesByAppliedToSGName(networkSecurityGroup.SecurityRules, vnetIDLowercase)
 
 		for atSgName := range appliedToSgNameSet {
 			resource := securitygroup.CloudResource{
@@ -766,10 +768,23 @@ func (c *azureCloud) CreateSecurityGroup(addressGroupIdentifier *securitygroup.C
 	return to.StringPtr(cloudSecurityGroupID), nil
 }
 
+// UpdateSecurityGroupRules invokes cloud api and updates cloud security group with allRules.
 func (c *azureCloud) UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResource,
-	ingressRules []*securitygroup.IngressRule, egressRules []*securitygroup.EgressRule) error {
+	_, _, allRules []*securitygroup.CloudRule) error {
 	mutex.Lock()
 	defer mutex.Unlock()
+
+	ingressRules := make([]*securitygroup.CloudRule, 0)
+	egressRules := make([]*securitygroup.CloudRule, 0)
+
+	for _, rule := range allRules {
+		switch rule.Rule.(type) {
+		case *securitygroup.IngressRule:
+			ingressRules = append(ingressRules, rule)
+		case *securitygroup.EgressRule:
+			egressRules = append(egressRules, rule)
+		}
+	}
 
 	// find account managing the vnet and get compute service config
 	vnetID := addressGroupIdentifier.Vpc
@@ -836,11 +851,7 @@ func (c *azureCloud) UpdateSecurityGroupRules(addressGroupIdentifier *securitygr
 		}
 	}
 	// update network security group with rules
-	err = updateNetworkSecurityGroupRules(computeService.nsgAPIClient, location, rgName, appliedToGroupPerVnetNsgNepheControllerName, rules)
-	if err != nil {
-		return err
-	}
-	return nil
+	return updateNetworkSecurityGroupRules(computeService.nsgAPIClient, location, rgName, appliedToGroupPerVnetNsgNepheControllerName, rules)
 }
 
 func (c *azureCloud) UpdateSecurityGroupMembers(addressGroupIdentifier *securitygroup.CloudResource,
