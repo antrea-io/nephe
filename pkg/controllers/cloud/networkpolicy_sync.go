@@ -290,7 +290,7 @@ func (r *NetworkPolicyReconciler) getNICsOfCloudResources(resources []*securityg
 	for _, rsc := range resources {
 		name := rsc.Name
 		vmList := &v1alpha1.VirtualMachineList{}
-		if err := r.List(context.TODO(), vmList, client.MatchingFields{virtualMachineIndexerByCloudName: name}); err != nil {
+		if err := r.List(context.TODO(), vmList, client.MatchingFields{virtualMachineIndexerByCloudID: name}); err != nil {
 			return resources, err
 		}
 		for _, vm := range vmList.Items {
