@@ -16,14 +16,13 @@ package common
 
 import (
 	"reflect"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
-	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
-
 	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 )
 
 var (
@@ -78,9 +77,9 @@ type SecurityInterface interface {
 	// If it exists, returns the existing cloud SG ID
 	CreateSecurityGroup(addressGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) (*string, error)
 	// UpdateSecurityGroupRules updates cloud security group corresponding to provided address group with provided rules.
-	// addRules and rmRules are the changed rules, targetRules are the entire set of rules in security group.
+	// addRules and rmRules are the changed rules, allRules are rules from all nps of the security group.
 	UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResource, addRules, rmRules,
-		targetRules []*securitygroup.CloudRule) error
+		allRules []*securitygroup.CloudRule) error
 	// UpdateSecurityGroupMembers updates membership of cloud security group corresponding to provided address group. Only
 	// provided computeResources will remain attached to cloud security group. UpdateSecurityGroupMembers will also make sure that
 	// after membership update, if compute resource is no longer attached to any nephe created cloud security group, then

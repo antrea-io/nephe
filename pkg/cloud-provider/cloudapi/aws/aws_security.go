@@ -58,7 +58,7 @@ func buildEc2UserIDGroupPairs(addressGroupIdentifiers []*securitygroup.CloudReso
 }
 
 // buildEc2CloudSgNamesFromRules builds all needed ec2 security group names from address groups in rules and target appliedTo group.
-func buildEc2CloudSgNamesFromRules(addressGroupIdentifier *securitygroup.CloudResourceID, ingressRules []*securitygroup.CloudRule,
+func buildEc2CloudSgNamesFromRules(addressGroupIdentifier *securitygroup.CloudResourceID, ingressRules,
 	egressRules []*securitygroup.CloudRule) map[string]struct{} {
 	cloudSgNames := make(map[string]struct{})
 
@@ -218,24 +218,27 @@ func (ec2Cfg *ec2ServiceConfig) realizeIngressIPPermissions(cloudSgObj *ec2.Secu
 		newIpPermissions = append(newIpPermissions, ipPermission)
 	}
 
-	if len(newIpPermissions) > 0 {
-		if isDelete {
-			request := &ec2.RevokeSecurityGroupIngressInput{
-				GroupId:       cloudSgObj.GroupId,
-				IpPermissions: newIpPermissions,
-			}
-			_, err := ec2Cfg.apiClient.revokeSecurityGroupIngress(request)
-			return err
-		} else {
-			request := &ec2.AuthorizeSecurityGroupIngressInput{
-				GroupId:       cloudSgObj.GroupId,
-				IpPermissions: newIpPermissions,
-			}
-			_, err := ec2Cfg.apiClient.authorizeSecurityGroupIngress(request)
-			return err
-		}
+	if len(newIpPermissions) == 0 {
+		return nil
 	}
-	return nil
+
+	if isDelete {
+		awsPluginLogger().V(1).Info("delete ingress rules", "rules", newIpPermissions)
+		request := &ec2.RevokeSecurityGroupIngressInput{
+			GroupId:       cloudSgObj.GroupId,
+			IpPermissions: newIpPermissions,
+		}
+		_, err := ec2Cfg.apiClient.revokeSecurityGroupIngress(request)
+		return err
+	} else {
+		awsPluginLogger().V(1).Info("add ingress rules", "rules", newIpPermissions)
+		request := &ec2.AuthorizeSecurityGroupIngressInput{
+			GroupId:       cloudSgObj.GroupId,
+			IpPermissions: newIpPermissions,
+		}
+		_, err := ec2Cfg.apiClient.authorizeSecurityGroupIngress(request)
+		return err
+	}
 }
 
 // realizeEgressIPPermissions invokes cloud api and realizes egress rules on the cloud security group.
@@ -260,24 +263,27 @@ func (ec2Cfg *ec2ServiceConfig) realizeEgressIPPermissions(cloudSgObj *ec2.Secur
 		newIpPermissions = append(newIpPermissions, ipPermission)
 	}
 
-	if len(newIpPermissions) > 0 {
-		if isDelete {
-			request := &ec2.RevokeSecurityGroupEgressInput{
-				GroupId:       cloudSgObj.GroupId,
-				IpPermissions: newIpPermissions,
-			}
-			_, err := ec2Cfg.apiClient.revokeSecurityGroupEgress(request)
-			return err
-		} else {
-			request := &ec2.AuthorizeSecurityGroupEgressInput{
-				GroupId:       cloudSgObj.GroupId,
-				IpPermissions: newIpPermissions,
-			}
-			_, err := ec2Cfg.apiClient.authorizeSecurityGroupEgress(request)
-			return err
-		}
+	if len(newIpPermissions) == 0 {
+		return nil
 	}
-	return nil
+
+	if isDelete {
+		awsPluginLogger().V(1).Info("delete egress rules", "rule", newIpPermissions)
+		request := &ec2.RevokeSecurityGroupEgressInput{
+			GroupId:       cloudSgObj.GroupId,
+			IpPermissions: newIpPermissions,
+		}
+		_, err := ec2Cfg.apiClient.revokeSecurityGroupEgress(request)
+		return err
+	} else {
+		awsPluginLogger().V(1).Info("add egress rules", "rule", newIpPermissions)
+		request := &ec2.AuthorizeSecurityGroupEgressInput{
+			GroupId:       cloudSgObj.GroupId,
+			IpPermissions: newIpPermissions,
+		}
+		_, err := ec2Cfg.apiClient.authorizeSecurityGroupEgress(request)
+		return err
+	}
 }
 
 func (ec2Cfg *ec2ServiceConfig) getVpcDefaultSecurityGroupID(vpcID string) (string, error) {
@@ -669,7 +675,7 @@ func (c *awsCloud) CreateSecurityGroup(addressGroupIdentifier *securitygroup.Clo
 	return securityGroupObj.GroupId, nil
 }
 
-// UpdateSecurityGroupRules invokes cloud api and performs delta update on rules on the cloud using addRules and rmRules.
+// UpdateSecurityGroupRules invokes cloud api and updates cloud security group with addRules and rmRules.
 func (c *awsCloud) UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResource,
 	addRules, rmRules, _ []*securitygroup.CloudRule) error {
 	mutex.Lock()

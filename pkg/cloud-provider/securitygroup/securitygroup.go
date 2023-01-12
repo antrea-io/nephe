@@ -181,6 +181,7 @@ type EgressRule struct {
 func (e *EgressRule) isRule() {}
 
 type CloudRule struct {
+	Hash          string `json:"-"`
 	Rule          Rule
 	NetworkPolicy string `json:"-"`
 	AppliedToGrp  string
@@ -225,9 +226,7 @@ type CloudSecurityGroupAPI interface {
 	// UpdateSecurityGroupRules updates SecurityGroup name's ingress/egress rules in entirety.
 	// SecurityGroup name must already been created. SecurityGroups referred to in ingressRules and
 	// egressRules must have been already created.
-	// For appliedSecurityGroup, call with ingressRules=nil and egressRules=nil (clear rules) can be invoked
-	// only if SG has no members.
-	UpdateSecurityGroupRules(name *CloudResource, addRules, rmRules, targetRules []*CloudRule) <-chan error
+	UpdateSecurityGroupRules(name *CloudResource, addRules, rmRules, allRules []*CloudRule) <-chan error
 
 	// GetSecurityGroupSyncChan returns a channel that networkPolicy controller waits on to retrieve complete SGs
 	// configured by cloud plug-in.

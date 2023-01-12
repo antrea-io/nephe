@@ -228,10 +228,10 @@ func mergeIPs(src, added, removed []*net.IPNet) (list []*net.IPNet) {
 // vpcsFromGroupMembers, provided with a list of ExternalEntityReferences, returns corresponding CloudResources keyed by VPC.
 // If an ExternalEntity does not correspond to a CloudResource, its IP(s) is returned.
 func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPolicyReconciler) (
-	map[string][]*securitygroup.CloudResource, []*net.IPNet, []string, error) {
+	map[string][]*securitygroup.CloudResource, []*net.IPNet, []*types.NamespacedName, error) {
 	vpcs := make(map[string][]*securitygroup.CloudResource)
 	var ipBlocks []*net.IPNet
-	var notFoundMember []string
+	var notFoundMember []*types.NamespacedName
 	for _, m := range members {
 		if m.ExternalEntity == nil {
 			continue
@@ -240,7 +240,8 @@ func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPoli
 		key := client.ObjectKey{Name: m.ExternalEntity.Name, Namespace: m.ExternalEntity.Namespace}
 		if err := r.Get(context.TODO(), key, e); err != nil {
 			if apierrors.IsNotFound(err) {
-				notFoundMember = append(notFoundMember, m.ExternalEntity.Name)
+				namespacedName := &types.NamespacedName{Namespace: m.ExternalEntity.Namespace, Name: m.ExternalEntity.Name}
+				notFoundMember = append(notFoundMember, namespacedName)
 				continue
 			}
 			r.Log.Error(err, "Client get ExternalEntity", "key", key)
@@ -263,6 +264,8 @@ func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPoli
 			ownerAnnotations, ownerCloudProvider, err := getOwnerProperties(e, r)
 			if err != nil {
 				r.Log.Error(err, "externalEntity owner not found", "key", key, "kind", kind)
+				namespacedName := &types.NamespacedName{Namespace: m.ExternalEntity.Namespace, Name: m.ExternalEntity.Name}
+				notFoundMember = append(notFoundMember, namespacedName)
 				continue
 			}
 			vpc, ok := ownerAnnotations[cloudcommon.AnnotationCloudAssignedVPCIDKey]
@@ -343,29 +346,6 @@ func (s *securityGroupImpl) getID() securitygroup.CloudResourceID {
 // getMembers returns securityGroup members.
 func (s *securityGroupImpl) getMembers() []*securitygroup.CloudResource {
 	return s.members
-}
-
-func (s *securityGroupImpl) removeStaleMembers(stales []string, r *NetworkPolicyReconciler) {
-	if len(s.members) == 0 {
-		return
-	}
-	srcMap := make(map[string]*securitygroup.CloudResource)
-	for _, m := range s.members {
-		srcMap[m.Name] = m
-	}
-	for _, stale := range stales {
-		for k := range srcMap {
-			if strings.Contains(stale, k) {
-				r.Log.V(1).Info("Remove stale members from SecurityGroup", "Stale", stale, "Name", s.id.Name)
-				delete(srcMap, k)
-			}
-		}
-	}
-	var members []*securitygroup.CloudResource
-	for _, m := range srcMap {
-		members = append(members, m)
-	}
-	s.members = members
 }
 
 // addImpl invokes cloud plug-in to create a SecurityGroup.
@@ -677,6 +657,29 @@ func (a *addrSecurityGroup) notifyNetworkPolicyChange(r *NetworkPolicyReconciler
 	}
 }
 
+func (a *addrSecurityGroup) removeStaleMembers(stales []*types.NamespacedName, r *NetworkPolicyReconciler) {
+	if len(a.members) == 0 {
+		return
+	}
+	srcMap := make(map[string]*securitygroup.CloudResource)
+	for _, m := range a.members {
+		srcMap[m.Name] = m
+	}
+	for _, stale := range stales {
+		for k := range srcMap {
+			if strings.Contains(stale.Name, k) {
+				r.Log.V(1).Info("Remove stale members from SecurityGroup", "Stale", stale, "Name", a.id.Name)
+				delete(srcMap, k)
+			}
+		}
+	}
+	var members []*securitygroup.CloudResource
+	for _, m := range srcMap {
+		members = append(members, m)
+	}
+	a.members = members
+}
+
 // appliedToSecurityGroup contains information to create a cloud appliedToSecurityGroup.
 type appliedToSecurityGroup struct {
 	securityGroupImpl
@@ -777,13 +780,13 @@ func (a *appliedToSecurityGroup) updateANPRules(r *NetworkPolicyReconciler, np *
 		return
 	}
 	// get full set of current rules for this security group.
-	targetRules := a.combineRules(nps)
+	allRules := a.combineRules(nps)
 
 	// get current rules for given np to compute rule update delta.
 	rules := a.combineRules([]interface{}{np})
 	currentRuleMap := make(map[string]*securitygroup.CloudRule)
 	for _, rule := range rules {
-		currentRuleMap[rule.GetHash()] = rule
+		currentRuleMap[rule.Hash] = rule
 	}
 
 	a.claimUnownedRules(r, currentRuleMap, npNamespacedName)
@@ -795,9 +798,10 @@ func (a *appliedToSecurityGroup) updateANPRules(r *NetworkPolicyReconciler, np *
 		return
 	}
 
+	// TODO: do not invoke cloud plugin if no rules to update.
 	r.Log.V(1).Info("AppliedToSecurityGroup update rules for anp", "anp", np.Name, "name", a.id.Name,
 		"rules", rules)
-	ch := securitygroup.CloudSecurityGroup.UpdateSecurityGroupRules(&a.id, addRules, rmRules, targetRules)
+	ch := securitygroup.CloudSecurityGroup.UpdateSecurityGroupRules(&a.id, addRules, rmRules, allRules)
 
 	go func() {
 		err = <-ch
@@ -809,7 +813,7 @@ func (a *appliedToSecurityGroup) updateANPRules(r *NetworkPolicyReconciler, np *
 				_ = r.cloudRuleIndexer.Delete(rule)
 			}
 		}
-		r.updateRuleRealizationStatus(np, err)
+		r.updateRuleRealizationStatus(a.id.CloudResourceID.String(), np, err)
 		r.cloudResponse <- &securityGroupStatus{sg: a, op: securityGroupOperationUpdateRules, err: err}
 	}()
 }
@@ -845,6 +849,7 @@ func (a *appliedToSecurityGroup) combineRules(nps []interface{}) []*securitygrou
 				NetworkPolicy: npNamespacedName,
 				AppliedToGrp:  a.id.CloudResourceID.String(),
 			}
+			rule.Hash = rule.GetHash()
 			rules = append(rules, rule)
 		}
 		for _, r := range np.egressRules {
@@ -853,6 +858,7 @@ func (a *appliedToSecurityGroup) combineRules(nps []interface{}) []*securitygrou
 				NetworkPolicy: npNamespacedName,
 				AppliedToGrp:  a.id.CloudResourceID.String(),
 			}
+			rule.Hash = rule.GetHash()
 			rules = append(rules, rule)
 		}
 	}
@@ -870,9 +876,10 @@ func (a *appliedToSecurityGroup) claimUnownedRules(r *NetworkPolicyReconciler, c
 
 	for _, obj := range previousRules {
 		previousRule := obj.(*securitygroup.CloudRule)
-		ruleHash := previousRule.GetHash()
 
-		_, sameRule := currentRuleMap[ruleHash]
+		// rules that are synced from the cloud do not have np associated with them.
+		// here we claim any rules with no np associated that also match current np rules, since those rules are already in cloud.
+		_, sameRule := currentRuleMap[previousRule.Hash]
 		if sameRule && previousRule.NetworkPolicy == "" {
 			r.Log.V(1).Info("claim unowned rule", "rule", previousRule)
 			previousRule.NetworkPolicy = npNamespacedName
@@ -881,12 +888,9 @@ func (a *appliedToSecurityGroup) claimUnownedRules(r *NetworkPolicyReconciler, c
 	}
 }
 
-// computeRules computes the rule update delta of an anp by comparing current rules in np and previous rules in indexer.
+// computeRules computes the rule update delta of an ANP by comparing current rules in np and previous rules in indexer.
 func (a *appliedToSecurityGroup) computeRules(r *NetworkPolicyReconciler, currentRuleMap map[string]*securitygroup.CloudRule,
 	npNamespacedName string) ([]*securitygroup.CloudRule, []*securitygroup.CloudRule, error) {
-	addRules := make([]*securitygroup.CloudRule, 0)
-	removeRules := make([]*securitygroup.CloudRule, 0)
-
 	previousRules, err := r.cloudRuleIndexer.ByIndex(cloudRuleIndexerByAppliedToGrp, a.id.CloudResourceID.String())
 	if err != nil {
 		r.Log.Error(err, "get cloudRule indexer", "sg", a.id.CloudResourceID.String())
@@ -898,15 +902,14 @@ func (a *appliedToSecurityGroup) computeRules(r *NetworkPolicyReconciler, curren
 	// no rule with same np found                     -> rule removed, delete.
 	// same rule with different np found              -> duplicate rules with other np, err.
 	// no rule with different np found                -> no-op.
-	previousRuleMap := make(map[string]*securitygroup.CloudRule)
+	addRules := make([]*securitygroup.CloudRule, 0)
+	removeRules := make([]*securitygroup.CloudRule, 0)
 	for _, obj := range previousRules {
 		previousRule := obj.(*securitygroup.CloudRule)
-		ruleHash := previousRule.GetHash()
 		// build previous rule map as we go.
-		previousRuleMap[ruleHash] = previousRule
 
 		sameNP := previousRule.NetworkPolicy == npNamespacedName
-		currentRule, sameRule := currentRuleMap[ruleHash]
+		currentRule, sameRule := currentRuleMap[previousRule.Hash]
 		if sameRule && !sameNP {
 			err = fmt.Errorf("duplicate rules with anp %s", previousRule.NetworkPolicy)
 			r.Log.Error(err, "unable to compute rules", "rule", currentRule, "anp", npNamespacedName)
@@ -914,63 +917,65 @@ func (a *appliedToSecurityGroup) computeRules(r *NetworkPolicyReconciler, curren
 		}
 		if !sameRule && sameNP {
 			removeRules = append(removeRules, previousRule)
+			continue
+		}
+		if sameRule && sameNP {
+			delete(currentRuleMap, previousRule.Hash)
 		}
 	}
 
 	// add rules that are not in previous rules.
-	for hash, rule := range currentRuleMap {
-		if _, found := previousRuleMap[hash]; !found {
-			addRules = append(addRules, rule)
-		}
+	for _, rule := range currentRuleMap {
+		addRules = append(addRules, rule)
 	}
 
 	return addRules, removeRules, nil
 }
 
-// checkRealization checks for exact match between desired rule state in given np and realized rule state in indexer.
+// checkRealization checks for exact match between desired rule state in given np and realized rule state in cloudRuleIndexer.
 func (a *appliedToSecurityGroup) checkRealization(r *NetworkPolicyReconciler, np *networkPolicy) error {
-	currentRules, err := r.cloudRuleIndexer.ByIndex(cloudRuleIndexerByAppliedToGrp, a.id.CloudResourceID.String())
+	realizedRules, err := r.cloudRuleIndexer.ByIndex(cloudRuleIndexerByAppliedToGrp, a.id.CloudResourceID.String())
 	if err != nil {
 		return err
 	}
 
-	currentRuleMap := make(map[string]*securitygroup.CloudRule)
-	for _, obj := range currentRules {
+	realizedRuleMap := make(map[string]*securitygroup.CloudRule)
+	for _, obj := range realizedRules {
 		rule := obj.(*securitygroup.CloudRule)
 		// sg might have rules from other nps, ignore those rules.
 		if rule.NetworkPolicy != np.getNamespacedName() {
 			continue
 		}
-		currentRuleMap[rule.GetHash()] = rule
+		realizedRuleMap[rule.Hash] = rule
 	}
 
 	for _, irule := range np.ingressRules {
-		rule := securitygroup.CloudRule{
+		desiredRule := securitygroup.CloudRule{
 			Rule:         irule,
 			AppliedToGrp: a.id.CloudResourceID.String(),
 		}
-		ruleHash := rule.GetHash()
-		_, found := currentRuleMap[ruleHash]
+		desiredRule.Hash = desiredRule.GetHash()
+		_, found := realizedRuleMap[desiredRule.Hash]
 		if !found {
-			return fmt.Errorf("ingress rule not realized %+v", rule)
+			return fmt.Errorf("ingress rule not realized %+v", desiredRule)
 		}
-		delete(currentRuleMap, ruleHash)
+		delete(realizedRuleMap, desiredRule.Hash)
 	}
 	for _, erule := range np.egressRules {
-		rule := securitygroup.CloudRule{
+		desiredRule := securitygroup.CloudRule{
 			Rule:         erule,
 			AppliedToGrp: a.id.CloudResourceID.String(),
 		}
-		ruleHash := rule.GetHash()
-		_, found := currentRuleMap[ruleHash]
+		desiredRule.Hash = desiredRule.GetHash()
+		_, found := realizedRuleMap[desiredRule.Hash]
 		if !found {
-			return fmt.Errorf("egress rule not realized %+v", rule)
+			return fmt.Errorf("egress rule not realized %+v", desiredRule)
 		}
-		delete(currentRuleMap, ruleHash)
+		delete(realizedRuleMap, desiredRule.Hash)
 	}
 
-	if len(currentRuleMap) != 0 {
-		return fmt.Errorf("unexpected rules in cloud %+v", currentRuleMap)
+	if len(realizedRuleMap) != 0 {
+		return fmt.Errorf("unexpected rules in cloud %+v", realizedRuleMap)
 	}
 	return nil
 }
@@ -1109,7 +1114,7 @@ func (a *appliedToSecurityGroup) notify(op securityGroupOperation, status error,
 	case securityGroupOperationUpdateMembers:
 		a.hasMembers = true
 	case securityGroupOperationUpdateRules:
-		// AppliedToSecurityGroup added rules, now update rule realization state, addrGroup references and add members.
+		// AppliedToSecurityGroup added rules, now update addrGroup references and add members.
 		if err := a.updateAddrGroupReference(r); err != nil {
 			return err
 		}
@@ -1120,6 +1125,7 @@ func (a *appliedToSecurityGroup) notify(op securityGroupOperation, status error,
 	case securityGroupOperationClearMembers:
 		// AppliedToSecurityGroup has cleared members, clear rules.
 		a.hasMembers = false
+		// TODO: check if updateAllRules is required here.
 		if a.hasRules {
 			return a.updateAllRules(r)
 		}
@@ -1149,6 +1155,37 @@ func (a *appliedToSecurityGroup) notifyNetworkPolicyChange(r *NetworkPolicyRecon
 			r.Log.Error(err, "Delete securityGroup", "Name", a.id.Name)
 		}
 	}
+}
+
+func (a *appliedToSecurityGroup) removeStaleMembers(stales []*types.NamespacedName, r *NetworkPolicyReconciler) {
+	if len(a.members) == 0 {
+		return
+	}
+	srcMap := make(map[string]*securitygroup.CloudResource)
+	for _, m := range a.members {
+		srcMap[m.Name] = m
+	}
+	for _, stale := range stales {
+		for k := range srcMap {
+			if strings.Contains(stale.Name, k) {
+				r.Log.V(1).Info("Remove stale members from SecurityGroup", "Stale", stale, "Name", a.id.Name)
+				if tracker := r.getCloudResourceNPTracker(srcMap[k], false); tracker != nil {
+					_ = tracker.update(a, true, r)
+				}
+				vmNamespacedName := types.NamespacedName{Name: srcMap[k].Name, Namespace: stale.Namespace}
+				if obj, found, _ := r.virtualMachinePolicyIndexer.GetByKey(vmNamespacedName.String()); found {
+					r.Log.V(1).Info("Delete ANP status", "resource", vmNamespacedName.String())
+					_ = r.virtualMachinePolicyIndexer.Delete(obj)
+				}
+				delete(srcMap, k)
+			}
+		}
+	}
+	var members []*securitygroup.CloudResource
+	for _, m := range srcMap {
+		members = append(members, m)
+	}
+	a.members = members
 }
 
 // networkPolicyRule describe an Antrea networkPolicy rule.

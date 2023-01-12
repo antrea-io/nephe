@@ -459,10 +459,10 @@ var _ = Describe("NetworkPolicy", func() {
 				ruleCall = mockCloudSecurityAPI.EXPECT().UpdateSecurityGroupRules(
 					grpID, mock.Any(), mock.Any(), mock.Any()).
 					Return(ch).After(createCall).MaxTimes(sgConfig.appSgRuleTimes).
-					Do(func(id *securitygroup.CloudResource, add, rm, target []*securitygroup.CloudRule) {
+					Do(func(id *securitygroup.CloudResource, add, rm, all []*securitygroup.CloudRule) {
 						in := make([]*securitygroup.IngressRule, 0)
 						eg := make([]*securitygroup.EgressRule, 0)
-						for _, rule := range target {
+						for _, rule := range all {
 							switch rule.Rule.(type) {
 							case *securitygroup.IngressRule:
 								in = append(in, rule.Rule.(*securitygroup.IngressRule))
@@ -481,10 +481,10 @@ var _ = Describe("NetworkPolicy", func() {
 				ruleCall = mockCloudSecurityAPI.EXPECT().UpdateSecurityGroupRules(
 					grpID, mock.Any(), mock.Any(), mock.Any()).
 					Return(ch).After(createCall).Times(sgConfig.appSgRuleTimes).
-					Do(func(id *securitygroup.CloudResource, add, rm, target []*securitygroup.CloudRule) {
+					Do(func(id *securitygroup.CloudResource, add, rm, all []*securitygroup.CloudRule) {
 						in := make([]*securitygroup.IngressRule, 0)
 						eg := make([]*securitygroup.EgressRule, 0)
-						for _, rule := range target {
+						for _, rule := range all {
 							switch rule.Rule.(type) {
 							case *securitygroup.IngressRule:
 								in = append(in, rule.Rule.(*securitygroup.IngressRule))
@@ -648,10 +648,10 @@ var _ = Describe("NetworkPolicy", func() {
 				mockCloudSecurityAPI.EXPECT().UpdateSecurityGroupRules(
 					grpID, mock.Any(), mock.Any(), mock.Any()).
 					Return(ch).
-					Do(func(_ *securitygroup.CloudResource, add, rm, target []*securitygroup.CloudRule) {
+					Do(func(_ *securitygroup.CloudResource, add, rm, all []*securitygroup.CloudRule) {
 						in := make([]*securitygroup.IngressRule, 0)
 						eg := make([]*securitygroup.EgressRule, 0)
-						for _, rule := range target {
+						for _, rule := range all {
 							switch rule.Rule.(type) {
 							case *securitygroup.IngressRule:
 								in = append(in, rule.Rule.(*securitygroup.IngressRule))

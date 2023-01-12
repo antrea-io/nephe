@@ -33,8 +33,8 @@ type PendingItem interface {
 	// RunOrDeletePendingItem returns run as true, if this item can be run;
 	// returns delete as true, if this item shall be removed.
 	RunOrDeletePendingItem(id string, context interface{}) (run bool, delete bool)
-	// DeletePendingItem cleans up item state when removing item from pending queue.
-	DeletePendingItem()
+	// ClearPendingState clears item state when removing item from pending queue.
+	ClearPendingState()
 }
 
 type countingPendingItem struct {
@@ -72,7 +72,7 @@ func (q *PendingItemQueue) Add(id string, p PendingItem) {
 // Remove a pending item from queue.
 func (q *PendingItemQueue) Remove(id string) {
 	if p, ok := q.items[id]; ok {
-		p.DeletePendingItem()
+		p.ClearPendingState()
 	}
 	delete(q.items, id)
 }
@@ -242,7 +242,7 @@ func (p *pendingGroup) RunOrDeletePendingItem(id string, context interface{}) (r
 	return
 }
 
-func (p *pendingGroup) DeletePendingItem() {}
+func (p *pendingGroup) ClearPendingState() {}
 
 func (s *securityGroupImpl) runPendingItemImpl(c cloudSecurityGroup, memberOnly bool, r *NetworkPolicyReconciler) bool {
 	if s.retryOp == nil {
@@ -315,8 +315,8 @@ func (s *securityGroupImpl) UpdatePendingItem(id string, context interface{}, up
 	log.V(1).Info("Update security group", "Name", id, "retryOp", opStr, "inProgress", s.retryInProgress)
 }
 
-// DeletePendingItem clears retryOp state on removing pending security group item.
-func (s *securityGroupImpl) DeletePendingItem() {
+// ClearPendingState clears retryOp state when removing pending security group item.
+func (s *securityGroupImpl) ClearPendingState() {
 	s.retryOp = nil
 }
 

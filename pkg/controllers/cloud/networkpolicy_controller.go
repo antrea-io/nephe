@@ -130,12 +130,13 @@ func (r *NetworkPolicyReconciler) isNetworkPolicySupported(anp *antreanetworking
 }
 
 // updateRuleRealizationStatus checks rule realization status on all appliedTo groups for a np and send status.
-func (r *NetworkPolicyReconciler) updateRuleRealizationStatus(np *networkPolicy, err error) {
+func (r *NetworkPolicyReconciler) updateRuleRealizationStatus(currentSGID string, np *networkPolicy, err error) {
 	if err != nil {
 		r.sendRuleRealizationStatus(&np.NetworkPolicy, err)
 		return
 	}
 
+	// current sg update rule success, check other sg rule realization status.
 	for _, at := range np.AppliedToGroups {
 		sgs, e := r.appliedToSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, at)
 		if e != nil {
@@ -144,8 +145,11 @@ func (r *NetworkPolicyReconciler) updateRuleRealizationStatus(np *networkPolicy,
 		}
 		for _, obj := range sgs {
 			sg := obj.(*appliedToSecurityGroup)
+			if sg.id.CloudResourceID.String() == currentSGID {
+				continue
+			}
+			// let other sgs handle their update status.
 			e = sg.checkRealization(r, np)
-			// current update rule success but other sgs are not, do nothing and let other sgs handle their update status.
 			if e != nil {
 				return
 			}
@@ -238,7 +242,7 @@ func (r *NetworkPolicyReconciler) processMemberGrp(name string, eventType watch.
 
 	var addedMembers, removedMembers map[string][]*securitygroup.CloudResource
 	var addedIPs, removedIPs []*net.IPNet
-	var notFoundMember []string
+	var notFoundMember []*types.NamespacedName
 	if eventType == watch.Added {
 		if addedMembers, addedIPs, notFoundMember, err = vpcsFromGroupMembers(added, r); err != nil {
 			return err
@@ -511,13 +515,13 @@ func (r *NetworkPolicyReconciler) LocalEvent(event watch.Event) {
 
 // Start starts NetworkPolicyReconciler.
 func (r *NetworkPolicyReconciler) Start(stop context.Context) error {
+	// TODO: remove sleep and implement re-sync on controller restart.
+	// introducing a sleep of 5 seconds to allow CPA and CES controllers to reconcile CRs.
+	time.Sleep(5 * time.Second)
+
 	if err := r.resetWatchers(); err != nil {
 		r.Log.Error(err, "Start watchers")
 	}
-
-	// TODO: remove sleep and implement re-sync on controller restart
-	// sleeping 30s waiting for CPA and CES to finish re-sync on restart before processing any events.
-	time.Sleep(30 * time.Second)
 
 	r.Log.Info("Re-sync finished, listening to new events")
 	ticker := time.NewTicker(time.Second)
@@ -674,7 +678,7 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// Each cloudRule is uniquely identified by its UUID.
 		func(obj interface{}) (string, error) {
 			rule := obj.(*securitygroup.CloudRule)
-			return rule.GetHash(), nil
+			return rule.Hash, nil
 		},
 		// cloudRules indexed by appliedToSecurityGroup.
 		cache.Indexers{

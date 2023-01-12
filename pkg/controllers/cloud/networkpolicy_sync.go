@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/mohae/deepcopy"
 	"k8s.io/apimachinery/pkg/watch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -150,7 +151,7 @@ func (a *appliedToSecurityGroup) sync(c *securitygroup.SynchronizationContent,
 	cloudRuleMap := make(map[string]*securitygroup.CloudRule)
 	for _, obj := range rules {
 		rule := obj.(*securitygroup.CloudRule)
-		cloudRuleMap[rule.GetHash()] = rule
+		cloudRuleMap[rule.Hash] = rule
 	}
 
 	// Rough compare rules
@@ -173,14 +174,14 @@ func (a *appliedToSecurityGroup) sync(c *securitygroup.SynchronizationContent,
 		for _, sg := range iRule.FromSecurityGroups {
 			items[sg.String()]--
 		}
-		i := iRule
+		i := deepcopy.Copy(iRule).(securitygroup.IngressRule)
 		rule := &securitygroup.CloudRule{
 			Rule:         &i,
 			AppliedToGrp: a.id.CloudResourceID.String(),
 		}
-		ruleHash := rule.GetHash()
-		if _, found := cloudRuleMap[ruleHash]; found {
-			delete(cloudRuleMap, ruleHash)
+		rule.Hash = rule.GetHash()
+		if _, found := cloudRuleMap[rule.Hash]; found {
+			delete(cloudRuleMap, rule.Hash)
 		} else {
 			indexerUpdate = true
 			_ = r.cloudRuleIndexer.Update(rule)
@@ -205,14 +206,14 @@ func (a *appliedToSecurityGroup) sync(c *securitygroup.SynchronizationContent,
 		for _, sg := range eRule.ToSecurityGroups {
 			items[sg.String()]--
 		}
-		e := eRule
+		e := deepcopy.Copy(eRule).(securitygroup.EgressRule)
 		rule := &securitygroup.CloudRule{
 			Rule:         &e,
 			AppliedToGrp: a.id.CloudResourceID.String(),
 		}
-		ruleHash := rule.GetHash()
-		if _, found := cloudRuleMap[ruleHash]; found {
-			delete(cloudRuleMap, ruleHash)
+		rule.Hash = rule.GetHash()
+		if _, found := cloudRuleMap[rule.Hash]; found {
+			delete(cloudRuleMap, rule.Hash)
 		} else {
 			indexerUpdate = true
 			_ = r.cloudRuleIndexer.Update(rule)

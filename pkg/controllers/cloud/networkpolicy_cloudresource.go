@@ -88,13 +88,13 @@ func vmNPStatusSetter(tracker *cloudResourceNPTracker, r *NetworkPolicyReconcile
 				tracker.markDirty()
 				continue
 			}
-			log.V(1).Info("Update ANP status", "resource", tracker.cloudResource, "status", npStatus)
+			log.V(1).Info("Update ANP status", "resource", cache.String(), "status", npStatus)
 		} else {
 			if err := r.virtualMachinePolicyIndexer.Delete(cache); err != nil {
 				tracker.markDirty()
 				continue
 			}
-			log.V(1).Info("Delete ANP status", "resource", tracker.cloudResource)
+			log.V(1).Info("Delete ANP status", "resource", cache.String())
 		}
 		updated = true
 	}
@@ -164,7 +164,7 @@ func (r *NetworkPolicyReconciler) processCloudResourceNPTrackers() {
 			continue
 		}
 		if len(tracker.appliedToSGs) == 0 && len(tracker.prevAppliedToSGs) == 0 {
-			log.V(1).Info("Delete ", "Name", tracker.cloudResource.String())
+			log.V(1).Info("Delete np tracker", "Name", tracker.cloudResource.String())
 			_ = r.cloudResourceNPTrackerIndexer.Delete(tracker)
 			continue
 		}

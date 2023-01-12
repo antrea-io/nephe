@@ -305,12 +305,12 @@ func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(ap
 		return []network.SecurityRule{}, err
 	}
 
-	newIngressSecurityRules, err := convertIngressToAzureNsgSecurityRules(appliedToGroupID, ingressRules,
+	newIngressSecurityRules, err := convertIngressToNsgSecurityRules(appliedToGroupID, ingressRules,
 		agAsgMapByNepheControllerName, atAsgMapByNepheControllerName)
 	if err != nil {
 		return []network.SecurityRule{}, err
 	}
-	newEgressSecurityRules, err := convertEgressToAzureNsgSecurityRules(appliedToGroupID, egressRules,
+	newEgressSecurityRules, err := convertEgressToNsgSecurityRules(appliedToGroupID, egressRules,
 		agAsgMapByNepheControllerName, atAsgMapByNepheControllerName)
 	if err != nil {
 		return []network.SecurityRule{}, err
@@ -366,12 +366,12 @@ func (computeCfg *computeServiceConfig) buildEffectivePeerNSGSecurityRulesToAppl
 		return []network.SecurityRule{}, err
 	}
 
-	newIngressSecurityRules, err := convertIngressToAzurePeerNsgSecurityRules(appliedToGroupID, ingressRules,
+	newIngressSecurityRules, err := convertIngressToPeerNsgSecurityRules(appliedToGroupID, ingressRules,
 		agAsgMapByNepheControllerName, ruleIP)
 	if err != nil {
 		return []network.SecurityRule{}, err
 	}
-	newEgressSecurityRules, err := convertEgressToAzurePeerNsgSecurityRules(appliedToGroupID, egressRules,
+	newEgressSecurityRules, err := convertEgressToPeerNsgSecurityRules(appliedToGroupID, egressRules,
 		agAsgMapByNepheControllerName, ruleIP)
 	if err != nil {
 		return []network.SecurityRule{}, err
@@ -628,7 +628,7 @@ func (computeCfg *computeServiceConfig) getATGroupView(nepheControllerATSGNameTo
 			continue
 		}
 		nepheControllerATSgNameToIngressRulesMap, nepheControllerATSgNameToEgressRulesMap :=
-			convertToNepheControllerRulesByAppliedToSGName(networkSecurityGroup.SecurityRules, vnetIDLowercase)
+			convertToInternalRulesByAppliedToSGName(networkSecurityGroup.SecurityRules, vnetIDLowercase)
 
 		for atSgName := range appliedToSgNameSet {
 			resource := securitygroup.CloudResource{
@@ -768,16 +768,16 @@ func (c *azureCloud) CreateSecurityGroup(addressGroupIdentifier *securitygroup.C
 	return to.StringPtr(cloudSecurityGroupID), nil
 }
 
-// UpdateSecurityGroupRules invokes cloud api and performs rule update on the cloud using security group's full set of rules in targetRules.
+// UpdateSecurityGroupRules invokes cloud api and updates cloud security group with allRules.
 func (c *azureCloud) UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResource,
-	_, _, targetRules []*securitygroup.CloudRule) error {
+	_, _, allRules []*securitygroup.CloudRule) error {
 	mutex.Lock()
 	defer mutex.Unlock()
 
 	ingressRules := make([]*securitygroup.CloudRule, 0)
 	egressRules := make([]*securitygroup.CloudRule, 0)
 
-	for _, rule := range targetRules {
+	for _, rule := range allRules {
 		switch rule.Rule.(type) {
 		case *securitygroup.IngressRule:
 			ingressRules = append(ingressRules, rule)

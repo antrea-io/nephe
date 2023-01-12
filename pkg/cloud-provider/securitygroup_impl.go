@@ -89,16 +89,11 @@ func (sg *SecurityGroupImpl) UpdateSecurityGroupMembers(addressGroupIdentifier *
 }
 
 func (sg *SecurityGroupImpl) UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResource,
-	addRules, rmRules, targetRules []*securitygroup.CloudRule) <-chan error {
+	addRules, rmRules, allRules []*securitygroup.CloudRule) <-chan error {
 	ch := make(chan error)
 
 	go func() {
 		defer close(ch)
-
-		if len(addRules) == 0 && len(rmRules) == 0 {
-			ch <- nil
-			return
-		}
 
 		cloudInterface, err := getCloudInterfaceForCloudResource(addressGroupIdentifier)
 		if err != nil {
@@ -106,7 +101,7 @@ func (sg *SecurityGroupImpl) UpdateSecurityGroupRules(addressGroupIdentifier *se
 			return
 		}
 
-		err = cloudInterface.UpdateSecurityGroupRules(addressGroupIdentifier, addRules, rmRules, targetRules)
+		err = cloudInterface.UpdateSecurityGroupRules(addressGroupIdentifier, addRules, rmRules, allRules)
 		if err != nil {
 			ch <- err
 			return
