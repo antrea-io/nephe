@@ -233,8 +233,7 @@ var _ = Describe("Azure Cloud Security", func() {
 			vnetIDs[strings.ToLower(testVnetID01)] = struct{}{}
 			vnetIDs[strings.ToLower(testVnetID02)] = struct{}{}
 			vnetIDs[strings.ToLower(testVnetPeerID01)] = struct{}{}
-			vpcPeers, err := serviceConfig.(*computeServiceConfig).buildMapVpcPeers()
-			Expect(err).Should(BeNil())
+			vpcPeers := serviceConfig.(*computeServiceConfig).buildMapVpcPeers(nil)
 			vpcPeers[testVnetPeerID01] = [][]string{
 				{strings.ToLower(testVnetPeerID01), "destinationID", "sourceID"},
 			}
@@ -251,7 +250,13 @@ var _ = Describe("Azure Cloud Security", func() {
 				},
 			}
 
-			serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{vmIDToInfoMap, vnetIDs, vpcPeers})
+			vnetList := []network.VirtualNetwork{}
+			vnet := new(network.VirtualNetwork)
+			vnet.Name = &testVnet01
+			vnet.ID = &testVnetID01
+			vnetList = append(vnetList, *vnet)
+			serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{
+				vmIDToInfoMap, vnetList, vnetIDs, vpcPeers})
 		})
 
 		AfterEach(func() {
@@ -506,9 +511,10 @@ var _ = Describe("Azure Cloud Security", func() {
 					},
 					VnetID: &testVnetID03,
 				}
+
 				accCfg, _ := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
 				serviceConfig, _ := accCfg.GetServiceConfigByName(azureComputeServiceNameCompute)
-				serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{vmToUpdateMap, nil, nil})
+				serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{vmToUpdateMap, nil, nil, nil})
 
 				serviceConfig.(*computeServiceConfig).GetResourceCRDs(testAccountNamespacedName.Namespace, testAccountNamespacedName.String())
 			})

@@ -16,16 +16,15 @@ package internal
 
 import (
 	"fmt"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sync"
 	"time"
 
 	"go.uber.org/multierr"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
-
 	"antrea.io/nephe/pkg/logging"
 )
 
@@ -180,25 +179,11 @@ func (accCfg *cloudAccountConfig) performInventorySync() error {
 		go func(serviceCfg *CloudServiceCommon) {
 			defer wg.Done()
 
-			hasFilters, isFilterNil := serviceCfg.hasFiltersConfigured()
-			if !hasFilters {
-				accCfg.logger().Info("fetching resources from cloud skipped", "service", serviceCfg.getName(),
-					"account", accCfg.namespacedName, "resource-filters", "not-configured")
-				return
-			}
 			err := serviceCfg.doResourceInventory()
 			if err != nil {
 				accCfg.logger().Error(err, "error fetching resources from cloud", "service", serviceCfg.getName(),
 					"account", accCfg.namespacedName)
 				accCfg.Status.Error = err.Error()
-			} else {
-				if isFilterNil {
-					accCfg.logger().V(1).Info("fetching resources from cloud", "service", serviceCfg.getName(),
-						"account", accCfg.namespacedName, "resource-filters", "all(nil)")
-				} else {
-					accCfg.logger().V(1).Info("fetching resources from cloud", "service", serviceCfg.getName(),
-						"account", accCfg.namespacedName, "resource-filters", "configured")
-				}
 			}
 			inventoryStats := serviceCfg.getInventoryStats()
 			inventoryStats.UpdateInventoryPollStats(err)

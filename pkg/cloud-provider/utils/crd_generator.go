@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 
 	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	cloudcommon "antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 )
 
@@ -74,4 +75,28 @@ func GenerateShortResourceIdentifier(id string, prefixToAdd string) string {
 
 	str := fmt.Sprintf("%v-%v", strings.ToLower(prefixToAdd), sum)
 	return str
+}
+
+// GenerateInternalVpcObject generates runtimev1alpha1 vpc object using the input parameters.
+func GenerateInternalVpcObject(name string, namespace string, labels map[string]string, cloudName string,
+	cloudId string, tags map[string]string, cloudProvider cloudv1alpha1.CloudProvider, region string, cidrs []string) *runtimev1alpha1.Vpc {
+	info := &runtimev1alpha1.VpcInfo{
+		Name:          cloudName,
+		Id:            cloudId,
+		CloudProvider: cloudProvider,
+		Region:        region,
+		Tags:          tags,
+		Cidrs:         cidrs,
+	}
+
+	vpc := &runtimev1alpha1.Vpc{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels:    labels,
+		},
+		Info: *info,
+	}
+
+	return vpc
 }

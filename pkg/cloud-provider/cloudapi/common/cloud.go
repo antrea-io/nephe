@@ -16,14 +16,14 @@ package common
 
 import (
 	"reflect"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
-	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
-
 	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 )
 
 var (
@@ -63,6 +63,12 @@ type AccountMgmtInterface interface {
 	RemoveAccountResourcesSelector(accNamespacedName *types.NamespacedName, selector string)
 	// GetAccountStatus gets accounts status.
 	GetAccountStatus(accNamespacedName *types.NamespacedName) (*cloudv1alpha1.CloudProviderAccountStatus, error)
+	// AddInventoryPoller kicks start a periodic cloud inventory polling.
+	AddInventoryPoller(accountNamespacedName *types.NamespacedName) error
+	// DeleteInventoryPoller stops cloud inventory polling.
+	DeleteInventoryPoller(accountNamespacedName *types.NamespacedName) error
+	// GetVpcInventory gets vpc inventory from internal stored snapshot.
+	GetVpcInventory(accountNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.Vpc, error)
 }
 
 // ComputeInterface is an abstract providing set of methods to get Instance details to be implemented by cloud providers.

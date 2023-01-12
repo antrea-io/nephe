@@ -19,6 +19,7 @@ import (
 	"time"
 
 	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 )
 
 type CloudServiceName string
@@ -44,8 +45,6 @@ type CloudServiceInterface interface {
 	// SetResourceFilters will be used by service to get resources from cloud for the service. Each will convert
 	// CloudEntitySelector to service understandable filters.
 	SetResourceFilters(selector *cloudv1alpha1.CloudEntitySelector)
-	// HasFiltersConfigured returns if service has filters configured and if the configured filters are nil or not.
-	HasFiltersConfigured() (bool, bool)
 	// RemoveResourceFilters will be used by service to remove configured filter.
 	RemoveResourceFilters(selectorName string)
 	// DoResourceInventory performs resource inventory for the cloud service based on configured filters. As part
@@ -61,6 +60,8 @@ type CloudServiceInterface interface {
 	GetType() CloudServiceType
 	// ResetCachedState clears any internal state build by the service as part of cloud resource discovery.
 	ResetCachedState()
+	// GetVpcInventory copies VPCs stored in internal snapshot(in cloud specific format) to runtimev1alpha1.Vpc format.
+	GetVpcInventory() map[string]*runtimev1alpha1.Vpc
 }
 
 func (cfg *CloudServiceCommon) updateServiceConfig(newConfig CloudServiceInterface) {
@@ -82,13 +83,6 @@ func (cfg *CloudServiceCommon) removeResourceFilters(selectorName string) {
 	defer cfg.mutex.Unlock()
 
 	cfg.serviceInterface.RemoveResourceFilters(selectorName)
-}
-
-func (cfg *CloudServiceCommon) hasFiltersConfigured() (bool, bool) {
-	cfg.mutex.Lock()
-	defer cfg.mutex.Unlock()
-
-	return cfg.serviceInterface.HasFiltersConfigured()
 }
 
 func (cfg *CloudServiceCommon) doResourceInventory() error {
@@ -125,6 +119,13 @@ func (cfg *CloudServiceCommon) resetCachedState() {
 	defer cfg.mutex.Unlock()
 
 	cfg.serviceInterface.ResetCachedState()
+}
+
+func (cfg *CloudServiceCommon) getVpcInventory() map[string]*runtimev1alpha1.Vpc {
+	cfg.mutex.Lock()
+	defer cfg.mutex.Unlock()
+
+	return cfg.serviceInterface.GetVpcInventory()
 }
 
 type CloudServiceResourceCRDs struct {

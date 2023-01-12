@@ -20,6 +20,7 @@ import (
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	cloudcommon "antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 	"antrea.io/nephe/pkg/cloud-provider/cloudapi/internal"
 	"antrea.io/nephe/pkg/logging"
@@ -102,4 +103,19 @@ func (c *azureCloud) RemoveAccountResourcesSelector(accNamespacedName *types.Nam
 
 func (c *azureCloud) GetAccountStatus(accNamespacedName *types.NamespacedName) (*cloudv1alpha1.CloudProviderAccountStatus, error) {
 	return c.cloudCommon.GetStatus(accNamespacedName)
+}
+
+// AddInventoryPoller adds poller for polling cloud inventory.
+func (c *azureCloud) AddInventoryPoller(accountNamespacedName *types.NamespacedName) error {
+	return c.cloudCommon.AddInventoryPoller(accountNamespacedName)
+}
+
+// DeleteInventoryPoller deletes an existing poller created for polling cloud inventory.
+func (c *azureCloud) DeleteInventoryPoller(accountNamespacedName *types.NamespacedName) error {
+	return c.cloudCommon.DeleteInventoryPoller(accountNamespacedName)
+}
+
+// GetVpcInventory pulls cloud vpc inventory from internal snapshot.
+func (c *azureCloud) GetVpcInventory(accountNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.Vpc, error) {
+	return c.cloudCommon.GetVpcInventory(accountNamespacedName)
 }

@@ -110,7 +110,7 @@ func newAwsServiceConfigs(accountNamespacedName *types.NamespacedName, accCreden
 		return nil, err
 	}
 
-	ec2Service, err := newEC2ServiceConfig(accountNamespacedName.String(), awsServiceClientCreator)
+	ec2Service, err := newEC2ServiceConfig(accountNamespacedName.String(), awsServiceClientCreator, awsAccountCredentials)
 	if err != nil {
 		return nil, err
 	}

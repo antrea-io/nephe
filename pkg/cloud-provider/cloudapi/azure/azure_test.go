@@ -17,7 +17,7 @@ package azure
 import (
 	"context"
 	"fmt"
-
+	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2021-03-01/network"
 	"github.com/Azure/azure-sdk-for-go/services/resourcegraph/mgmt/2021-03-01/resourcegraph"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/golang/mock/gomock"
@@ -33,6 +33,10 @@ import (
 	"antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 )
 
+var (
+	region = "eastus"
+)
+
 var _ = Describe("Azure", func() {
 	var (
 		testAccountNamespacedName = &types.NamespacedName{Namespace: "namespace01", Name: "account01"}
@@ -41,7 +45,7 @@ var _ = Describe("Azure", func() {
 		testClientID              = "ClientID"
 		testClientKey             = "ClientKey"
 		testTenantID              = "TenantID"
-		testRegion                = "eastus"
+		testRegion                = region
 		testRG                    = "testRG"
 		azureProvideType          = "Azure"
 
@@ -145,7 +149,6 @@ var _ = Describe("Azure", func() {
 			mockazureService.EXPECT().applicationSecurityGroups(gomock.Any()).Return(mockazureAsgWrapper, nil).AnyTimes()
 			mockazureService.EXPECT().virtualNetworks(gomock.Any()).Return(mockazureVirtualNetworksWrapper, nil).AnyTimes()
 			mockazureService.EXPECT().resourceGraph().Return(mockazureResourceGraph, nil).AnyTimes()
-			mockazureVirtualNetworksWrapper.EXPECT().listAllComplete(gomock.Any()).AnyTimes()
 			mockazureResourceGraph.EXPECT().resources(gomock.Any(), gomock.Any()).Return(getResourceGraphResult(), nil).AnyTimes()
 
 			fakeClient, c = setupClientAndCloud(mockAzureServiceHelper, account, secret)
@@ -156,7 +159,72 @@ var _ = Describe("Azure", func() {
 			mockCtrl.Finish()
 		})
 
+		Context("Account Add and Delete scenarios", func() {
+			It("On account add expect cloud api call for retrieving vpc list", func() {
+				vnetIDs := []string{"testVnetID01", "testVnetID02"}
+				mockazureVirtualNetworksWrapper.EXPECT().listAllComplete(gomock.Any()).Return(createVnetObject(vnetIDs), nil).AnyTimes()
+				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret"}`
+				secret = &corev1.Secret{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      testAccountNamespacedName.Name,
+						Namespace: testAccountNamespacedName.Namespace,
+					},
+					Data: map[string][]byte{
+						"credentials": []byte(credential),
+					},
+				}
+
+				_ = fakeClient.Create(context.Background(), secret)
+				c := newAzureCloud(mockAzureServiceHelper)
+
+				err := c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(BeNil())
+				accCfg, found := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
+				Expect(found).To(BeTrue())
+				Expect(accCfg).To(Not(BeNil()))
+
+				errPolAdd := c.AddInventoryPoller(testAccountNamespacedName)
+				Expect(errPolAdd).Should(BeNil())
+
+				vnetMap, err := c.GetVpcInventory(testAccountNamespacedName)
+				Expect(err).Should(BeNil())
+				Expect(len(vnetMap)).Should(Equal(len(vnetIDs)))
+			})
+			It("Stop cloud inventory poll on poller delete", func() {
+				vnetIDs := []string{"testVnetID01", "testVnetID02"}
+				mockazureVirtualNetworksWrapper.EXPECT().listAllComplete(gomock.Any()).Return(createVnetObject(vnetIDs), nil).MinTimes(1)
+				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret"}`
+				secret = &corev1.Secret{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      testAccountNamespacedName.Name,
+						Namespace: testAccountNamespacedName.Namespace,
+					},
+					Data: map[string][]byte{
+						"credentials": []byte(credential),
+					},
+				}
+
+				_ = fakeClient.Create(context.Background(), secret)
+				c := newAzureCloud(mockAzureServiceHelper)
+
+				err := c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(BeNil())
+				accCfg, found := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
+				Expect(found).To(BeTrue())
+				Expect(accCfg).To(Not(BeNil()))
+
+				errPolAdd := c.AddInventoryPoller(testAccountNamespacedName)
+				Expect(errPolAdd).Should(BeNil())
+				errPolDel := c.DeleteInventoryPoller(testAccountNamespacedName)
+				Expect(errPolDel).Should(BeNil())
+				mockazureVirtualNetworksWrapper.EXPECT().listAllComplete(gomock.Any()).Return(createVnetObject(vnetIDs), nil).MinTimes(0)
+			})
+		})
 		Context("VM Selector scenarios", func() {
+			BeforeEach(func() {
+				mockazureVirtualNetworksWrapper.EXPECT().listAllComplete(gomock.Any()).AnyTimes()
+			})
+
 			It("Should match expected filter - single vpcID only match", func() {
 				vnetIDs = []string{testVnetID01}
 				var expectedQueryStrs []*string
@@ -190,191 +258,191 @@ var _ = Describe("Azure", func() {
 
 				_ = c.GetEnforcedSecurity()
 			})
-		})
 
-		It("Should match expected filter with credential - multiple vpcID only match", func() {
-			vnetIDs = []string{testVnetID01, testVnetID02}
-			var expectedQueryStrs []*string
-			expectedQueryStr, _ := getVMsByVnetIDsMatchQuery(vnetIDs,
-				subIDs, tenantIDs, locations)
-			expectedQueryStrs = append(expectedQueryStrs, expectedQueryStr)
-			vmSelector := []v1alpha1.VirtualMachineSelector{
-				{
-					VpcMatch: &v1alpha1.EntityMatch{MatchID: testVnetID01},
-					VMMatch:  []v1alpha1.EntityMatch{},
-				},
-				{
-					VpcMatch: &v1alpha1.EntityMatch{MatchID: testVnetID02},
-					VMMatch:  []v1alpha1.EntityMatch{},
-				},
-			}
+			It("Should match expected filter with credential - multiple vpcID only match", func() {
+				vnetIDs = []string{testVnetID01, testVnetID02}
+				var expectedQueryStrs []*string
+				expectedQueryStr, _ := getVMsByVnetIDsMatchQuery(vnetIDs,
+					subIDs, tenantIDs, locations)
+				expectedQueryStrs = append(expectedQueryStrs, expectedQueryStr)
+				vmSelector := []v1alpha1.VirtualMachineSelector{
+					{
+						VpcMatch: &v1alpha1.EntityMatch{MatchID: testVnetID01},
+						VMMatch:  []v1alpha1.EntityMatch{},
+					},
+					{
+						VpcMatch: &v1alpha1.EntityMatch{MatchID: testVnetID02},
+						VMMatch:  []v1alpha1.EntityMatch{},
+					},
+				}
 
-			selector.Spec.VMSelector = vmSelector
-			selector.Name = "multiple-vpcIDOnly"
-			err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
-			Expect(err).Should(BeNil())
+				selector.Spec.VMSelector = vmSelector
+				selector.Name = "multiple-vpcIDOnly"
+				err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
+				Expect(err).Should(BeNil())
 
-			filters := getFilters(c, selector.Name)
-			Expect(filters).To(Equal(expectedQueryStrs))
+				filters := getFilters(c, selector.Name)
+				Expect(filters).To(Equal(expectedQueryStrs))
 
-			c.RemoveAccountResourcesSelector(testAccountNamespacedName, selector.Name)
-			expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
-			filters = getFilters(c, selector.Name)
-			Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
-		})
+				c.RemoveAccountResourcesSelector(testAccountNamespacedName, selector.Name)
+				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
+				filters = getFilters(c, selector.Name)
+				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
+			})
 
-		It("Should match expected filter - multiple with one all", func() {
-			var expectedQueryStrs []*string
-			vmSelector := []v1alpha1.VirtualMachineSelector{
-				{
-					VpcMatch: &v1alpha1.EntityMatch{MatchID: testVnetID01},
-				},
-				{
-					VpcMatch: nil,
-					VMMatch:  []v1alpha1.EntityMatch{},
-				},
-			}
-			selector.Spec.VMSelector = vmSelector
-			selector.Name = "multiple-with-one-all"
-			err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
-			Expect(err).Should(BeNil())
+			It("Should match expected filter - multiple with one all", func() {
+				var expectedQueryStrs []*string
+				vmSelector := []v1alpha1.VirtualMachineSelector{
+					{
+						VpcMatch: &v1alpha1.EntityMatch{MatchID: testVnetID01},
+					},
+					{
+						VpcMatch: nil,
+						VMMatch:  []v1alpha1.EntityMatch{},
+					},
+				}
+				selector.Spec.VMSelector = vmSelector
+				selector.Name = "multiple-with-one-all"
+				err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
+				Expect(err).Should(BeNil())
 
-			filters := getFilters(c, selector.Name)
-			Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
-		})
+				filters := getFilters(c, selector.Name)
+				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
+			})
 
-		It("Should match expected filter - single VMID only match", func() {
-			vmIDs = []string{testVMID01}
-			var expectedQueryStrs []*string
-			expectedQueryStr, _ := getVMsByVMIDsMatchQuery(vmIDs,
-				subIDs, tenantIDs, locations)
-			expectedQueryStrs = append(expectedQueryStrs, expectedQueryStr)
-			vmSelector := []v1alpha1.VirtualMachineSelector{
-				{
-					VMMatch: []v1alpha1.EntityMatch{{MatchID: testVMID01}},
-				},
-			}
+			It("Should match expected filter - single VMID only match", func() {
+				vmIDs = []string{testVMID01}
+				var expectedQueryStrs []*string
+				expectedQueryStr, _ := getVMsByVMIDsMatchQuery(vmIDs,
+					subIDs, tenantIDs, locations)
+				expectedQueryStrs = append(expectedQueryStrs, expectedQueryStr)
+				vmSelector := []v1alpha1.VirtualMachineSelector{
+					{
+						VMMatch: []v1alpha1.EntityMatch{{MatchID: testVMID01}},
+					},
+				}
 
-			selector.Spec.VMSelector = vmSelector
-			selector.Name = "VMIDOnly"
-			err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
-			Expect(err).Should(BeNil())
+				selector.Spec.VMSelector = vmSelector
+				selector.Name = "VMIDOnly"
+				err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
+				Expect(err).Should(BeNil())
 
-			filters := getFilters(c, selector.Name)
-			Expect(filters).To(Equal(expectedQueryStrs))
+				filters := getFilters(c, selector.Name)
+				Expect(filters).To(Equal(expectedQueryStrs))
 
-			c.RemoveAccountResourcesSelector(testAccountNamespacedName, selector.Name)
-			expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
-			filters = getFilters(c, selector.Name)
-			Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
-		})
+				c.RemoveAccountResourcesSelector(testAccountNamespacedName, selector.Name)
+				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
+				filters = getFilters(c, selector.Name)
+				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
+			})
 
-		It("Should match expected filter - single VM Name only match", func() {
-			vmNames := []string{testVM01}
-			var expectedQueryStrs []*string
-			expectedQueryStr, _ := getVMsByVMNamesMatchQuery(vmNames,
-				subIDs, tenantIDs, locations)
-			expectedQueryStrs = append(expectedQueryStrs, expectedQueryStr)
+			It("Should match expected filter - single VM Name only match", func() {
+				vmNames := []string{testVM01}
+				var expectedQueryStrs []*string
+				expectedQueryStr, _ := getVMsByVMNamesMatchQuery(vmNames,
+					subIDs, tenantIDs, locations)
+				expectedQueryStrs = append(expectedQueryStrs, expectedQueryStr)
 
-			vmSelector := []v1alpha1.VirtualMachineSelector{
-				{
-					VMMatch: []v1alpha1.EntityMatch{{MatchName: testVM01}},
-				},
-			}
+				vmSelector := []v1alpha1.VirtualMachineSelector{
+					{
+						VMMatch: []v1alpha1.EntityMatch{{MatchName: testVM01}},
+					},
+				}
 
-			selector.Spec.VMSelector = vmSelector
-			selector.Name = "VMNameOnly"
-			err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
-			Expect(err).Should(BeNil())
+				selector.Spec.VMSelector = vmSelector
+				selector.Name = "VMNameOnly"
+				err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
+				Expect(err).Should(BeNil())
 
-			filters := getFilters(c, selector.Name)
-			Expect(filters).To(Equal(expectedQueryStrs))
+				filters := getFilters(c, selector.Name)
+				Expect(filters).To(Equal(expectedQueryStrs))
 
-			c.RemoveAccountResourcesSelector(testAccountNamespacedName, selector.Name)
-			expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
-			filters = getFilters(c, selector.Name)
-			Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
-		})
+				c.RemoveAccountResourcesSelector(testAccountNamespacedName, selector.Name)
+				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
+				filters = getFilters(c, selector.Name)
+				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
+			})
 
-		It("Should match expected filter - vpcID with VMID match", func() {
-			vnetIDs = []string{testVnetID01}
-			vmIDs = []string{testVMID01}
-			vmNames := []string{}
-			var expectedQueryStrs []*string
-			expectedQueryStr, _ := getVMsByVnetAndOtherMatchesQuery(vnetIDs, vmNames, vmIDs,
-				subIDs, tenantIDs, locations)
-			expectedQueryStrs = append(expectedQueryStrs, expectedQueryStr)
-			vmSelector := []v1alpha1.VirtualMachineSelector{
-				{
-					VMMatch:  []v1alpha1.EntityMatch{{MatchID: testVMID01}},
-					VpcMatch: &v1alpha1.EntityMatch{MatchID: testVnetID01},
-				},
-			}
+			It("Should match expected filter - vpcID with VMID match", func() {
+				vnetIDs = []string{testVnetID01}
+				vmIDs = []string{testVMID01}
+				vmNames := []string{}
+				var expectedQueryStrs []*string
+				expectedQueryStr, _ := getVMsByVnetAndOtherMatchesQuery(vnetIDs, vmNames, vmIDs,
+					subIDs, tenantIDs, locations)
+				expectedQueryStrs = append(expectedQueryStrs, expectedQueryStr)
+				vmSelector := []v1alpha1.VirtualMachineSelector{
+					{
+						VMMatch:  []v1alpha1.EntityMatch{{MatchID: testVMID01}},
+						VpcMatch: &v1alpha1.EntityMatch{MatchID: testVnetID01},
+					},
+				}
 
-			selector.Spec.VMSelector = vmSelector
-			selector.Name = "vpcID-VMID"
-			err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
-			Expect(err).Should(BeNil())
+				selector.Spec.VMSelector = vmSelector
+				selector.Name = "vpcID-VMID"
+				err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
+				Expect(err).Should(BeNil())
 
-			filters := getFilters(c, selector.Name)
-			Expect(filters).To(Equal(expectedQueryStrs))
+				filters := getFilters(c, selector.Name)
+				Expect(filters).To(Equal(expectedQueryStrs))
 
-			c.RemoveAccountResourcesSelector(testAccountNamespacedName, selector.Name)
-			expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
-			filters = getFilters(c, selector.Name)
-			Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
-		})
+				c.RemoveAccountResourcesSelector(testAccountNamespacedName, selector.Name)
+				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
+				filters = getFilters(c, selector.Name)
+				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
+			})
 
-		It("Should match expected filter - vpcID with VM Name match", func() {
-			vnetIDs = []string{testVnetID01}
-			vmIDs = []string{}
-			vmNames := []string{testVM01}
-			var expectedQueryStrs []*string
+			It("Should match expected filter - vpcID with VM Name match", func() {
+				vnetIDs = []string{testVnetID01}
+				vmIDs = []string{}
+				vmNames := []string{testVM01}
+				var expectedQueryStrs []*string
 
-			expectedQueryStr, _ := getVMsByVnetAndOtherMatchesQuery(vnetIDs, vmNames, vmIDs,
-				subIDs, tenantIDs, locations)
-			expectedQueryStrs = append(expectedQueryStrs, expectedQueryStr)
-			vmSelector := []v1alpha1.VirtualMachineSelector{
-				{
-					VMMatch:  []v1alpha1.EntityMatch{{MatchName: testVM01}},
-					VpcMatch: &v1alpha1.EntityMatch{MatchID: testVnetID01},
-				},
-			}
+				expectedQueryStr, _ := getVMsByVnetAndOtherMatchesQuery(vnetIDs, vmNames, vmIDs,
+					subIDs, tenantIDs, locations)
+				expectedQueryStrs = append(expectedQueryStrs, expectedQueryStr)
+				vmSelector := []v1alpha1.VirtualMachineSelector{
+					{
+						VMMatch:  []v1alpha1.EntityMatch{{MatchName: testVM01}},
+						VpcMatch: &v1alpha1.EntityMatch{MatchID: testVnetID01},
+					},
+				}
 
-			selector.Spec.VMSelector = vmSelector
-			selector.Name = "vpcID-VMName"
-			err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
-			Expect(err).Should(BeNil())
+				selector.Spec.VMSelector = vmSelector
+				selector.Name = "vpcID-VMName"
+				err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
+				Expect(err).Should(BeNil())
 
-			filters := getFilters(c, selector.Name)
-			Expect(filters).To(Equal(expectedQueryStrs))
+				filters := getFilters(c, selector.Name)
+				Expect(filters).To(Equal(expectedQueryStrs))
 
-			c.RemoveAccountResourcesSelector(testAccountNamespacedName, selector.Name)
-			expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
-			filters = getFilters(c, selector.Name)
-			Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
-		})
+				c.RemoveAccountResourcesSelector(testAccountNamespacedName, selector.Name)
+				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
+				filters = getFilters(c, selector.Name)
+				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
+			})
 
-		It("Update Secret", func() {
-			credential2 := fmt.Sprintf(`{"subscriptionId": "%s",
+			It("Update Secret", func() {
+				credential2 := fmt.Sprintf(`{"subscriptionId": "%s",
 				"clientId": "%s",
 				"tenantId": "%s",
 				"clientKey": "%s"
 			}`, "testSubID01", "testClientID", "testTenantID", "testClientKey")
 
-			secret = &corev1.Secret{
-				ObjectMeta: v1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-				},
-				Data: map[string][]byte{
-					"credentials": []byte(credential2),
-				},
-			}
-			err := fakeClient.Update(context.Background(), secret)
-			Expect(err).Should(BeNil())
-			err = c.AddProviderAccount(fakeClient, account)
-			Expect(err).Should(BeNil())
+				secret = &corev1.Secret{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      testAccountNamespacedName.Name,
+						Namespace: testAccountNamespacedName.Namespace,
+					},
+					Data: map[string][]byte{
+						"credentials": []byte(credential2),
+					},
+				}
+				err := fakeClient.Update(context.Background(), secret)
+				Expect(err).Should(BeNil())
+				err = c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(BeNil())
+			})
 		})
 
 		Context("VM Provider scenarios", func() {
@@ -419,4 +487,31 @@ func setupClientAndCloud(mockAzureServiceHelper *MockazureServicesHelper, accoun
 	err = c.AddProviderAccount(fakeClient, account)
 	Expect(err).Should(BeNil())
 	return fakeClient, c
+}
+
+func createVnetObject(vnetIDs []string) []network.VirtualNetwork {
+	vnets := []network.VirtualNetwork{}
+	for i := range vnetIDs {
+		name := vnetIDs[i]
+		key := "Name"
+		value := vnetIDs[i]
+		tags := make(map[string]*string)
+		tags[key] = &value
+		addressPrefix := make([]string, 0)
+		prefix := "192.16.0.0/24"
+		addressPrefix = append(addressPrefix, prefix)
+		vnet := &network.VirtualNetwork{
+			Location: &region,
+			ID:       &vnetIDs[i],
+			Name:     &name,
+			Tags:     tags,
+			VirtualNetworkPropertiesFormat: &network.VirtualNetworkPropertiesFormat{
+				AddressSpace:           &network.AddressSpace{AddressPrefixes: &addressPrefix},
+				VirtualNetworkPeerings: &[]network.VirtualNetworkPeering{},
+			},
+		}
+		vnets = append(vnets, *vnet)
+	}
+
+	return vnets
 }
