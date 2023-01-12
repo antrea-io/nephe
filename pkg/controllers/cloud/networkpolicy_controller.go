@@ -50,7 +50,6 @@ const (
 	networkPolicyIndexerByAppliedToGrp          = "AppliedToGrp"
 	cloudResourceNPTrackerIndexerByAppliedToGrp = "AppliedToGrp"
 	virtualMachineIndexerByCloudID              = "metadata.annotations.cloud-assigned-id"
-	virtualMachineIndexerByCloudName            = "metadata.annotations.cloud-assigned-name"
 
 	operationCount    = 15
 	cloudSyncInterval = 0xff // 256 Seconds
