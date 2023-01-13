@@ -231,13 +231,16 @@ func (p *accountPoller) doAccountPoller() {
 		p.log.Info("failed to get account", "account", p.namespacedName, "account", account, "error", e)
 	}
 
-	discoveredStatus, e := cloudInterface.GetAccountStatus(p.namespacedName)
+	discoveredStatus := cloudv1alpha1.CloudProviderAccountStatus{}
+	status, e := cloudInterface.GetAccountStatus(p.namespacedName)
 	if e != nil {
-		(*discoveredStatus).Error = fmt.Sprintf("failed to get status, err %v", e)
+		discoveredStatus.Error = fmt.Sprintf("failed to get status, err %v", e)
+	} else if status != nil {
+		discoveredStatus = *status
 	}
 
-	if account.Status != *discoveredStatus {
-		updateAccountStatus(&account.Status, discoveredStatus)
+	if account.Status != discoveredStatus {
+		updateAccountStatus(&account.Status, &discoveredStatus)
 		e = p.Client.Status().Update(context.TODO(), account)
 		if e != nil {
 			p.log.Info("failed to update account status", "account", p.namespacedName, "err", e)
