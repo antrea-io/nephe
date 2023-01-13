@@ -88,13 +88,13 @@ func vmNPStatusSetter(tracker *cloudResourceNPTracker, r *NetworkPolicyReconcile
 				tracker.markDirty()
 				continue
 			}
-			log.V(1).Info("Update ANP status", "resource", cache.String(), "status", npStatus)
+			log.V(1).Info("Update vmp status", "resource", cache.String(), "status", npStatus)
 		} else {
 			if err := r.virtualMachinePolicyIndexer.Delete(cache); err != nil {
 				tracker.markDirty()
 				continue
 			}
-			log.V(1).Info("Delete ANP status", "resource", cache.String())
+			log.V(1).Info("Delete vmp status", "resource", cache.String())
 		}
 		updated = true
 	}

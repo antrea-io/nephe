@@ -657,6 +657,7 @@ func (a *addrSecurityGroup) notifyNetworkPolicyChange(r *NetworkPolicyReconciler
 	}
 }
 
+// removeStaleMembers removes sg members that their corresponding CRs no longer exist.
 func (a *addrSecurityGroup) removeStaleMembers(stales []*types.NamespacedName, r *NetworkPolicyReconciler) {
 	if len(a.members) == 0 {
 		return
@@ -1157,6 +1158,7 @@ func (a *appliedToSecurityGroup) notifyNetworkPolicyChange(r *NetworkPolicyRecon
 	}
 }
 
+// removeStaleMembers removes sg members that their corresponding CRs no longer exist and cleans up relevant internal resources.
 func (a *appliedToSecurityGroup) removeStaleMembers(stales []*types.NamespacedName, r *NetworkPolicyReconciler) {
 	if len(a.members) == 0 {
 		return
@@ -1168,15 +1170,18 @@ func (a *appliedToSecurityGroup) removeStaleMembers(stales []*types.NamespacedNa
 	for _, stale := range stales {
 		for k := range srcMap {
 			if strings.Contains(stale.Name, k) {
+				// remove member np tracker.
 				r.Log.V(1).Info("Remove stale members from SecurityGroup", "Stale", stale, "Name", a.id.Name)
 				if tracker := r.getCloudResourceNPTracker(srcMap[k], false); tracker != nil {
 					_ = tracker.update(a, true, r)
 				}
+				// remove member vmp.
 				vmNamespacedName := types.NamespacedName{Name: srcMap[k].Name, Namespace: stale.Namespace}
 				if obj, found, _ := r.virtualMachinePolicyIndexer.GetByKey(vmNamespacedName.String()); found {
-					r.Log.V(1).Info("Delete ANP status", "resource", vmNamespacedName.String())
+					r.Log.V(1).Info("Delete vmp status", "resource", vmNamespacedName.String())
 					_ = r.virtualMachinePolicyIndexer.Delete(obj)
 				}
+				// remove member from sg.
 				delete(srcMap, k)
 			}
 		}

@@ -130,7 +130,7 @@ func (r *NetworkPolicyReconciler) isNetworkPolicySupported(anp *antreanetworking
 }
 
 // updateRuleRealizationStatus checks rule realization status on all appliedTo groups for a np and send status.
-func (r *NetworkPolicyReconciler) updateRuleRealizationStatus(currentSGID string, np *networkPolicy, err error) {
+func (r *NetworkPolicyReconciler) updateRuleRealizationStatus(currentSgID string, np *networkPolicy, err error) {
 	if err != nil {
 		r.sendRuleRealizationStatus(&np.NetworkPolicy, err)
 		return
@@ -145,7 +145,7 @@ func (r *NetworkPolicyReconciler) updateRuleRealizationStatus(currentSGID string
 		}
 		for _, obj := range sgs {
 			sg := obj.(*appliedToSecurityGroup)
-			if sg.id.CloudResourceID.String() == currentSGID {
+			if sg.id.CloudResourceID.String() == currentSgID {
 				continue
 			}
 			// let other sgs handle their update status.
