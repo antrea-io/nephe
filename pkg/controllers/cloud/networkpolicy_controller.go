@@ -49,6 +49,7 @@ const (
 	networkPolicyIndexerByAddrGrp               = "AddressGrp"
 	networkPolicyIndexerByAppliedToGrp          = "AppliedToGrp"
 	cloudResourceNPTrackerIndexerByAppliedToGrp = "AppliedToGrp"
+	cloudRuleIndexerByAppliedToGrp              = "AppliedToGrp"
 	virtualMachineIndexerByCloudID              = "metadata.annotations.cloud-assigned-id"
 	virtualMachineIndexerByCloudName            = "metadata.annotations.cloud-assigned-name"
 
@@ -86,6 +87,7 @@ type NetworkPolicyReconciler struct {
 	appliedToSGIndexer            cache.Indexer
 	cloudResourceNPTrackerIndexer cache.Indexer
 	virtualMachinePolicyIndexer   cache.Indexer
+	cloudRuleIndexer              cache.Indexer
 
 	// pendingDeleteGroups keep tracks of deleting AddressGroup or AppliedToGroup.
 	pendingDeleteGroups *PendingItemQueue
@@ -127,8 +129,37 @@ func (r *NetworkPolicyReconciler) isNetworkPolicySupported(anp *antreanetworking
 	return nil
 }
 
-// sendRuleRealizationStatus send anp realization status to antrea controller.
-func (r *NetworkPolicyReconciler) sendRuleRealizationStatus(anp *antreanetworking.NetworkPolicy, failed bool, msg string) {
+// updateRuleRealizationStatus checks rule realization status on all appliedTo groups for a np and send status.
+func (r *NetworkPolicyReconciler) updateRuleRealizationStatus(currentSgID string, np *networkPolicy, err error) {
+	if err != nil {
+		r.sendRuleRealizationStatus(&np.NetworkPolicy, err)
+		return
+	}
+
+	// current sg update rule success, check other sg rule realization status.
+	for _, at := range np.AppliedToGroups {
+		sgs, e := r.appliedToSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, at)
+		if e != nil {
+			r.Log.Error(e, "get appliedToSG indexer", "sg", at)
+			return
+		}
+		for _, obj := range sgs {
+			sg := obj.(*appliedToSecurityGroup)
+			if sg.id.CloudResourceID.String() == currentSgID {
+				continue
+			}
+			// let other sgs handle their update status.
+			e = sg.checkRealization(r, np)
+			if e != nil {
+				return
+			}
+		}
+	}
+	r.sendRuleRealizationStatus(&np.NetworkPolicy, nil)
+}
+
+// sendRuleRealizationStatus sends anp realization status to antrea controller.
+func (r *NetworkPolicyReconciler) sendRuleRealizationStatus(anp *antreanetworking.NetworkPolicy, err error) {
 	status := &antreanetworking.NetworkPolicyStatus{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      string(anp.UID),
@@ -142,13 +173,13 @@ func (r *NetworkPolicyReconciler) sendRuleRealizationStatus(anp *antreanetworkin
 			},
 		},
 	}
-	if failed {
+	if err != nil {
 		status.Nodes[0].RealizationFailure = true
-		status.Nodes[0].Message = msg
+		status.Nodes[0].Message = err.Error()
 	}
-	r.Log.V(1).Info("Updating rule realization.", "NP", anp.Name, "Namespace", anp.Namespace)
-	if err := r.antreaClient.NetworkPolicies().UpdateStatus(context.TODO(), status.Name, status); err != nil {
-		r.Log.Error(err, "rule realization send failed.", "NP", anp.Name, "Namespace", anp.Namespace)
+	r.Log.V(1).Info("Updating rule realization.", "NP", anp.Name, "Namespace", anp.Namespace, "err", err)
+	if e := r.antreaClient.NetworkPolicies().UpdateStatus(context.TODO(), status.Name, status); e != nil {
+		r.Log.Error(e, "rule realization send failed.", "NP", anp.Name, "Namespace", anp.Namespace)
 	}
 }
 
@@ -211,7 +242,7 @@ func (r *NetworkPolicyReconciler) processMemberGrp(name string, eventType watch.
 
 	var addedMembers, removedMembers map[string][]*securitygroup.CloudResource
 	var addedIPs, removedIPs []*net.IPNet
-	var notFoundMember []string
+	var notFoundMember []*types.NamespacedName
 	if eventType == watch.Added {
 		if addedMembers, addedIPs, notFoundMember, err = vpcsFromGroupMembers(added, r); err != nil {
 			return err
@@ -410,13 +441,14 @@ func (r *NetworkPolicyReconciler) processNetworkPolicy(event watch.Event) error 
 		r.Log.V(1).Info("processNetworkPolicy unknown message type", "type", event.Type, "obj", event.Object)
 		return nil
 	}
+
+	r.Log.V(1).Info("Received NetworkPolicy event", "type", event.Type, "obj", anp)
+
 	if r.processBookMark(event.Type) {
 		return nil
 	}
-
-	r.Log.V(1).Info("Received NetworkPolicy event", "type", event.Type, "obj", anp)
 	if err := r.isNetworkPolicySupported(anp); err != nil {
-		r.sendRuleRealizationStatus(anp, true, err.Error())
+		r.sendRuleRealizationStatus(anp, err)
 		return err
 	}
 	if anp.Namespace == "" {
@@ -483,6 +515,10 @@ func (r *NetworkPolicyReconciler) LocalEvent(event watch.Event) {
 
 // Start starts NetworkPolicyReconciler.
 func (r *NetworkPolicyReconciler) Start(stop context.Context) error {
+	// TODO: remove sleep and implement re-sync on controller restart.
+	// introducing a sleep of 5 seconds to allow CPA and CES controllers to reconcile CRs.
+	time.Sleep(5 * time.Second)
+
 	if err := r.resetWatchers(); err != nil {
 		r.Log.Error(err, "Start watchers")
 	}
@@ -623,7 +659,7 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			tracker := obj.(*cloudResourceNPTracker)
 			return tracker.cloudResource.String(), nil
 		},
-		// cloudResourceNPTracker indexed by appliedToSecurityGroup
+		// cloudResourceNPTracker indexed by appliedToSecurityGroup.
 		cache.Indexers{
 			cloudResourceNPTrackerIndexerByAppliedToGrp: func(obj interface{}) ([]string, error) {
 				tracker := obj.(*cloudResourceNPTracker)
@@ -635,6 +671,20 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					sgs = append(sgs, i)
 				}
 				return sgs, nil
+			},
+		})
+	// cloudRuleIndexer stores the realized rules on the cloud.
+	r.cloudRuleIndexer = cache.NewIndexer(
+		// Each cloudRule is uniquely identified by its UUID.
+		func(obj interface{}) (string, error) {
+			rule := obj.(*securitygroup.CloudRule)
+			return rule.Hash, nil
+		},
+		// cloudRules indexed by appliedToSecurityGroup.
+		cache.Indexers{
+			cloudRuleIndexerByAppliedToGrp: func(obj interface{}) ([]string, error) {
+				rule := obj.(*securitygroup.CloudRule)
+				return []string{rule.AppliedToGrp}, nil
 			},
 		})
 	r.virtualMachinePolicyIndexer = cache.NewIndexer(

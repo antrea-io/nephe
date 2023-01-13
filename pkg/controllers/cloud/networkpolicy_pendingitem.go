@@ -33,6 +33,8 @@ type PendingItem interface {
 	// RunOrDeletePendingItem returns run as true, if this item can be run;
 	// returns delete as true, if this item shall be removed.
 	RunOrDeletePendingItem(id string, context interface{}) (run bool, delete bool)
+	// ClearPendingState clears item state when removing item from pending queue.
+	ClearPendingState()
 }
 
 type countingPendingItem struct {
@@ -69,6 +71,9 @@ func (q *PendingItemQueue) Add(id string, p PendingItem) {
 
 // Remove a pending item from queue.
 func (q *PendingItemQueue) Remove(id string) {
+	if p, ok := q.items[id]; ok {
+		p.ClearPendingState()
+	}
 	delete(q.items, id)
 }
 
@@ -237,6 +242,8 @@ func (p *pendingGroup) RunOrDeletePendingItem(id string, context interface{}) (r
 	return
 }
 
+func (p *pendingGroup) ClearPendingState() {}
+
 func (s *securityGroupImpl) runPendingItemImpl(c cloudSecurityGroup, memberOnly bool, r *NetworkPolicyReconciler) bool {
 	if s.retryOp == nil {
 		// retry operation successful. Reconcile current group with
@@ -244,7 +251,7 @@ func (s *securityGroupImpl) runPendingItemImpl(c cloudSecurityGroup, memberOnly 
 		if s.state != securityGroupStateGarbageCollectState {
 			if ag, ok := c.(*appliedToSecurityGroup); ok {
 				ag.hasMembers = false
-				_ = ag.updateRules(r)
+				_ = ag.updateAllRules(r)
 			} else {
 				_ = s.updateImpl(c, nil, nil, memberOnly, r)
 			}
@@ -263,7 +270,7 @@ func (s *securityGroupImpl) runPendingItemImpl(c cloudSecurityGroup, memberOnly 
 		err = s.deleteImpl(c, memberOnly, r)
 	} else if op == securityGroupOperationClearMembers || op == securityGroupOperationUpdateRules {
 		ag := c.(*appliedToSecurityGroup)
-		err = ag.updateRules(r)
+		err = ag.updateAllRules(r)
 	}
 	if err != nil {
 		// TODO
@@ -306,6 +313,11 @@ func (s *securityGroupImpl) UpdatePendingItem(id string, context interface{}, up
 		opStr = s.retryOp.String()
 	}
 	log.V(1).Info("Update security group", "Name", id, "retryOp", opStr, "inProgress", s.retryInProgress)
+}
+
+// ClearPendingState clears retryOp state when removing pending security group item.
+func (s *securityGroupImpl) ClearPendingState() {
+	s.retryOp = nil
 }
 
 func (a *addrSecurityGroup) RunPendingItem(_ string, context interface{}) bool {

@@ -82,8 +82,8 @@ var _ = Describe("NetworkPolicy", func() {
 		vmExternalEntities     map[string]*antreatypes.ExternalEntity
 		vmNameToVirtualMachine map[string]*cloud.VirtualMachine
 		vmMembers              map[string]*securitygroup.CloudResource
-		ingressRule            *securitygroup.IngressRule
-		egressRule             *securitygroup.EgressRule
+		ingressRule            []securitygroup.IngressRule
+		egressRule             []securitygroup.EgressRule
 		patchVMIdx             int
 		syncContents           []securitygroup.SynchronizationContent
 
@@ -259,22 +259,32 @@ var _ = Describe("NetworkPolicy", func() {
 		// rules
 		tcp := 6
 		portInt := int(port.IntVal)
-		ingressRule = &securitygroup.IngressRule{
-			FromPort:           &portInt,
-			Protocol:           &tcp,
-			FromSecurityGroups: []*securitygroup.CloudResourceID{addrGrpIDs[addrGrps[0].Name]},
-			FromSrcIP:          []*net.IPNet{ingressIPBlock},
+		ingressRule = []securitygroup.IngressRule{{
+			FromPort:  &portInt,
+			Protocol:  &tcp,
+			FromSrcIP: []*net.IPNet{ingressIPBlock},
+		},
+			{
+				FromPort:           &portInt,
+				Protocol:           &tcp,
+				FromSecurityGroups: []*securitygroup.CloudResourceID{addrGrpIDs[addrGrps[0].Name]},
+			},
 		}
-		egressRule = &securitygroup.EgressRule{
-			ToPort:           &portInt,
-			Protocol:         &tcp,
-			ToSecurityGroups: []*securitygroup.CloudResourceID{addrGrpIDs[addrGrps[1].Name]},
-			ToDstIP:          []*net.IPNet{egressIPBlock},
+		egressRule = []securitygroup.EgressRule{{
+			ToPort:   &portInt,
+			Protocol: &tcp,
+			ToDstIP:  []*net.IPNet{egressIPBlock},
+		},
+			{
+				ToPort:           &portInt,
+				Protocol:         &tcp,
+				ToSecurityGroups: []*securitygroup.CloudResourceID{addrGrpIDs[addrGrps[1].Name]},
+			},
 		}
 
 		for i := appliedToVMIdx; i < patchVMIdx; i++ {
-			syncContents[i].EgressRules = []securitygroup.EgressRule{*egressRule}
-			syncContents[i].IngressRules = []securitygroup.IngressRule{*ingressRule}
+			syncContents[i].EgressRules = deepcopy.Copy(egressRule).([]securitygroup.EgressRule)
+			syncContents[i].IngressRules = deepcopy.Copy(ingressRule).([]securitygroup.IngressRule)
 		}
 		sgConfig = securityGroupConfig{}
 		sgConfig.sgCreateTimes = 1
@@ -378,6 +388,9 @@ var _ = Describe("NetworkPolicy", func() {
 	// The sequence of IPs in IngressRule/EgressRule might change during rule deduplication.
 	// Sort it for equality check.
 	sortRuleIPs := func(inputIP []*net.IPNet) []*net.IPNet {
+		if inputIP == nil {
+			return nil
+		}
 		ipMap := make(map[string]*net.IPNet)
 		ipStrList := make([]string, 0)
 		for _, ip := range inputIP {
@@ -444,23 +457,47 @@ var _ = Describe("NetworkPolicy", func() {
 			var ruleCall *mock.Call
 			if sgConfig.sgRuleNoOrder {
 				ruleCall = mockCloudSecurityAPI.EXPECT().UpdateSecurityGroupRules(
-					grpID, mock.Any(), mock.Any()).
+					grpID, mock.Any(), mock.Any(), mock.Any()).
 					Return(ch).After(createCall).MaxTimes(sgConfig.appSgRuleTimes).
-					Do(func(id *securitygroup.CloudResource, in []*securitygroup.IngressRule, eg []*securitygroup.EgressRule) {
-						Expect(len(in)).To(Equal(1))
-						Expect(len(eg)).To(Equal(1))
-						Expect(sortIngressRuleIPs(in[0])).To(Equal(sortIngressRuleIPs(ingressRule)))
-						Expect(sortEgressRuleIPs(eg[0])).To(Equal(sortEgressRuleIPs(egressRule)))
+					Do(func(id *securitygroup.CloudResource, add, rm, all []*securitygroup.CloudRule) {
+						in := make([]*securitygroup.IngressRule, 0)
+						eg := make([]*securitygroup.EgressRule, 0)
+						for _, rule := range all {
+							switch rule.Rule.(type) {
+							case *securitygroup.IngressRule:
+								in = append(in, rule.Rule.(*securitygroup.IngressRule))
+							case *securitygroup.EgressRule:
+								eg = append(eg, rule.Rule.(*securitygroup.EgressRule))
+							}
+						}
+						Expect(len(in)).To(Equal(2))
+						Expect(len(eg)).To(Equal(2))
+						Expect(ingressRule).To(ContainElement(*sortIngressRuleIPs(in[0])))
+						Expect(ingressRule).To(ContainElement(*sortIngressRuleIPs(in[1])))
+						Expect(egressRule).To(ContainElement(*sortEgressRuleIPs(eg[0])))
+						Expect(egressRule).To(ContainElement(*sortEgressRuleIPs(eg[1])))
 					})
 			} else {
 				ruleCall = mockCloudSecurityAPI.EXPECT().UpdateSecurityGroupRules(
-					grpID, mock.Any(), mock.Any()).
+					grpID, mock.Any(), mock.Any(), mock.Any()).
 					Return(ch).After(createCall).Times(sgConfig.appSgRuleTimes).
-					Do(func(id *securitygroup.CloudResource, in []*securitygroup.IngressRule, eg []*securitygroup.EgressRule) {
-						Expect(len(in)).To(Equal(1))
-						Expect(len(eg)).To(Equal(1))
-						Expect(sortIngressRuleIPs(in[0])).To(Equal(sortIngressRuleIPs(ingressRule)))
-						Expect(sortEgressRuleIPs(eg[0])).To(Equal(sortEgressRuleIPs(egressRule)))
+					Do(func(id *securitygroup.CloudResource, add, rm, all []*securitygroup.CloudRule) {
+						in := make([]*securitygroup.IngressRule, 0)
+						eg := make([]*securitygroup.EgressRule, 0)
+						for _, rule := range all {
+							switch rule.Rule.(type) {
+							case *securitygroup.IngressRule:
+								in = append(in, rule.Rule.(*securitygroup.IngressRule))
+							case *securitygroup.EgressRule:
+								eg = append(eg, rule.Rule.(*securitygroup.EgressRule))
+							}
+						}
+						Expect(len(in)).To(Equal(2))
+						Expect(len(eg)).To(Equal(2))
+						Expect(ingressRule).To(ContainElement(*sortIngressRuleIPs(in[0])))
+						Expect(ingressRule).To(ContainElement(*sortIngressRuleIPs(in[1])))
+						Expect(egressRule).To(ContainElement(*sortEgressRuleIPs(eg[0])))
+						Expect(egressRule).To(ContainElement(*sortEgressRuleIPs(eg[1])))
 					})
 			}
 			go func(ret chan error) {
@@ -548,9 +585,8 @@ var _ = Describe("NetworkPolicy", func() {
 		return chans
 	}
 
-	checkGrpPatchChange := func(grpName string, members []antreanetworking.GroupMember,
-		apgs []*antreanetworking.AppliedToGroup, memberChange bool, oldMembers []*antreatypes.ExternalEntity,
-		membershipOnly bool) {
+	checkGrpPatchChange := func(grpName string, members []antreanetworking.GroupMember, memberChange bool,
+		oldMembers []*antreatypes.ExternalEntity, membershipOnly bool) {
 		eelist := make([]*antreatypes.ExternalEntity, 0)
 		if members != nil {
 			eelist = append(eelist, getGrpExternalEntity(members)...)
@@ -595,31 +631,6 @@ var _ = Describe("NetworkPolicy", func() {
 				}(ch)
 			}
 		}
-		for _, ag := range apgs {
-			for vpc := range getGrpVPCs(ag.GroupMembers) {
-				ch := make(chan error)
-				grpID := &securitygroup.CloudResource{
-					Type: securitygroup.CloudResourceTypeVM,
-					CloudResourceID: securitygroup.CloudResourceID{
-						Name: appliedToGrpIDs[ag.Name].Name,
-						Vpc:  vpc,
-					},
-					AccountID: accountID,
-				}
-				mockCloudSecurityAPI.EXPECT().UpdateSecurityGroupRules(
-					grpID, mock.Any(), mock.Any()).
-					Return(ch).
-					Do(func(_ *securitygroup.CloudResource, in []*securitygroup.IngressRule, eg []*securitygroup.EgressRule) {
-						Expect(len(in)).To(Equal(1))
-						Expect(len(eg)).To(Equal(1))
-						Expect(sortIngressRuleIPs(in[0])).To(Equal(sortIngressRuleIPs(ingressRule)))
-						Expect(sortEgressRuleIPs(eg[0])).To(Equal(sortEgressRuleIPs(egressRule)))
-					})
-				go func(ret chan error) {
-					ret <- nil
-				}(ch)
-			}
-		}
 	}
 
 	checkNPPatchChange := func(apgs []*antreanetworking.AppliedToGroup) {
@@ -635,13 +646,26 @@ var _ = Describe("NetworkPolicy", func() {
 					AccountID: accountID,
 				}
 				mockCloudSecurityAPI.EXPECT().UpdateSecurityGroupRules(
-					grpID, mock.Any(), mock.Any()).
+					grpID, mock.Any(), mock.Any(), mock.Any()).
 					Return(ch).
-					Do(func(_ *securitygroup.CloudResource, in []*securitygroup.IngressRule, eg []*securitygroup.EgressRule) {
-						Expect(len(in)).To(Equal(1))
-						Expect(len(eg)).To(Equal(1))
-						Expect(sortIngressRuleIPs(in[0])).To(Equal(sortIngressRuleIPs(ingressRule)))
-						Expect(sortEgressRuleIPs(eg[0])).To(Equal(sortEgressRuleIPs(egressRule)))
+					Do(func(_ *securitygroup.CloudResource, add, rm, all []*securitygroup.CloudRule) {
+						in := make([]*securitygroup.IngressRule, 0)
+						eg := make([]*securitygroup.EgressRule, 0)
+						for _, rule := range all {
+							switch rule.Rule.(type) {
+							case *securitygroup.IngressRule:
+								in = append(in, rule.Rule.(*securitygroup.IngressRule))
+							case *securitygroup.EgressRule:
+								eg = append(eg, rule.Rule.(*securitygroup.EgressRule))
+							}
+						}
+						Expect(len(in)).To(Equal(3))
+						Expect(len(eg)).To(Equal(2))
+						Expect(ingressRule).To(ContainElement(*sortIngressRuleIPs(in[0])))
+						Expect(ingressRule).To(ContainElement(*sortIngressRuleIPs(in[1])))
+						Expect(ingressRule).To(ContainElement(*sortIngressRuleIPs(in[2])))
+						Expect(egressRule).To(ContainElement(*sortEgressRuleIPs(eg[0])))
+						Expect(egressRule).To(ContainElement(*sortEgressRuleIPs(eg[1])))
 					})
 				go func(ret chan error) {
 					ret <- nil
@@ -945,7 +969,7 @@ var _ = Describe("NetworkPolicy", func() {
 		remove := vmExternalEntities[vmNames[0]]
 		addrGrp := addrGrps[0]
 		p1 := patchAddrGrpMember(addrGrp, add, remove, 0)
-		checkGrpPatchChange(addrGrp.Name, addrGrp.GroupMembers, nil, true, []*antreatypes.ExternalEntity{remove}, true)
+		checkGrpPatchChange(addrGrp.Name, addrGrp.GroupMembers, true, []*antreatypes.ExternalEntity{remove}, true)
 		var err error
 		event := watch.Event{Type: watch.Modified, Object: p1}
 		err = reconciler.processAddrGrp(event)
@@ -960,7 +984,7 @@ var _ = Describe("NetworkPolicy", func() {
 		remove := vmExternalEntities[vmNames[2]]
 		appliedToGrp := appliedToGrps[0]
 		p1 := patchAppliedToGrpMember(appliedToGrp, add, remove, 0)
-		checkGrpPatchChange(appliedToGrp.Name, appliedToGrp.GroupMembers, nil, true, []*antreatypes.ExternalEntity{remove}, false)
+		checkGrpPatchChange(appliedToGrp.Name, appliedToGrp.GroupMembers, true, []*antreatypes.ExternalEntity{remove}, false)
 		var err error
 		event := watch.Event{Type: watch.Modified, Object: p1}
 		err = reconciler.processAppliedToGrp(event)
@@ -986,7 +1010,10 @@ var _ = Describe("NetworkPolicy", func() {
 		err = reconciler.processAddrGrp(event)
 		Expect(err).ToNot(HaveOccurred())
 
-		ingressRule.FromSecurityGroups = append(ingressRule.FromSecurityGroups, addrGrpIDs[ag.Name])
+		ingress := ingressRule[0]
+		ingress.FromSecurityGroups = append(ingress.FromSecurityGroups, addrGrpIDs[ag.Name])
+		ingress.FromSrcIP = nil
+		ingressRule = append(ingressRule, ingress)
 		checkNPPatchChange(appliedToGrps)
 		event = watch.Event{Type: watch.Modified, Object: anp}
 		err = reconciler.processNetworkPolicy(event)
@@ -1173,8 +1200,6 @@ var _ = Describe("NetworkPolicy", func() {
 				for _, ag := range addrGrps {
 					ag.GroupMembers = ag.GroupMembers[:1]
 				}
-				ingressRule.FromSrcIP = ingressRule.FromSrcIP[:1]
-				egressRule.ToDstIP = egressRule.ToDstIP[:1]
 			}
 			itemCnt := len(anp.Rules) + len(anp.AppliedToGroups)
 			if op == securityGroupOperationUpdateRules.String() {
@@ -1251,8 +1276,6 @@ var _ = Describe("NetworkPolicy", func() {
 				for _, ag := range addrGrps {
 					ag.GroupMembers = ag.GroupMembers[:1]
 				}
-				ingressRule.FromSrcIP = ingressRule.FromSrcIP[:1]
-				egressRule.ToDstIP = egressRule.ToDstIP[:1]
 			}
 			sgConfig = opSgConfig[op][0]
 			createAndVerifyNP(false)
@@ -1283,7 +1306,7 @@ var _ = Describe("NetworkPolicy", func() {
 			cloudReturnSameSG: {
 				addrSgMemberTimes: 0,
 				appSgMemberTimes:  0,
-				appSgRuleTimes:    0,
+				appSgRuleTimes:    1,
 				sgCreateTimes:     0,
 			},
 			cloudReturnNoSG: {
@@ -1295,7 +1318,7 @@ var _ = Describe("NetworkPolicy", func() {
 			cloudReturnDiffMemberSG: {
 				addrSgMemberTimes: 1,
 				appSgMemberTimes:  0,
-				appSgRuleTimes:    0,
+				appSgRuleTimes:    1,
 				sgCreateTimes:     0,
 			},
 			cloudReturnDiffRuleSG: {
@@ -1307,7 +1330,7 @@ var _ = Describe("NetworkPolicy", func() {
 			cloudReturnExtraSG: {
 				addrSgMemberTimes: 0,
 				appSgMemberTimes:  0,
-				appSgRuleTimes:    0,
+				appSgRuleTimes:    1,
 				sgCreateTimes:     0,
 			},
 		}

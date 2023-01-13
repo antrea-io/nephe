@@ -23,6 +23,7 @@ import (
 
 	"github.com/mohae/deepcopy"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -227,10 +228,10 @@ func mergeIPs(src, added, removed []*net.IPNet) (list []*net.IPNet) {
 // vpcsFromGroupMembers, provided with a list of ExternalEntityReferences, returns corresponding CloudResources keyed by VPC.
 // If an ExternalEntity does not correspond to a CloudResource, its IP(s) is returned.
 func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPolicyReconciler) (
-	map[string][]*securitygroup.CloudResource, []*net.IPNet, []string, error) {
+	map[string][]*securitygroup.CloudResource, []*net.IPNet, []*types.NamespacedName, error) {
 	vpcs := make(map[string][]*securitygroup.CloudResource)
 	var ipBlocks []*net.IPNet
-	var notFoundMember []string
+	var notFoundMember []*types.NamespacedName
 	for _, m := range members {
 		if m.ExternalEntity == nil {
 			continue
@@ -239,7 +240,8 @@ func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPoli
 		key := client.ObjectKey{Name: m.ExternalEntity.Name, Namespace: m.ExternalEntity.Namespace}
 		if err := r.Get(context.TODO(), key, e); err != nil {
 			if apierrors.IsNotFound(err) {
-				notFoundMember = append(notFoundMember, m.ExternalEntity.Name)
+				namespacedName := &types.NamespacedName{Namespace: m.ExternalEntity.Namespace, Name: m.ExternalEntity.Name}
+				notFoundMember = append(notFoundMember, namespacedName)
 				continue
 			}
 			r.Log.Error(err, "Client get ExternalEntity", "key", key)
@@ -262,6 +264,8 @@ func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPoli
 			ownerAnnotations, ownerCloudProvider, err := getOwnerProperties(e, r)
 			if err != nil {
 				r.Log.Error(err, "externalEntity owner not found", "key", key, "kind", kind)
+				namespacedName := &types.NamespacedName{Namespace: m.ExternalEntity.Namespace, Name: m.ExternalEntity.Name}
+				notFoundMember = append(notFoundMember, namespacedName)
 				continue
 			}
 			vpc, ok := ownerAnnotations[cloudcommon.AnnotationCloudAssignedVPCIDKey]
@@ -316,136 +320,6 @@ func getOwnerProperties(e *antreanetcore.ExternalEntity, r *NetworkPolicyReconci
 	return nil, "", fmt.Errorf("unsupported cloud owner kind")
 }
 
-// deduplicateKey is used for deduplicate network policy rules.
-type deduplicateKey struct {
-	port     int
-	protocol int
-}
-
-// overlap decides whether two ip blocks overlap(one contains the other).
-// If so, return the one with smaller range. Otherwise, return nil.
-func overlap(ip1 *net.IPNet, ip2 *net.IPNet) *net.IPNet {
-	maskLen1, _ := ip1.Mask.Size()
-	maskLen2, _ := ip2.Mask.Size()
-	if maskLen1 < maskLen2 {
-		if ip1.Contains(ip2.IP) {
-			return ip2
-		}
-	} else {
-		if ip2.Contains(ip1.IP) {
-			return ip1
-		}
-	}
-	return nil
-}
-
-// deduplicateIP deduplicate a slice of IP addresses.
-// For overlapping ip blocks, we use the one with the widest range.
-func deduplicateIP(inputIP []*net.IPNet) []*net.IPNet {
-	ipList := make([]*net.IPNet, 0)
-	existing := make(map[string]*net.IPNet)
-	for _, ip := range inputIP {
-		if _, ok := existing[ip.String()]; ok {
-			continue
-		}
-		existing[ip.String()] = ip
-		ipList = append(ipList, ip)
-	}
-	for i := 0; i < len(ipList); i++ {
-		for j := i + 1; j < len(ipList); j++ {
-			smallerIP := overlap(ipList[i], ipList[j])
-			if smallerIP != nil {
-				delete(existing, smallerIP.String())
-			}
-		}
-	}
-	outputIP := make([]*net.IPNet, 0)
-	for _, v := range existing {
-		outputIP = append(outputIP, v)
-	}
-	return outputIP
-}
-
-// deduplicateSG deduplicate a slice of security groups.
-func deduplicateSG(inputSG []*securitygroup.CloudResourceID) []*securitygroup.CloudResourceID {
-	outputSG := make([]*securitygroup.CloudResourceID, 0)
-	existing := make(map[string]struct{})
-	for _, sg := range inputSG {
-		if _, ok := existing[sg.String()]; ok {
-			continue
-		}
-		existing[sg.String()] = struct{}{}
-		outputSG = append(outputSG, sg)
-	}
-	return outputSG
-}
-
-// deduplicateIngressRules merges duplicated ingress rules on one port into one.
-func deduplicateIngressRules(ingressRules []*securitygroup.IngressRule) []*securitygroup.IngressRule {
-	inRuleIPSet := make(map[deduplicateKey][]*net.IPNet)
-	inRuleSGSet := make(map[deduplicateKey][]*securitygroup.CloudResourceID)
-	mergedInRules := make([]*securitygroup.IngressRule, 0)
-	for _, r := range ingressRules {
-		port, protocol := 0, 0
-		if r.FromPort != nil {
-			port = *(r.FromPort)
-		}
-		if r.Protocol != nil {
-			protocol = *(r.Protocol)
-		}
-		ruleKey := deduplicateKey{port: port, protocol: protocol}
-		inRuleIPSet[ruleKey] = append(inRuleIPSet[ruleKey], r.FromSrcIP...)
-		inRuleSGSet[ruleKey] = append(inRuleSGSet[ruleKey], r.FromSecurityGroups...)
-	}
-	for k, v := range inRuleIPSet {
-		port, protocol := k.port, k.protocol
-		var portP, protocolP *int
-		if port != 0 {
-			portP = &(port)
-		}
-		if protocol != 0 {
-			protocolP = &(protocol)
-		}
-		inRule := securitygroup.IngressRule{FromPort: portP, FromSrcIP: deduplicateIP(v),
-			FromSecurityGroups: deduplicateSG(inRuleSGSet[k]), Protocol: protocolP}
-		mergedInRules = append(mergedInRules, &inRule)
-	}
-	return mergedInRules
-}
-
-// deduplicateEgressRules merges duplicated egress rules on one port into one.
-func deduplicateEgressRules(egressRules []*securitygroup.EgressRule) []*securitygroup.EgressRule {
-	eRuleIPSet := make(map[deduplicateKey][]*net.IPNet)
-	eRuleSGSet := make(map[deduplicateKey][]*securitygroup.CloudResourceID)
-	mergedERules := make([]*securitygroup.EgressRule, 0)
-	for _, r := range egressRules {
-		port, protocol := 0, 0
-		if r.ToPort != nil {
-			port = *(r.ToPort)
-		}
-		if r.Protocol != nil {
-			protocol = *(r.Protocol)
-		}
-		ruleKey := deduplicateKey{port: port, protocol: protocol}
-		eRuleIPSet[ruleKey] = append(eRuleIPSet[ruleKey], r.ToDstIP...)
-		eRuleSGSet[ruleKey] = append(eRuleSGSet[ruleKey], r.ToSecurityGroups...)
-	}
-	for k, v := range eRuleIPSet {
-		port, protocol := k.port, k.protocol
-		var portP, protocolP *int
-		if port != 0 {
-			portP = &(port)
-		}
-		if protocol != 0 {
-			protocolP = &(protocol)
-		}
-		eRule := securitygroup.EgressRule{ToPort: portP, ToDstIP: deduplicateIP(v),
-			ToSecurityGroups: deduplicateSG(eRuleSGSet[k]), Protocol: protocolP}
-		mergedERules = append(mergedERules, &eRule)
-	}
-	return mergedERules
-}
-
 // securityGroupImpl supplies common implementations for addrSecurityGroup and appliedToSecurityGroup.
 type securityGroupImpl struct {
 	// Members of this SecurityGroup.
@@ -472,29 +346,6 @@ func (s *securityGroupImpl) getID() securitygroup.CloudResourceID {
 // getMembers returns securityGroup members.
 func (s *securityGroupImpl) getMembers() []*securitygroup.CloudResource {
 	return s.members
-}
-
-func (s *securityGroupImpl) removeStaleMembers(stales []string, r *NetworkPolicyReconciler) {
-	if len(s.members) == 0 {
-		return
-	}
-	srcMap := make(map[string]*securitygroup.CloudResource)
-	for _, m := range s.members {
-		srcMap[m.Name] = m
-	}
-	for _, stale := range stales {
-		for k := range srcMap {
-			if strings.Contains(stale, k) {
-				r.Log.V(1).Info("Remove stale members from SecurityGroup", "Stale", stale, "Name", s.id.Name)
-				delete(srcMap, k)
-			}
-		}
-	}
-	var members []*securitygroup.CloudResource
-	for _, m := range srcMap {
-		members = append(members, m)
-	}
-	s.members = members
 }
 
 // addImpl invokes cloud plug-in to create a SecurityGroup.
@@ -806,6 +657,30 @@ func (a *addrSecurityGroup) notifyNetworkPolicyChange(r *NetworkPolicyReconciler
 	}
 }
 
+// removeStaleMembers removes sg members that their corresponding CRs no longer exist.
+func (a *addrSecurityGroup) removeStaleMembers(stales []*types.NamespacedName, r *NetworkPolicyReconciler) {
+	if len(a.members) == 0 {
+		return
+	}
+	srcMap := make(map[string]*securitygroup.CloudResource)
+	for _, m := range a.members {
+		srcMap[m.Name] = m
+	}
+	for _, stale := range stales {
+		for k := range srcMap {
+			if strings.Contains(stale.Name, k) {
+				r.Log.V(1).Info("Remove stale members from SecurityGroup", "Stale", stale, "Name", a.id.Name)
+				delete(srcMap, k)
+			}
+		}
+	}
+	var members []*securitygroup.CloudResource
+	for _, m := range srcMap {
+		members = append(members, m)
+	}
+	a.members = members
+}
+
 // appliedToSecurityGroup contains information to create a cloud appliedToSecurityGroup.
 type appliedToSecurityGroup struct {
 	securityGroupImpl
@@ -858,11 +733,12 @@ func (a *appliedToSecurityGroup) isReady() bool {
 	return a.state == securityGroupStateCreated
 }
 
-// updateRules invokes cloud plug-in to update rules of appliedToSecurityGroup.
-func (a *appliedToSecurityGroup) updateRules(r *NetworkPolicyReconciler) error {
+// updateAllRules invokes cloud plug-in to update rules of appliedToSecurityGroup for all associated ANPs.
+func (a *appliedToSecurityGroup) updateAllRules(r *NetworkPolicyReconciler) error {
 	if !a.isReady() {
 		return nil
 	}
+
 	// Wait for ongoing retry operation.
 	if a.retryOp != nil {
 		return nil
@@ -872,47 +748,237 @@ func (a *appliedToSecurityGroup) updateRules(r *NetworkPolicyReconciler) error {
 		return fmt.Errorf("unable to get networkPolicy with key %s from indexer: %w", a.id.Name, err)
 	}
 	if len(nps) == 0 {
-		if a.hasMembers {
-			r.Log.V(1).Info("AppliedToSecurityGroup clear members with no rules", "Name", a.id.Name)
-			ch := securitygroup.CloudSecurityGroup.UpdateSecurityGroupMembers(&a.id, nil, false)
-			go func() {
-				err := <-ch
-				r.cloudResponse <- &securityGroupStatus{sg: a, op: securityGroupOperationClearMembers, err: err}
-			}()
-			return nil
-		}
-		// No need to update appliedToSecurityGroup with no members.
-		r.Log.V(1).Info("AppliedToSecurityGroup clear rules", "Name", a.id.Name)
-		a.hasRules = false
+		a.clearMembers(r)
 		return nil
 	}
-	irules, erules := a.computeRules(nps)
-	if irules == nil || erules == nil {
-		return nil
+
+	for _, obj := range nps {
+		np := obj.(*networkPolicy)
+		a.updateANPRules(r, np)
 	}
-	r.Log.V(1).Info("AppliedToSecurityGroup update rules", "Name", a.id.Name,
-		"ingressRules", irules, "egressRules", erules)
-	ch := securitygroup.CloudSecurityGroup.UpdateSecurityGroupRules(&a.id, irules, erules)
-	go func() {
-		err := <-ch
-		r.cloudResponse <- &securityGroupStatus{sg: a, op: securityGroupOperationUpdateRules, err: err}
-	}()
+
 	return nil
 }
 
-// computeRules compute all the ingress and egress rules of an appliedTo group.
-func (a *appliedToSecurityGroup) computeRules(nps []interface{}) ([]*securitygroup.IngressRule, []*securitygroup.EgressRule) {
-	irules := make([]*securitygroup.IngressRule, 0)
-	erules := make([]*securitygroup.EgressRule, 0)
+// updateANPRules invokes cloud plug-in to update rules of appliedToSecurityGroup for a given ANP.
+func (a *appliedToSecurityGroup) updateANPRules(r *NetworkPolicyReconciler, np *networkPolicy) {
+	if !a.isReady() || a.deletePending || !np.rulesReady {
+		return
+	}
+
+	npNamespacedName := np.getNamespacedName()
+	nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAppliedToGrp, a.id.Name)
+	if err != nil {
+		r.Log.Error(err, "get networkPolicy indexer", "sg", a.id.Name)
+		err = fmt.Errorf("internal error when updating rules for sg %s anp %s", a.id.Name, npNamespacedName)
+		r.sendRuleRealizationStatus(&np.NetworkPolicy, err)
+		a.status = err
+		_ = a.updateNPTracker(r)
+		return
+	}
+	if len(nps) == 0 {
+		a.clearMembers(r)
+		return
+	}
+	// get full set of current rules for this security group.
+	allRules := a.combineRules(nps)
+
+	// get current rules for given np to compute rule update delta.
+	rules := a.combineRules([]interface{}{np})
+	currentRuleMap := make(map[string]*securitygroup.CloudRule)
+	for _, rule := range rules {
+		currentRuleMap[rule.Hash] = rule
+	}
+
+	a.claimUnownedRules(r, currentRuleMap, npNamespacedName)
+	addRules, rmRules, err := a.computeRules(r, currentRuleMap, npNamespacedName)
+	if err != nil {
+		r.sendRuleRealizationStatus(&np.NetworkPolicy, err)
+		a.status = err
+		_ = a.updateNPTracker(r)
+		return
+	}
+
+	// TODO: do not invoke cloud plugin if no rules to update.
+	r.Log.V(1).Info("AppliedToSecurityGroup update rules for anp", "anp", np.Name, "name", a.id.Name,
+		"rules", rules)
+	ch := securitygroup.CloudSecurityGroup.UpdateSecurityGroupRules(&a.id, addRules, rmRules, allRules)
+
+	go func() {
+		err = <-ch
+		if err == nil {
+			for _, rule := range addRules {
+				_ = r.cloudRuleIndexer.Update(rule)
+			}
+			for _, rule := range rmRules {
+				_ = r.cloudRuleIndexer.Delete(rule)
+			}
+		}
+		r.updateRuleRealizationStatus(a.id.CloudResourceID.String(), np, err)
+		r.cloudResponse <- &securityGroupStatus{sg: a, op: securityGroupOperationUpdateRules, err: err}
+	}()
+}
+
+// clearMembers removes all members from a security group.
+func (a *appliedToSecurityGroup) clearMembers(r *NetworkPolicyReconciler) {
+	if a.hasMembers {
+		r.Log.V(1).Info("AppliedToSecurityGroup clear members with no rules", "Name", a.id.Name)
+		ch := securitygroup.CloudSecurityGroup.UpdateSecurityGroupMembers(&a.id, nil, false)
+		go func() {
+			err := <-ch
+			r.cloudResponse <- &securityGroupStatus{sg: a, op: securityGroupOperationClearMembers, err: err}
+		}()
+		return
+	}
+	// No need to update appliedToSecurityGroup with no members.
+	r.Log.V(1).Info("AppliedToSecurityGroup clear rules", "Name", a.id.Name)
+	a.hasRules = false
+}
+
+// combineRules converts and combines all rules from given anps to securitygroup.CloudRule.
+func (a *appliedToSecurityGroup) combineRules(nps []interface{}) []*securitygroup.CloudRule {
+	rules := make([]*securitygroup.CloudRule, 0)
 	for _, i := range nps {
 		np := i.(*networkPolicy)
 		if !np.rulesReady {
-			return nil, nil
+			continue
 		}
-		irules = append(irules, deepcopy.Copy(np.ingressRules).([]*securitygroup.IngressRule)...)
-		erules = append(erules, deepcopy.Copy(np.egressRules).([]*securitygroup.EgressRule)...)
+		npNamespacedName := np.getNamespacedName()
+		for _, r := range np.ingressRules {
+			rule := &securitygroup.CloudRule{
+				Rule:          deepcopy.Copy(r).(*securitygroup.IngressRule),
+				NetworkPolicy: npNamespacedName,
+				AppliedToGrp:  a.id.CloudResourceID.String(),
+			}
+			rule.Hash = rule.GetHash()
+			rules = append(rules, rule)
+		}
+		for _, r := range np.egressRules {
+			rule := &securitygroup.CloudRule{
+				Rule:          deepcopy.Copy(r).(*securitygroup.EgressRule),
+				NetworkPolicy: npNamespacedName,
+				AppliedToGrp:  a.id.CloudResourceID.String(),
+			}
+			rule.Hash = rule.GetHash()
+			rules = append(rules, rule)
+		}
 	}
-	return deduplicateIngressRules(irules), deduplicateEgressRules(erules)
+	return rules
+}
+
+// claimUnownedRules claims unowned rules in cloud rule indexer that matches with given np rules.
+func (a *appliedToSecurityGroup) claimUnownedRules(r *NetworkPolicyReconciler, currentRuleMap map[string]*securitygroup.CloudRule,
+	npNamespacedName string) {
+	previousRules, err := r.cloudRuleIndexer.ByIndex(cloudRuleIndexerByAppliedToGrp, a.id.CloudResourceID.String())
+	if err != nil {
+		r.Log.Error(err, "get cloudRule indexer", "sg", a.id.CloudResourceID.String())
+		return
+	}
+
+	for _, obj := range previousRules {
+		previousRule := obj.(*securitygroup.CloudRule)
+
+		// rules that are synced from the cloud do not have np associated with them.
+		// here we claim any rules with no np associated that also match current np rules, since those rules are already in cloud.
+		_, sameRule := currentRuleMap[previousRule.Hash]
+		if sameRule && previousRule.NetworkPolicy == "" {
+			r.Log.V(1).Info("claim unowned rule", "rule", previousRule)
+			previousRule.NetworkPolicy = npNamespacedName
+			_ = r.cloudRuleIndexer.Update(previousRule)
+		}
+	}
+}
+
+// computeRules computes the rule update delta of an ANP by comparing current rules in np and previous rules in indexer.
+func (a *appliedToSecurityGroup) computeRules(r *NetworkPolicyReconciler, currentRuleMap map[string]*securitygroup.CloudRule,
+	npNamespacedName string) ([]*securitygroup.CloudRule, []*securitygroup.CloudRule, error) {
+	previousRules, err := r.cloudRuleIndexer.ByIndex(cloudRuleIndexerByAppliedToGrp, a.id.CloudResourceID.String())
+	if err != nil {
+		r.Log.Error(err, "get cloudRule indexer", "sg", a.id.CloudResourceID.String())
+		return nil, nil, err
+	}
+
+	// for each previous rule:
+	// same rule with same np found in current rules  -> rule already applied, no-op.
+	// no rule with same np found                     -> rule removed, delete.
+	// same rule with different np found              -> duplicate rules with other np, err.
+	// no rule with different np found                -> no-op.
+	addRules := make([]*securitygroup.CloudRule, 0)
+	removeRules := make([]*securitygroup.CloudRule, 0)
+	for _, obj := range previousRules {
+		previousRule := obj.(*securitygroup.CloudRule)
+		// build previous rule map as we go.
+
+		sameNP := previousRule.NetworkPolicy == npNamespacedName
+		currentRule, sameRule := currentRuleMap[previousRule.Hash]
+		if sameRule && !sameNP {
+			err = fmt.Errorf("duplicate rules with anp %s", previousRule.NetworkPolicy)
+			r.Log.Error(err, "unable to compute rules", "rule", currentRule, "anp", npNamespacedName)
+			return nil, nil, err
+		}
+		if !sameRule && sameNP {
+			removeRules = append(removeRules, previousRule)
+			continue
+		}
+		if sameRule && sameNP {
+			delete(currentRuleMap, previousRule.Hash)
+		}
+	}
+
+	// add rules that are not in previous rules.
+	for _, rule := range currentRuleMap {
+		addRules = append(addRules, rule)
+	}
+
+	return addRules, removeRules, nil
+}
+
+// checkRealization checks for exact match between desired rule state in given np and realized rule state in cloudRuleIndexer.
+func (a *appliedToSecurityGroup) checkRealization(r *NetworkPolicyReconciler, np *networkPolicy) error {
+	realizedRules, err := r.cloudRuleIndexer.ByIndex(cloudRuleIndexerByAppliedToGrp, a.id.CloudResourceID.String())
+	if err != nil {
+		return err
+	}
+
+	realizedRuleMap := make(map[string]*securitygroup.CloudRule)
+	for _, obj := range realizedRules {
+		rule := obj.(*securitygroup.CloudRule)
+		// sg might have rules from other nps, ignore those rules.
+		if rule.NetworkPolicy != np.getNamespacedName() {
+			continue
+		}
+		realizedRuleMap[rule.Hash] = rule
+	}
+
+	for _, irule := range np.ingressRules {
+		desiredRule := securitygroup.CloudRule{
+			Rule:         irule,
+			AppliedToGrp: a.id.CloudResourceID.String(),
+		}
+		desiredRule.Hash = desiredRule.GetHash()
+		_, found := realizedRuleMap[desiredRule.Hash]
+		if !found {
+			return fmt.Errorf("ingress rule not realized %+v", desiredRule)
+		}
+		delete(realizedRuleMap, desiredRule.Hash)
+	}
+	for _, erule := range np.egressRules {
+		desiredRule := securitygroup.CloudRule{
+			Rule:         erule,
+			AppliedToGrp: a.id.CloudResourceID.String(),
+		}
+		desiredRule.Hash = desiredRule.GetHash()
+		_, found := realizedRuleMap[desiredRule.Hash]
+		if !found {
+			return fmt.Errorf("egress rule not realized %+v", desiredRule)
+		}
+		delete(realizedRuleMap, desiredRule.Hash)
+	}
+
+	if len(realizedRuleMap) != 0 {
+		return fmt.Errorf("unexpected rules in cloud %+v", realizedRuleMap)
+	}
+	return nil
 }
 
 // updateAddrGroupReference updates appliedTo group addrGroupRefs and notifies removed addrGroups that rules referencing them is removed.
@@ -922,20 +988,23 @@ func (a *appliedToSecurityGroup) updateAddrGroupReference(r *NetworkPolicyReconc
 	if err != nil {
 		return fmt.Errorf("unable to get networkPolicy with key %s from indexer: %w", a.id.Name, err)
 	}
-	irules, erules := a.computeRules(nps)
+	rules := a.combineRules(nps)
 
-	// combine irules and erules to get latest addrGroupRefs.
+	// combine rules to get latest addrGroupRefs.
 	currentRefs := make(map[string]bool)
-	for _, rule := range irules {
-		for _, sg := range rule.FromSecurityGroups {
-			currentRefs[sg.String()] = true
+	for _, rule := range rules {
+		switch rule.Rule.(type) {
+		case *securitygroup.IngressRule:
+			for _, sg := range rule.Rule.(*securitygroup.IngressRule).FromSecurityGroups {
+				currentRefs[sg.String()] = true
+			}
+		case *securitygroup.EgressRule:
+			for _, sg := range rule.Rule.(*securitygroup.EgressRule).ToSecurityGroups {
+				currentRefs[sg.String()] = true
+			}
 		}
 	}
-	for _, rule := range erules {
-		for _, sg := range rule.ToSecurityGroups {
-			currentRefs[sg.String()] = true
-		}
-	}
+
 	// compute addrGroupRefs removed from previous.
 	removedRefs := make([]string, 0)
 	for oldRef := range a.addrGroupRefs {
@@ -1000,32 +1069,25 @@ func (a *appliedToSecurityGroup) getStatus() error {
 	return &InProgress{}
 }
 
-// updateRuleRealizationState update all ANPs status for a given appliedToGroup.
-func (a *appliedToSecurityGroup) updateRuleRealizationState(r *NetworkPolicyReconciler, failed bool, msg string) {
-	nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAppliedToGrp, a.id.Name)
+func (a *appliedToSecurityGroup) updateNPTracker(r *NetworkPolicyReconciler) error {
+	trackers, err := r.cloudResourceNPTrackerIndexer.ByIndex(cloudResourceNPTrackerIndexerByAppliedToGrp,
+		a.id.CloudResourceID.String())
 	if err != nil {
-		r.Log.Error(err, "Get networkPolicy indexer failed.", "appliedToGroup", a.id.Name)
-		return
+		r.Log.Error(err, "Get cloud resource tracker indexer", "Key", a.id.Name)
+		return err
 	}
-	// Walk through all the ANPs for a given appliedToGroup and report combined status.
-	for _, i := range nps {
-		np := i.(*networkPolicy).NetworkPolicy
-		r.sendRuleRealizationStatus(&np, failed, msg)
+	for _, i := range trackers {
+		tracker := i.(*cloudResourceNPTracker)
+		tracker.markDirty()
 	}
+	return nil
 }
 
 // notify calls into appliedToSecurityGroup to report operation status from cloud plug-in.
 func (a *appliedToSecurityGroup) notify(op securityGroupOperation, status error, r *NetworkPolicyReconciler) error {
 	defer func() {
-		trackers, err := r.cloudResourceNPTrackerIndexer.ByIndex(cloudResourceNPTrackerIndexerByAppliedToGrp,
-			a.id.CloudResourceID.String())
-		if err != nil {
-			r.Log.Error(err, "Get cloud resource tracker indexer", "Key", a.id.Name)
+		if err := a.updateNPTracker(r); err != nil {
 			return
-		}
-		for _, i := range trackers {
-			tracker := i.(*cloudResourceNPTracker)
-			tracker.markDirty()
 		}
 		a.notifyImpl(a, false, op, status, r)
 	}()
@@ -1034,7 +1096,6 @@ func (a *appliedToSecurityGroup) notify(op securityGroupOperation, status error,
 		a.status = status
 	}
 	if status != nil {
-		a.updateRuleRealizationState(r, true, status.Error())
 		r.Log.Error(status, "AppliedToSecurityGroup operation failed", "Name", a.id.Name, "Op", op)
 		return nil
 	}
@@ -1049,13 +1110,12 @@ func (a *appliedToSecurityGroup) notify(op securityGroupOperation, status error,
 		// AppliedToSecurityGroup becomes ready. apply any rules.
 		if a.state == securityGroupStateInit {
 			a.state = securityGroupStateCreated
-			return a.updateRules(r)
+			return a.updateAllRules(r)
 		}
 	case securityGroupOperationUpdateMembers:
 		a.hasMembers = true
 	case securityGroupOperationUpdateRules:
-		// AppliedToSecurityGroup added rules, now update rule realization state, addrGroup references and add members.
-		a.updateRuleRealizationState(r, false, "")
+		// AppliedToSecurityGroup added rules, now update addrGroup references and add members.
 		if err := a.updateAddrGroupReference(r); err != nil {
 			return err
 		}
@@ -1066,8 +1126,9 @@ func (a *appliedToSecurityGroup) notify(op securityGroupOperation, status error,
 	case securityGroupOperationClearMembers:
 		// AppliedToSecurityGroup has cleared members, clear rules.
 		a.hasMembers = false
+		// TODO: check if updateAllRules is required here.
 		if a.hasRules {
-			return a.updateRules(r)
+			return a.updateAllRules(r)
 		}
 	case securityGroupOperationDelete:
 		// AppliedToSecurityGroup is deleted, notify all referenced addrGroups.
@@ -1094,9 +1155,42 @@ func (a *appliedToSecurityGroup) notifyNetworkPolicyChange(r *NetworkPolicyRecon
 		if err := a.delete(r); err != nil {
 			r.Log.Error(err, "Delete securityGroup", "Name", a.id.Name)
 		}
-	} else if !a.deletePending {
-		_ = a.updateRules(r)
 	}
+}
+
+// removeStaleMembers removes sg members that their corresponding CRs no longer exist and cleans up relevant internal resources.
+func (a *appliedToSecurityGroup) removeStaleMembers(stales []*types.NamespacedName, r *NetworkPolicyReconciler) {
+	if len(a.members) == 0 {
+		return
+	}
+	srcMap := make(map[string]*securitygroup.CloudResource)
+	for _, m := range a.members {
+		srcMap[m.Name] = m
+	}
+	for _, stale := range stales {
+		for k := range srcMap {
+			if strings.Contains(stale.Name, k) {
+				// remove member np tracker.
+				r.Log.V(1).Info("Remove stale members from SecurityGroup", "Stale", stale, "Name", a.id.Name)
+				if tracker := r.getCloudResourceNPTracker(srcMap[k], false); tracker != nil {
+					_ = tracker.update(a, true, r)
+				}
+				// remove member vmp.
+				vmNamespacedName := types.NamespacedName{Name: srcMap[k].Name, Namespace: stale.Namespace}
+				if obj, found, _ := r.virtualMachinePolicyIndexer.GetByKey(vmNamespacedName.String()); found {
+					r.Log.V(1).Info("Delete vmp status", "resource", vmNamespacedName.String())
+					_ = r.virtualMachinePolicyIndexer.Delete(obj)
+				}
+				// remove member from sg.
+				delete(srcMap, k)
+			}
+		}
+	}
+	var members []*securitygroup.CloudResource
+	for _, m := range srcMap {
+		members = append(members, m)
+	}
+	a.members = members
 }
 
 // networkPolicyRule describe an Antrea networkPolicy rule.
@@ -1110,10 +1204,12 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler) (ingressList []*s
 	ready = true
 	rule := r.rule
 	if rule.Direction == antreanetworking.DirectionIn {
-		ingress := &securitygroup.IngressRule{}
+		iRules := make([]*securitygroup.IngressRule, 0)
 		for _, ip := range rule.From.IPBlocks {
+			ingress := &securitygroup.IngressRule{}
 			ipNet := net.IPNet{IP: net.IP(ip.CIDR.IP), Mask: net.CIDRMask(int(ip.CIDR.PrefixLength), 32)}
 			ingress.FromSrcIP = append(ingress.FromSrcIP, &ipNet)
+			iRules = append(iRules, ingress)
 		}
 		for _, ag := range rule.From.AddressGroups {
 			sgs, err := rr.addrSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, ag)
@@ -1128,39 +1224,53 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler) (ingressList []*s
 			}
 			for _, i := range sgs {
 				sg := i.(*addrSecurityGroup)
-				ingress.FromSrcIP = append(ingress.FromSrcIP, sg.getIPs()...)
+				for _, ip := range sg.getIPs() {
+					ingress := &securitygroup.IngressRule{}
+					ingress.FromSrcIP = append(ingress.FromSrcIP, ip)
+					iRules = append(iRules, ingress)
+				}
 				id := sg.getID()
 				if len(id.Vpc) > 0 {
+					ingress := &securitygroup.IngressRule{}
 					ingress.FromSecurityGroups = append(ingress.FromSecurityGroups, &id)
+					iRules = append(iRules, ingress)
 				}
 			}
 		}
-		if ingress.Protocol == nil && ingress.FromSecurityGroups == nil && ingress.FromSrcIP == nil {
+		if len(iRules) == 0 {
 			return
 		}
 		if rule.Services == nil {
-			ingressList = append(ingressList, ingress)
+			ingressList = append(ingressList, iRules...)
 			return
 		}
 		for _, s := range rule.Services {
-			ii := deepcopy.Copy(ingress).(*securitygroup.IngressRule)
+			var protocol *int
+			var fromPort *int
 			if s.Protocol != nil {
 				if p, ok := AntreaProtocolMap[*s.Protocol]; ok {
-					ii.Protocol = &p
+					protocol = &p
 				}
 			}
 			if s.Port != nil {
 				port := int(s.Port.IntVal)
-				ii.FromPort = &port
+				fromPort = &port
 			}
-			ingressList = append(ingressList, ii)
+			for _, ingress := range iRules {
+				i := deepcopy.Copy(ingress).(*securitygroup.IngressRule)
+				i.FromPort = fromPort
+				i.Protocol = protocol
+				ingressList = append(ingressList, i)
+			}
 		}
 		return
 	}
-	egress := &securitygroup.EgressRule{}
+	eRules := make([]*securitygroup.EgressRule, 0)
 	for _, ip := range rule.To.IPBlocks {
+		egress := &securitygroup.EgressRule{}
 		ipNet := net.IPNet{IP: net.IP(ip.CIDR.IP), Mask: net.CIDRMask(int(ip.CIDR.PrefixLength), 32)}
 		egress.ToDstIP = append(egress.ToDstIP, &ipNet)
+		eRules = append(eRules, egress)
 	}
 	for _, ag := range rule.To.AddressGroups {
 		sgs, err := rr.addrSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, ag)
@@ -1175,33 +1285,44 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler) (ingressList []*s
 		}
 		for _, i := range sgs {
 			sg := i.(*addrSecurityGroup)
-			egress.ToDstIP = append(egress.ToDstIP, sg.getIPs()...)
+			for _, ip := range sg.getIPs() {
+				egress := &securitygroup.EgressRule{}
+				egress.ToDstIP = append(egress.ToDstIP, ip)
+				eRules = append(eRules, egress)
+			}
 			id := sg.getID()
 			if len(id.Vpc) > 0 {
+				egress := &securitygroup.EgressRule{}
 				egress.ToSecurityGroups = append(egress.ToSecurityGroups, &id)
+				eRules = append(eRules, egress)
 			}
 		}
 	}
-	if egress.Protocol == nil && egress.ToSecurityGroups == nil && egress.ToDstIP == nil {
+	if len(eRules) == 0 {
 		return
 	}
 	if rule.Services == nil {
-		egressList = append(egressList, egress)
+		egressList = append(egressList, eRules...)
 		return
 	}
 	for _, s := range rule.Services {
-		// No deep copy ??
-		ee := deepcopy.Copy(egress).(*securitygroup.EgressRule)
+		var protocol *int
+		var fromPort *int
 		if s.Protocol != nil {
 			if p, ok := AntreaProtocolMap[*s.Protocol]; ok {
-				ee.Protocol = &p
+				protocol = &p
 			}
 		}
 		if s.Port != nil {
 			port := int(s.Port.IntVal)
-			ee.ToPort = &port
+			fromPort = &port
 		}
-		egressList = append(egressList, ee)
+		for _, egress := range eRules {
+			e := deepcopy.Copy(egress).(*securitygroup.EgressRule)
+			e.ToPort = fromPort
+			e.Protocol = protocol
+			egressList = append(egressList, e)
+		}
 	}
 	return
 }
@@ -1212,6 +1333,10 @@ type networkPolicy struct {
 	ingressRules []*securitygroup.IngressRule
 	egressRules  []*securitygroup.EgressRule
 	rulesReady   bool
+}
+
+func (n *networkPolicy) getNamespacedName() string {
+	return types.NamespacedName{Name: n.Name, Namespace: n.Namespace}.String()
 }
 
 // update an networkPolicy from Antrea controller.
@@ -1290,12 +1415,15 @@ func (n *networkPolicy) update(anp *antreanetworking.NetworkPolicy, recompute bo
 		for _, i := range sgs {
 			sg := i.(*appliedToSecurityGroup)
 			sg.notifyNetworkPolicyChange(r)
+			sg.updateANPRules(r, n)
 		}
 	}
 }
 
 // delete deletes a networkPolicy.
 func (n *networkPolicy) delete(r *NetworkPolicyReconciler) error {
+	n.ingressRules = nil
+	n.egressRules = nil
 	n.markDirty(r)
 	if err := r.networkPolicyIndexer.Delete(n); err != nil {
 		r.Log.Error(err, "delete from networkPolicy indexer", "Name", n.Name, "Namespace", n.Namespace)
@@ -1308,6 +1436,7 @@ func (n *networkPolicy) delete(r *NetworkPolicyReconciler) error {
 		for _, i := range sgs {
 			sg := i.(*appliedToSecurityGroup)
 			sg.notifyNetworkPolicyChange(r)
+			sg.updateANPRules(r, n)
 		}
 	}
 	var addrGrp []string
@@ -1392,7 +1521,7 @@ func (n *networkPolicy) notifyAddrGrpChanges(r *NetworkPolicyReconciler) error {
 		}
 		for _, i := range sgs {
 			sg := i.(*appliedToSecurityGroup)
-			if err := sg.updateRules(r); err != nil {
+			if err := sg.updateAllRules(r); err != nil {
 				r.Log.Error(err, "NetworkPolicy update rules")
 			}
 		}

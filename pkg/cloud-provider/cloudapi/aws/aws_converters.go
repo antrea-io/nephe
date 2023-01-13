@@ -104,34 +104,60 @@ func convertFromSecurityGroupPair(cloudGroups []*ec2.UserIdGroupPair, managedSGs
 	return cloudResourceIDs
 }
 
+// convertFromIPPermissionToIngressRule converts cloud ingress rules from ec2.IpPermission to internal securitygroup.IngressRule.
 func convertFromIPPermissionToIngressRule(ipPermissions []*ec2.IpPermission, managedSGs map[string]*ec2.SecurityGroup,
 	unmanagedSGs map[string]*ec2.SecurityGroup) []securitygroup.IngressRule {
 	var ingressRules []securitygroup.IngressRule
 	for _, ipPermission := range ipPermissions {
-		var ingressRule securitygroup.IngressRule
+		fromSrcIPs := convertFromIPRange(ipPermission.IpRanges)
+		for _, srcIP := range fromSrcIPs {
+			var ingressRule securitygroup.IngressRule
 
-		ingressRule.FromSrcIP = convertFromIPRange(ipPermission.IpRanges)
-		ingressRule.FromSecurityGroups = convertFromSecurityGroupPair(ipPermission.UserIdGroupPairs, managedSGs, unmanagedSGs)
-		ingressRule.Protocol = convertFromIPPermissionProtocol(*ipPermission.IpProtocol)
-		ingressRule.FromPort = convertFromIPPermissionPort(ipPermission.FromPort, ipPermission.ToPort)
+			ingressRule.FromSrcIP = []*net.IPNet{srcIP}
+			ingressRule.Protocol = convertFromIPPermissionProtocol(*ipPermission.IpProtocol)
+			ingressRule.FromPort = convertFromIPPermissionPort(ipPermission.FromPort, ipPermission.ToPort)
 
-		ingressRules = append(ingressRules, ingressRule)
+			ingressRules = append(ingressRules, ingressRule)
+		}
+		fromSecurityGroups := convertFromSecurityGroupPair(ipPermission.UserIdGroupPairs, managedSGs, unmanagedSGs)
+		for _, SecurityGroup := range fromSecurityGroups {
+			var ingressRule securitygroup.IngressRule
+
+			ingressRule.FromSecurityGroups = []*securitygroup.CloudResourceID{SecurityGroup}
+			ingressRule.Protocol = convertFromIPPermissionProtocol(*ipPermission.IpProtocol)
+			ingressRule.FromPort = convertFromIPPermissionPort(ipPermission.FromPort, ipPermission.ToPort)
+
+			ingressRules = append(ingressRules, ingressRule)
+		}
 	}
 	return ingressRules
 }
 
+// convertFromIPPermissionToEgressRule converts cloud egress rules from ec2.IpPermission to internal securitygroup.EgressRule.
 func convertFromIPPermissionToEgressRule(ipPermissions []*ec2.IpPermission, managedSGs map[string]*ec2.SecurityGroup,
 	unmanagedSGs map[string]*ec2.SecurityGroup) []securitygroup.EgressRule {
 	var egressRules []securitygroup.EgressRule
 	for _, ipPermission := range ipPermissions {
-		var egressRule securitygroup.EgressRule
+		toDstIPs := convertFromIPRange(ipPermission.IpRanges)
+		for _, dstIP := range toDstIPs {
+			var egressRule securitygroup.EgressRule
 
-		egressRule.ToDstIP = convertFromIPRange(ipPermission.IpRanges)
-		egressRule.ToSecurityGroups = convertFromSecurityGroupPair(ipPermission.UserIdGroupPairs, managedSGs, unmanagedSGs)
-		egressRule.Protocol = convertFromIPPermissionProtocol(*ipPermission.IpProtocol)
-		egressRule.ToPort = convertFromIPPermissionPort(ipPermission.FromPort, ipPermission.ToPort)
+			egressRule.ToDstIP = []*net.IPNet{dstIP}
+			egressRule.Protocol = convertFromIPPermissionProtocol(*ipPermission.IpProtocol)
+			egressRule.ToPort = convertFromIPPermissionPort(ipPermission.FromPort, ipPermission.ToPort)
 
-		egressRules = append(egressRules, egressRule)
+			egressRules = append(egressRules, egressRule)
+		}
+		toSecurityGroups := convertFromSecurityGroupPair(ipPermission.UserIdGroupPairs, managedSGs, unmanagedSGs)
+		for _, SecurityGroup := range toSecurityGroups {
+			var egressRule securitygroup.EgressRule
+
+			egressRule.ToSecurityGroups = []*securitygroup.CloudResourceID{SecurityGroup}
+			egressRule.Protocol = convertFromIPPermissionProtocol(*ipPermission.IpProtocol)
+			egressRule.ToPort = convertFromIPPermissionPort(ipPermission.FromPort, ipPermission.ToPort)
+
+			egressRules = append(egressRules, egressRule)
+		}
 	}
 	return egressRules
 }

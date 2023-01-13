@@ -84,7 +84,8 @@ func updateSecurityRuleNameAndPriority(existingRules []network.SecurityRule, new
 	return rules
 }
 
-func convertIngressToAzureNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.IngressRule,
+// convertIngressToNsgSecurityRules converts ingress rules from securitygroup.CloudRule to azure rules.
+func convertIngressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.CloudRule,
 	agAsgMapByNepheControllerName map[string]network.ApplicationSecurityGroup,
 	atAsgMapByNepheControllerName map[string]network.ApplicationSecurityGroup) ([]network.SecurityRule, error) {
 	var securityRules []network.SecurityRule
@@ -96,7 +97,8 @@ func convertIngressToAzureNsgSecurityRules(appliedToGroupID *securitygroup.Cloud
 
 	rulePriority := int32(ruleStartPriority)
 	description := appliedToGroupID.GetCloudName(false)
-	for _, rule := range rules {
+	for _, obj := range rules {
+		rule := obj.Rule.(*securitygroup.IngressRule)
 		if rule == nil {
 			continue
 		}
@@ -139,14 +141,16 @@ func convertIngressToAzureNsgSecurityRules(appliedToGroupID *securitygroup.Cloud
 	return securityRules, nil
 }
 
-func convertIngressToAzurePeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.IngressRule,
+// convertIngressToPeerNsgSecurityRules converts ingress rules that require peering from securitygroup.CloudRule to azure rules.
+func convertIngressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.CloudRule,
 	agAsgMapByNepheControllerName map[string]network.ApplicationSecurityGroup,
 	ruleIP *string) ([]network.SecurityRule, error) {
 	var securityRules []network.SecurityRule
 
 	rulePriority := int32(ruleStartPriority)
 	description := appliedToGroupID.GetCloudName(false)
-	for _, rule := range rules {
+	for _, obj := range rules {
+		rule := obj.Rule.(*securitygroup.IngressRule)
 		if rule == nil {
 			continue
 		}
@@ -203,7 +207,8 @@ func convertIngressToAzurePeerNsgSecurityRules(appliedToGroupID *securitygroup.C
 	return securityRules, nil
 }
 
-func convertEgressToAzureNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.EgressRule,
+// convertEgressToNsgSecurityRules converts egress rules from securitygroup.CloudRule to azure rules.
+func convertEgressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.CloudRule,
 	agAsgMapByNepheControllerName map[string]network.ApplicationSecurityGroup,
 	atAsgMapByNepheControllerName map[string]network.ApplicationSecurityGroup) ([]network.SecurityRule, error) {
 	var securityRules []network.SecurityRule
@@ -215,7 +220,8 @@ func convertEgressToAzureNsgSecurityRules(appliedToGroupID *securitygroup.CloudR
 
 	rulePriority := int32(ruleStartPriority)
 	description := appliedToGroupID.GetCloudName(false)
-	for _, rule := range rules {
+	for _, obj := range rules {
+		rule := obj.Rule.(*securitygroup.EgressRule)
 		if rule == nil {
 			continue
 		}
@@ -257,14 +263,16 @@ func convertEgressToAzureNsgSecurityRules(appliedToGroupID *securitygroup.CloudR
 	return securityRules, nil
 }
 
-func convertEgressToAzurePeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.EgressRule,
+// convertEgressToPeerNsgSecurityRules converts egress rules that require peering from securitygroup.CloudRule to azure rules.
+func convertEgressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.CloudRule,
 	agAsgMapByNepheControllerName map[string]network.ApplicationSecurityGroup,
 	ruleIP *string) ([]network.SecurityRule, error) {
 	var securityRules []network.SecurityRule
 
 	rulePriority := int32(ruleStartPriority)
 	description := appliedToGroupID.GetCloudName(false)
-	for _, rule := range rules {
+	for _, obj := range rules {
+		rule := obj.Rule.(*securitygroup.EgressRule)
 		if rule == nil {
 			continue
 		}
@@ -425,7 +433,9 @@ func convertToAzureAddressPrefix(ruleIPs []*net.IPNet) (*string, *[]string) {
 	return addressPrefix, addressPrefixes
 }
 
-func convertToNepheControllerRulesByAppliedToSGName(azureSecurityRules *[]network.SecurityRule,
+// convertToInternalRulesByAppliedToSGName converts azure rules to securitygroup.IngressRule and securitygroup.EgressRule and split
+// them by security group names.
+func convertToInternalRulesByAppliedToSGName(azureSecurityRules *[]network.SecurityRule,
 	vnetID string) (map[string][]securitygroup.IngressRule, map[string][]securitygroup.EgressRule) {
 	nepheControllerATSgNameToIngressRules := make(map[string][]securitygroup.IngressRule)
 	nepheControllerATSgNameToEgressRules := make(map[string][]securitygroup.EgressRule)
@@ -436,22 +446,22 @@ func convertToNepheControllerRulesByAppliedToSGName(azureSecurityRules *[]networ
 		}
 		ruleName := azureSecurityRule.Name
 		if azureSecurityRule.Direction == network.SecurityRuleDirectionInbound {
-			ingressRule, err := convertFromAzureSecurityRuleToNepheControllerIngressRule(azureSecurityRule, vnetID)
+			ingressRule, err := convertFromAzureSecurityRuleToInternalIngressRule(azureSecurityRule, vnetID)
 			if err != nil {
 				azurePluginLogger().Error(err, "failed to convert to ingress rule", "ruleName", ruleName)
 				continue
 			}
 			rules := nepheControllerATSgNameToIngressRules[sgName]
-			rules = append(rules, ingressRule)
+			rules = append(rules, ingressRule...)
 			nepheControllerATSgNameToIngressRules[sgName] = rules
 		} else {
-			egressRule, err := convertFromAzureSecurityRuleToNepheControllerEgressRule(azureSecurityRule, vnetID)
+			egressRule, err := convertFromAzureSecurityRuleToInternalEgressRule(azureSecurityRule, vnetID)
 			if err != nil {
 				azurePluginLogger().Error(err, "failed to convert to egress rule", "ruleName", ruleName)
 				continue
 			}
 			rules := nepheControllerATSgNameToEgressRules[sgName]
-			rules = append(rules, egressRule)
+			rules = append(rules, egressRule...)
 			nepheControllerATSgNameToEgressRules[sgName] = rules
 		}
 	}
@@ -459,41 +469,69 @@ func convertToNepheControllerRulesByAppliedToSGName(azureSecurityRules *[]networ
 	return nepheControllerATSgNameToIngressRules, nepheControllerATSgNameToEgressRules
 }
 
-func convertFromAzureSecurityRuleToNepheControllerIngressRule(rule network.SecurityRule, vnetID string) (securitygroup.IngressRule, error) {
+// convertFromAzureSecurityRuleToInternalIngressRule converts azure rules to securitygroup.IngressRule.
+func convertFromAzureSecurityRuleToInternalIngressRule(rule network.SecurityRule,
+	vnetID string) ([]securitygroup.IngressRule, error) {
+	ingressList := make([]securitygroup.IngressRule, 0)
+
 	port := convertFromAzurePortToNepheControllerPort(rule.DestinationPortRange)
 	srcIP := convertFromAzurePrefixesToNepheControllerIPs(rule.SourceAddressPrefix, rule.SourceAddressPrefixes)
 	securityGroups := convertFromAzureASGsToNepheControllerSecurityGroups(rule.SourceApplicationSecurityGroups, vnetID)
 	protoNum, err := convertFromAzureProtocolToNepheControllerProtocol(rule.Protocol)
 	if err != nil {
-		return securitygroup.IngressRule{}, err
+		return nil, err
 	}
-	ingressRule := securitygroup.IngressRule{
-		FromPort:           port,
-		FromSrcIP:          srcIP,
-		FromSecurityGroups: securityGroups,
-		Protocol:           protoNum,
+	for _, ip := range srcIP {
+		ingressRule := securitygroup.IngressRule{
+			FromPort:  port,
+			FromSrcIP: []*net.IPNet{ip},
+			Protocol:  protoNum,
+		}
+		ingressList = append(ingressList, ingressRule)
+	}
+	for _, sg := range securityGroups {
+		ingressRule := securitygroup.IngressRule{
+			FromPort:           port,
+			FromSecurityGroups: []*securitygroup.CloudResourceID{sg},
+			Protocol:           protoNum,
+		}
+		ingressList = append(ingressList, ingressRule)
 	}
 
-	return ingressRule, nil
+	return ingressList, nil
 }
 
-func convertFromAzureSecurityRuleToNepheControllerEgressRule(rule network.SecurityRule, vnetID string) (securitygroup.EgressRule, error) {
+// convertFromAzureSecurityRuleToInternalEgressRule converts azure rules to securitygroup.EgressRule.
+func convertFromAzureSecurityRuleToInternalEgressRule(rule network.SecurityRule,
+	vnetID string) ([]securitygroup.EgressRule, error) {
+	egressList := make([]securitygroup.EgressRule, 0)
+
 	port := convertFromAzurePortToNepheControllerPort(rule.DestinationPortRange)
 	dstIP := convertFromAzurePrefixesToNepheControllerIPs(rule.DestinationAddressPrefix, rule.DestinationAddressPrefixes)
 	securityGroups := convertFromAzureASGsToNepheControllerSecurityGroups(rule.DestinationApplicationSecurityGroups, vnetID)
 	protoNum, err := convertFromAzureProtocolToNepheControllerProtocol(rule.Protocol)
 	if err != nil {
-		return securitygroup.EgressRule{}, err
+		return nil, err
 	}
 
-	egressRule := securitygroup.EgressRule{
-		ToPort:           port,
-		ToDstIP:          dstIP,
-		ToSecurityGroups: securityGroups,
-		Protocol:         protoNum,
+	for _, ip := range dstIP {
+		egressRule := securitygroup.EgressRule{
+			ToPort:   port,
+			ToDstIP:  []*net.IPNet{ip},
+			Protocol: protoNum,
+		}
+		egressList = append(egressList, egressRule)
+	}
+	for _, sg := range securityGroups {
+		egressRule := securitygroup.EgressRule{
+			ToPort:           port,
+			ToSecurityGroups: []*securitygroup.CloudResourceID{sg},
+			Protocol:         protoNum,
+		}
+		egressList = append(egressList, egressRule)
 	}
 
-	return egressRule, err
+	return egressList, err
 }
 
 func convertFromAzureProtocolToNepheControllerProtocol(azureProtoName network.SecurityRuleProtocol) (*int, error) {
