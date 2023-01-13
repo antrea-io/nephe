@@ -15,6 +15,8 @@
 package inventory_test
 
 import (
+	"sort"
+
 	logger "github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -212,6 +214,10 @@ var _ = Describe("VPC", func() {
 			for i, vpcListOption := range vpcLabelSelectorListOptions {
 				rest := NewREST(cloudInventory, l)
 				actualObj, err := rest.List(request.NewDefaultContext(), vpcListOption)
+				items := actualObj.(*runtimev1alpha1.VpcList).Items
+				sort.SliceStable(items, func(i, j int) bool {
+					return items[i].Name < items[j].Name
+				})
 				Expect(err).Should(BeNil())
 				Expect(actualObj).To(Equal(expectedPolicyLists[i]))
 			}
