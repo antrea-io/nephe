@@ -27,6 +27,7 @@ vcNetwork=""
 virtualMachine=""
 goVcPassword=""
 testType=""
+owner="ci-$((RANDOM % 100))"
 
 _usage="Usage: $0 [--buildnumber <jenkins BUILD_NUMBER>] [--vchost <VC IPaddress/Domain Name>] [--vcuser <VC username>]
                   [--datacenter <datacenter to deploy vm>] [--datastore <dataStore name>] [--vcCluster <clusterName to deploy vm>]
@@ -191,41 +192,44 @@ trap cleanup_testbed EXIT
 case $testType in
     aws)
     echo "Run tests on Kind cluster with AWS VMs"
-    ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/scripts/test-aws.sh --aws-access-key-id ${AWS_ACCESS_KEY_ID} --aws-secret-key ${AWS_ACCESS_KEY_SECRET}"
+    ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/scripts/test-aws.sh --aws-access-key-id ${AWS_ACCESS_KEY_ID} --aws-secret-key ${AWS_ACCESS_KEY_SECRET} \
+                                                   --owner ${owner}"
     ;;
     azure)
     echo "Run tests on Kind cluster with Azure VMs"
     ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/scripts/test-azure.sh --azure-subscription-id ${AZURE_SUBSCRIPTION_ID} --azure-app-id ${AZURE_APP_ID} \
-                                                   --azure-tenant-id ${AZURE_TENANT_ID} --azure-secret ${AZURE_PASSWORD}"
+                                                   --azure-tenant-id ${AZURE_TENANT_ID} --azure-secret ${AZURE_PASSWORD} --owner ${owner}"
     ;;
     eks)
     echo "Run tests on EKS cluster with AWS VMs"
     ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/scripts/test-eks.sh --aws-access-key-id ${AWS_ACCESS_KEY_ID} --aws-secret-key ${AWS_ACCESS_KEY_SECRET} \
-                                                   --eks-cluster-role ${EKS_IAM_ROLE} --eks-node-role ${EKS_IAM_INSTANCE_PROFILE}"
+                                                   --eks-cluster-role ${EKS_IAM_ROLE} --eks-node-role ${EKS_IAM_INSTANCE_PROFILE} --owner ${owner}"
     ;;
     aks)
     echo "Run tests on AKS cluster with Azure VMs"
     ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/scripts/test-aks.sh --azure-subscription-id ${AZURE_SUBSCRIPTION_ID} --azure-app-id ${AZURE_APP_ID} \
-                                                   --azure-tenant-id ${AZURE_TENANT_ID} --azure-secret ${AZURE_PASSWORD}"
+                                                   --azure-tenant-id ${AZURE_TENANT_ID} --azure-secret ${AZURE_PASSWORD} --owner ${owner}"
     ;;
     eks-with-agent)
     echo "Run tests on EKS cluster with AWS agented VMs"
     ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/scripts/test-eks.sh --aws-access-key-id ${AWS_ACCESS_KEY_ID} --aws-secret-key ${AWS_ACCESS_KEY_SECRET} \
-                                                   --eks-cluster-role ${EKS_IAM_ROLE} --eks-node-role ${EKS_IAM_INSTANCE_PROFILE} --with-agent"
+                                                   --eks-cluster-role ${EKS_IAM_ROLE} --eks-node-role ${EKS_IAM_INSTANCE_PROFILE} --owner ${owner} --with-agent"
     ;;
     aks-with-agent)
     echo "Run tests on AKS cluster with Azure agented VMs"
     ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/scripts/test-aks.sh --azure-subscription-id ${AZURE_SUBSCRIPTION_ID} --azure-app-id ${AZURE_APP_ID} \
-                                                   --azure-tenant-id ${AZURE_TENANT_ID} --azure-secret ${AZURE_PASSWORD} --with-agent"
+                                                   --azure-tenant-id ${AZURE_TENANT_ID} --azure-secret ${AZURE_PASSWORD} --owner ${owner} --with-agent"
     ;;
     eks-with-windows-agent)
     echo "Run tests on EKS cluster with AWS agented VMs"
     ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/scripts/test-eks.sh --aws-access-key-id ${AWS_ACCESS_KEY_ID} --aws-secret-key ${AWS_ACCESS_KEY_SECRET} \
-                                                   --eks-cluster-role ${EKS_IAM_ROLE} --eks-node-role ${EKS_IAM_INSTANCE_PROFILE} --with-agent --with-agent-windows"
+                                                   --eks-cluster-role ${EKS_IAM_ROLE} --eks-node-role ${EKS_IAM_INSTANCE_PROFILE} --owner ${owner} --with-agent \
+                                                   --with-agent-windows"
     ;;
     aks-with-windows-agent)
     echo "Run tests on AKS cluster with Azure agented VMs"
     ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/scripts/test-aks.sh --azure-subscription-id ${AZURE_SUBSCRIPTION_ID} --azure-app-id ${AZURE_APP_ID} \
-                                                   --azure-tenant-id ${AZURE_TENANT_ID} --azure-secret ${AZURE_PASSWORD} --with-agent --with-agent-windows"
+                                                   --azure-tenant-id ${AZURE_TENANT_ID} --azure-secret ${AZURE_PASSWORD} --owner ${owner} --with-agent \
+                                                   --with-agent-windows"
     ;;
  esac
