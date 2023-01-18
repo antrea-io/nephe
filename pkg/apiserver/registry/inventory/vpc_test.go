@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package inventory_test
+package inventory
 
 import (
 	"sort"
@@ -31,7 +31,6 @@ import (
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
-	. "antrea.io/nephe/pkg/apiserver/registry/inventory"
 	"antrea.io/nephe/pkg/controllers/inventory"
 )
 
@@ -210,7 +209,6 @@ var _ = Describe("VPC", func() {
 			Expect(err).Should(BeNil())
 		}
 		It("Should return the list result of rest by labels", func() {
-			Skip("Disabling the test")
 			for i, vpcListOption := range vpcLabelSelectorListOptions {
 				rest := NewREST(cloudInventory, l)
 				actualObj, err := rest.List(request.NewDefaultContext(), vpcListOption)
