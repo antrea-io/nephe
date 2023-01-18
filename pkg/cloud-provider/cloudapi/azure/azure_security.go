@@ -574,7 +574,7 @@ func (computeCfg *computeServiceConfig) processAndBuildATSgView(networkInterface
 		}
 		vnetIDLowerCase := strings.ToLower(*networkInterface.VnetID)
 		nsgIDToVnetIDMap[nsgIDLowerCase] = vnetIDLowerCase
-		if strings.Compare(sgName, strings.ToLower(appliedToSecurityGroupNamePerVnet)) == 0 {
+		if strings.Contains(strings.ToLower(sgName), appliedToSecurityGroupNamePerVnet) {
 			// from tags find nephe AT SG(s) and build membership map
 			newNepheControllerAppliedToSGNameSet := make(map[string]struct{})
 			for key := range networkInterface.Tags[0] {
