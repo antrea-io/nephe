@@ -38,7 +38,6 @@ spec:
       - command:
         - /nephe-controller
         args:
-        - --enable-leader-election
         - --enable-debug-log
         image: "projects.registry.vmware.com/antrea/nephe:latest"
         imagePullPolicy: IfNotPresent
