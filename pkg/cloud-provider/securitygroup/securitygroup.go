@@ -213,6 +213,11 @@ type CloudSecurityGroupAPI interface {
 	// Caller expects to wait on returned channel for status
 	CreateSecurityGroup(name *CloudResource, membershipOnly bool) <-chan error
 
+	// UpdateSecurityGroupRules updates SecurityGroup name's ingress/egress rules in entirety.
+	// SecurityGroup name must already been created. SecurityGroups referred to in ingressRules and
+	// egressRules must have been already created.
+	UpdateSecurityGroupRules(name *CloudResource, addRules, rmRules, allRules []*CloudRule) <-chan error
+
 	// UpdateSecurityGroupMembers updates SecurityGroup name with members.
 	// SecurityGroup name must already have been created.
 	// For appliedSecurityGroup, UpdateSecurityGroupMembers is called only if SG has
@@ -222,11 +227,6 @@ type CloudSecurityGroupAPI interface {
 	// DeleteSecurityGroup deletes SecurityGroup name.
 	// SecurityGroup name must already been created, is empty.
 	DeleteSecurityGroup(name *CloudResource, membershipOnly bool) <-chan error
-
-	// UpdateSecurityGroupRules updates SecurityGroup name's ingress/egress rules in entirety.
-	// SecurityGroup name must already been created. SecurityGroups referred to in ingressRules and
-	// egressRules must have been already created.
-	UpdateSecurityGroupRules(name *CloudResource, addRules, rmRules, allRules []*CloudRule) <-chan error
 
 	// GetSecurityGroupSyncChan returns a channel that networkPolicy controller waits on to retrieve complete SGs
 	// configured by cloud plug-in.

@@ -80,24 +80,24 @@ type ComputeInterface interface {
 }
 
 type SecurityInterface interface {
-	// CreateSecurityGroup creates cloud security group corresponding to provided address group, if it does not already exist.
-	// If it exists, returns the existing cloud SG ID
-	CreateSecurityGroup(addressGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) (*string, error)
-	// UpdateSecurityGroupRules updates cloud security group corresponding to provided address group with provided rules.
+	// CreateSecurityGroup creates cloud security group corresponding to provided security group, if it does not already exist.
+	// If it exists, returns the existing cloud SG ID.
+	CreateSecurityGroup(securityGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) (*string, error)
+	// UpdateSecurityGroupRules updates cloud security group corresponding to provided appliedTo group with provided rules.
 	// addRules and rmRules are the changed rules, allRules are rules from all nps of the security group.
-	UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResource, addRules, rmRules,
+	UpdateSecurityGroupRules(appliedToGroupIdentifier *securitygroup.CloudResource, addRules, rmRules,
 		allRules []*securitygroup.CloudRule) error
-	// UpdateSecurityGroupMembers updates membership of cloud security group corresponding to provided address group. Only
+	// UpdateSecurityGroupMembers updates membership of cloud security group corresponding to provided security group. Only
 	// provided computeResources will remain attached to cloud security group. UpdateSecurityGroupMembers will also make sure that
 	// after membership update, if compute resource is no longer attached to any nephe created cloud security group, then
-	// compute resource will get moved to cloud default security group
-	UpdateSecurityGroupMembers(addressGroupIdentifier *securitygroup.CloudResource, computeResourceIdentifier []*securitygroup.CloudResource,
+	// compute resource will get moved to cloud default security group.
+	UpdateSecurityGroupMembers(securityGroupIdentifier *securitygroup.CloudResource, computeResourceIdentifier []*securitygroup.CloudResource,
 		membershipOnly bool) error
-	// DeleteSecurityGroup will delete the cloud security group corresponding to provided address group. DeleteSecurityGroup expects that
+	// DeleteSecurityGroup will delete the cloud security group corresponding to provided security group. DeleteSecurityGroup expects that
 	// UpdateSecurityGroupMembers and UpdateSecurityGroupRules is called prior to calling delete. DeleteSecurityGroup as part of delete,
-	// do the best effort to find resources using this address group and detach the cloud security group from those resources.Also if the
+	// do the best effort to find resources using this security group and detach the cloud security group from those resources. Also, if the
 	// compute resource is attached to only this security group, it will be moved to cloud default security group.
-	DeleteSecurityGroup(addressGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) error
-	// GetEnforcedSecurity returns the cloud view of enforced security
+	DeleteSecurityGroup(securityGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) error
+	// GetEnforcedSecurity returns the cloud view of enforced security.
 	GetEnforcedSecurity() []securitygroup.SynchronizationContent
 }

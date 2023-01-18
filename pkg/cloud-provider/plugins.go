@@ -40,7 +40,7 @@ func init() {
 	registerCloudProvider(cloudcommon.ProviderType(cloudv1alpha1.AzureCloudProvider), azure.Register())
 }
 
-// registerCloudProvider registers a cloudv1alpha1 provider factory by type.  This
+// registerCloudProvider registers a cloudv1alpha1 provider factory by type. This
 // is expected to happen during controller startup.
 func registerCloudProvider(providerType cloudcommon.ProviderType, cloud cloudcommon.CloudInterface) {
 	providersMutex.Lock()
