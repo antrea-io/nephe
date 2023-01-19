@@ -218,7 +218,10 @@ func (computeCfg *computeServiceConfig) getComputeResourceFilters() ([]*string, 
 }
 
 func (computeCfg *computeServiceConfig) DoResourceInventory() error {
-	vnets, _ := computeCfg.getVpcs()
+	vnets, err := computeCfg.getVpcs()
+	if err != nil {
+		return err
+	}
 
 	virtualMachines, err := computeCfg.getVirtualMachines()
 	if err == nil {
