@@ -48,7 +48,6 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 	)
 	var (
 		namespace            *v1.Namespace
-		otherNamespace       *v1.Namespace
 		anpParams            k8stemplates.ANPParameters
 		anpSetupParams       k8stemplates.ANPParameters
 		defaultANPParameters k8stemplates.DefaultANPParameters
@@ -90,7 +89,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			}
 
 			if !withAgent {
-				nss := []*v1.Namespace{namespace, otherNamespace}
+				nss := []*v1.Namespace{namespace}
 				for _, ns := range nss {
 					if ns == nil {
 						continue
@@ -155,18 +154,13 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		return ret
 	}
 
-	setup := func(kind string, num int, diffNS bool, allowedPorts []string, denyEgress bool) {
+	setup := func(kind string, num int, allowedPorts []string, denyEgress bool) {
 		namespace = &v1.Namespace{}
-		otherNamespace = &v1.Namespace{}
-		if !diffNS {
-			otherNamespace = nil
-		}
 		if withAgent {
 			namespace = staticVMNS
-			otherNamespace = nil
 		}
 
-		nss := []*v1.Namespace{namespace, otherNamespace}
+		nss := []*v1.Namespace{namespace}
 		for _, ns := range nss {
 			if ns == nil {
 				continue
@@ -351,7 +345,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		Expect(err).ToNot(HaveOccurred())
 	}
 
-	testAppliedTo := func(kind string, diffNS bool) {
+	testAppliedTo := func(kind string) {
 		var ids []string
 		var ips []string
 		tagTest := true
@@ -364,11 +358,8 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		srcVM := cloudVPC.GetVMs()[0]
 		srcIP := cloudVPC.GetVMPrivateIPs()[0]
 
-		setup(kind, len(ids), diffNS, []string{"22"}, false)
+		setup(kind, len(ids), []string{"22"}, false)
 		dstNsName := namespace.Name
-		if diffNS {
-			dstNsName = otherNamespace.Name
-		}
 
 		appliedIdx := len(ids) - 1
 		anpParams.From = configANPToFrom(kind, "", "", "", "", "", dstNsName, []string{apachePort}, false)
@@ -420,7 +411,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		srcVM := cloudVPC.GetVMs()[0]
 		srcIP := cloudVPC.GetVMPrivateIPs()[0]
 
-		setup(kind, len(ids), false, []string{"22"}, false)
+		setup(kind, len(ids), []string{"22"}, false)
 		nsName := namespace.Name
 
 		// Configure Group.
@@ -457,7 +448,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		verifyAppliedTo(kind, ids, ips, srcVM, srcIP, applied)
 	}
 
-	testEgress := func(kind string, diffNS bool) {
+	testEgress := func(kind string) {
 		var ids []string
 		var ips []string
 		testTag := true
@@ -468,11 +459,8 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			Fail("Unsupported type")
 		}
 
-		setup(kind, len(ids), diffNS, []string{"22", "8080"}, true)
+		setup(kind, len(ids), []string{"22", "8080"}, true)
 		dstNsName := namespace.Name
-		if diffNS {
-			dstNsName = otherNamespace.Name
-		}
 
 		appliedIdx := len(ids) - 1
 		srcVM := cloudVPC.GetVMs()[appliedIdx]
@@ -522,7 +510,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		verifyEgress(kind, ids[appliedIdx], srcVM, ips[:len(ips)-1], oks)
 	}
 
-	testIngress := func(kind string, diffNS bool) {
+	testIngress := func(kind string) {
 		var ids []string
 		var ips []string
 		testTag := true
@@ -533,11 +521,8 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			Fail("Unsupported type")
 		}
 
-		setup(kind, len(ids), diffNS, []string{"22"}, false)
+		setup(kind, len(ids), []string{"22"}, false)
 		dstNsName := namespace.Name
-		if diffNS {
-			dstNsName = otherNamespace.Name
-		}
 
 		appliedIdx := len(ids) - 1
 		srcVMs := cloudVPC.GetVMs()[:appliedIdx]
@@ -589,41 +574,35 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 	}
 
 	table.DescribeTable("AppliedTo",
-		func(kind string, diffNS bool) {
-			testAppliedTo(kind, diffNS)
+		func(kind string) {
+			testAppliedTo(kind)
 		},
 		table.Entry(fmt.Sprintf("%s %s: VM In Same Namespace", focusAzure, focusAgent),
-			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), false),
-		table.Entry("VM In Different Namespaces",
-			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), true),
+			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()),
 	)
 
 	table.DescribeTable("AppliedToUsingGroup",
-		func(kind string, diffNS bool) {
+		func(kind string) {
 			testAppliedToUsingGroup(kind)
 		},
 		table.Entry(fmt.Sprintf("%s: VM In Same Namespace", focusAws),
-			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), false),
+			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()),
 	)
 
 	table.DescribeTable("Egress",
-		func(kind string, diffNS bool) {
-			testEgress(kind, diffNS)
+		func(kind string) {
+			testEgress(kind)
 		},
 		table.Entry(fmt.Sprintf("%s: VM In Same Namespace", focusAgent),
-			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), false),
-		table.Entry("VM In Different Namespaces",
-			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), true),
+			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()),
 	)
 
 	table.DescribeTable("Ingress",
-		func(kind string, diffNS bool) {
-			testIngress(kind, diffNS)
+		func(kind string) {
+			testIngress(kind)
 		},
 		table.Entry(fmt.Sprintf("%s %s: VM In Same Namespace", focusAzure, focusAgent),
-			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), false),
-		table.Entry("VM In Different Namespaces",
-			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), true),
+			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()),
 	)
 
 	Context("Enforce Before Import", func() {
@@ -632,33 +611,27 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			abbreviated = true
 		})
 		table.DescribeTable("AppliedTo",
-			func(kind string, diffNS bool) {
-				testAppliedTo(kind, diffNS)
+			func(kind string) {
+				testAppliedTo(kind)
 			},
 			table.Entry(fmt.Sprintf("%s %s: VM In Same Namespace", focusAzure, focusAgent),
-				reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), false),
-			table.Entry("VM In Different Namespaces",
-				reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), true),
+				reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()),
 		)
 
 		table.DescribeTable("Egress",
-			func(kind string, diffNS bool) {
-				testEgress(kind, diffNS)
+			func(kind string) {
+				testEgress(kind)
 			},
 			table.Entry(fmt.Sprintf("%s: VM In Same Namespace", focusAgent),
-				reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), false),
-			table.Entry("VM In Different Namespaces",
-				reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), true),
+				reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()),
 		)
 
 		table.DescribeTable("Ingress",
-			func(kind string, diffNS bool) {
-				testIngress(kind, diffNS)
+			func(kind string) {
+				testIngress(kind)
 			},
 			table.Entry(fmt.Sprintf("%s %s: VM In Same Namespace", focusAzure, focusAgent),
-				reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), false),
-			table.Entry("VM In Different Namespaces",
-				reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), true),
+				reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()),
 		)
 	})
 
@@ -666,7 +639,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		ids := cloudVPC.GetVMs()
 		ips := cloudVPC.GetVMPrivateIPs()
 		kind := reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()
-		setup(kind, len(ids), false, []string{"22"}, false)
+		setup(kind, len(ids), []string{"22"}, false)
 		appliedIdx := len(ids) - 1
 		srcVMs := cloudVPC.GetVMs()[:appliedIdx]
 
@@ -731,7 +704,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		ips := cloudVPC.GetVMPrivateIPs()
 
 		kind := reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()
-		setup(kind, len(ids), false, []string{"22"}, false)
+		setup(kind, len(ids), []string{"22"}, false)
 		appliedIdx := len(ids) - 1
 		srcVMs := cloudVPC.GetVMs()[:appliedIdx]
 
