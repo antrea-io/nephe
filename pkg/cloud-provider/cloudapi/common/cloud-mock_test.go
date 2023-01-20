@@ -96,18 +96,18 @@ func (mr *MockCloudInterfaceMockRecorder) AddProviderAccount(client, account int
 }
 
 // CreateSecurityGroup mocks base method.
-func (m *MockCloudInterface) CreateSecurityGroup(addressGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) (*string, error) {
+func (m *MockCloudInterface) CreateSecurityGroup(securityGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) (*string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateSecurityGroup", addressGroupIdentifier, membershipOnly)
+	ret := m.ctrl.Call(m, "CreateSecurityGroup", securityGroupIdentifier, membershipOnly)
 	ret0, _ := ret[0].(*string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateSecurityGroup indicates an expected call of CreateSecurityGroup.
-func (mr *MockCloudInterfaceMockRecorder) CreateSecurityGroup(addressGroupIdentifier, membershipOnly interface{}) *gomock.Call {
+func (mr *MockCloudInterfaceMockRecorder) CreateSecurityGroup(securityGroupIdentifier, membershipOnly interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSecurityGroup", reflect.TypeOf((*MockCloudInterface)(nil).CreateSecurityGroup), addressGroupIdentifier, membershipOnly)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSecurityGroup", reflect.TypeOf((*MockCloudInterface)(nil).CreateSecurityGroup), securityGroupIdentifier, membershipOnly)
 }
 
 // DeleteInventoryPoller mocks base method.
@@ -125,17 +125,17 @@ func (mr *MockCloudInterfaceMockRecorder) DeleteInventoryPoller(accountNamespace
 }
 
 // DeleteSecurityGroup mocks base method.
-func (m *MockCloudInterface) DeleteSecurityGroup(addressGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) error {
+func (m *MockCloudInterface) DeleteSecurityGroup(securityGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteSecurityGroup", addressGroupIdentifier, membershipOnly)
+	ret := m.ctrl.Call(m, "DeleteSecurityGroup", securityGroupIdentifier, membershipOnly)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteSecurityGroup indicates an expected call of DeleteSecurityGroup.
-func (mr *MockCloudInterfaceMockRecorder) DeleteSecurityGroup(addressGroupIdentifier, membershipOnly interface{}) *gomock.Call {
+func (mr *MockCloudInterfaceMockRecorder) DeleteSecurityGroup(securityGroupIdentifier, membershipOnly interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSecurityGroup", reflect.TypeOf((*MockCloudInterface)(nil).DeleteSecurityGroup), addressGroupIdentifier, membershipOnly)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSecurityGroup", reflect.TypeOf((*MockCloudInterface)(nil).DeleteSecurityGroup), securityGroupIdentifier, membershipOnly)
 }
 
 // GetAccountStatus mocks base method.
@@ -251,31 +251,31 @@ func (mr *MockCloudInterfaceMockRecorder) RemoveProviderAccount(namespacedName i
 }
 
 // UpdateSecurityGroupMembers mocks base method.
-func (m *MockCloudInterface) UpdateSecurityGroupMembers(addressGroupIdentifier *securitygroup.CloudResource, computeResourceIdentifier []*securitygroup.CloudResource, membershipOnly bool) error {
+func (m *MockCloudInterface) UpdateSecurityGroupMembers(securityGroupIdentifier *securitygroup.CloudResource, computeResourceIdentifier []*securitygroup.CloudResource, membershipOnly bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateSecurityGroupMembers", addressGroupIdentifier, computeResourceIdentifier, membershipOnly)
+	ret := m.ctrl.Call(m, "UpdateSecurityGroupMembers", securityGroupIdentifier, computeResourceIdentifier, membershipOnly)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateSecurityGroupMembers indicates an expected call of UpdateSecurityGroupMembers.
-func (mr *MockCloudInterfaceMockRecorder) UpdateSecurityGroupMembers(addressGroupIdentifier, computeResourceIdentifier, membershipOnly interface{}) *gomock.Call {
+func (mr *MockCloudInterfaceMockRecorder) UpdateSecurityGroupMembers(securityGroupIdentifier, computeResourceIdentifier, membershipOnly interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSecurityGroupMembers", reflect.TypeOf((*MockCloudInterface)(nil).UpdateSecurityGroupMembers), addressGroupIdentifier, computeResourceIdentifier, membershipOnly)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSecurityGroupMembers", reflect.TypeOf((*MockCloudInterface)(nil).UpdateSecurityGroupMembers), securityGroupIdentifier, computeResourceIdentifier, membershipOnly)
 }
 
 // UpdateSecurityGroupRules mocks base method.
-func (m *MockCloudInterface) UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResource, addRules, rmRules, allRules []*securitygroup.CloudRule) error {
+func (m *MockCloudInterface) UpdateSecurityGroupRules(appliedToGroupIdentifier *securitygroup.CloudResource, addRules, rmRules, allRules []*securitygroup.CloudRule) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateSecurityGroupRules", addressGroupIdentifier, addRules, rmRules, allRules)
+	ret := m.ctrl.Call(m, "UpdateSecurityGroupRules", appliedToGroupIdentifier, addRules, rmRules, allRules)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateSecurityGroupRules indicates an expected call of UpdateSecurityGroupRules.
-func (mr *MockCloudInterfaceMockRecorder) UpdateSecurityGroupRules(addressGroupIdentifier, addRules, rmRules, allRules interface{}) *gomock.Call {
+func (mr *MockCloudInterfaceMockRecorder) UpdateSecurityGroupRules(appliedToGroupIdentifier, addRules, rmRules, allRules interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSecurityGroupRules", reflect.TypeOf((*MockCloudInterface)(nil).UpdateSecurityGroupRules), addressGroupIdentifier, addRules, rmRules, allRules)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSecurityGroupRules", reflect.TypeOf((*MockCloudInterface)(nil).UpdateSecurityGroupRules), appliedToGroupIdentifier, addRules, rmRules, allRules)
 }
 
 // MockAccountMgmtInterface is a mock of AccountMgmtInterface interface.
@@ -488,32 +488,32 @@ func (m *MockSecurityInterface) EXPECT() *MockSecurityInterfaceMockRecorder {
 }
 
 // CreateSecurityGroup mocks base method.
-func (m *MockSecurityInterface) CreateSecurityGroup(addressGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) (*string, error) {
+func (m *MockSecurityInterface) CreateSecurityGroup(securityGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) (*string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateSecurityGroup", addressGroupIdentifier, membershipOnly)
+	ret := m.ctrl.Call(m, "CreateSecurityGroup", securityGroupIdentifier, membershipOnly)
 	ret0, _ := ret[0].(*string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateSecurityGroup indicates an expected call of CreateSecurityGroup.
-func (mr *MockSecurityInterfaceMockRecorder) CreateSecurityGroup(addressGroupIdentifier, membershipOnly interface{}) *gomock.Call {
+func (mr *MockSecurityInterfaceMockRecorder) CreateSecurityGroup(securityGroupIdentifier, membershipOnly interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSecurityGroup", reflect.TypeOf((*MockSecurityInterface)(nil).CreateSecurityGroup), addressGroupIdentifier, membershipOnly)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSecurityGroup", reflect.TypeOf((*MockSecurityInterface)(nil).CreateSecurityGroup), securityGroupIdentifier, membershipOnly)
 }
 
 // DeleteSecurityGroup mocks base method.
-func (m *MockSecurityInterface) DeleteSecurityGroup(addressGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) error {
+func (m *MockSecurityInterface) DeleteSecurityGroup(securityGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteSecurityGroup", addressGroupIdentifier, membershipOnly)
+	ret := m.ctrl.Call(m, "DeleteSecurityGroup", securityGroupIdentifier, membershipOnly)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteSecurityGroup indicates an expected call of DeleteSecurityGroup.
-func (mr *MockSecurityInterfaceMockRecorder) DeleteSecurityGroup(addressGroupIdentifier, membershipOnly interface{}) *gomock.Call {
+func (mr *MockSecurityInterfaceMockRecorder) DeleteSecurityGroup(securityGroupIdentifier, membershipOnly interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSecurityGroup", reflect.TypeOf((*MockSecurityInterface)(nil).DeleteSecurityGroup), addressGroupIdentifier, membershipOnly)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSecurityGroup", reflect.TypeOf((*MockSecurityInterface)(nil).DeleteSecurityGroup), securityGroupIdentifier, membershipOnly)
 }
 
 // GetEnforcedSecurity mocks base method.
@@ -531,29 +531,29 @@ func (mr *MockSecurityInterfaceMockRecorder) GetEnforcedSecurity() *gomock.Call 
 }
 
 // UpdateSecurityGroupMembers mocks base method.
-func (m *MockSecurityInterface) UpdateSecurityGroupMembers(addressGroupIdentifier *securitygroup.CloudResource, computeResourceIdentifier []*securitygroup.CloudResource, membershipOnly bool) error {
+func (m *MockSecurityInterface) UpdateSecurityGroupMembers(securityGroupIdentifier *securitygroup.CloudResource, computeResourceIdentifier []*securitygroup.CloudResource, membershipOnly bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateSecurityGroupMembers", addressGroupIdentifier, computeResourceIdentifier, membershipOnly)
+	ret := m.ctrl.Call(m, "UpdateSecurityGroupMembers", securityGroupIdentifier, computeResourceIdentifier, membershipOnly)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateSecurityGroupMembers indicates an expected call of UpdateSecurityGroupMembers.
-func (mr *MockSecurityInterfaceMockRecorder) UpdateSecurityGroupMembers(addressGroupIdentifier, computeResourceIdentifier, membershipOnly interface{}) *gomock.Call {
+func (mr *MockSecurityInterfaceMockRecorder) UpdateSecurityGroupMembers(securityGroupIdentifier, computeResourceIdentifier, membershipOnly interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSecurityGroupMembers", reflect.TypeOf((*MockSecurityInterface)(nil).UpdateSecurityGroupMembers), addressGroupIdentifier, computeResourceIdentifier, membershipOnly)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSecurityGroupMembers", reflect.TypeOf((*MockSecurityInterface)(nil).UpdateSecurityGroupMembers), securityGroupIdentifier, computeResourceIdentifier, membershipOnly)
 }
 
 // UpdateSecurityGroupRules mocks base method.
-func (m *MockSecurityInterface) UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResource, addRules, rmRules, allRules []*securitygroup.CloudRule) error {
+func (m *MockSecurityInterface) UpdateSecurityGroupRules(appliedToGroupIdentifier *securitygroup.CloudResource, addRules, rmRules, allRules []*securitygroup.CloudRule) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateSecurityGroupRules", addressGroupIdentifier, addRules, rmRules, allRules)
+	ret := m.ctrl.Call(m, "UpdateSecurityGroupRules", appliedToGroupIdentifier, addRules, rmRules, allRules)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateSecurityGroupRules indicates an expected call of UpdateSecurityGroupRules.
-func (mr *MockSecurityInterfaceMockRecorder) UpdateSecurityGroupRules(addressGroupIdentifier, addRules, rmRules, allRules interface{}) *gomock.Call {
+func (mr *MockSecurityInterfaceMockRecorder) UpdateSecurityGroupRules(appliedToGroupIdentifier, addRules, rmRules, allRules interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSecurityGroupRules", reflect.TypeOf((*MockSecurityInterface)(nil).UpdateSecurityGroupRules), addressGroupIdentifier, addRules, rmRules, allRules)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSecurityGroupRules", reflect.TypeOf((*MockSecurityInterface)(nil).UpdateSecurityGroupRules), appliedToGroupIdentifier, addRules, rmRules, allRules)
 }

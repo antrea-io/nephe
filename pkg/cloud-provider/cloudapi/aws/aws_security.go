@@ -58,7 +58,7 @@ func buildEc2UserIDGroupPairs(addressGroupIdentifiers []*securitygroup.CloudReso
 }
 
 // buildEc2CloudSgNamesFromRules builds all needed ec2 security group names from address groups in rules and target appliedTo group.
-func buildEc2CloudSgNamesFromRules(addressGroupIdentifier *securitygroup.CloudResourceID, ingressRules,
+func buildEc2CloudSgNamesFromRules(appliedToGroupIdentifier *securitygroup.CloudResourceID, ingressRules,
 	egressRules []*securitygroup.CloudRule) map[string]struct{} {
 	cloudSgNames := make(map[string]struct{})
 
@@ -77,7 +77,7 @@ func buildEc2CloudSgNamesFromRules(addressGroupIdentifier *securitygroup.CloudRe
 			cloudSgNames[addressGroupIdentifier.GetCloudName(true)] = struct{}{}
 		}
 	}
-	cloudSgNames[addressGroupIdentifier.GetCloudName(false)] = struct{}{}
+	cloudSgNames[appliedToGroupIdentifier.GetCloudName(false)] = struct{}{}
 
 	return cloudSgNames
 }
@@ -650,12 +650,14 @@ func getMemberNicCloudResourcesAttachedToOtherSGs(members []securitygroup.CloudR
 //	SecurityInterface Implementation
 //
 // ////////////////////////////////////////////////////////.
-func (c *awsCloud) CreateSecurityGroup(addressGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) (*string, error) {
+
+// CreateSecurityGroup invokes cloud api and creates the cloud security group based on securityGroupIdentifier.
+func (c *awsCloud) CreateSecurityGroup(securityGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) (*string, error) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	vpcID := addressGroupIdentifier.Vpc
-	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&addressGroupIdentifier.AccountID)
+	vpcID := securityGroupIdentifier.Vpc
+	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
 	if !found {
 		return nil, fmt.Errorf("aws account not found managing virtual private cloud [%v]", vpcID)
 	}
@@ -665,8 +667,8 @@ func (c *awsCloud) CreateSecurityGroup(addressGroupIdentifier *securitygroup.Clo
 	}
 	ec2Service := serviceCfg.(*ec2ServiceConfig)
 
-	cloudSgName := addressGroupIdentifier.GetCloudName(membershipOnly)
-	resp, err := ec2Service.createOrGetSecurityGroups(addressGroupIdentifier.Vpc, map[string]struct{}{cloudSgName: {}})
+	cloudSgName := securityGroupIdentifier.GetCloudName(membershipOnly)
+	resp, err := ec2Service.createOrGetSecurityGroups(securityGroupIdentifier.Vpc, map[string]struct{}{cloudSgName: {}})
 	if err != nil {
 		return nil, err
 	}
@@ -676,7 +678,7 @@ func (c *awsCloud) CreateSecurityGroup(addressGroupIdentifier *securitygroup.Clo
 }
 
 // UpdateSecurityGroupRules invokes cloud api and updates cloud security group with addRules and rmRules.
-func (c *awsCloud) UpdateSecurityGroupRules(addressGroupIdentifier *securitygroup.CloudResource,
+func (c *awsCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *securitygroup.CloudResource,
 	addRules, rmRules, _ []*securitygroup.CloudRule) error {
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -702,8 +704,8 @@ func (c *awsCloud) UpdateSecurityGroupRules(addressGroupIdentifier *securitygrou
 		}
 	}
 
-	vpcID := addressGroupIdentifier.Vpc
-	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&addressGroupIdentifier.AccountID)
+	vpcID := appliedToGroupIdentifier.Vpc
+	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&appliedToGroupIdentifier.AccountID)
 	if !found {
 		return fmt.Errorf("aws account not found managing virtual private cloud [%v]", vpcID)
 	}
@@ -715,7 +717,7 @@ func (c *awsCloud) UpdateSecurityGroupRules(addressGroupIdentifier *securitygrou
 	ec2Service := serviceCfg.(*ec2ServiceConfig)
 
 	// build from addressGroups, cloudSgNames from rules
-	cloudSgNames := buildEc2CloudSgNamesFromRules(&addressGroupIdentifier.CloudResourceID, append(addIRule, rmIRule...),
+	cloudSgNames := buildEc2CloudSgNamesFromRules(&appliedToGroupIdentifier.CloudResourceID, append(addIRule, rmIRule...),
 		append(addERule, rmERule...))
 
 	// make sure all required security groups pre-exist
@@ -730,7 +732,7 @@ func (c *awsCloud) UpdateSecurityGroupRules(addressGroupIdentifier *securitygrou
 		return fmt.Errorf("failed to find security groups")
 	}
 
-	cloudSGObjToAddRules := cloudSGNameToCloudSGObj[addressGroupIdentifier.GetCloudName(false)]
+	cloudSGObjToAddRules := cloudSGNameToCloudSGObj[appliedToGroupIdentifier.GetCloudName(false)]
 
 	// rollback operation for cloud api failures
 	rollbackRmIngress := false
@@ -771,13 +773,14 @@ func (c *awsCloud) UpdateSecurityGroupRules(addressGroupIdentifier *securitygrou
 	return nil
 }
 
-func (c *awsCloud) UpdateSecurityGroupMembers(groupIdentifier *securitygroup.CloudResource,
+// UpdateSecurityGroupMembers invokes cloud api and attaches/detaches nics to/from the cloud security group.
+func (c *awsCloud) UpdateSecurityGroupMembers(securityGroupIdentifier *securitygroup.CloudResource,
 	cloudResourceIdentifiers []*securitygroup.CloudResource, membershipOnly bool) error {
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	vpcID := groupIdentifier.Vpc
-	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&groupIdentifier.AccountID)
+	vpcID := securityGroupIdentifier.Vpc
+	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
 	if !found {
 		return fmt.Errorf("aws account not found managing virtual private cloud [%v]", vpcID)
 	}
@@ -788,22 +791,22 @@ func (c *awsCloud) UpdateSecurityGroupMembers(groupIdentifier *securitygroup.Clo
 	}
 	ec2Service := serviceCfg.(*ec2ServiceConfig)
 
-	groupCloudSgName := groupIdentifier.GetCloudName(membershipOnly)
+	cloudSgName := securityGroupIdentifier.GetCloudName(membershipOnly)
 
 	// get addressGroup cloudSgID
 	vpcIDs := []string{vpcID}
-	cloudSgNames := map[string]struct{}{groupCloudSgName: {}}
+	cloudSgNames := map[string]struct{}{cloudSgName: {}}
 	out, err := ec2Service.getCloudSecurityGroupsWithNameFromCloud(vpcIDs, cloudSgNames)
 	if err != nil {
 		return err
 	}
 	if len(out) != len(cloudSgNames) {
 		return fmt.Errorf("failed to find cloud sg (%v) corresponding to address group (%v)",
-			groupIdentifier.Name, groupCloudSgName)
+			securityGroupIdentifier.Name, cloudSgName)
 	}
-	groupCloudSgID := out[groupCloudSgName].GroupId
+	cloudSgID := out[cloudSgName].GroupId
 
-	err = ec2Service.updateSecurityGroupMembers(groupCloudSgID, groupCloudSgName, vpcID, cloudResourceIdentifiers, membershipOnly)
+	err = ec2Service.updateSecurityGroupMembers(cloudSgID, cloudSgName, vpcID, cloudResourceIdentifiers, membershipOnly)
 	if err != nil {
 		return err
 	}
@@ -811,12 +814,13 @@ func (c *awsCloud) UpdateSecurityGroupMembers(groupIdentifier *securitygroup.Clo
 	return nil
 }
 
-func (c *awsCloud) DeleteSecurityGroup(groupIdentifier *securitygroup.CloudResource, membershipOnly bool) error {
+// DeleteSecurityGroup invokes cloud api and deletes the cloud security group. Any attached resource will be moved to default sg.
+func (c *awsCloud) DeleteSecurityGroup(securityGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) error {
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	vpcID := groupIdentifier.Vpc
-	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&groupIdentifier.AccountID)
+	vpcID := securityGroupIdentifier.Vpc
+	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
 	if !found {
 		return fmt.Errorf("aws account not found managing virtual private cloud [%v]", vpcID)
 	}
@@ -829,7 +833,7 @@ func (c *awsCloud) DeleteSecurityGroup(groupIdentifier *securitygroup.CloudResou
 
 	// check if sg exists in cloud and get its cloud sg id to delete
 	vpcIDs := []string{vpcID}
-	cloudSgNameToDelete := groupIdentifier.GetCloudName(membershipOnly)
+	cloudSgNameToDelete := securityGroupIdentifier.GetCloudName(membershipOnly)
 	out, err := ec2Service.getCloudSecurityGroupsWithNameFromCloud(vpcIDs, map[string]struct{}{cloudSgNameToDelete: {}})
 	if err != nil {
 		return err
