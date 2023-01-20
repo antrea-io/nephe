@@ -242,7 +242,10 @@ func (ec2Cfg *ec2ServiceConfig) getInstances() ([]*ec2.Instance, error) {
 
 // DoResourceInventory gets inventory from cloud for given cloud account.
 func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
-	vpcs, _ := ec2Cfg.getVpcs()
+	vpcs, e := ec2Cfg.getVpcs()
+	if e != nil {
+		return e
+	}
 
 	instances, e := ec2Cfg.getInstances()
 	if e != nil {
