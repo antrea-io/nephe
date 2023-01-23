@@ -721,7 +721,6 @@ spec:
     spec:
       containers:
       - args:
-        - --enable-leader-election
         - --enable-debug-log
         command:
         - /nephe-controller
