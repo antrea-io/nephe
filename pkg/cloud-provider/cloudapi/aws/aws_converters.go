@@ -44,11 +44,12 @@ func convertToIPPermissionPort(port *int, protocol *int) (*int64, *int64) {
 	return portVal, portVal
 }
 
-func convertToEc2IpRanges(ips []*net.IPNet, ruleHasGroups bool) []*ec2.IpRange {
+func convertToEc2IpRanges(ips []*net.IPNet, ruleHasGroups bool, description *string) []*ec2.IpRange {
 	var ipRanges []*ec2.IpRange
 	if len(ips) == 0 && !ruleHasGroups {
 		ipRange := &ec2.IpRange{
-			CidrIp: aws.String("0.0.0.0/0"),
+			CidrIp:      aws.String("0.0.0.0/0"),
+			Description: description,
 		}
 		ipRanges = append(ipRanges, ipRange)
 		return ipRanges
@@ -56,28 +57,33 @@ func convertToEc2IpRanges(ips []*net.IPNet, ruleHasGroups bool) []*ec2.IpRange {
 
 	for _, ip := range ips {
 		ipRange := &ec2.IpRange{
-			CidrIp: aws.String(ip.String()),
+			CidrIp:      aws.String(ip.String()),
+			Description: description,
 		}
 		ipRanges = append(ipRanges, ipRange)
 	}
 	return ipRanges
 }
 
-func convertFromIPRange(ipRanges []*ec2.IpRange) []*net.IPNet {
+func convertFromIPRange(ipRanges []*ec2.IpRange) ([]*net.IPNet, []*string) {
 	var srcIPNets []*net.IPNet
+	var desc []*string
 	for _, ipRange := range ipRanges {
 		_, ipNet, err := net.ParseCIDR(*ipRange.CidrIp)
 		if err != nil {
 			continue
 		}
+		desc = append(desc, ipRange.Description)
 		srcIPNets = append(srcIPNets, ipNet)
 	}
-	return srcIPNets
+
+	return srcIPNets, desc
 }
 
 func convertFromSecurityGroupPair(cloudGroups []*ec2.UserIdGroupPair, managedSGs map[string]*ec2.SecurityGroup,
-	unmanagedSGs map[string]*ec2.SecurityGroup) []*securitygroup.CloudResourceID {
+	unmanagedSGs map[string]*ec2.SecurityGroup) ([]*securitygroup.CloudResourceID, []*string) {
 	var cloudResourceIDs []*securitygroup.CloudResourceID
+	var desc []*string
 
 	for _, cloudGroup := range cloudGroups {
 		var sgName string
@@ -87,11 +93,13 @@ func convertFromSecurityGroupPair(cloudGroups []*ec2.UserIdGroupPair, managedSGs
 		if foundInManagedSg {
 			sgName, _, _ = securitygroup.IsNepheControllerCreatedSG(*managedSgObj.GroupName)
 			vpcID = *managedSgObj.VpcId
+			desc = append(desc, cloudGroup.Description)
 		}
 		unmanagedSGObj, foundInUnmanagedSg := unmanagedSGs[*cloudGroup.GroupId]
 		if foundInUnmanagedSg {
 			sgName = *unmanagedSGObj.GroupName
 			vpcID = *unmanagedSGObj.VpcId
+			desc = append(desc, cloudGroup.Description)
 		}
 
 		cloudResourceID := &securitygroup.CloudResourceID{
@@ -101,16 +109,24 @@ func convertFromSecurityGroupPair(cloudGroups []*ec2.UserIdGroupPair, managedSGs
 
 		cloudResourceIDs = append(cloudResourceIDs, cloudResourceID)
 	}
-	return cloudResourceIDs
+	return cloudResourceIDs, desc
 }
 
 // convertFromIPPermissionToIngressRule converts cloud ingress rules from ec2.IpPermission to internal securitygroup.IngressRule.
+// Each AT Sg can have one or more ANPs and an ANP can have one or more rules. Each rule can have a description.
 func convertFromIPPermissionToIngressRule(ipPermissions []*ec2.IpPermission, managedSGs map[string]*ec2.SecurityGroup,
 	unmanagedSGs map[string]*ec2.SecurityGroup) []securitygroup.IngressRule {
 	var ingressRules []securitygroup.IngressRule
 	for _, ipPermission := range ipPermissions {
-		fromSrcIPs := convertFromIPRange(ipPermission.IpRanges)
-		for _, srcIP := range fromSrcIPs {
+		fromSrcIPs, desc := convertFromIPRange(ipPermission.IpRanges)
+		for i, srcIP := range fromSrcIPs {
+			// Get cloud rule description.
+			_, ok := securitygroup.ExtractCloudDescription(desc[i])
+			if !ok {
+				// Ignore rules that don't have a valid description field.
+				awsPluginLogger().V(4).Info("Failed to extract cloud rule description", "desc", desc[i])
+				continue
+			}
 			var ingressRule securitygroup.IngressRule
 
 			ingressRule.FromSrcIP = []*net.IPNet{srcIP}
@@ -119,8 +135,15 @@ func convertFromIPPermissionToIngressRule(ipPermissions []*ec2.IpPermission, man
 
 			ingressRules = append(ingressRules, ingressRule)
 		}
-		fromSecurityGroups := convertFromSecurityGroupPair(ipPermission.UserIdGroupPairs, managedSGs, unmanagedSGs)
-		for _, SecurityGroup := range fromSecurityGroups {
+		fromSecurityGroups, desc := convertFromSecurityGroupPair(ipPermission.UserIdGroupPairs, managedSGs, unmanagedSGs)
+		for i, SecurityGroup := range fromSecurityGroups {
+			// Get cloud rule description.
+			_, ok := securitygroup.ExtractCloudDescription(desc[i])
+			if !ok {
+				// Ignore rules that don't have a valid description field.
+				awsPluginLogger().V(4).Info("Failed to extract cloud rule description", "desc", desc[i])
+				continue
+			}
 			var ingressRule securitygroup.IngressRule
 
 			ingressRule.FromSecurityGroups = []*securitygroup.CloudResourceID{SecurityGroup}
@@ -134,12 +157,20 @@ func convertFromIPPermissionToIngressRule(ipPermissions []*ec2.IpPermission, man
 }
 
 // convertFromIPPermissionToEgressRule converts cloud egress rules from ec2.IpPermission to internal securitygroup.EgressRule.
+// Each AT Sg can have one or more ANPs and an ANP can have one or more rules. Each rule can have a description.
 func convertFromIPPermissionToEgressRule(ipPermissions []*ec2.IpPermission, managedSGs map[string]*ec2.SecurityGroup,
 	unmanagedSGs map[string]*ec2.SecurityGroup) []securitygroup.EgressRule {
 	var egressRules []securitygroup.EgressRule
 	for _, ipPermission := range ipPermissions {
-		toDstIPs := convertFromIPRange(ipPermission.IpRanges)
-		for _, dstIP := range toDstIPs {
+		toDstIPs, desc := convertFromIPRange(ipPermission.IpRanges)
+		for i, dstIP := range toDstIPs {
+			// Get cloud rule description.
+			_, ok := securitygroup.ExtractCloudDescription(desc[i])
+			if !ok {
+				// Ignore rules that don't have a valid description field.
+				awsPluginLogger().V(4).Info("Failed to extract cloud rule description", "desc", desc[i])
+				continue
+			}
 			var egressRule securitygroup.EgressRule
 
 			egressRule.ToDstIP = []*net.IPNet{dstIP}
@@ -148,8 +179,15 @@ func convertFromIPPermissionToEgressRule(ipPermissions []*ec2.IpPermission, mana
 
 			egressRules = append(egressRules, egressRule)
 		}
-		toSecurityGroups := convertFromSecurityGroupPair(ipPermission.UserIdGroupPairs, managedSGs, unmanagedSGs)
-		for _, SecurityGroup := range toSecurityGroups {
+		toSecurityGroups, desc := convertFromSecurityGroupPair(ipPermission.UserIdGroupPairs, managedSGs, unmanagedSGs)
+		for i, SecurityGroup := range toSecurityGroups {
+			// Get cloud rule description.
+			_, ok := securitygroup.ExtractCloudDescription(desc[i])
+			if !ok {
+				// Ignore rules that don't have a valid description field.
+				awsPluginLogger().V(4).Info("Failed to extract cloud rule description", "desc", desc[i])
+				continue
+			}
 			var egressRule securitygroup.EgressRule
 
 			egressRule.ToSecurityGroups = []*securitygroup.CloudResourceID{SecurityGroup}

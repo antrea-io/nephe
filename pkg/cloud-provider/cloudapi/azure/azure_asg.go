@@ -55,6 +55,7 @@ func createOrGetApplicationSecurityGroup(asgAPIClient azureAsgWrapper, location 
 	return strings.ToLower(*asg.ID), nil
 }
 
+// getNepheControllerCreatedAsgByNameForResourceGroup returns AT and AG ASGs from a resource group.
 func getNepheControllerCreatedAsgByNameForResourceGroup(asgAPIClient azureAsgWrapper,
 	rgName string) (map[string]network.ApplicationSecurityGroup, map[string]network.ApplicationSecurityGroup, error) {
 	applicationSecurityGroups, err := asgAPIClient.listComplete(context.Background(), rgName)

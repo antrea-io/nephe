@@ -23,7 +23,7 @@ import (
 	"reflect"
 	"strings"
 
-	cloud "antrea.io/nephe/apis/crd/v1alpha1"
+	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 )
 
 /*
@@ -101,8 +101,12 @@ Antrea internal NetworkPolicy To SecurityGroup Mapping strategy
 -- Calls into cloud securityGroup are asynchronous for better performance/scalability.
 */
 
-// CloudResourceType specifies the type of cloud resource.
-type CloudResourceType string
+const (
+	// Used to create a rule description.
+	Name           = "Name"
+	Namespace      = "Namespace"
+	AppliedToGroup = "AppliedToGroup"
+)
 
 var (
 	ControllerPrefix             *string
@@ -118,28 +122,18 @@ var ProtocolNameNumMap = map[string]int{
 	"icmpv6": 58,
 }
 
+// CloudResourceType specifies the type of cloud resource.
+type CloudResourceType string
+
 var (
-	CloudResourceTypeVM  = CloudResourceType(reflect.TypeOf(cloud.VirtualMachine{}).Name())
-	CloudResourceTypeNIC = CloudResourceType(reflect.TypeOf(cloud.NetworkInterface{}).Name())
+	CloudResourceTypeVM  = CloudResourceType(reflect.TypeOf(crdv1alpha1.VirtualMachine{}).Name())
+	CloudResourceTypeNIC = CloudResourceType(reflect.TypeOf(crdv1alpha1.NetworkInterface{}).Name())
 )
 
 var (
 	// CloudSecurityGroup is global entry point to configure cloud specific security group.
 	CloudSecurityGroup CloudSecurityGroupAPI
 )
-
-// CloudResource uniquely identify a cloud resource.
-type CloudResource struct {
-	Type CloudResourceType
-	CloudResourceID
-	AccountID     string
-	CloudProvider string
-}
-
-type CloudResourceID struct {
-	Name string
-	Vpc  string
-}
 
 func SetCloudResourcePrefix(CloudResourcePrefix *string) {
 	ControllerPrefix = CloudResourcePrefix
@@ -155,6 +149,19 @@ func GetControllerAppliedToPrefix() string {
 	return ControllerAppliedToPrefix
 }
 
+type CloudResourceID struct {
+	Name string
+	Vpc  string
+}
+
+// CloudResource uniquely identify a cloud resource.
+type CloudResource struct {
+	Type CloudResourceType
+	CloudResourceID
+	AccountID     string
+	CloudProvider string
+}
+
 func (c *CloudResource) String() string {
 	return string(c.Type) + "/" + c.CloudResourceID.String()
 }
@@ -168,6 +175,18 @@ func (c *CloudResourceID) GetCloudName(membershipOnly bool) string {
 
 func (c *CloudResourceID) String() string {
 	return c.Name + "/" + c.Vpc
+}
+
+type CloudRuleDescription struct {
+	Name           string
+	Namespace      string
+	AppliedToGroup string
+}
+
+func (r *CloudRuleDescription) String() string {
+	return Name + ":" + r.Name + ", " +
+		Namespace + ":" + r.Namespace + ", " +
+		AppliedToGroup + ":" + r.AppliedToGroup
 }
 
 type Rule interface {

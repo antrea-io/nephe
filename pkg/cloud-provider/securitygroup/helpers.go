@@ -15,9 +15,12 @@
 package securitygroup
 
 import (
+	"fmt"
 	"strings"
 )
 
+// IsNepheControllerCreatedSG checks an SG is created by nephe
+// and returns if it's an AppliedToGroup/AddressGroup sg and the sg name.
 func IsNepheControllerCreatedSG(cloudSgName string) (string, bool, bool) {
 	var sgName string
 	isNepheControllerCreatedAddressGroup := false
@@ -52,4 +55,50 @@ func FindResourcesBasedOnKind(cloudResources []*CloudResource) (map[string]struc
 		}
 	}
 	return virtualMachineIDs, networkInterfaceIDs
+}
+
+// GenerateCloudDescription generates a CloudRuleDescription object and converts to string.
+func GenerateCloudDescription(namespacedName string, appliedToGroup string) (string, error) {
+	tokens := strings.Split(namespacedName, "/")
+	if len(tokens) != 2 {
+		return "", fmt.Errorf("invalid namespacedname %v", namespacedName)
+	}
+	desc := CloudRuleDescription{
+		Name:           tokens[1],
+		Namespace:      tokens[0],
+		AppliedToGroup: appliedToGroup,
+	}
+	return desc.String(), nil
+}
+
+// ExtractCloudDescription converts a string to a CloudRuleDescription object.
+func ExtractCloudDescription(description *string) (*CloudRuleDescription, bool) {
+	if description == nil {
+		return nil, false
+	}
+	numKeyValuePair := 3
+	descMap := map[string]string{}
+	tempSlice := strings.Split(*description, ",")
+	if len(tempSlice) != numKeyValuePair {
+		return nil, false
+	}
+	// each key and value are separated by ":"
+	for i := range tempSlice {
+		keyValuePair := strings.Split(strings.TrimSpace(tempSlice[i]), ":")
+		if len(keyValuePair) == 2 {
+			descMap[keyValuePair[0]] = keyValuePair[1]
+		}
+	}
+
+	// check if any of the fields are empty.
+	if descMap[Name] == "" || descMap[Namespace] == "" || descMap[AppliedToGroup] == "" {
+		return nil, false
+	}
+
+	desc := &CloudRuleDescription{
+		Name:           descMap[Name],
+		Namespace:      descMap[Namespace],
+		AppliedToGroup: descMap[AppliedToGroup],
+	}
+	return desc, true
 }

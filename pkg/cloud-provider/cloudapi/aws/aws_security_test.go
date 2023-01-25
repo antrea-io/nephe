@@ -44,6 +44,7 @@ var _ = Describe("AWS Cloud Security", func() {
 		testVMID02  = "i-0b194935df0d83eb8"
 
 		testAccountNamespacedName = &types.NamespacedName{Namespace: "namespace01", Name: "account01"}
+		testAnpNamespacedName     = &types.NamespacedName{Namespace: "test-anp-ns", Name: "test-anp"}
 		testEntitySelectorName    = "testEntitySelector01"
 		credentials               = "credentials"
 
@@ -257,7 +258,7 @@ var _ = Describe("AWS Cloud Security", func() {
 					FromSrcIP:          []*net.IPNet{},
 					FromSecurityGroups: []*securitygroup.CloudResourceID{&webSgIdentifier.CloudResourceID},
 					Protocol:           aws.Int(6),
-				}},
+				}, NetworkPolicy: testAnpNamespacedName.String()},
 			}
 			output := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier.CloudResourceID, true, false)
 			outputAt := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier.CloudResourceID, false, false)
@@ -282,8 +283,85 @@ var _ = Describe("AWS Cloud Security", func() {
 			err := cloudInterface.UpdateSecurityGroupRules(webSgIdentifier, addRule, []*securitygroup.CloudRule{}, addRule)
 			Expect(err).Should(BeNil())
 		})
+		// Ingress rules without a description field is not allowed.
+		It("Should fail to create ingress rules", func() {
+			webSgIdentifier := &securitygroup.CloudResource{
+				Type: securitygroup.CloudResourceTypeVM,
+				CloudResourceID: securitygroup.CloudResourceID{
+					Name: "Web",
+					Vpc:  testVpcID01,
+				},
+				AccountID:     testAccountNamespacedName.String(),
+				CloudProvider: string(v1alpha1.AWSCloudProvider),
+			}
+			addRule := []*securitygroup.CloudRule{{
+				Rule: &securitygroup.IngressRule{
+					FromPort:           aws.Int(22),
+					FromSrcIP:          []*net.IPNet{},
+					FromSecurityGroups: []*securitygroup.CloudResourceID{&webSgIdentifier.CloudResourceID},
+					Protocol:           aws.Int(6),
+				}},
+			}
+			output := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier.CloudResourceID, true, false)
+			outputAt := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier.CloudResourceID, false, false)
+			output.SecurityGroups = append(output.SecurityGroups, outputAt.SecurityGroups...)
+			input := constructEc2DescribeSecurityGroupsInput(webSgIdentifier.Vpc,
+				map[string]struct{}{webSgIdentifier.GetCloudName(true): {}, webSgIdentifier.GetCloudName(false): {}})
 
+			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Any()).Return(output, nil).Times(1).
+				Do(func(req *ec2.DescribeSecurityGroupsInput) {
+					sortSliceStringPointer(req.Filters[1].Values)
+					sortSliceStringPointer(input.Filters[1].Values)
+					Expect(req).To(Equal(input))
+				})
+			mockawsEC2.EXPECT().revokeSecurityGroupIngress(gomock.Any()).Times(0)
+			mockawsEC2.EXPECT().revokeSecurityGroupEgress(gomock.Any()).Times(0)
+
+			err := cloudInterface.UpdateSecurityGroupRules(webSgIdentifier, addRule, []*securitygroup.CloudRule{}, addRule)
+			Expect(err).ShouldNot(BeNil())
+		})
 		It("Should create egress rules successfully", func() {
+			webSgIdentifier := &securitygroup.CloudResource{
+				Type: securitygroup.CloudResourceTypeVM,
+				CloudResourceID: securitygroup.CloudResourceID{
+					Name: "Web",
+					Vpc:  testVpcID01,
+				},
+				AccountID:     testAccountNamespacedName.String(),
+				CloudProvider: string(v1alpha1.AWSCloudProvider),
+			}
+			addRule := []*securitygroup.CloudRule{{
+				Rule: &securitygroup.EgressRule{
+					ToPort:           aws.Int(22),
+					ToDstIP:          []*net.IPNet{},
+					ToSecurityGroups: []*securitygroup.CloudResourceID{&webSgIdentifier.CloudResourceID},
+					Protocol:         aws.Int(6),
+				}, NetworkPolicy: testAnpNamespacedName.String()}}
+			output := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier.CloudResourceID, true, false)
+			outputAt := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier.CloudResourceID, false, false)
+			output.SecurityGroups = append(output.SecurityGroups, outputAt.SecurityGroups...)
+			input := constructEc2DescribeSecurityGroupsInput(webSgIdentifier.Vpc,
+				map[string]struct{}{webSgIdentifier.GetCloudName(true): {}, webSgIdentifier.GetCloudName(false): {}})
+
+			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Any()).Return(output, nil).Times(1).
+				Do(func(req *ec2.DescribeSecurityGroupsInput) {
+					sortSliceStringPointer(req.Filters[1].Values)
+					sortSliceStringPointer(input.Filters[1].Values)
+					Expect(req).To(Equal(input))
+				})
+			mockawsEC2.EXPECT().revokeSecurityGroupIngress(gomock.Any()).Times(0)
+			mockawsEC2.EXPECT().authorizeSecurityGroupIngress(gomock.Any()).Times(0)
+			mockawsEC2.EXPECT().revokeSecurityGroupEgress(gomock.Any()).Times(0)
+			mockawsEC2.EXPECT().authorizeSecurityGroupEgress(gomock.Any()).Times(1).
+				Do(func(req *ec2.AuthorizeSecurityGroupEgressInput) {
+					Expect(len(req.IpPermissions)).To(Equal(1))
+				})
+
+			err := cloudInterface.UpdateSecurityGroupRules(webSgIdentifier, addRule, []*securitygroup.CloudRule{}, addRule)
+			Expect(err).Should(BeNil())
+		})
+		// Egress rules without a description field is not allowed.
+		It("Should fail to create egress rules", func() {
 			webSgIdentifier := &securitygroup.CloudResource{
 				Type: securitygroup.CloudResourceTypeVM,
 				CloudResourceID: securitygroup.CloudResourceID{
@@ -313,19 +391,134 @@ var _ = Describe("AWS Cloud Security", func() {
 					Expect(req).To(Equal(input))
 				})
 			mockawsEC2.EXPECT().revokeSecurityGroupIngress(gomock.Any()).Times(0)
-			mockawsEC2.EXPECT().authorizeSecurityGroupIngress(gomock.Any()).Times(0)
 			mockawsEC2.EXPECT().revokeSecurityGroupEgress(gomock.Any()).Times(0)
-			mockawsEC2.EXPECT().authorizeSecurityGroupEgress(gomock.Any()).Times(1).
-				Do(func(req *ec2.AuthorizeSecurityGroupEgressInput) {
-					Expect(len(req.IpPermissions)).To(Equal(1))
-				})
 
 			err := cloudInterface.UpdateSecurityGroupRules(webSgIdentifier, addRule, []*securitygroup.CloudRule{}, addRule)
-			Expect(err).Should(BeNil())
+			Expect(err).ShouldNot(BeNil())
 		})
 	})
 	Context("GetEnforcedSecurity", func() {
-		It("Should sync cloud security groups and rules", func() {
+		It("Should sync cloud security groups and rules with description", func() {
+			desc := securitygroup.CloudRuleDescription{
+				Name:           testAnpNamespacedName.Name,
+				Namespace:      testAnpNamespacedName.Namespace,
+				AppliedToGroup: "dummy"}
+			descString := desc.String()
+			webAddressGroupIdentifier := &securitygroup.CloudResource{
+				Type: securitygroup.CloudResourceTypeVM,
+				CloudResourceID: securitygroup.CloudResourceID{
+					Name: "Web",
+					Vpc:  testVpcID01,
+				},
+				AccountID:     testAccountNamespacedName.String(),
+				CloudProvider: string(v1alpha1.AWSCloudProvider),
+			}
+
+			input := &ec2.DescribeSecurityGroupsInput{
+				Filters: []*ec2.Filter{{
+					Name:   aws.String(awsFilterKeyVPCID),
+					Values: []*string{aws.String(testVpcID01)},
+				}},
+			}
+			agOutput := constructEc2DescribeSecurityGroupsOutput(&webAddressGroupIdentifier.CloudResourceID, true, false)
+			irule := &ec2.IpPermission{
+				FromPort:   aws.Int64(22),
+				IpProtocol: aws.String("tcp"),
+				IpRanges: []*ec2.IpRange{{CidrIp: aws.String("1.1.1.1/32"), Description: &descString},
+					{CidrIp: aws.String("2.2.2.2/32"), Description: &descString}},
+				Ipv6Ranges:       []*ec2.Ipv6Range{},
+				PrefixListIds:    []*ec2.PrefixListId{},
+				ToPort:           aws.Int64(22),
+				UserIdGroupPairs: []*ec2.UserIdGroupPair{{GroupId: agOutput.SecurityGroups[0].GroupId, Description: &descString}},
+			}
+			erule := &ec2.IpPermission{
+				FromPort:   aws.Int64(80),
+				IpProtocol: aws.String("tcp"),
+				IpRanges: []*ec2.IpRange{{CidrIp: aws.String("2.2.2.2/32"), Description: &descString},
+					{CidrIp: aws.String("1.1.1.1/32"), Description: &descString}},
+				Ipv6Ranges:       []*ec2.Ipv6Range{},
+				PrefixListIds:    []*ec2.PrefixListId{},
+				ToPort:           aws.Int64(80),
+				UserIdGroupPairs: []*ec2.UserIdGroupPair{{GroupId: agOutput.SecurityGroups[0].GroupId, Description: &descString}},
+			}
+			output := constructEc2DescribeSecurityGroupsOutput(&webAddressGroupIdentifier.CloudResourceID, false, false)
+			for _, sg := range output.SecurityGroups {
+				sg.IpPermissions = append(sg.IpPermissions, irule)
+				sg.IpPermissionsEgress = append(sg.IpPermissionsEgress, erule)
+			}
+			output.SecurityGroups = append(output.SecurityGroups, agOutput.SecurityGroups...)
+
+			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Eq(input)).Return(output, nil).Times(1)
+
+			syncContent := cloudInterface.GetEnforcedSecurity()
+			Expect(len(syncContent)).To(Equal(2))
+			for _, c := range syncContent {
+				if !c.MembershipOnly {
+					Expect(len(c.IngressRules)).To(Equal(3))
+					Expect(len(c.EgressRules)).To(Equal(3))
+				}
+			}
+		})
+		It("Should sync cloud security groups and rules with an invalid description", func() {
+			// Description does not contain an ATGroup name.
+			desc := securitygroup.CloudRuleDescription{Name: testAnpNamespacedName.Name, Namespace: testAnpNamespacedName.Namespace}
+			descString := desc.String()
+			webAddressGroupIdentifier := &securitygroup.CloudResource{
+				Type: securitygroup.CloudResourceTypeVM,
+				CloudResourceID: securitygroup.CloudResourceID{
+					Name: "Web",
+					Vpc:  testVpcID01,
+				},
+				AccountID:     testAccountNamespacedName.String(),
+				CloudProvider: string(v1alpha1.AWSCloudProvider),
+			}
+
+			input := &ec2.DescribeSecurityGroupsInput{
+				Filters: []*ec2.Filter{{
+					Name:   aws.String(awsFilterKeyVPCID),
+					Values: []*string{aws.String(testVpcID01)},
+				}},
+			}
+			agOutput := constructEc2DescribeSecurityGroupsOutput(&webAddressGroupIdentifier.CloudResourceID, true, false)
+			irule := &ec2.IpPermission{
+				FromPort:   aws.Int64(22),
+				IpProtocol: aws.String("tcp"),
+				IpRanges: []*ec2.IpRange{{CidrIp: aws.String("1.1.1.1/32"), Description: &descString},
+					{CidrIp: aws.String("2.2.2.2/32"), Description: &descString}},
+				Ipv6Ranges:       []*ec2.Ipv6Range{},
+				PrefixListIds:    []*ec2.PrefixListId{},
+				ToPort:           aws.Int64(22),
+				UserIdGroupPairs: []*ec2.UserIdGroupPair{{GroupId: agOutput.SecurityGroups[0].GroupId, Description: &descString}},
+			}
+			erule := &ec2.IpPermission{
+				FromPort:   aws.Int64(80),
+				IpProtocol: aws.String("tcp"),
+				IpRanges: []*ec2.IpRange{{CidrIp: aws.String("2.2.2.2/32"), Description: &descString},
+					{CidrIp: aws.String("1.1.1.1/32"), Description: &descString}},
+				Ipv6Ranges:       []*ec2.Ipv6Range{},
+				PrefixListIds:    []*ec2.PrefixListId{},
+				ToPort:           aws.Int64(80),
+				UserIdGroupPairs: []*ec2.UserIdGroupPair{{GroupId: agOutput.SecurityGroups[0].GroupId, Description: &descString}},
+			}
+			output := constructEc2DescribeSecurityGroupsOutput(&webAddressGroupIdentifier.CloudResourceID, false, false)
+			for _, sg := range output.SecurityGroups {
+				sg.IpPermissions = append(sg.IpPermissions, irule)
+				sg.IpPermissionsEgress = append(sg.IpPermissionsEgress, erule)
+			}
+			output.SecurityGroups = append(output.SecurityGroups, agOutput.SecurityGroups...)
+
+			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Eq(input)).Return(output, nil).Times(1)
+
+			syncContent := cloudInterface.GetEnforcedSecurity()
+			Expect(len(syncContent)).To(Equal(2))
+			for _, c := range syncContent {
+				if !c.MembershipOnly {
+					Expect(len(c.IngressRules)).To(Equal(0))
+					Expect(len(c.EgressRules)).To(Equal(0))
+				}
+			}
+		})
+		It("Should sync cloud security groups and ignore rules without description", func() {
 			webAddressGroupIdentifier := &securitygroup.CloudResource{
 				Type: securitygroup.CloudResourceTypeVM,
 				CloudResourceID: securitygroup.CloudResourceID{
@@ -374,8 +567,8 @@ var _ = Describe("AWS Cloud Security", func() {
 			Expect(len(syncContent)).To(Equal(2))
 			for _, c := range syncContent {
 				if !c.MembershipOnly {
-					Expect(len(c.IngressRules)).To(Equal(3))
-					Expect(len(c.EgressRules)).To(Equal(3))
+					Expect(len(c.IngressRules)).To(Equal(0))
+					Expect(len(c.EgressRules)).To(Equal(0))
 				}
 			}
 		})
