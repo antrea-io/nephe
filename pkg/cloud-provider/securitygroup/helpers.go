@@ -23,14 +23,14 @@ func IsNepheControllerCreatedSG(cloudSgName string) (string, bool, bool) {
 	isNepheControllerCreatedAddressGroup := false
 	isNepheControllerCreatedAppliedToGroup := false
 
-	suffix := strings.TrimPrefix(cloudSgName, NepheControllerAddressGroupPrefix)
+	suffix := strings.TrimPrefix(cloudSgName, GetControllerAddressGroupPrefix())
 	if len(suffix) < len(cloudSgName) {
 		isNepheControllerCreatedAddressGroup = true
 		sgName = strings.ToLower(suffix)
 	}
 
 	if !isNepheControllerCreatedAddressGroup {
-		suffix := strings.TrimPrefix(cloudSgName, NepheControllerAppliedToPrefix)
+		suffix := strings.TrimPrefix(cloudSgName, GetControllerAppliedToPrefix())
 		if len(suffix) < len(cloudSgName) {
 			isNepheControllerCreatedAppliedToGroup = true
 			sgName = strings.ToLower(suffix)

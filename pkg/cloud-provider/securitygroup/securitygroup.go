@@ -104,10 +104,10 @@ Antrea internal NetworkPolicy To SecurityGroup Mapping strategy
 // CloudResourceType specifies the type of cloud resource.
 type CloudResourceType string
 
-const (
-	NepheControllerPrefix             = "nephe-"
-	NepheControllerAddressGroupPrefix = NepheControllerPrefix + "ag-"
-	NepheControllerAppliedToPrefix    = NepheControllerPrefix + "at-"
+var (
+	ControllerPrefix             *string
+	ControllerAddressGroupPrefix string
+	ControllerAppliedToPrefix    string
 )
 
 var ProtocolNameNumMap = map[string]int{
@@ -141,15 +141,29 @@ type CloudResourceID struct {
 	Vpc  string
 }
 
+func SetCloudResourcePrefix(CloudResourcePrefix *string) {
+	ControllerPrefix = CloudResourcePrefix
+}
+
+func GetControllerAddressGroupPrefix() string {
+	ControllerAddressGroupPrefix = *ControllerPrefix + "-ag-"
+	return ControllerAddressGroupPrefix
+}
+
+func GetControllerAppliedToPrefix() string {
+	ControllerAppliedToPrefix = *ControllerPrefix + "-at-"
+	return ControllerAppliedToPrefix
+}
+
 func (c *CloudResource) String() string {
 	return string(c.Type) + "/" + c.CloudResourceID.String()
 }
 
 func (c *CloudResourceID) GetCloudName(membershipOnly bool) string {
 	if membershipOnly {
-		return fmt.Sprintf("%v%v", NepheControllerAddressGroupPrefix, strings.ToLower(c.Name))
+		return fmt.Sprintf("%v%v", GetControllerAddressGroupPrefix(), strings.ToLower(c.Name))
 	}
-	return fmt.Sprintf("%v%v", NepheControllerAppliedToPrefix, strings.ToLower(c.Name))
+	return fmt.Sprintf("%v%v", GetControllerAppliedToPrefix(), strings.ToLower(c.Name))
 }
 
 func (c *CloudResourceID) String() string {

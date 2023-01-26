@@ -599,6 +599,14 @@ metadata:
   name: resource-viewer-role
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - networking.k8s.io
   resources:
   - ingresses
@@ -682,6 +690,16 @@ subjects:
   namespace: nephe-system
 ---
 apiVersion: v1
+data:
+  nephe-controller.conf: |
+    # Specifies the prefix to be used while creating cloud resources.
+    # CloudResourcePrefix: nephe
+kind: ConfigMap
+metadata:
+  name: nephe-config
+  namespace: nephe-system
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: nephe-controller-service
@@ -749,6 +767,10 @@ spec:
         - mountPath: /tmp/k8s-apiserver/serving-certs
           name: apiserver-cert
           readOnly: true
+        - mountPath: /tmp/nephe/nephe-controller.conf
+          name: nephe-config
+          readOnly: true
+          subPath: nephe-controller.conf
       terminationGracePeriodSeconds: 10
       volumes:
       - name: cert
@@ -759,6 +781,9 @@ spec:
         secret:
           defaultMode: 420
           secretName: serving-cert
+      - configMap:
+          name: nephe-config
+        name: nephe-config
 ---
 apiVersion: apiregistration.k8s.io/v1
 kind: APIService
@@ -920,4 +945,27 @@ webhooks:
     - DELETE
     resources:
     - secrets
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    caBundle: Cg==
+    service:
+      name: nephe-controller-webhook-service
+      namespace: nephe-system
+      path: /validate-v1-configmap
+  failurePolicy: Fail
+  name: vconfigmap.kb.io
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - v1
+    operations:
+    - UPDATE
+    - DELETE
+    resources:
+    - configmaps
+    scope: Namespaced
   sideEffects: None

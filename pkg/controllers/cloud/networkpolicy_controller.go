@@ -68,6 +68,7 @@ const (
 
 type NetworkPolicyController interface {
 	LocalEvent(watch.Event)
+	IsCloudResourceCreated() bool
 }
 
 // NetworkPolicyReconciler reconciles a NetworkPolicy object.
@@ -805,6 +806,11 @@ func (r *NetworkPolicyReconciler) resetWatchers() error {
 		break
 	}
 	return err
+}
+
+// IsCloudResourceCreated checks the cloud resource is already created
+func (r *NetworkPolicyReconciler) IsCloudResourceCreated() bool {
+	return len(r.addrSGIndexer.List()) != 0 || len(r.appliedToSGIndexer.List()) != 0
 }
 
 func (r *NetworkPolicyReconciler) GetVirtualMachinePolicyIndexer() cache.Indexer {
