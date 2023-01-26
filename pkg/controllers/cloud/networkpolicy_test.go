@@ -304,7 +304,7 @@ var _ = Describe("NetworkPolicy", func() {
 	getGrpMembers := func(gms []antreanetworking.GroupMember) []*securitygroup.CloudResource {
 		ret := make([]*securitygroup.CloudResource, 0)
 		for _, gm := range gms {
-			if vm := strings.TrimPrefix(gm.ExternalEntity.Name, "virtualmachine-" + vmNamePrefix); vm != gm.ExternalEntity.Name {
+			if vm := strings.TrimPrefix(gm.ExternalEntity.Name, "virtualmachine-"+vmNamePrefix); vm != gm.ExternalEntity.Name {
 				ret = append(ret, &securitygroup.CloudResource{
 					Type: securitygroup.CloudResourceTypeVM,
 					CloudResourceID: securitygroup.CloudResourceID{
@@ -322,7 +322,7 @@ var _ = Describe("NetworkPolicy", func() {
 	getGrpExternalEntity := func(gms []antreanetworking.GroupMember) []*antreatypes.ExternalEntity {
 		ret := make([]*antreatypes.ExternalEntity, 0)
 		for _, gm := range gms {
-			if vm := strings.TrimPrefix(gm.ExternalEntity.Name, "virtualmachine-" + vmNamePrefix); vm != gm.ExternalEntity.Name {
+			if vm := strings.TrimPrefix(gm.ExternalEntity.Name, "virtualmachine-"+vmNamePrefix); vm != gm.ExternalEntity.Name {
 				// Trim successful
 				ret = append(ret, vmExternalEntities[vm])
 			}
@@ -334,7 +334,7 @@ var _ = Describe("NetworkPolicy", func() {
 	getGrpVPCs := func(gms []antreanetworking.GroupMember) map[string]struct{} {
 		ret := make(map[string]struct{})
 		for _, gm := range gms {
-			if vm := strings.TrimPrefix(gm.ExternalEntity.Name, "virtualmachine-" + vmNamePrefix); vm != gm.ExternalEntity.Name {
+			if vm := strings.TrimPrefix(gm.ExternalEntity.Name, "virtualmachine-"+vmNamePrefix); vm != gm.ExternalEntity.Name {
 				ret[vpc] = struct{}{}
 			}
 		}
