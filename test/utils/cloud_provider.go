@@ -40,7 +40,7 @@ type CloudVPC interface {
 	Delete(duration time.Duration) error
 	Reapply(duration time.Duration, withAgent bool) error
 	GetCloudAccountParameters(name, namespace string, cloudCluster bool) k8stemplates.CloudAccountParameters
-	GetEntitySelectorParameters(name, namespace, kind string) k8stemplates.CloudEntitySelectorParameters
+	GetEntitySelectorParameters(name, namespace, kind string, vms []string) k8stemplates.CloudEntitySelectorParameters
 }
 
 func NewCloudVPC(provider v1alpha1.CloudProvider) (CloudVPC, error) {

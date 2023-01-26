@@ -32,6 +32,7 @@ import (
 	cloud "antrea.io/nephe/apis/crd/v1alpha1"
 	cloudcommon "antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
+	"antrea.io/nephe/pkg/cloud-provider/utils"
 	"antrea.io/nephe/pkg/controllers/config"
 	converter "antrea.io/nephe/pkg/converter/target"
 )
@@ -1161,7 +1162,8 @@ func (a *appliedToSecurityGroup) removeStaleMembers(stales []*types.NamespacedNa
 	}
 	srcMap := make(map[string]*securitygroup.CloudResource)
 	for _, m := range a.members {
-		srcMap[m.Name] = m
+		name := utils.GetCloudResourceCrdName(m.CloudProvider, m.Name)
+		srcMap[name] = m
 	}
 	for _, stale := range stales {
 		for k := range srcMap {
@@ -1172,7 +1174,7 @@ func (a *appliedToSecurityGroup) removeStaleMembers(stales []*types.NamespacedNa
 					_ = tracker.update(a, true, r)
 				}
 				// remove member vmp.
-				vmNamespacedName := types.NamespacedName{Name: srcMap[k].Name, Namespace: stale.Namespace}
+				vmNamespacedName := types.NamespacedName{Name: k, Namespace: stale.Namespace}
 				if obj, found, _ := r.virtualMachinePolicyIndexer.GetByKey(vmNamespacedName.String()); found {
 					r.Log.V(1).Info("Delete vmp status", "resource", vmNamespacedName.String())
 					_ = r.virtualMachinePolicyIndexer.Delete(obj)
