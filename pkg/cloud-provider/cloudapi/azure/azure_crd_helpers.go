@@ -23,7 +23,7 @@ import (
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 	"antrea.io/nephe/pkg/cloud-provider/utils"
-	"antrea.io/nephe/pkg/controllers/inventory"
+	"antrea.io/nephe/pkg/controllers/inventory/common"
 )
 
 var azureStateMap = map[string]v1alpha1.VMState{
@@ -122,8 +122,8 @@ func ComputeVpcToInternalVpcObject(vnet *network.VirtualNetwork, namespace strin
 		cidrs = append(cidrs, *vnet.AddressSpace.AddressPrefixes...)
 	}
 	labelsMap := map[string]string{
-		inventory.VpcLabelAccountName: accountName,
-		inventory.VpcLabelRegion:      region,
+		common.VpcLabelAccountName: accountName,
+		common.VpcLabelRegion:      region,
 	}
 	return utils.GenerateInternalVpcObject(crdName, namespace, labelsMap, strings.ToLower(*vnet.Name),
 		strings.ToLower(*vnet.ID), tags, v1alpha1.AzureCloudProvider, region, cidrs)

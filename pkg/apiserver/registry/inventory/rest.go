@@ -26,11 +26,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/controllers/inventory"
+	"antrea.io/nephe/pkg/controllers/inventory/common"
+	"antrea.io/nephe/pkg/controllers/inventory/store"
 )
 
 // REST implements rest.Storage for VPC Inventory.
@@ -40,9 +43,10 @@ type REST struct {
 }
 
 var (
-	_ rest.Scoper = &REST{}
-	_ rest.Getter = &REST{}
-	_ rest.Lister = &REST{}
+	_ rest.Scoper  = &REST{}
+	_ rest.Getter  = &REST{}
+	_ rest.Watcher = &REST{}
+	_ rest.Lister  = &REST{}
 )
 
 // NewREST returns a REST object that will work against API services.
@@ -68,7 +72,7 @@ func (r *REST) Get(ctx context.Context, name string, _ *metav1.GetOptions) (runt
 	}
 	namespacedName := ns + "/" + name
 
-	objs, err := r.cloudInventory.GetVpcsFromIndexer(inventory.VpcIndexerByVpcNamespacedName, namespacedName)
+	objs, err := r.cloudInventory.GetVpcsFromIndexer(common.VpcIndexerByVpcNamespacedName, namespacedName)
 	if err != nil {
 		return nil, err
 	}
@@ -103,46 +107,56 @@ func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (
 	}
 
 	name := ""
+	namespace := ""
 	if options != nil && options.FieldSelector != nil && options.FieldSelector.String() != "" {
 		fieldSelectorStrings := strings.Split(options.FieldSelector.String(), ",")
 		for _, fieldSelectorString := range fieldSelectorStrings {
 			fieldKeyAndValue := strings.Split(fieldSelectorString, "=")
 			if fieldKeyAndValue[0] == "metadata.name" {
 				name = fieldKeyAndValue[1]
+			} else if fieldKeyAndValue[0] == "metadata.namespace" {
+				namespace = fieldKeyAndValue[1]
 			} else {
-				return nil, errors.NewBadRequest("unsupported field selector, supported labels is: metadata.name")
+				return nil, errors.NewBadRequest("unsupported field selector, supported labels are: metadata.name and metadata.namespace")
 			}
 		}
 	}
 
 	ns, _ := request.NamespaceFrom(ctx)
+	if ns != metav1.NamespaceDefault && namespace != "" && ns != namespace {
+		return nil, errors.NewBadRequest("namespace in field selector is different from namespace filter")
+	}
+	if namespace == "" {
+		namespace = ns
+	}
+
 	var objs []interface{}
-	if ns == "" && (accountName != "" || region != "" || name != "") {
+	if namespace == "" && (accountName != "" || region != "" || name != "") {
 		return nil, errors.NewBadRequest("cannot query filter with all namepsace. Namespace should be specified")
 	}
 
-	if ns == "" {
+	if namespace == "" {
 		objs = r.cloudInventory.GetAllVpcs()
 	} else if accountName != "" {
 		accountNameSpace := types.NamespacedName{
 			Name:      accountName,
-			Namespace: ns,
+			Namespace: namespace,
 		}
-		objs, _ = r.cloudInventory.GetVpcsFromIndexer(inventory.VpcIndexerByAccountNameSpacedName, accountNameSpace.String())
+		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.VpcIndexerByAccountNameSpacedName, accountNameSpace.String())
 	} else if name != "" {
 		namespacedName := types.NamespacedName{
 			Name:      name,
-			Namespace: ns,
+			Namespace: namespace,
 		}
-		objs, _ = r.cloudInventory.GetVpcsFromIndexer(inventory.VpcIndexerByVpcNamespacedName, namespacedName.String())
+		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.VpcIndexerByVpcNamespacedName, namespacedName.String())
 	} else if region != "" {
 		namespacedRegion := types.NamespacedName{
 			Name:      region,
-			Namespace: ns,
+			Namespace: namespace,
 		}
-		objs, _ = r.cloudInventory.GetVpcsFromIndexer(inventory.VpcIndexerByNamespacedRegion, namespacedRegion.String())
+		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.VpcIndexerByNamespacedRegion, namespacedRegion.String())
 	} else {
-		objs, _ = r.cloudInventory.GetVpcsFromIndexer(inventory.VpcIndexerByNamespace, ns)
+		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.VpcIndexerByNamespace, namespace)
 	}
 	vpcList := &runtimev1alpha1.VpcList{}
 	for _, obj := range objs {
@@ -176,9 +190,14 @@ func (r *REST) ConvertToTable(ctx context.Context, obj runtime.Object, tableOpti
 	}
 	var err error
 	table.Rows, err = metatable.MetaToTableRow(obj,
-		func(obj runtime.Object, m metav1.Object, name, age string) ([]interface{}, error) {
+		func(obj runtime.Object, _ metav1.Object, _, _ string) ([]interface{}, error) {
 			vpc := obj.(*runtimev1alpha1.Vpc)
 			return []interface{}{vpc.Name, vpc.Info.CloudProvider, vpc.Info.Region}, nil
 		})
 	return table, err
+}
+
+func (r *REST) Watch(ctx context.Context, options *internalversion.ListOptions) (watch.Interface, error) {
+	key, label, field := store.GetSelectors(options)
+	return r.cloudInventory.Watch(ctx, key, label, field)
 }
