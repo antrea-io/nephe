@@ -220,6 +220,8 @@ func (p *awsVPC) GetCloudAccountParameters(name, namespace string, cloudCluster 
 	return out
 }
 
+// GetEntitySelectorParameters gets the CloudEntitySelector parameters to import given VMs.
+// All VMs in the VPC will be imported if vms is nil.
 func (p *awsVPC) GetEntitySelectorParameters(name, namespace, kind string, vms []string) k8stemplates.CloudEntitySelectorParameters {
 	out := k8stemplates.CloudEntitySelectorParameters{
 		Name:             name,

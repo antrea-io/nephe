@@ -339,6 +339,7 @@ func CheckCloudResourceNetworkPolicies(kubeCtl *KubeCtl, k8sClient client.Client
 	return nil
 }
 
+// GetVirtualMachinePolicy gets vmp corresponding to id and namespace.
 func GetVirtualMachinePolicy(k8sClient client.Client, id, namespace string) (*runtimev1alpha1.VirtualMachinePolicy, error) {
 	v := &runtimev1alpha1.VirtualMachinePolicy{}
 	fetchKey := client.ObjectKey{Name: id, Namespace: namespace}
@@ -348,6 +349,7 @@ func GetVirtualMachinePolicy(k8sClient client.Client, id, namespace string) (*ru
 	return v, nil
 }
 
+// CheckVirtualMachinePolicies checks the number of vmp in a given namespace matches expected num and all in success state.
 func CheckVirtualMachinePolicies(k8sClient client.Client, namespace string, num int) error {
 	vmpList := &runtimev1alpha1.VirtualMachinePolicyList{}
 	listOpts := &client.ListOptions{Namespace: namespace}

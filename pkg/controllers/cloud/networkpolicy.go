@@ -1156,13 +1156,14 @@ func (a *appliedToSecurityGroup) notifyNetworkPolicyChange(r *NetworkPolicyRecon
 }
 
 // removeStaleMembers removes sg members that their corresponding CRs no longer exist and cleans up relevant internal resources.
+// we do not make cloud api calls to update members because we do not know if vm is still present in cloud or not.
 func (a *appliedToSecurityGroup) removeStaleMembers(stales []*types.NamespacedName, r *NetworkPolicyReconciler) {
 	if len(a.members) == 0 {
 		return
 	}
 	srcMap := make(map[string]*securitygroup.CloudResource)
 	for _, m := range a.members {
-		name := utils.GetCloudResourceCrdName(m.CloudProvider, m.Name)
+		name := utils.GetCloudResourceCrName(m.CloudProvider, m.Name)
 		srcMap[name] = m
 	}
 	for _, stale := range stales {
