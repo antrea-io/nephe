@@ -6,7 +6,7 @@
 - [Import Agented And Agentless VMs](#import-agented-and-agentless-vms)
 - [VirtualMachine CR Creation](#virtualmachine-cr-creation)
 - [ExternalNode CR Creation](#externalnode-cr-creation)
-- [ExternalEntities CR Creation](#externalentities-cr-creation)
+- [ExternalEntity CR Creation](#externalentities-cr-creation)
 - [Install Antrea-Agent On Public Cloud VM](#install-antrea-agent-on-public-cloud-vm)
   - [Installation On Linux VMs](#installation-on-linux-vms)
   - [Installation On Windows VMs](#installation-on-windows-vms)
@@ -172,7 +172,7 @@ NAMESPACE   NAME                                 AGE
 vm-ns       virtualmachine-i-019459b33d951b62e   6s
 ```
 
-## ExternalEntities CR Creation
+## ExternalEntity CR Creation
 
 For each ExternalNode CR, `antrea-controller` will create a corresponding
 ExternalEntity CR. In this example, the ExternalEntity
