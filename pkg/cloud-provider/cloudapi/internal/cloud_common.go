@@ -160,7 +160,7 @@ func (c *cloudCommon) GetCloudAccountComputeResourceCRDs(accountNamespacedName *
 	error) {
 	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
 	if !found {
-		return nil, fmt.Errorf("unable to find cloud account:%v", *accountNamespacedName)
+		return nil, fmt.Errorf("unable to find cloud account %v", *accountNamespacedName)
 	}
 	namespace := accCfg.GetNamespacedName().Namespace
 
@@ -205,7 +205,7 @@ func (c *cloudCommon) AddSelector(accountNamespacedName *types.NamespacedName, s
 	// Invoke this function to force inventory scan for vms soon after CES add.
 	err := accCfg.startPeriodicInventorySync()
 	if err != nil {
-		return fmt.Errorf("inventory sync failed [ account : %v, err: %v ]", *accountNamespacedName, err)
+		return fmt.Errorf("failed to sync inventory, account: %v, err: %v", *accountNamespacedName, err)
 	}
 
 	return nil
@@ -241,7 +241,7 @@ func (c *cloudCommon) AddInventoryPoller(accountNamespacedName *types.Namespaced
 
 	err := accCfg.startPeriodicInventorySync()
 	if err != nil {
-		return fmt.Errorf("inventory sync failed [ account : %v, err: %v ]", *accountNamespacedName, err)
+		return fmt.Errorf("failed to sync inventory, account: %v, err: %v", *accountNamespacedName, err)
 	}
 
 	return nil
@@ -262,7 +262,7 @@ func (c *cloudCommon) DeleteInventoryPoller(accountNamespacedName *types.Namespa
 func (c *cloudCommon) GetVpcInventory(accountNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.Vpc, error) {
 	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
 	if !found {
-		return nil, fmt.Errorf("unable to find cloud account:%v", *accountNamespacedName)
+		return nil, fmt.Errorf("unable to find cloud account %v", *accountNamespacedName)
 	}
 
 	serviceConfigs := accCfg.GetServiceConfigs()

@@ -20,6 +20,7 @@ import (
 
 const (
 	// Error messages
+	errorMsgAccountAddFail             = "failed to add account"
 	errorMsgSelectorAddFail            = "selector add failed, poller is not created for account"
 	errorMsgSelectorAccountMapNotFound = "failed to find account for selector"
 	errorMsgAccountPollerNotFound      = "account poller not found"

@@ -56,14 +56,16 @@ func (r *VirtualMachineReconciler) Reconcile(_ context.Context, req ctrl.Request
 	virtualMachine := cloudv1alpha1.VirtualMachine{}
 	if err := r.Get(context.TODO(), req.NamespacedName, &virtualMachine); err != nil {
 		if !errors.IsNotFound(err) {
-			r.Log.V(0).Info("Error getting VM crd", "vm", req.NamespacedName)
+			r.Log.Error(err, "failed to get VM crd", "vm", req.NamespacedName)
 			return ctrl.Result{}, err
 		}
 		// Fall through if owner is deleted.
-		r.Log.V(1).Info("Is delete", "vm", req.NamespacedName)
+		r.Log.Info("Received request", "vm", req.NamespacedName, "operation", "delete")
 		accessor, _ := meta.Accessor(&virtualMachine)
 		accessor.SetName(req.Name)
 		accessor.SetNamespace(req.Namespace)
+	} else {
+		r.Log.Info("Received request", "vm", req.NamespacedName, "operation", "create/update")
 	}
 
 	r.converter.Ch <- virtualMachine

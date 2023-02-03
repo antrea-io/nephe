@@ -129,9 +129,10 @@ func (r *CloudProviderAccountReconciler) updatePendingSyncCountAndStatus() {
 
 func (r *CloudProviderAccountReconciler) processCreate(namespacedName *types.NamespacedName,
 	account *cloudv1alpha1.CloudProviderAccount) error {
+	r.Log.Info("Received request", "account", namespacedName, "operation", "create/update")
 	accountCloudType, err := utils.GetAccountProviderType(account)
 	if err != nil {
-		return err
+		return fmt.Errorf("%s, err: %v", errorMsgAccountAddFail, err)
 	}
 	cloudType := r.addAccountProviderType(namespacedName, accountCloudType)
 	cloudInterface, err := cloudprovider.GetCloudInterface(cloudType)
@@ -140,7 +141,7 @@ func (r *CloudProviderAccountReconciler) processCreate(namespacedName *types.Nam
 	}
 	err = cloudInterface.AddProviderAccount(r.Client, account)
 	if err != nil {
-		return err
+		return fmt.Errorf("%s, err: %v", errorMsgAccountAddFail, err)
 	}
 
 	accPoller, preExists := r.Poller.addAccountPoller(accountCloudType, namespacedName, account, r)
@@ -158,7 +159,7 @@ func (r *CloudProviderAccountReconciler) processCreate(namespacedName *types.Nam
 }
 
 func (r *CloudProviderAccountReconciler) processDelete(namespacedName *types.NamespacedName) error {
-	r.Log.V(1).Info("remove account poller", "account", namespacedName.String())
+	r.Log.Info("Received request", "account", namespacedName, "operation", "delete")
 	err := r.Poller.removeAccountPoller(namespacedName)
 	if err != nil {
 		return err

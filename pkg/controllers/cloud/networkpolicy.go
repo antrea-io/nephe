@@ -245,12 +245,12 @@ func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPoli
 				notFoundMember = append(notFoundMember, namespacedName)
 				continue
 			}
-			r.Log.Error(err, "Client get ExternalEntity", "key", key)
+			r.Log.Error(err, "client get ExternalEntity", "key", key)
 			return nil, nil, nil, err
 		}
 		kind, ok := e.Labels[config.ExternalEntityLabelKeyKind]
 		if !ok {
-			r.Log.Error(fmt.Errorf(""), "Kind label not found in ExternalEntity", "key", key, "labels", e.Labels)
+			r.Log.Error(fmt.Errorf(""), "kind label not found in ExternalEntity", "key", key, "labels", e.Labels)
 			continue
 		}
 		var cloudRsc securitygroup.CloudResource
@@ -259,7 +259,7 @@ func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPoli
 			cloudRsc.Type = securitygroup.CloudResourceTypeVM
 			readAnnotations = true
 		} else {
-			r.Log.Error(fmt.Errorf(""), "Invalid cloud resource type received", "kind", kind)
+			r.Log.Error(fmt.Errorf(""), "invalid cloud resource type received", "kind", kind)
 		}
 		if readAnnotations {
 			ownerAnnotations, ownerCloudProvider, err := getOwnerProperties(e, r)
@@ -271,7 +271,7 @@ func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPoli
 			}
 			vpc, ok := ownerAnnotations[cloudcommon.AnnotationCloudAssignedVPCIDKey]
 			if !ok {
-				r.Log.Error(fmt.Errorf(""), "VPC annotation not found in ExternalEntity owner", "key", key, "kind", kind)
+				r.Log.Error(fmt.Errorf(""), "vpc annotation not found in ExternalEntity owner", "key", key, "kind", kind)
 				continue
 			}
 			cloudRsc.Vpc = vpc
@@ -313,7 +313,7 @@ func getOwnerProperties(e *antreanetcore.ExternalEntity, r *NetworkPolicyReconci
 	if owner.Kind == cloudcommon.VirtualMachineCRDKind {
 		vm := &cloud.VirtualMachine{}
 		if err := r.Get(context.TODO(), key, vm); err != nil {
-			r.Log.Error(err, "Client get VirtualMachine", "key", key)
+			r.Log.Error(err, "client get VirtualMachine", "key", key)
 			return nil, "", err
 		}
 		return vm.Annotations, string(vm.Status.Provider), nil
@@ -417,7 +417,7 @@ func (s *securityGroupImpl) deleteImpl(c cloudSecurityGroup, membershipOnly bool
 		}
 		r.Log.V(1).Info("Deleting SecurityGroup", "Name", s.id.Name, "MembershipOnly", membershipOnly)
 		if err := indexer.Delete(c); err != nil {
-			r.Log.Error(err, "Deleting SecurityGroup from indexer", "Name", s.id.Name)
+			r.Log.Error(err, "deleting SecurityGroup from indexer", "Name", s.id.Name)
 		}
 		// delete operation supersedes any prior retry operations.
 		r.retryQueue.Remove(uName)
@@ -571,7 +571,7 @@ func (a *addrSecurityGroup) isIPBlocks() bool {
 func (a *addrSecurityGroup) notify(op securityGroupOperation, status error, r *NetworkPolicyReconciler) error {
 	nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAddrGrp, a.id.Name)
 	if err != nil {
-		r.Log.Error(err, "Get networkPolicy with key %s from indexer: %w", a.id.Name, err)
+		r.Log.Error(err, "get networkPolicy with key %s from indexer: %w", a.id.Name, err)
 	}
 
 	defer func() {
@@ -588,7 +588,7 @@ func (a *addrSecurityGroup) notify(op securityGroupOperation, status error, r *N
 		a.status = status
 	}
 	if status != nil {
-		r.Log.Error(status, "AddrSecurityGroup operation failed", "Name", a.id.Name, "Op", op)
+		r.Log.Error(status, "addrSecurityGroup operation failed", "Name", a.id.Name, "Op", op)
 		return nil
 	}
 
@@ -615,7 +615,7 @@ func (a *addrSecurityGroup) notify(op securityGroupOperation, status error, r *N
 	for _, i := range nps {
 		np := i.(*networkPolicy)
 		if err := np.notifyAddrGrpChanges(r); err != nil {
-			r.Log.Error(err, "NetworkPolicy", "name", np.Name)
+			r.Log.Error(err, "networkPolicy", "name", np.Name)
 		}
 	}
 	return nil
@@ -646,13 +646,13 @@ func (a *addrSecurityGroup) notifyNetworkPolicyChange(r *NetworkPolicyReconciler
 	nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAddrGrp, a.id.Name)
 
 	if err != nil {
-		r.Log.Error(err, "Get networkPolicy indexer", a.id.Name, err, "indexKey", networkPolicyIndexerByAddrGrp)
+		r.Log.Error(err, "get networkPolicy indexer", a.id.Name, err, "indexKey", networkPolicyIndexerByAddrGrp)
 	}
 	r.Log.V(1).Info("AddrSecurityGroup notifyNetworkPolicyChange", "Name",
 		a.id.String(), "anpNum", len(nps))
 	if len(nps) == 0 {
 		if err := a.delete(r); err != nil {
-			r.Log.Error(err, "Delete securityGroup", "Name", a.id.Name)
+			r.Log.Error(err, "delete securityGroup", "Name", a.id.Name)
 		}
 	}
 }
@@ -881,7 +881,7 @@ func (a *appliedToSecurityGroup) claimUnownedRules(r *NetworkPolicyReconciler, c
 		// here we claim any rules with no np associated that also match current np rules, since those rules are already in cloud.
 		_, sameRule := currentRuleMap[previousRule.Hash]
 		if sameRule && previousRule.NetworkPolicy == "" {
-			r.Log.V(1).Info("claim unowned rule", "np", npNamespacedName, "rule", previousRule)
+			r.Log.V(1).Info("Claim unowned rule", "np", npNamespacedName, "rule", previousRule)
 			previousRule.NetworkPolicy = npNamespacedName
 			_ = r.cloudRuleIndexer.Update(previousRule)
 		}
@@ -1014,12 +1014,12 @@ func (a *appliedToSecurityGroup) updateAddrGroupReference(r *NetworkPolicyReconc
 	// update addrGroupRefs.
 	// Indexer does not work with in-place update. Do delete->update->add.
 	if err = r.appliedToSGIndexer.Delete(a); err != nil {
-		r.Log.Error(err, "Delete appliedToSG indexer", "Name", a.id.String())
+		r.Log.Error(err, "delete appliedToSG indexer", "Name", a.id.String())
 		return err
 	}
 	a.addrGroupRefs = currentRefs
 	if err = r.appliedToSGIndexer.Add(a); err != nil {
-		r.Log.Error(err, "Add appliedToSG indexer", "Name", a.id.String())
+		r.Log.Error(err, "add appliedToSG indexer", "Name", a.id.String())
 		return err
 	}
 	// notify addrSG that references removed.
@@ -1031,7 +1031,7 @@ func (a *appliedToSecurityGroup) notifyAddrGroups(addrGroups []string, r *Networ
 	for _, ref := range addrGroups {
 		obj, exist, err := r.addrSGIndexer.GetByKey(ref)
 		if err != nil {
-			r.Log.Error(err, "Get addrSG indexer", "Name", ref)
+			r.Log.Error(err, "get addrSG indexer", "Name", ref)
 			return err
 		}
 		if exist {
@@ -1072,7 +1072,7 @@ func (a *appliedToSecurityGroup) updateNPTracker(r *NetworkPolicyReconciler) err
 	trackers, err := r.cloudResourceNPTrackerIndexer.ByIndex(cloudResourceNPTrackerIndexerByAppliedToGrp,
 		a.id.CloudResourceID.String())
 	if err != nil {
-		r.Log.Error(err, "Get cloud resource tracker indexer", "Key", a.id.Name)
+		r.Log.Error(err, "get cloud resource tracker indexer", "Key", a.id.Name)
 		return err
 	}
 	for _, i := range trackers {
@@ -1095,7 +1095,7 @@ func (a *appliedToSecurityGroup) notify(op securityGroupOperation, status error,
 		a.status = status
 	}
 	if status != nil {
-		r.Log.Error(status, "AppliedToSecurityGroup operation failed", "Name", a.id.Name, "Op", op)
+		r.Log.Error(status, "appliedToSecurityGroup operation failed", "Name", a.id.Name, "Op", op)
 		return nil
 	}
 	r.Log.V(1).Info("AppliedToSecurityGroup received operation ok", "Name", a.id.Name, "state",
@@ -1144,13 +1144,13 @@ func (a *appliedToSecurityGroup) notify(op securityGroupOperation, status error,
 func (a *appliedToSecurityGroup) notifyNetworkPolicyChange(r *NetworkPolicyReconciler) {
 	nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAppliedToGrp, a.id.Name)
 	if err != nil {
-		r.Log.Error(err, "Get networkPolicy indexer", a.id.Name, err, "indexKey", networkPolicyIndexerByAppliedToGrp)
+		r.Log.Error(err, "get networkPolicy indexer", a.id.Name, err, "indexKey", networkPolicyIndexerByAppliedToGrp)
 	}
 	r.Log.V(1).Info("AppliedToSecurityGroup notifyNetworkPolicyChange", "Name",
 		a.id.CloudResourceID.String(), "anpNum", len(nps))
 	if len(nps) == 0 && a.deletePending {
 		if err := a.delete(r); err != nil {
-			r.Log.Error(err, "Delete securityGroup", "Name", a.id.Name)
+			r.Log.Error(err, "delete securityGroup", "Name", a.id.Name)
 		}
 	}
 }
@@ -1213,7 +1213,7 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler) (ingressList []*s
 		for _, ag := range rule.From.AddressGroups {
 			sgs, err := rr.addrSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, ag)
 			if err != nil {
-				rr.Log.Error(err, "Get AddrSecurityGroup indexer", "Name", ag)
+				rr.Log.Error(err, "get AddrSecurityGroup indexer", "Name", ag)
 				continue
 			}
 			if len(sgs) == 0 {
@@ -1274,7 +1274,7 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler) (ingressList []*s
 	for _, ag := range rule.To.AddressGroups {
 		sgs, err := rr.addrSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, ag)
 		if err != nil {
-			rr.Log.Error(err, "Get AddrSecurityGroup indexer", "Name", ag)
+			rr.Log.Error(err, "get AddrSecurityGroup indexer", "Name", ag)
 			continue
 		}
 		if len(sgs) == 0 {
@@ -1361,7 +1361,7 @@ func (n *networkPolicy) update(anp *antreanetworking.NetworkPolicy, recompute bo
 		if !reflect.DeepEqual(anp.Rules, n.Rules) {
 			// Indexer does not work with in-place update. Do delete->update->add.
 			if err := r.networkPolicyIndexer.Delete(n); err != nil {
-				r.Log.Error(err, "Delete networkPolicy indexer", "Name", n.Name)
+				r.Log.Error(err, "delete networkPolicy indexer", "Name", n.Name)
 			}
 			_, removedAddr = diffAddressGrp(n.Rules, anp.Rules)
 			r.Log.V(1).Info("AddressGroup changes in NetworkPolicy", "old", n.Rules, "new", anp.Rules,
@@ -1369,7 +1369,7 @@ func (n *networkPolicy) update(anp *antreanetworking.NetworkPolicy, recompute bo
 			n.Rules = anp.Rules
 			n.Generation = anp.Generation
 			if err := r.networkPolicyIndexer.Add(n); err != nil {
-				r.Log.Error(err, "Add networkPolicy indexer", "Name", n.Name)
+				r.Log.Error(err, "add networkPolicy indexer", "Name", n.Name)
 			}
 			if ok := n.computeRules(r); ok {
 				modifiedAppliedTo = n.AppliedToGroups
@@ -1378,13 +1378,13 @@ func (n *networkPolicy) update(anp *antreanetworking.NetworkPolicy, recompute bo
 		if !reflect.DeepEqual(anp.AppliedToGroups, n.AppliedToGroups) {
 			// Indexer does not work with in-place update. Do delete->update->add.
 			if err := r.networkPolicyIndexer.Delete(n); err != nil {
-				r.Log.Error(err, "Delete networkPolicy indexer", "Name", n.Name)
+				r.Log.Error(err, "delete networkPolicy indexer", "Name", n.Name)
 			}
 			addedAppliedTo, removedAppliedTo = diffAppliedToGrp(n.AppliedToGroups, anp.AppliedToGroups)
 			n.AppliedToGroups = anp.AppliedToGroups
 			n.Generation = anp.Generation
 			if err := r.networkPolicyIndexer.Add(n); err != nil {
-				r.Log.Error(err, "Add networkPolicy indexer", "Name", n.Name)
+				r.Log.Error(err, "add networkPolicy indexer", "Name", n.Name)
 			}
 		}
 	}
@@ -1393,7 +1393,7 @@ func (n *networkPolicy) update(anp *antreanetworking.NetworkPolicy, recompute bo
 	for _, id := range removedAddr {
 		sgs, err := r.addrSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, id)
 		if err != nil {
-			r.Log.Error(err, "Indexer error for", "AddressGroup", id)
+			r.Log.Error(err, "indexer error for", "AddressGroup", id)
 			continue
 		}
 		for _, i := range sgs {
@@ -1408,7 +1408,7 @@ func (n *networkPolicy) update(anp *antreanetworking.NetworkPolicy, recompute bo
 	for _, id := range modifiedAppliedTo {
 		sgs, err := r.appliedToSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, id)
 		if err != nil {
-			r.Log.Error(err, "Indexer error for", "AppliedToGroup", id)
+			r.Log.Error(err, "indexer error for", "AppliedToGroup", id)
 			continue
 		}
 		for _, i := range sgs {
@@ -1474,12 +1474,12 @@ func (n *networkPolicy) computeRulesReady(withStatus bool, r *NetworkPolicyRecon
 		for name := range addrGrpNames {
 			sgs, err := r.addrSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, name)
 			if err != nil {
-				r.Log.Error(err, "Indexer error for", "AddressGroup", name)
+				r.Log.Error(err, "indexer error for", "AddressGroup", name)
 				return err
 			}
 			if len(sgs) == 0 {
 				err := fmt.Errorf("internal error")
-				r.Log.Error(err, "Skip computing rules in networkPolicy because AddrSecurityGroup unknown",
+				r.Log.Error(err, "skip computing rules in networkPolicy because AddrSecurityGroup unknown",
 					"networkPolicy", n.Name, "AddressGroup", name)
 				return err
 			}
@@ -1521,7 +1521,7 @@ func (n *networkPolicy) notifyAddrGrpChanges(r *NetworkPolicyReconciler) error {
 		for _, i := range sgs {
 			sg := i.(*appliedToSecurityGroup)
 			if err := sg.updateAllRules(r); err != nil {
-				r.Log.Error(err, "NetworkPolicy update rules")
+				r.Log.Error(err, "networkPolicy update rules")
 			}
 		}
 	}
@@ -1557,7 +1557,7 @@ func (n *networkPolicy) markDirty(r *NetworkPolicyReconciler) {
 	for _, key := range n.AppliedToGroups {
 		sgs, err := r.appliedToSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, key)
 		if err != nil {
-			r.Log.Error(err, "Get appliedToSecurityGroup indexer", "Key", key)
+			r.Log.Error(err, "get appliedToSecurityGroup indexer", "Key", key)
 			return
 		}
 		for _, i := range sgs {

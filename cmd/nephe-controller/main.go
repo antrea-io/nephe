@@ -132,28 +132,28 @@ func main() {
 	// Register webhook for secret.
 	mgr.GetWebhookServer().Register("/validate-v1-secret",
 		&webhook.Admission{Handler: &nephewebhook.SecretValidator{Client: mgr.GetClient(),
-			Log: logging.GetLogger("webhook").WithName("secret")}})
+			Log: logging.GetLogger("webhook").WithName("Secret")}})
 
 	// Register webhook for CloudProviderAccount Mutator.
 	mgr.GetWebhookServer().Register("/mutate-crd-cloud-antrea-io-v1alpha1-cloudprovideraccount",
 		&webhook.Admission{Handler: &nephewebhook.CPAMutator{Client: mgr.GetClient(),
-			Log: logging.GetLogger("webhook").WithName("cloudprovideraccount-resource")}})
+			Log: logging.GetLogger("webhook").WithName("CloudProviderAccount")}})
 
 	// Register webhook for CloudProviderAccount Validator.
 	mgr.GetWebhookServer().Register("/validate-crd-cloud-antrea-io-v1alpha1-cloudprovideraccount",
 		&webhook.Admission{Handler: &nephewebhook.CPAValidator{Client: mgr.GetClient(),
-			Log: logging.GetLogger("webhook").WithName("cloudprovideraccount-resource")}})
+			Log: logging.GetLogger("webhook").WithName("CloudProviderAccount")}})
 
 	// Register webhook for CloudEntitySelector Mutator.
 	mgr.GetWebhookServer().Register("/mutate-crd-cloud-antrea-io-v1alpha1-cloudentityselector",
 		&webhook.Admission{Handler: &nephewebhook.CESMutator{Client: mgr.GetClient(),
 			Sh:  mgr.GetScheme(),
-			Log: logging.GetLogger("webhook").WithName("cloudentityselector-resource")}})
+			Log: logging.GetLogger("webhook").WithName("CloudEntitySelector")}})
 
 	// Register webhook for CloudEntitySelector Validator.
 	mgr.GetWebhookServer().Register("/validate-crd-cloud-antrea-io-v1alpha1-cloudentityselector",
 		&webhook.Admission{Handler: &nephewebhook.CESValidator{Client: mgr.GetClient(),
-			Log: logging.GetLogger("webhook").WithName("cloudentityselector-resource")}})
+			Log: logging.GetLogger("webhook").WithName("CloudEntitySelector")}})
 
 	if err = (&apiserver.NepheControllerAPIServer{}).SetupWithManager(mgr,
 		npController.GetVirtualMachinePolicyIndexer(), cloudInventory, logging.GetLogger("apiServer")); err != nil {

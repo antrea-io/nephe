@@ -36,7 +36,7 @@ import (
 	antreav1alpha1 "antrea.io/antrea/pkg/apis/crd/v1alpha1"
 	antreav1alpha2 "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	antreanetworkingclient "antrea.io/antrea/pkg/client/clientset/versioned/typed/controlplane/v1beta2"
-	cloud "antrea.io/nephe/apis/crd/v1alpha1"
+	cloudv1alplha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 	"antrea.io/nephe/pkg/controllers/config"
@@ -283,7 +283,7 @@ func (r *NetworkPolicyReconciler) processMemberGrp(name string, eventType watch.
 		for _, i := range sgs {
 			sg := i.(cloudSecurityGroup)
 			if err := sg.delete(r); err != nil {
-				r.Log.Error(err, "Delete SecurityGroup to cloud", "key", sg.getID())
+				r.Log.Error(err, "delete SecurityGroup on cloud", "key", sg.getID())
 			}
 		}
 		return nil
@@ -441,7 +441,7 @@ func (r *NetworkPolicyReconciler) processAppliedToGrp(event watch.Event) error {
 func (r *NetworkPolicyReconciler) processNetworkPolicy(event watch.Event) error {
 	anp, ok := event.Object.(*antreanetworking.NetworkPolicy)
 	if !ok {
-		r.Log.V(1).Info("processNetworkPolicy unknown message type", "type", event.Type, "obj", event.Object)
+		r.Log.V(1).Info("Received unknown message type", "type", event.Type, "obj", event.Object)
 		return nil
 	}
 
@@ -543,40 +543,40 @@ func (r *NetworkPolicyReconciler) Start(stop context.Context) error {
 		select {
 		case event, ok := <-r.addrGroupWatcher.ResultChan():
 			if !ok || event.Type == watch.Error {
-				r.Log.V(1).Info("addrGroupWatcher is closed, restart")
+				r.Log.V(1).Info("Closed addrGroupWatcher channel, restart")
 				if err := r.resetWatchers(); err != nil {
-					r.Log.Error(err, "Start watchers")
+					r.Log.Error(err, "start watchers")
 				}
 				break
 			}
 			err = r.processAddrGrp(event)
 		case event, ok := <-r.appliedToGroupWatcher.ResultChan():
 			if !ok || event.Type == watch.Error {
-				r.Log.V(1).Info("appliedToGroupWatcher is closed, restart")
+				r.Log.V(1).Info("Closed appliedToGroupWatcher channel, restart")
 				if err := r.resetWatchers(); err != nil {
-					r.Log.Error(err, "Start watchers")
+					r.Log.Error(err, "start watchers")
 				}
 				break
 			}
 			err = r.processAppliedToGrp(event)
 		case event, ok := <-r.networkPolicyWatcher.ResultChan():
 			if !ok || event.Type == watch.Error {
-				r.Log.V(1).Info("networkPolicyWatcher is closed, restart")
+				r.Log.V(1).Info("Closed networkPolicyWatcher channel, restart")
 				if err := r.resetWatchers(); err != nil {
-					r.Log.Error(err, "Start watchers")
+					r.Log.Error(err, "start watchers")
 				}
 				break
 			}
 			err = r.processNetworkPolicy(event)
 		case status, ok := <-r.cloudResponse:
 			if !ok {
-				r.Log.Info("Cloud response is closed")
+				r.Log.Info("Cloud response channel is closed")
 				return nil
 			}
 			err = r.processCloudResponse(status)
 		case event, ok := <-r.localRequest:
 			if !ok {
-				r.Log.Info("Local request is closed")
+				r.Log.Info("Local request channel is closed")
 				return nil
 			}
 			err = r.processLocalEvent(event)
@@ -587,11 +587,11 @@ func (r *NetworkPolicyReconciler) Start(stop context.Context) error {
 				r.syncWithCloud()
 			}
 		case <-stop.Done():
-			r.Log.Info("is stopped")
+			r.Log.Info("Is stopped")
 			return nil
 		}
 		if err != nil {
-			r.Log.Error(err, "Processing")
+			r.Log.Error(err, "processing")
 		}
 	}
 }
@@ -761,9 +761,9 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return nil
 	}
 
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &cloud.VirtualMachine{}, virtualMachineIndexerByCloudID,
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &cloudv1alplha1.VirtualMachine{}, virtualMachineIndexerByCloudID,
 		func(obj client.Object) []string {
-			vm := obj.(*cloud.VirtualMachine)
+			vm := obj.(*cloudv1alplha1.VirtualMachine)
 			cloudID := vm.Annotations[common.AnnotationCloudAssignedIDKey]
 			return []string{cloudID}
 		}); err != nil {
@@ -783,17 +783,17 @@ func (r *NetworkPolicyReconciler) resetWatchers() error {
 	}
 	for {
 		if r.addrGroupWatcher, err = r.antreaClient.AddressGroups().Watch(context.Background(), options); err != nil {
-			r.Log.Error(err, "Watcher connect to AddressGroup")
+			r.Log.Error(err, "watcher connect to AddressGroup")
 			time.Sleep(time.Second * 5)
 			continue
 		}
 		if r.appliedToGroupWatcher, err = r.antreaClient.AppliedToGroups().Watch(context.Background(), options); err != nil {
-			r.Log.Error(err, "Watcher connect to AppliedToGroups")
+			r.Log.Error(err, "watcher connect to AppliedToGroups")
 			time.Sleep(time.Second * 5)
 			continue
 		}
 		if r.networkPolicyWatcher, err = r.antreaClient.NetworkPolicies().Watch(context.Background(), options); err != nil {
-			r.Log.Error(err, "Watcher connect to NetworkPolicy")
+			r.Log.Error(err, "watcher connect to NetworkPolicy")
 			time.Sleep(time.Second * 5)
 			continue
 		}

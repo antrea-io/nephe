@@ -89,7 +89,7 @@ func (q *PendingItemQueue) Update(id string, checkRun bool, updates ...interface
 	i, ok := q.items[id]
 	if !ok {
 		err := fmt.Errorf("not found")
-		log.Error(err, "Update", "Name", id)
+		log.Error(err, "update", "Name", id)
 		return err
 	}
 	i.UpdatePendingItem(id, q.context, updates...)
@@ -118,7 +118,7 @@ func (q *PendingItemQueue) GetRetryCount(id string) int {
 	i, ok := q.items[id]
 	if !ok {
 		err := fmt.Errorf("not found")
-		log.Error(err, "GetRetryCount", "Name", id)
+		log.Error(err, "failed to GetRetryCount", "Name", id)
 		return -1
 	}
 	if i.opCnt == nil {
