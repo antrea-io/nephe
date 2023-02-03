@@ -602,7 +602,6 @@ func (ec2Cfg *ec2ServiceConfig) getNepheControllerManagedSecurityGroupsCloudView
 }
 
 func getCloudSecurityGroupsByType(cloudSecurityGroups []*ec2.SecurityGroup) (map[string]*ec2.SecurityGroup, map[string]*ec2.SecurityGroup) {
-	cloudSgIDToNameMap := make(map[string]string)
 	managedSgIDToCloudSecurityGroupObj := make(map[string]*ec2.SecurityGroup)
 	unmanagedSgIDToCloudSecurityGroupObj := make(map[string]*ec2.SecurityGroup)
 	for _, cloudSecurityGroup := range cloudSecurityGroups {
@@ -615,7 +614,6 @@ func getCloudSecurityGroupsByType(cloudSecurityGroups []*ec2.SecurityGroup) (map
 		} else {
 			unmanagedSgIDToCloudSecurityGroupObj[sgID] = cloudSecurityGroup
 		}
-		cloudSgIDToNameMap[sgID] = cloudSgName
 	}
 
 	return managedSgIDToCloudSecurityGroupObj, unmanagedSgIDToCloudSecurityGroupObj

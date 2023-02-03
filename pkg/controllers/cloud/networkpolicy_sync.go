@@ -38,13 +38,15 @@ func (sg *securityGroupImpl) syncImpl(csg cloudSecurityGroup, syncContent *secur
 			syncMembers = append(syncMembers, &syncContent.Members[i])
 		}
 
-		internalMembers := sg.members
+		cachedMembers := sg.members
 		if len(syncMembers) > 0 && syncMembers[0].Type == securitygroup.CloudResourceTypeNIC {
-			internalMembers, _ = r.getNICsOfCloudResources(sg.members)
+			cachedMembers, _ = r.getNICsOfCloudResources(sg.members)
 		}
-		if compareCloudResources(internalMembers, syncMembers) {
-			log.V(1).Info("Same SecurityGroup found", "Name", sg.id.Name, "State", sg.state)
+		if compareCloudResources(cachedMembers, syncMembers) {
 			return true
+		} else {
+			log.V(1).Info("Members are not in sync with cloud", "Name", sg.id.Name, "State", sg.state,
+				"Sync members", syncMembers, "Cached SG members", cachedMembers)
 		}
 	} else if len(sg.members) == 0 {
 		log.V(1).Info("Empty memberships", "Name", sg.id.Name)
@@ -52,10 +54,12 @@ func (sg *securityGroupImpl) syncImpl(csg cloudSecurityGroup, syncContent *secur
 	}
 
 	if sg.state == securityGroupStateCreated {
-		log.V(1).Info("Update securityGroup", "Name", sg.id.Name, "MembershipOnly", membershipOnly, "CloudSecurityGroup", syncContent)
+		log.V(1).Info("Update securityGroup", "Name", sg.id.Name,
+			"MembershipOnly", membershipOnly, "CloudSecurityGroup", syncContent)
 		_ = sg.updateImpl(csg, nil, nil, membershipOnly, r)
 	} else if sg.state == securityGroupStateInit {
-		log.V(1).Info("Add securityGroup", "Name", sg.id.Name, "MembershipOnly", membershipOnly, "CloudSecurityGroup", syncContent)
+		log.V(1).Info("Add securityGroup", "Name", sg.id.Name,
+			"MembershipOnly", membershipOnly, "CloudSecurityGroup", syncContent)
 		_ = sg.addImpl(csg, membershipOnly, r)
 	}
 	return false

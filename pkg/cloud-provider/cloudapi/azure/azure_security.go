@@ -506,6 +506,7 @@ func getAsgsToAdd(asgs *[]network.ApplicationSecurityGroup, addrGroupNepheContro
 	return &asgsToKeep, updated
 }
 
+// processAndBuildATSgView creates synchronization content for AppliedTo SG.
 func (computeCfg *computeServiceConfig) processAndBuildAGSgView(
 	networkInterfaces []*networkInterfaceTable) ([]securitygroup.SynchronizationContent, error) {
 	nepheControllerAGSgNameToMemberCloudResourcesMap := make(map[string][]securitygroup.CloudResource)
@@ -549,6 +550,7 @@ func (computeCfg *computeServiceConfig) processAndBuildAGSgView(
 	return addressGroupSgEnforcedView, err
 }
 
+// processAndBuildAGSgView creates synchronization content for AdressGroup SG.
 func (computeCfg *computeServiceConfig) processAndBuildATSgView(networkInterfaces []*networkInterfaceTable) (
 	[]securitygroup.SynchronizationContent, error) {
 	nepheControllerATSgNameToMemberCloudResourcesMap := make(map[string][]securitygroup.CloudResource)
@@ -609,6 +611,7 @@ func (computeCfg *computeServiceConfig) processAndBuildATSgView(networkInterface
 	return appliedToSgEnforcedView, err
 }
 
+// getATGroupView creates synchronization content for NSGs created by nephe under managed VNETs.
 func (computeCfg *computeServiceConfig) getATGroupView(nepheControllerATSGNameToCloudResourcesMap map[string][]securitygroup.CloudResource,
 	perVnetNsgIDToNepheControllerATSGNameSet map[string]map[string]struct{}, nsgIDToVnetID map[string]string) (
 	[]securitygroup.SynchronizationContent, error) {
@@ -652,6 +655,7 @@ func (computeCfg *computeServiceConfig) getATGroupView(nepheControllerATSGNameTo
 	return enforcedSecurityCloudView, nil
 }
 
+// getAGGroupView creates synchronization content for ASGs created by nephe under managed VNETs.
 func (computeCfg *computeServiceConfig) getAGGroupView(nepheControllerAGSgNameToCloudResourcesMap map[string][]securitygroup.CloudResource,
 	asgIDToVnetID map[string]string) ([]securitygroup.SynchronizationContent, error) {
 	appSecurityGroups, err := computeCfg.asgAPIClient.listAllComplete(context.Background())
@@ -662,7 +666,7 @@ func (computeCfg *computeServiceConfig) getAGGroupView(nepheControllerAGSgNameTo
 	var enforcedSecurityCloudView []securitygroup.SynchronizationContent
 	for _, appSecurityGroup := range appSecurityGroups {
 		asgIDLowercase := strings.ToLower(*appSecurityGroup.ID)
-		// if Asg is not associated with a managed VPC, do not create sync content for it.
+		// if ASG is not associated with a managed VNET, do not create sync content for it.
 		if _, found := asgIDToVnetID[asgIDLowercase]; !found {
 			continue
 		}
