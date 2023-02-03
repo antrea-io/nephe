@@ -365,7 +365,7 @@ func (s *securityGroupImpl) addImpl(c cloudSecurityGroup, membershipOnly bool, r
 	if s.retryOp != nil {
 		return nil
 	}
-	r.Log.V(1).Info("Adding SecurityGroup", "Name", s.id.Name, "MembershipOnly", membershipOnly)
+	r.Log.V(1).Info("Creating SecurityGroup", "Name", s.id.Name, "MembershipOnly", membershipOnly)
 	ch := securitygroup.CloudSecurityGroup.CreateSecurityGroup(&s.id, membershipOnly)
 	s.status = &InProgress{}
 	go func() {
@@ -458,7 +458,7 @@ func (s *securityGroupImpl) updateImpl(c cloudSecurityGroup, added, removed []*s
 	if s.retryOp != nil {
 		return nil
 	}
-	r.Log.V(1).Info("Updating SecurityGroup", "Name", s.id.Name, "MembershipOnly", membershipOnly,
+	r.Log.V(1).Info("Updating SecurityGroup members", "Name", s.id.Name, "MembershipOnly", membershipOnly,
 		"members", members)
 	ch := securitygroup.CloudSecurityGroup.UpdateSecurityGroupMembers(&s.id, members, membershipOnly)
 	go func() {
@@ -473,8 +473,8 @@ func (s *securityGroupImpl) updateImpl(c cloudSecurityGroup, added, removed []*s
 }
 
 // notifyImpl handles operation retry and group deletion logic.
-func (s *securityGroupImpl) notifyImpl(c PendingItem, membershipOnly bool, op securityGroupOperation,
-	status error, r *NetworkPolicyReconciler) {
+func (s *securityGroupImpl) notifyImpl(c PendingItem, membershipOnly bool, op securityGroupOperation, status error,
+	r *NetworkPolicyReconciler) {
 	moreOps := false
 	uName := getGroupUniqueName(s.id.CloudResourceID.String(), membershipOnly)
 	if status != nil && !r.retryQueue.Has(uName) &&
@@ -602,7 +602,6 @@ func (a *addrSecurityGroup) notify(op securityGroupOperation, status error, r *N
 			a.state = securityGroupStateCreated
 		}
 	default:
-		r.Log.V(1).Info("AddrSecurityGroup no response processing.")
 		return nil
 	}
 
@@ -800,7 +799,7 @@ func (a *appliedToSecurityGroup) updateANPRules(r *NetworkPolicyReconciler, np *
 	}
 
 	// TODO: do not invoke cloud plugin if no rules to update.
-	r.Log.V(1).Info("AppliedToSecurityGroup update rules for anp", "anp", np.Name, "name", a.id.Name,
+	r.Log.V(1).Info("Updating AppliedToSecurityGroup rules for anp", "anp", np.Name, "name", a.id.Name,
 		"rules", rules)
 	ch := securitygroup.CloudSecurityGroup.UpdateSecurityGroupRules(&a.id, addRules, rmRules, allRules)
 
@@ -822,7 +821,7 @@ func (a *appliedToSecurityGroup) updateANPRules(r *NetworkPolicyReconciler, np *
 // clearMembers removes all members from a security group.
 func (a *appliedToSecurityGroup) clearMembers(r *NetworkPolicyReconciler) {
 	if a.hasMembers {
-		r.Log.V(1).Info("AppliedToSecurityGroup clear members with no rules", "Name", a.id.Name)
+		r.Log.V(1).Info("Clearing AppliedToSecurityGroup members when no rules", "Name", a.id.Name)
 		ch := securitygroup.CloudSecurityGroup.UpdateSecurityGroupMembers(&a.id, nil, false)
 		go func() {
 			err := <-ch
@@ -831,7 +830,7 @@ func (a *appliedToSecurityGroup) clearMembers(r *NetworkPolicyReconciler) {
 		return
 	}
 	// No need to update appliedToSecurityGroup with no members.
-	r.Log.V(1).Info("AppliedToSecurityGroup clear rules", "Name", a.id.Name)
+	r.Log.V(1).Info("Ignore AppliedToSecurityGroup rules when members cleared", "Name", a.id.Name)
 	a.hasRules = false
 }
 
@@ -882,7 +881,7 @@ func (a *appliedToSecurityGroup) claimUnownedRules(r *NetworkPolicyReconciler, c
 		// here we claim any rules with no np associated that also match current np rules, since those rules are already in cloud.
 		_, sameRule := currentRuleMap[previousRule.Hash]
 		if sameRule && previousRule.NetworkPolicy == "" {
-			r.Log.V(1).Info("claim unowned rule", "rule", previousRule)
+			r.Log.V(1).Info("claim unowned rule", "np", npNamespacedName, "rule", previousRule)
 			previousRule.NetworkPolicy = npNamespacedName
 			_ = r.cloudRuleIndexer.Update(previousRule)
 		}
@@ -1137,8 +1136,6 @@ func (a *appliedToSecurityGroup) notify(op securityGroupOperation, status error,
 			ref = append(ref, sg)
 		}
 		return a.notifyAddrGroups(ref, r)
-	default:
-		r.Log.V(1).Info("AppliedToSecurityGroup no response processing.")
 	}
 	return nil
 }
@@ -1480,7 +1477,7 @@ func (n *networkPolicy) computeRulesReady(withStatus bool, r *NetworkPolicyRecon
 			}
 			if len(sgs) == 0 {
 				err := fmt.Errorf("internal error")
-				r.Log.Error(err, "No rules in networkPolicy because addrGroup unknown",
+				r.Log.Error(err, "Skip computing rules in networkPolicy because addrGroup unknown",
 					"networkPolicy", n.Name, "AddressGroup", name)
 				return err
 			}
@@ -1492,7 +1489,7 @@ func (n *networkPolicy) computeRulesReady(withStatus bool, r *NetworkPolicyRecon
 					}
 				}
 				if !sg.isReady() {
-					r.Log.V(1).Info("No rules in networkPolicy because AddrSecurityGroup not ready",
+					r.Log.V(1).Info("Skip computing rules in networkPolicy because AddrSecurityGroup not ready",
 						"networkPolicy", n.Name, "AddressSecurityGroup", sg.id.Name)
 					return nil
 				}
