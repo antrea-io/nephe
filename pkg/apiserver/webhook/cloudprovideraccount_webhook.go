@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
+	"antrea.io/nephe/pkg/controllers/cloud"
 	"antrea.io/nephe/pkg/controllers/utils"
 )
 
@@ -105,6 +106,10 @@ type CPAValidator struct {
 // Handle handles validator admission requests for CPA.
 func (v *CPAValidator) Handle(ctx context.Context, req admission.Request) admission.Response {
 	v.Log.V(1).Info("Received CPA admission webhook request", "Name", req.Name, "Operation", req.Operation)
+	if !cloud.GetControllerSyncStatusInstance().IsControllerSynced(cloud.ControllerTypeCPA) {
+		return admission.Errored(http.StatusBadRequest, fmt.Errorf("%v %v, retry after sometime",
+			cloud.ControllerTypeCPA.String(), cloud.ErrorMsgControllerInitializing))
+	}
 	switch req.Operation {
 	case admissionv1.Create:
 		return v.validateCreate(req)

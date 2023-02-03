@@ -102,16 +102,9 @@ func main() {
 		Scheme:    mgr.GetScheme(),
 		Inventory: cloudInventory,
 		Poller:    poller,
+		Mgr:       &mgr,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CloudProviderAccount")
-		os.Exit(1)
-	}
-	if err = (&controllers.ExternalEntityReconciler{
-		Client: mgr.GetClient(),
-		Log:    logging.GetLogger("controllers").WithName("ExternalEntity"),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ExternalEntity")
 		os.Exit(1)
 	}
 
@@ -126,12 +119,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	vmManager := &controllers.VirtualMachineReconciler{
+	vmController := &controllers.VirtualMachineReconciler{
 		Client: mgr.GetClient(),
 		Log:    logging.GetLogger("controllers").WithName("VirtualMachine"),
 		Scheme: mgr.GetScheme(),
 	}
-	if err = vmManager.SetupWithManager(mgr); err != nil {
+	if err = vmController.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "VirtualMachine")
 		os.Exit(1)
 	}

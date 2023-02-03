@@ -35,8 +35,6 @@ const (
 	virtualMachineSelectorMatchIndexerByID   = "virtualmachine.selector.id"
 	virtualMachineSelectorMatchIndexerByName = "virtualmachine.selector.name"
 	virtualMachineSelectorMatchIndexerByVPC  = "virtualmachine.selector.vpc.id"
-	errorMsgSelectorAddFail                  = "selector add failed, poller is not created for account"
-	errorMsgSelectorAccountMapNotFound       = "failed to find account for selector"
 )
 
 // CloudEntitySelectorReconciler reconciles a CloudEntitySelector object.
@@ -47,6 +45,9 @@ type CloudEntitySelectorReconciler struct {
 	Scheme               *runtime.Scheme
 	selectorToAccountMap map[types.NamespacedName]types.NamespacedName
 	Poller               *Poller
+	pendingSyncCount     int
+	// indicates whether a controller can reconcile CRs.
+	initialized bool
 }
 
 // +kubebuilder:rbac:groups=crd.cloud.antrea.io,resources=cloudentityselectors,verbs=get;list;watch;create;update;patch;delete
@@ -54,6 +55,12 @@ type CloudEntitySelectorReconciler struct {
 
 func (r *CloudEntitySelectorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = r.Log.WithValues("cloudentityselector", req.NamespacedName)
+
+	if !r.initialized {
+		if err := GetControllerSyncStatusInstance().waitTillControllerIsInitialized(&r.initialized, initTimeout, ControllerTypeCES); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
 
 	entitySelector := &cloudv1alpha1.CloudEntitySelector{}
 	err := r.Get(ctx, req.NamespacedName, entitySelector)
@@ -65,8 +72,10 @@ func (r *CloudEntitySelectorReconciler) Reconcile(ctx context.Context, req ctrl.
 		return ctrl.Result{}, err
 	}
 
-	err = r.processCreateOrUpdate(entitySelector, &req.NamespacedName)
-
+	if err = r.processCreateOrUpdate(entitySelector, &req.NamespacedName); err != nil {
+		return ctrl.Result{}, err
+	}
+	r.updatePendingSyncCountAndStatus()
 	return ctrl.Result{}, err
 }
 
@@ -84,9 +93,44 @@ func (r *CloudEntitySelectorReconciler) SetupWithManager(mgr ctrl.Manager) error
 		}); err != nil {
 		return err
 	}
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&cloudv1alpha1.CloudEntitySelector{}).
-		Complete(r)
+
+	if err := ctrl.NewControllerManagedBy(mgr).For(&cloudv1alpha1.CloudEntitySelector{}).Complete(r); err != nil {
+		return err
+	}
+	return mgr.Add(r)
+}
+
+// Start performs the initialization of the controller.
+// A controller is said to be initialized only when the dependent controllers
+// are synced, and it keeps a count of pending CRs to be reconciled.
+func (r *CloudEntitySelectorReconciler) Start(stop context.Context) error {
+	if err := GetControllerSyncStatusInstance().waitForControllersToSync([]controllerType{ControllerTypeCPA}, syncTimeout); err != nil {
+		r.Log.Error(err, "dependent controller sync failed", "controller", ControllerTypeCPA.String())
+		return err
+	}
+	cesList := &cloudv1alpha1.CloudEntitySelectorList{}
+	if err := r.Client.List(context.TODO(), cesList, &client.ListOptions{}); err != nil {
+		return err
+	}
+
+	r.pendingSyncCount = len(cesList.Items)
+	if r.pendingSyncCount == 0 {
+		GetControllerSyncStatusInstance().SetControllerSyncStatus(ControllerTypeCES)
+	}
+	r.initialized = true
+	r.Log.Info("Init done", "controller", ControllerTypeCES.String())
+	return nil
+}
+
+// updatePendingSyncCountAndStatus decrements the pendingSyncCount and when
+// pendingSyncCount is 0, sets the sync status.
+func (r *CloudEntitySelectorReconciler) updatePendingSyncCountAndStatus() {
+	if r.pendingSyncCount > 0 {
+		r.pendingSyncCount--
+		if r.pendingSyncCount == 0 {
+			GetControllerSyncStatusInstance().SetControllerSyncStatus(ControllerTypeCES)
+		}
+	}
 }
 
 func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *cloudv1alpha1.CloudEntitySelector,
@@ -118,6 +162,7 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *cloudv1a
 		_ = r.processDelete(selectorNamespacedName)
 		return err
 	}
+
 	return nil
 }
 
