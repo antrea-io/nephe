@@ -29,6 +29,7 @@
 - name: Setup docker daemon
   shell:
     cmd: |
+      mkdir -p /etc/docker/
       cat > /etc/docker/daemon.json<<EOF
       {
         "exec-opts": ["native.cgroupdriver=systemd"],
