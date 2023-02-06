@@ -27,9 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
-	"antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
-	"antrea.io/nephe/pkg/cloud-provider/utils"
 )
 
 const (
@@ -508,8 +506,9 @@ func getAsgsToAdd(asgs *[]network.ApplicationSecurityGroup, addrGroupNepheContro
 	return &asgsToKeep, updated
 }
 
-func (computeCfg *computeServiceConfig) processAndBuildAGSgView(networkInterfaces []*networkInterfaceTable,
-	antreaATSgNameSet map[string]struct{}) ([]securitygroup.SynchronizationContent, error) {
+// processAndBuildATSgView creates synchronization content for AppliedTo SG.
+func (computeCfg *computeServiceConfig) processAndBuildAGSgView(
+	networkInterfaces []*networkInterfaceTable) ([]securitygroup.SynchronizationContent, error) {
 	nepheControllerAGSgNameToMemberCloudResourcesMap := make(map[string][]securitygroup.CloudResource)
 	asgIDToVnetIDMap := make(map[string]string)
 	for _, networkInterface := range networkInterfaces {
@@ -533,7 +532,7 @@ func (computeCfg *computeServiceConfig) processAndBuildAGSgView(networkInterface
 			cloudResource := securitygroup.CloudResource{
 				Type: securitygroup.CloudResourceTypeNIC,
 				CloudResourceID: securitygroup.CloudResourceID{
-					Name: utils.GenerateShortResourceIdentifier(*networkInterface.ID, common.NetworkInterfaceCRDKind),
+					Name: strings.ToLower(*networkInterface.ID),
 					Vpc:  vnetIDLowerCase,
 				},
 				AccountID:     computeCfg.accountName,
@@ -547,13 +546,13 @@ func (computeCfg *computeServiceConfig) processAndBuildAGSgView(networkInterface
 		}
 	}
 
-	addressGroupSgEnforcedView, err := computeCfg.getAGGroupView(nepheControllerAGSgNameToMemberCloudResourcesMap, asgIDToVnetIDMap,
-		antreaATSgNameSet)
+	addressGroupSgEnforcedView, err := computeCfg.getAGGroupView(nepheControllerAGSgNameToMemberCloudResourcesMap, asgIDToVnetIDMap)
 	return addressGroupSgEnforcedView, err
 }
 
+// processAndBuildAGSgView creates synchronization content for AdressGroup SG.
 func (computeCfg *computeServiceConfig) processAndBuildATSgView(networkInterfaces []*networkInterfaceTable) (
-	[]securitygroup.SynchronizationContent, map[string]struct{}, error) {
+	[]securitygroup.SynchronizationContent, error) {
 	nepheControllerATSgNameToMemberCloudResourcesMap := make(map[string][]securitygroup.CloudResource)
 	perVnetNsgIDToNepheControllerAppliedToSGNameSet := make(map[string]map[string]struct{})
 	nsgIDToVnetIDMap := make(map[string]string)
@@ -576,7 +575,7 @@ func (computeCfg *computeServiceConfig) processAndBuildATSgView(networkInterface
 		}
 		vnetIDLowerCase := strings.ToLower(*networkInterface.VnetID)
 		nsgIDToVnetIDMap[nsgIDLowerCase] = vnetIDLowerCase
-		if strings.Compare(sgName, strings.ToLower(appliedToSecurityGroupNamePerVnet)) == 0 {
+		if strings.Contains(strings.ToLower(sgName), appliedToSecurityGroupNamePerVnet) {
 			// from tags find nephe AT SG(s) and build membership map
 			newNepheControllerAppliedToSGNameSet := make(map[string]struct{})
 			for key := range networkInterface.Tags[0] {
@@ -587,7 +586,7 @@ func (computeCfg *computeServiceConfig) processAndBuildATSgView(networkInterface
 				cloudResource := securitygroup.CloudResource{
 					Type: securitygroup.CloudResourceTypeNIC,
 					CloudResourceID: securitygroup.CloudResourceID{
-						Name: utils.GenerateShortResourceIdentifier(*networkInterface.ID, common.NetworkInterfaceCRDKind),
+						Name: strings.ToLower(*networkInterface.ID),
 						Vpc:  vnetIDLowerCase,
 					},
 					AccountID:     computeCfg.accountName,
@@ -607,20 +606,20 @@ func (computeCfg *computeServiceConfig) processAndBuildATSgView(networkInterface
 		}
 	}
 
-	appliedToSgEnforcedView, antreaAtSgNameSet, err := computeCfg.getATGroupView(nepheControllerATSgNameToMemberCloudResourcesMap,
+	appliedToSgEnforcedView, err := computeCfg.getATGroupView(nepheControllerATSgNameToMemberCloudResourcesMap,
 		perVnetNsgIDToNepheControllerAppliedToSGNameSet, nsgIDToVnetIDMap)
-	return appliedToSgEnforcedView, antreaAtSgNameSet, err
+	return appliedToSgEnforcedView, err
 }
 
+// getATGroupView creates synchronization content for NSGs created by nephe under managed VNETs.
 func (computeCfg *computeServiceConfig) getATGroupView(nepheControllerATSGNameToCloudResourcesMap map[string][]securitygroup.CloudResource,
 	perVnetNsgIDToNepheControllerATSGNameSet map[string]map[string]struct{}, nsgIDToVnetID map[string]string) (
-	[]securitygroup.SynchronizationContent, map[string]struct{}, error) {
+	[]securitygroup.SynchronizationContent, error) {
 	networkSecurityGroups, err := computeCfg.nsgAPIClient.listAllComplete(context.Background())
 	if err != nil {
-		return []securitygroup.SynchronizationContent{}, nil, err
+		return []securitygroup.SynchronizationContent{}, err
 	}
 
-	nepheControllerATSgNameSet := make(map[string]struct{})
 	var enforcedSecurityCloudView []securitygroup.SynchronizationContent
 	for _, networkSecurityGroup := range networkSecurityGroups {
 		nsgIDLowercase := strings.ToLower(*networkSecurityGroup.ID)
@@ -650,16 +649,15 @@ func (computeCfg *computeServiceConfig) getATGroupView(nepheControllerATSGNameTo
 				EgressRules:    nepheControllerATSgNameToEgressRulesMap[atSgName],
 			}
 			enforcedSecurityCloudView = append(enforcedSecurityCloudView, groupSyncObj)
-
-			nepheControllerATSgNameSet[atSgName] = struct{}{}
 		}
 	}
 
-	return enforcedSecurityCloudView, nepheControllerATSgNameSet, nil
+	return enforcedSecurityCloudView, nil
 }
 
+// getAGGroupView creates synchronization content for ASGs created by nephe under managed VNETs.
 func (computeCfg *computeServiceConfig) getAGGroupView(nepheControllerAGSgNameToCloudResourcesMap map[string][]securitygroup.CloudResource,
-	asgIDToVnetID map[string]string, nepheControllerATSgNameSet map[string]struct{}) ([]securitygroup.SynchronizationContent, error) {
+	asgIDToVnetID map[string]string) ([]securitygroup.SynchronizationContent, error) {
 	appSecurityGroups, err := computeCfg.asgAPIClient.listAllComplete(context.Background())
 	if err != nil {
 		return []securitygroup.SynchronizationContent{}, err
@@ -668,6 +666,10 @@ func (computeCfg *computeServiceConfig) getAGGroupView(nepheControllerAGSgNameTo
 	var enforcedSecurityCloudView []securitygroup.SynchronizationContent
 	for _, appSecurityGroup := range appSecurityGroups {
 		asgIDLowercase := strings.ToLower(*appSecurityGroup.ID)
+		// if ASG is not associated with a managed VNET, do not create sync content for it.
+		if _, found := asgIDToVnetID[asgIDLowercase]; !found {
+			continue
+		}
 
 		_, _, cloudAsgName, err := extractFieldsFromAzureResourceID(asgIDLowercase)
 		if err != nil {
@@ -676,12 +678,6 @@ func (computeCfg *computeServiceConfig) getAGGroupView(nepheControllerAGSgNameTo
 
 		AGSgName, isAG, _ := securitygroup.IsNepheControllerCreatedSG(cloudAsgName)
 		if !isAG {
-			continue
-		}
-
-		// skip asg if it belongs to AT SG
-		_, found := nepheControllerATSgNameSet[AGSgName]
-		if found {
 			continue
 		}
 
@@ -989,12 +985,12 @@ func (computeCfg *computeServiceConfig) getNepheControllerManagedSecurityGroupsC
 		return []securitygroup.SynchronizationContent{}
 	}
 
-	appliedToSgEnforcedView, antreaATSgNameSet, err := computeCfg.processAndBuildATSgView(networkInterfaces)
+	appliedToSgEnforcedView, err := computeCfg.processAndBuildATSgView(networkInterfaces)
 	if err != nil {
 		return []securitygroup.SynchronizationContent{}
 	}
 
-	addressGroupSgEnforcedView, err := computeCfg.processAndBuildAGSgView(networkInterfaces, antreaATSgNameSet)
+	addressGroupSgEnforcedView, err := computeCfg.processAndBuildAGSgView(networkInterfaces)
 	if err != nil {
 		return []securitygroup.SynchronizationContent{}
 	}

@@ -28,59 +28,63 @@ import (
 
 // sync synchronizes securityGroup memberships with cloud.
 // Return true if cloud and controller has same membership.
-func (s *securityGroupImpl) syncImpl(csg cloudSecurityGroup, c *securitygroup.SynchronizationContent, membershipOnly bool,
+func (sg *securityGroupImpl) syncImpl(csg cloudSecurityGroup, syncContent *securitygroup.SynchronizationContent, membershipOnly bool,
 	r *NetworkPolicyReconciler) bool {
 	log := r.Log.WithName("CloudSync")
-	if c != nil {
-		s.state = securityGroupStateCreated
-		cMembers := make([]*securitygroup.CloudResource, 0, len(c.Members))
-		for i := range c.Members {
-			cMembers = append(cMembers, &c.Members[i])
+	if syncContent != nil {
+		sg.state = securityGroupStateCreated
+		syncMembers := make([]*securitygroup.CloudResource, 0, len(syncContent.Members))
+		for i := range syncContent.Members {
+			syncMembers = append(syncMembers, &syncContent.Members[i])
 		}
 
-		nMembers := s.members
-		if len(cMembers) > 0 && cMembers[0].Type == securitygroup.CloudResourceTypeNIC {
-			nMembers, _ = r.getNICsOfCloudResources(s.members)
+		cachedMembers := sg.members
+		if len(syncMembers) > 0 && syncMembers[0].Type == securitygroup.CloudResourceTypeNIC {
+			cachedMembers, _ = r.getNICsOfCloudResources(sg.members)
 		}
-		if compareCloudResources(nMembers, cMembers) {
-			log.V(1).Info("Same SecurityGroup found", "Name", s.id.Name, "State", s.state)
+		if compareCloudResources(cachedMembers, syncMembers) {
 			return true
+		} else {
+			log.V(1).Info("Members are not in sync with cloud", "Name", sg.id.Name, "State", sg.state,
+				"Sync members", syncMembers, "Cached SG members", cachedMembers)
 		}
-	} else if len(s.members) == 0 {
-		log.V(1).Info("Empty memberships", "Name", s.id.Name)
+	} else if len(sg.members) == 0 {
+		log.V(1).Info("Empty memberships", "Name", sg.id.Name)
 		return true
 	}
 
-	if s.state == securityGroupStateCreated {
-		log.V(1).Info("Update securityGroup", "Name", s.id.Name, "MembershipOnly", membershipOnly, "CloudSecurityGroup", c)
-		_ = s.updateImpl(csg, nil, nil, membershipOnly, r)
-	} else if s.state == securityGroupStateInit {
-		log.V(1).Info("Add securityGroup", "Name", s.id.Name, "MembershipOnly", membershipOnly, "CloudSecurityGroup", c)
-		_ = s.addImpl(csg, membershipOnly, r)
+	if sg.state == securityGroupStateCreated {
+		log.V(1).Info("Update securityGroup", "Name", sg.id.Name,
+			"MembershipOnly", membershipOnly, "CloudSecurityGroup", syncContent)
+		_ = sg.updateImpl(csg, nil, nil, membershipOnly, r)
+	} else if sg.state == securityGroupStateInit {
+		log.V(1).Info("Add securityGroup", "Name", sg.id.Name,
+			"MembershipOnly", membershipOnly, "CloudSecurityGroup", syncContent)
+		_ = sg.addImpl(csg, membershipOnly, r)
 	}
 	return false
 }
 
 // sync synchronizes addressSecurityGroup with cloud.
-func (a *addrSecurityGroup) sync(c *securitygroup.SynchronizationContent,
+func (a *addrSecurityGroup) sync(syncContent *securitygroup.SynchronizationContent,
 	r *NetworkPolicyReconciler) {
 	log := r.Log.WithName("CloudSync")
 	if a.deletePending {
 		log.V(1).Info("AddressSecurityGroup pending delete", "Name", a.id.Name)
 		return
 	}
-	_ = a.syncImpl(a, c, true, r)
+	_ = a.syncImpl(a, syncContent, true, r)
 }
 
 // sync synchronizes appliedToSecurityGroup with cloud.
-func (a *appliedToSecurityGroup) sync(c *securitygroup.SynchronizationContent,
+func (a *appliedToSecurityGroup) sync(syncContent *securitygroup.SynchronizationContent,
 	r *NetworkPolicyReconciler) {
 	log := r.Log.WithName("CloudSync")
 	if a.deletePending {
 		log.V(1).Info("AppliedSecurityGroup pending delete", "Name", a.id.Name)
 		return
 	}
-	if a.syncImpl(a, c, false, r) && len(a.members) > 0 {
+	if a.syncImpl(a, syncContent, false, r) && len(a.members) > 0 {
 		a.hasMembers = true
 	}
 	nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAppliedToGrp, a.id.Name)
@@ -137,7 +141,7 @@ func (a *appliedToSecurityGroup) sync(c *securitygroup.SynchronizationContent,
 		}
 	}
 
-	if c == nil {
+	if syncContent == nil {
 		_ = a.updateAllRules(r)
 		return
 	}
@@ -155,7 +159,7 @@ func (a *appliedToSecurityGroup) sync(c *securitygroup.SynchronizationContent,
 	}
 
 	// Rough compare rules
-	for _, iRule := range c.IngressRules {
+	for _, iRule := range syncContent.IngressRules {
 		proto := 0
 		if iRule.Protocol != nil {
 			proto = *iRule.Protocol
@@ -187,7 +191,7 @@ func (a *appliedToSecurityGroup) sync(c *securitygroup.SynchronizationContent,
 			_ = r.cloudRuleIndexer.Update(rule)
 		}
 	}
-	for _, eRule := range c.EgressRules {
+	for _, eRule := range syncContent.EgressRules {
 		proto := 0
 		if eRule.Protocol != nil {
 			proto = *eRule.Protocol
@@ -233,7 +237,7 @@ func (a *appliedToSecurityGroup) sync(c *securitygroup.SynchronizationContent,
 	for k, i := range items {
 		if i != 0 {
 			log.V(1).Info("Update appliedToSecurityGroup rules", "Name",
-				a.id.CloudResourceID.String(), "CloudSecurityGroup", c, "Item", k, "Diff", i)
+				a.id.CloudResourceID.String(), "CloudSecurityGroup", syncContent, "Item", k, "Diff", i)
 			_ = a.updateAllRules(r)
 			return
 		}
@@ -340,9 +344,9 @@ func (r *NetworkPolicyReconciler) getNICsOfCloudResources(resources []*securityg
 
 	nics := make([]*securitygroup.CloudResource, 0, len(resources))
 	for _, rsc := range resources {
-		name := rsc.Name
+		id := rsc.Name
 		vmList := &v1alpha1.VirtualMachineList{}
-		if err := r.List(context.TODO(), vmList, client.MatchingFields{virtualMachineIndexerByCloudName: name}); err != nil {
+		if err := r.List(context.TODO(), vmList, client.MatchingFields{virtualMachineIndexerByCloudID: id}); err != nil {
 			return resources, err
 		}
 		for _, vm := range vmList.Items {
