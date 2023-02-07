@@ -516,8 +516,8 @@ func (ec2Cfg *ec2ServiceConfig) getNepheControllerManagedSecurityGroupsCloudView
 	}
 	managedSgIDToCloudSGObj, unmanagedSgIDToCloudSGObj := getCloudSecurityGroupsByType(cloudSecurityGroups)
 
-	// find all member network-interfaces-ids for managed cloud-security-groups
-	// also find all member network-interface-ids attached to non antrea+ sgs
+	// find all member network-interfaces-ids for managed cloud-security-groups.
+	// also find all member network-interface-ids attached to non nephe created sgs.
 	managedSgIDToMemberCloudResourcesMap := make(map[string][]securitygroup.CloudResource)
 	memberCloudResourcesWithOtherSGsAttachedMap := make(map[string]struct{})
 	for _, networkInterface := range networkInterfaces {

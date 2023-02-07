@@ -821,7 +821,7 @@ func (a *appliedToSecurityGroup) updateANPRules(r *NetworkPolicyReconciler, np *
 // clearMembers removes all members from a security group.
 func (a *appliedToSecurityGroup) clearMembers(r *NetworkPolicyReconciler) {
 	if a.hasMembers {
-		r.Log.V(1).Info("Clearing AppliedToSecurityGroup members when no rules", "Name", a.id.Name)
+		r.Log.V(1).Info("Clearing AppliedToSecurityGroup members with no rules", "Name", a.id.Name)
 		ch := securitygroup.CloudSecurityGroup.UpdateSecurityGroupMembers(&a.id, nil, false)
 		go func() {
 			err := <-ch
@@ -830,7 +830,6 @@ func (a *appliedToSecurityGroup) clearMembers(r *NetworkPolicyReconciler) {
 		return
 	}
 	// No need to update appliedToSecurityGroup with no members.
-	r.Log.V(1).Info("Ignore AppliedToSecurityGroup rules when members cleared", "Name", a.id.Name)
 	a.hasRules = false
 }
 
@@ -1477,7 +1476,7 @@ func (n *networkPolicy) computeRulesReady(withStatus bool, r *NetworkPolicyRecon
 			}
 			if len(sgs) == 0 {
 				err := fmt.Errorf("internal error")
-				r.Log.Error(err, "Skip computing rules in networkPolicy because addrGroup unknown",
+				r.Log.Error(err, "Skip computing rules in networkPolicy because AddrSecurityGroup unknown",
 					"networkPolicy", n.Name, "AddressGroup", name)
 				return err
 			}
