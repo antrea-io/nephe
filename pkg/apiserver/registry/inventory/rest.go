@@ -132,7 +132,7 @@ func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (
 
 	var objs []interface{}
 	if namespace == "" && (accountName != "" || region != "" || name != "") {
-		return nil, errors.NewBadRequest("cannot query filter with all namepsace. Namespace should be specified")
+		return nil, errors.NewBadRequest("cannot query with all namespaces. Namespace should be specified")
 	}
 
 	if namespace == "" {

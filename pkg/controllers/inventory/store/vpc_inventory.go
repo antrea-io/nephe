@@ -125,7 +125,7 @@ func genVPCEvent(key string, prevObj, currObj interface{}, rv uint64) (antreasto
 func vpcKeyFunc(obj interface{}) (string, error) {
 	vpc, ok := obj.(*runtimev1alpha1.Vpc)
 	if !ok {
-		return "", fmt.Errorf("Object is not of type runtime/v1alpha1/Vpc: %v", obj)
+		return "", fmt.Errorf("object is not of type runtime/v1alpha1/Vpc: %v", obj)
 	}
 	return fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[common.VpcLabelAccountName], vpc.Info.Id), nil
 }
