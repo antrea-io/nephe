@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/controllers/inventory/common"
 )
 
 var (
@@ -46,8 +47,8 @@ var _ = Describe("Validate Vpc Cache", func() {
 		vpcList1 := make(map[string]*runtimev1alpha1.Vpc)
 		vpcObj1 := new(runtimev1alpha1.Vpc)
 		labelsMap := map[string]string{
-			VpcLabelAccountName: accountName,
-			VpcLabelRegion:      region,
+			common.VpcLabelAccountName: accountName,
+			common.VpcLabelRegion:      region,
 		}
 		vpcObj1.Name = "obj1"
 		vpcObj1.Namespace = namespace
@@ -70,7 +71,7 @@ var _ = Describe("Validate Vpc Cache", func() {
 		allVpcList := cloudInventory.GetAllVpcs()
 		Expect(len(vpcList1), Equal(len(allVpcList)))
 
-		vpcListByIndex, err := cloudInventory.GetVpcsFromIndexer(VpcIndexerByAccountNameSpacedName, namespacedName.String())
+		vpcListByIndex, err := cloudInventory.GetVpcsFromIndexer(common.VpcIndexerByAccountNameSpacedName, namespacedName.String())
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(len(vpcList1), Equal(len(vpcListByIndex)))
 
@@ -89,14 +90,14 @@ var _ = Describe("Validate Vpc Cache", func() {
 		err = cloudInventory.BuildVpcCache(vpcList2, &namespacedName)
 		Expect(err).ShouldNot(HaveOccurred())
 
-		vpcListByIndex, err = cloudInventory.GetVpcsFromIndexer(VpcIndexerByAccountNameSpacedName, namespacedName.String())
+		vpcListByIndex, err = cloudInventory.GetVpcsFromIndexer(common.VpcIndexerByAccountNameSpacedName, namespacedName.String())
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(len(vpcList2), Equal(len(vpcListByIndex)))
 
 		// Delete vpc cache.
 		err = cloudInventory.DeleteVpcCache(&namespacedName)
 		Expect(err).ShouldNot(HaveOccurred())
-		_, exist, err := cloudInventory.vpcCache.GetByKey(vpcCacheKey1)
+		_, exist, err := cloudInventory.vpcStore.Get(vpcCacheKey1)
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(exist).Should(BeFalse())
 	})

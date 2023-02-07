@@ -22,7 +22,7 @@ import (
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/utils"
-	"antrea.io/nephe/pkg/controllers/inventory"
+	"antrea.io/nephe/pkg/controllers/inventory/common"
 )
 
 const ResourceNameTagKey = "Name"
@@ -98,8 +98,8 @@ func ec2VpcToInternalVpcObject(vpc *ec2.Vpc, namespace string, accountName strin
 		}
 	}
 	labelsMap := map[string]string{
-		inventory.VpcLabelAccountName: accountName,
-		inventory.VpcLabelRegion:      region,
+		common.VpcLabelAccountName: accountName,
+		common.VpcLabelRegion:      region,
 	}
 
 	return utils.GenerateInternalVpcObject(*vpc.VpcId, namespace, labelsMap, strings.ToLower(cloudName),
