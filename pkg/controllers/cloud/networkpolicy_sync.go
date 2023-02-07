@@ -303,7 +303,7 @@ func (r *NetworkPolicyReconciler) syncWithCloud() {
 		sg := i.(*appliedToSecurityGroup)
 		sg.sync(cloudAppliedToSGs[sg.getID()], r)
 	}
-	// For cloud resource with any non-antrea+ SG, tricking plug-in to remove them by explicitly
+	// For cloud resource with any non nephe created SG, tricking plug-in to remove them by explicitly
 	// updating a single instance of associated security group.
 	for rsc := range rscWithUnknownSGs {
 		i, ok, _ := r.cloudResourceNPTrackerIndexer.GetByKey(rsc.String())

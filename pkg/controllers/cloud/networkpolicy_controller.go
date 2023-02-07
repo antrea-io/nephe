@@ -298,7 +298,7 @@ func (r *NetworkPolicyReconciler) processMemberGrp(name string, eventType watch.
 		if i, ok, _ := indexer.GetByKey(key.String()); ok {
 			sg = i.(cloudSecurityGroup)
 			if compareCloudResources(members, sg.getMembers()) {
-				r.Log.V(1).Info("Ignore add unchanged SecurityGroup to cloud", "key", key)
+				r.Log.V(1).Info("Unchanged SecurityGroup, ignoring add.", "key", key)
 				continue
 			}
 			removed, ok := removedMembers[vpc]
@@ -464,7 +464,7 @@ func (r *NetworkPolicyReconciler) processNetworkPolicy(event watch.Event) error 
 		np = &networkPolicy{}
 		anp.DeepCopyInto(&np.NetworkPolicy)
 		if err := r.networkPolicyIndexer.Add(np); err != nil {
-			return fmt.Errorf("add networkPolicy %v to indexer: %w", npKey, err)
+			return fmt.Errorf("add NetworkPolicy %v to indexer: %w", npKey, err)
 		}
 		isCreate = true
 	} else {
@@ -476,11 +476,11 @@ func (r *NetworkPolicyReconciler) processNetworkPolicy(event watch.Event) error 
 	}
 	if !isCreate && reflect.DeepEqual(anp.Rules, np.Rules) &&
 		reflect.DeepEqual(anp.AppliedToGroups, np.AppliedToGroups) {
-		r.Log.V(1).Info("Ignore update unchanged NetworkPolicy", "Name", anp.Name, "Namespace", anp.Namespace)
+		r.Log.V(1).Info("Unchanged NetworkPolicy, ignoring update.", "Name", anp.Name, "Namespace", anp.Namespace)
 		return nil
 	}
 	if securitygroup.CloudSecurityGroup == nil {
-		r.Log.V(1).Info("Skip NP message no plug-in found")
+		r.Log.V(1).Info("Skip NetworkPolicy message, no plug-in found")
 		return nil
 	}
 	np.update(anp, isCreate, r)
