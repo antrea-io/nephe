@@ -52,12 +52,12 @@ func (inventory *Inventory) BuildVpcCache(vpcMap map[string]*runtimev1alpha1.Vpc
 	// Remove vpcs in vpc cache which are not found in vpc list fetched from cloud.
 	for _, i := range vpcsInCache {
 		vpc := i.(*runtimev1alpha1.Vpc)
-		if _, found := vpcMap[vpc.Info.Id]; !found {
-			inventory.log.V(1).Info("Deleting a vpc from vpc cache", "vpc id", vpc.Info.Id, "account",
+		if _, found := vpcMap[vpc.Status.Id]; !found {
+			inventory.log.V(1).Info("Deleting vpc from vpc cache", "vpc id", vpc.Status.Id, "account",
 				namespacedName.String())
 			if err := inventory.vpcStore.Delete(fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[common.VpcLabelAccountName],
-				vpc.Info.Id)); err != nil {
-				inventory.log.Error(err, "failed to delete entry from VpcIndexer", "vpc id", vpc.Info.Id, "account",
+				vpc.Status.Id)); err != nil {
+				inventory.log.Error(err, "failed to delete vpc from vpc cache", "vpc id", vpc.Status.Id, "account",
 					namespacedName.String())
 			}
 		}
@@ -65,16 +65,15 @@ func (inventory *Inventory) BuildVpcCache(vpcMap map[string]*runtimev1alpha1.Vpc
 
 	for _, v := range vpcMap {
 		var err error
-		key := fmt.Sprintf("%v/%v-%v", v.Namespace, v.Labels[common.VpcLabelAccountName], v.Info.Id)
+		key := fmt.Sprintf("%v/%v-%v", v.Namespace, v.Labels[common.VpcLabelAccountName], v.Status.Id)
 		if _, found, _ := inventory.vpcStore.Get(key); !found {
 			err = inventory.vpcStore.Create(v)
 		} else {
 			err = inventory.vpcStore.Update(v)
 		}
-
 		if err != nil {
-			return fmt.Errorf("failed to add entry into VpcIndexer, vpc id %s, account %v, error %v",
-				v.Info.Id, *namespacedName, err)
+			return fmt.Errorf("failed to add vpc into vpc cache, vpc id %s, account %v, error %v",
+				v.Status.Id, *namespacedName, err)
 		}
 	}
 
@@ -90,7 +89,7 @@ func (inventory *Inventory) DeleteVpcCache(namespacedName *types.NamespacedName)
 	for _, i := range vpcsInCache {
 		vpc := i.(*runtimev1alpha1.Vpc)
 		if err := inventory.vpcStore.Delete(fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[common.VpcLabelAccountName],
-			vpc.Info.Id)); err != nil {
+			vpc.Status.Id)); err != nil {
 			return fmt.Errorf("failed to delete entry from VpcIndexer, indexer %v, error %v", *namespacedName, err)
 		}
 	}
