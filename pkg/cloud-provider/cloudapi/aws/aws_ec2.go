@@ -242,14 +242,16 @@ func (ec2Cfg *ec2ServiceConfig) getInstances() ([]*ec2.Instance, error) {
 
 // DoResourceInventory gets inventory from cloud for given cloud account.
 func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
-	vpcs, e := ec2Cfg.getVpcs()
-	if e != nil {
-		return e
+	vpcs, err := ec2Cfg.getVpcs()
+	if err != nil {
+		awsPluginLogger().Error(err, "failed to fetch cloud resources", "account", ec2Cfg.accountName)
+		return err
 	}
 
-	instances, e := ec2Cfg.getInstances()
-	if e != nil {
-		awsPluginLogger().V(0).Info("error fetching ec2 instances", "account", ec2Cfg.accountName, "error", e)
+	instances, err := ec2Cfg.getInstances()
+	if err != nil {
+		awsPluginLogger().Error(err, "failed to fetch cloud resources", "account", ec2Cfg.accountName)
+		return err
 	} else {
 		exists := struct{}{}
 		vpcIDs := make(map[string]struct{})
@@ -263,9 +265,8 @@ func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
 		}
 		ec2Cfg.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{instanceIDs, vpcs, vpcIDs, vpcNameToID, vpcPeers})
 	}
-	ec2Cfg.inventoryStats.UpdateInventoryPollStats(e)
 
-	return e
+	return nil
 }
 
 // SetResourceFilters add/updates instances resource filter for the service.
@@ -292,9 +293,6 @@ func (ec2Cfg *ec2ServiceConfig) GetResourceCRDs(namespace string, accountId stri
 		vmCRD := ec2InstanceToVirtualMachineCRD(instance, namespace, accountId)
 		vmCRDs = append(vmCRDs, vmCRD)
 	}
-
-	awsPluginLogger().V(1).Info("CRDs", "service", awsComputeServiceNameEC2, "account", ec2Cfg.accountName,
-		"virtual-machine CRDs", len(vmCRDs))
 
 	serviceResourceCRDs := &internal.CloudServiceResourceCRDs{}
 	serviceResourceCRDs.SetComputeResourceCRDs(vmCRDs)
@@ -362,7 +360,6 @@ func (ec2Cfg *ec2ServiceConfig) buildMapVpcPeers() (map[string][]string, error) 
 func (ec2Cfg *ec2ServiceConfig) getVpcs() ([]*ec2.Vpc, error) {
 	result, err := ec2Cfg.apiClient.describeVpcsWrapper(nil)
 	if err != nil {
-		awsPluginLogger().V(0).Info("error describing vpcs", "account", ec2Cfg.accountName, "error", err)
 		return nil, err
 	}
 	return result.Vpcs, nil

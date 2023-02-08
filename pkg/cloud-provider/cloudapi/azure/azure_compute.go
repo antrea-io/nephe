@@ -220,11 +220,15 @@ func (computeCfg *computeServiceConfig) getComputeResourceFilters() ([]*string, 
 func (computeCfg *computeServiceConfig) DoResourceInventory() error {
 	vnets, err := computeCfg.getVpcs()
 	if err != nil {
+		azurePluginLogger().Error(err, "failed to fetch cloud resources", "account", computeCfg.accountName)
 		return err
 	}
 
 	virtualMachines, err := computeCfg.getVirtualMachines()
-	if err == nil {
+	if err != nil {
+		azurePluginLogger().Error(err, "failed to fetch cloud resources", "account", computeCfg.accountName)
+		return err
+	} else {
 		exists := struct{}{}
 		vnetIDs := make(map[string]struct{})
 		vpcPeers := computeCfg.buildMapVpcPeers(vnets)
@@ -236,8 +240,7 @@ func (computeCfg *computeServiceConfig) DoResourceInventory() error {
 		}
 		computeCfg.resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{vmIDToInfoMap, vnets, vnetIDs, vpcPeers})
 	}
-
-	return err
+	return nil
 }
 
 func (computeCfg *computeServiceConfig) SetResourceFilters(selector *v1alpha1.CloudEntitySelector) {
@@ -306,13 +309,7 @@ func (computeCfg *computeServiceConfig) UpdateServiceConfig(newConfig internal.C
 
 // getVpcs invokes cloud API to fetch the list of vnets.
 func (computeCfg *computeServiceConfig) getVpcs() ([]network.VirtualNetwork, error) {
-	results, err := computeCfg.vnetAPIClient.listAllComplete(context.Background())
-	if err != nil {
-		azurePluginLogger().V(0).Info("error getting list of vnets",
-			"account", computeCfg.accountName, "error", err)
-		return nil, err
-	}
-	return results, nil
+	return computeCfg.vnetAPIClient.listAllComplete(context.Background())
 }
 
 func (computeCfg *computeServiceConfig) buildMapVpcPeers(results []network.VirtualNetwork) map[string][][]string {

@@ -106,10 +106,6 @@ func (cfg *CloudServiceCommon) getResourceCRDs(namespace string, accountId strin
 	return cfg.serviceInterface.GetResourceCRDs(namespace, accountId)
 }
 
-func (cfg *CloudServiceCommon) getName() CloudServiceName {
-	return cfg.serviceInterface.GetName()
-}
-
 func (cfg *CloudServiceCommon) getType() CloudServiceType {
 	return cfg.serviceInterface.GetType()
 }

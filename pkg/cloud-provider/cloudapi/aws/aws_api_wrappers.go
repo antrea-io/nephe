@@ -55,7 +55,7 @@ func (ec2Wrapper *awsEC2WrapperImpl) pagedDescribeInstancesWrapper(input *ec2.De
 	for {
 		response, err := ec2Wrapper.ec2.DescribeInstances(input)
 		if err != nil {
-			return nil, fmt.Errorf("error describing ec2 instances : %q", err)
+			return nil, fmt.Errorf("error describing ec2 instances: %q", err)
 		}
 
 		reservations := response.Reservations
@@ -133,7 +133,11 @@ func (ec2Wrapper *awsEC2WrapperImpl) revokeSecurityGroupIngress(input *ec2.Revok
 }
 
 func (ec2Wrapper *awsEC2WrapperImpl) describeVpcsWrapper(input *ec2.DescribeVpcsInput) (*ec2.DescribeVpcsOutput, error) {
-	return ec2Wrapper.ec2.DescribeVpcs(input)
+	vpcs, err := ec2Wrapper.ec2.DescribeVpcs(input)
+	if err != nil {
+		return nil, fmt.Errorf("error describing ec2 vpcs: %q", err)
+	}
+	return vpcs, nil
 }
 
 func (ec2Wrapper *awsEC2WrapperImpl) describeVpcPeeringConnectionsWrapper(input *ec2.DescribeVpcPeeringConnectionsInput) (
