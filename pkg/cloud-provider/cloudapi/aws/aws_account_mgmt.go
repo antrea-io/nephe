@@ -29,7 +29,8 @@ import (
 
 type awsAccountConfig struct {
 	v1alpha1.AwsAccountCredential
-	region string
+	region   string
+	endpoint string
 }
 
 // setAccountCredentials sets account credentials.
@@ -43,6 +44,7 @@ func setAccountCredentials(client client.Client, credentials interface{}) (inter
 	awsConfig := &awsAccountConfig{
 		AwsAccountCredential: *accCred,
 		region:               strings.TrimSpace(awsProviderConfig.Region),
+		endpoint:             strings.TrimSpace(awsProviderConfig.Endpoint),
 	}
 
 	return awsConfig, nil
@@ -72,6 +74,10 @@ func compareAccountCredentials(accountName string, existing interface{}, new int
 	if strings.Compare(existingConfig.region, newConfig.region) != 0 {
 		credsChanged = true
 		awsPluginLogger().Info("account region updated", "account", accountName)
+	}
+	if strings.Compare(existingConfig.endpoint, newConfig.endpoint) != 0 {
+		credsChanged = true
+		awsPluginLogger().Info("endpoint url updated", "account", accountName)
 	}
 	return credsChanged
 }
