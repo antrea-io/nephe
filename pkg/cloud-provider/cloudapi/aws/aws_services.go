@@ -84,6 +84,7 @@ func (h *awsServicesHelperImpl) newServiceSdkConfigProvider(accConfig *awsAccoun
 
 	awsConfig := &aws.Config{
 		Region:                        &accConfig.region,
+		Endpoint:                      &accConfig.endpoint,
 		Credentials:                   creds,
 		CredentialsChainVerboseErrors: aws.Bool(true),
 	}

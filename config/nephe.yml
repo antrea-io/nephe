@@ -177,6 +177,10 @@ spec:
               awsConfig:
                 description: Cloud provider account config.
                 properties:
+                  endpoint:
+                    description: Endpoint URL that overrides the default AWS generated
+                      endpoint.
+                    type: string
                   region:
                     description: Cloud provider account region.
                     type: string

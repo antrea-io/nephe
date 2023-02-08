@@ -50,6 +50,8 @@ type CloudProviderAccountAWSConfig struct {
 	SecretRef *SecretReference `json:"secretRef,omitempty"`
 	// Cloud provider account region.
 	Region string `json:"region,omitempty"`
+	// Endpoint URL that overrides the default AWS generated endpoint.
+	Endpoint string `json:"endpoint,omitempty"`
 }
 
 type CloudProviderAccountAzureConfig struct {
