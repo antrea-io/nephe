@@ -28,10 +28,14 @@ import (
 
 // sync synchronizes securityGroup memberships with cloud.
 // Return true if cloud and controller has same membership.
-func (sg *securityGroupImpl) syncImpl(csg cloudSecurityGroup, syncContent *securitygroup.SynchronizationContent, membershipOnly bool,
-	r *NetworkPolicyReconciler) bool {
+func (sg *securityGroupImpl) syncImpl(csg cloudSecurityGroup, syncContent *securitygroup.SynchronizationContent,
+	membershipOnly bool, r *NetworkPolicyReconciler) bool {
 	log := r.Log.WithName("CloudSync")
-	if syncContent != nil {
+	if syncContent == nil {
+		// If syncContent is nil, explicitly set internal sg state to init, so that
+		// AddressGroup or AppliedToGroup in cloud can be recreated.
+		sg.state = securityGroupStateInit
+	} else if syncContent != nil {
 		sg.state = securityGroupStateCreated
 		syncMembers := make([]*securitygroup.CloudResource, 0, len(syncContent.Members))
 		for i := range syncContent.Members {
