@@ -477,6 +477,9 @@ func (r *NetworkPolicyReconciler) processNetworkPolicy(event watch.Event) error 
 	if !isCreate && reflect.DeepEqual(anp.Rules, np.Rules) &&
 		reflect.DeepEqual(anp.AppliedToGroups, np.AppliedToGroups) {
 		r.Log.V(1).Info("Unchanged NetworkPolicy, ignoring update.", "Name", anp.Name, "Namespace", anp.Namespace)
+		// Send rule realization status if even no rule diff is found. This is because in case of
+		// antrea controller restart, it will send all ANPs again and there won't be any diff.
+		r.sendRuleRealizationStatus(anp, nil)
 		return nil
 	}
 	if securitygroup.CloudSecurityGroup == nil {
