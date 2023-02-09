@@ -53,16 +53,16 @@ var _ = Describe("Validate Vpc Cache", func() {
 		vpcObj1.Name = "obj1"
 		vpcObj1.Namespace = namespace
 		vpcObj1.Labels = labelsMap
-		vpcObj1.Info.Id = testVpcID01
-		vpcObj1.Info.Name = testVpcName01
+		vpcObj1.Status.Id = testVpcID01
+		vpcObj1.Status.Name = testVpcName01
 		vpcList1[testVpcID01] = vpcObj1
 
 		vpcObj2 := new(runtimev1alpha1.Vpc)
 		vpcObj2.Name = "obj2"
 		vpcObj2.Namespace = namespace
 		vpcObj2.Labels = labelsMap
-		vpcObj2.Info.Id = testVpcID02
-		vpcObj2.Info.Name = testVpcName02
+		vpcObj2.Status.Id = testVpcID02
+		vpcObj2.Status.Name = testVpcName02
 		vpcList1[testVpcID02] = vpcObj2
 
 		err := cloudInventory.BuildVpcCache(vpcList1, &namespacedName)
@@ -83,8 +83,8 @@ var _ = Describe("Validate Vpc Cache", func() {
 		vpcObj := new(runtimev1alpha1.Vpc)
 		vpcObj.Name = "obj1"
 		vpcObj.Namespace = namespace
-		vpcObj.Info.Id = testVpcID01
-		vpcObj.Info.Name = testVpcName01
+		vpcObj.Status.Id = testVpcID01
+		vpcObj.Status.Name = testVpcName01
 		vpcList2[testVpcID01] = vpcObj
 
 		err = cloudInventory.BuildVpcCache(vpcList2, &namespacedName)

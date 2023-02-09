@@ -45,7 +45,7 @@ var _ = Describe("VPC", func() {
 			Namespace: "default",
 			Name:      "targetId",
 		},
-		Info: runtimev1alpha1.VpcInfo{
+		Status: runtimev1alpha1.VpcStatus{
 			Id:   "targetId",
 			Name: "targetName",
 			Tags: map[string]string{
@@ -59,7 +59,7 @@ var _ = Describe("VPC", func() {
 			Namespace: "non-default",
 			Name:      "targetId-nondefault",
 		},
-		Info: runtimev1alpha1.VpcInfo{
+		Status: runtimev1alpha1.VpcStatus{
 			Id:   "targetId-Non",
 			Name: "targetName",
 			Tags: map[string]string{
@@ -77,7 +77,7 @@ var _ = Describe("VPC", func() {
 				common.VpcLabelRegion:      "region",
 			},
 		},
-		Info: runtimev1alpha1.VpcInfo{
+		Status: runtimev1alpha1.VpcStatus{
 			Id:   "targetId2",
 			Name: "targetName",
 			Tags: map[string]string{
@@ -103,7 +103,7 @@ var _ = Describe("VPC", func() {
 	Describe("Test Get function of Rest", func() {
 		for i, cachedVpc := range cachedVpcs {
 			vpcMap := make(map[string]*runtimev1alpha1.Vpc)
-			vpcMap[cachedVpc.Info.Id] = cachedVpc
+			vpcMap[cachedVpc.Status.Id] = cachedVpc
 			namespacedName := types.NamespacedName{Namespace: cachedVpc.Namespace, Name: cachedVpc.Labels[common.VpcLabelAccountName]}
 			err := cloudInventory.BuildVpcCache(vpcMap, &namespacedName)
 			Expect(err).Should(BeNil())
@@ -127,7 +127,7 @@ var _ = Describe("VPC", func() {
 						Namespace: "default",
 						Name:      "targetId",
 					},
-					Info: runtimev1alpha1.VpcInfo{
+					Status: runtimev1alpha1.VpcStatus{
 						Id:   "targetId",
 						Name: "targetName",
 						Tags: map[string]string{
@@ -145,7 +145,7 @@ var _ = Describe("VPC", func() {
 							common.VpcLabelRegion:      "region",
 						},
 					},
-					Info: runtimev1alpha1.VpcInfo{
+					Status: runtimev1alpha1.VpcStatus{
 						Id:   "targetId2",
 						Name: "targetName",
 						Tags: map[string]string{
@@ -168,7 +168,7 @@ var _ = Describe("VPC", func() {
 							common.VpcLabelRegion:      "region",
 						},
 					},
-					Info: runtimev1alpha1.VpcInfo{
+					Status: runtimev1alpha1.VpcStatus{
 						Id:   "targetId2",
 						Name: "targetName",
 						Tags: map[string]string{
@@ -205,7 +205,7 @@ var _ = Describe("VPC", func() {
 		}
 		for _, cachedVpc := range cachedVpcs {
 			vpcMap := make(map[string]*runtimev1alpha1.Vpc)
-			vpcMap[cachedVpc.Info.Id] = cachedVpc
+			vpcMap[cachedVpc.Status.Id] = cachedVpc
 			namespacedName := types.NamespacedName{Namespace: cachedVpc.Namespace, Name: cachedVpc.Labels[common.VpcLabelAccountName]}
 			err := cloudInventory.BuildVpcCache(vpcMap, &namespacedName)
 			Expect(err).Should(BeNil())
@@ -234,7 +234,7 @@ var _ = Describe("VPC", func() {
 						Namespace: "non-default",
 						Name:      "targetId-nondefault",
 					},
-					Info: runtimev1alpha1.VpcInfo{
+					Status: runtimev1alpha1.VpcStatus{
 						Id:   "targetId-Non",
 						Name: "targetName",
 						Tags: map[string]string{
@@ -262,11 +262,11 @@ var _ = Describe("VPC", func() {
 			Namespace: "non-default1",
 			Name:      "targetId4",
 		},
-		Info: runtimev1alpha1.VpcInfo{
-			Id:            "targetId4",
-			Name:          "targetName",
-			CloudProvider: v1alpha1.AWSCloudProvider,
-			Region:        "us-west-2",
+		Status: runtimev1alpha1.VpcStatus{
+			Id:       "targetId4",
+			Name:     "targetName",
+			Provider: v1alpha1.AWSCloudProvider,
+			Region:   "us-west-2",
 		},
 	}
 	expectedTables := &metav1.Table{
@@ -283,7 +283,7 @@ var _ = Describe("VPC", func() {
 	}
 	Describe("Test Convert table function of Rest", func() {
 		vpcMap := make(map[string]*runtimev1alpha1.Vpc)
-		vpcMap[cacheTest4.Info.Id] = cacheTest4
+		vpcMap[cacheTest4.Status.Id] = cacheTest4
 		namespacedName := types.NamespacedName{Namespace: cacheTest4.Namespace, Name: cacheTest4.Labels[common.VpcLabelAccountName]}
 		err := cloudInventory.BuildVpcCache(vpcMap, &namespacedName)
 		Expect(err).Should(BeNil())
@@ -299,7 +299,7 @@ var _ = Describe("VPC", func() {
 			Namespace: "default",
 			Name:      "targetId",
 		},
-		Info: runtimev1alpha1.VpcInfo{
+		Status: runtimev1alpha1.VpcStatus{
 			Id:   "targetId",
 			Name: "targetName",
 			Tags: map[string]string{
@@ -322,9 +322,9 @@ var _ = Describe("VPC", func() {
 		Expect(err).Should(BeNil())
 		rest := NewREST(cloudInventory1, l)
 		watcher, err := rest.Watch(request.NewDefaultContext(), &internalversion.ListOptions{})
-		vpcMap[cacheTest1.Info.Id] = cacheTest1
+		vpcMap[cacheTest1.Status.Id] = cacheTest1
 		_ = cloudInventory1.BuildVpcCache(vpcMap, &namespacedName)
-		vpcMap[cacheTest1.Info.Id] = cacheTest5
+		vpcMap[cacheTest1.Status.Id] = cacheTest5
 		_ = cloudInventory1.BuildVpcCache(vpcMap, &namespacedName)
 		Expect(err).Should(BeNil())
 		err = cloudInventory1.DeleteVpcCache(&namespacedName)

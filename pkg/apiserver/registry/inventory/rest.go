@@ -192,7 +192,7 @@ func (r *REST) ConvertToTable(ctx context.Context, obj runtime.Object, tableOpti
 	table.Rows, err = metatable.MetaToTableRow(obj,
 		func(obj runtime.Object, _ metav1.Object, _, _ string) ([]interface{}, error) {
 			vpc := obj.(*runtimev1alpha1.Vpc)
-			return []interface{}{vpc.Name, vpc.Info.CloudProvider, vpc.Info.Region}, nil
+			return []interface{}{vpc.Name, vpc.Status.Provider, vpc.Status.Region}, nil
 		})
 	return table, err
 }

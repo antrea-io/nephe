@@ -20,13 +20,13 @@ import (
 	"antrea.io/nephe/apis/crd/v1alpha1"
 )
 
-type VpcInfo struct {
-	Name          string
-	Id            string
-	CloudProvider v1alpha1.CloudProvider
-	Region        string
-	Tags          map[string]string
-	Cidrs         []string
+type VpcStatus struct {
+	Name     string                 `json:"name,omitempty"`
+	Id       string                 `json:"id,omitempty"`
+	Provider v1alpha1.CloudProvider `json:"provider,omitempty"`
+	Region   string                 `json:"region,omitempty"`
+	Tags     map[string]string      `json:"tags,omitempty"`
+	Cidrs    []string               `json:"cidrs,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -34,7 +34,7 @@ type Vpc struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Info VpcInfo `json:"spec,omitempty"`
+	Status VpcStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true

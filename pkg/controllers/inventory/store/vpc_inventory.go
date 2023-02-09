@@ -127,7 +127,7 @@ func vpcKeyFunc(obj interface{}) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("object is not of type runtime/v1alpha1/Vpc: %v", obj)
 	}
-	return fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[common.VpcLabelAccountName], vpc.Info.Id), nil
+	return fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[common.VpcLabelAccountName], vpc.Status.Id), nil
 }
 
 // NewVPCInventoryStore creates a store of VPC.
@@ -143,7 +143,7 @@ func NewVPCInventoryStore() antreastorage.Interface {
 		},
 		common.VpcIndexerByNamespacedRegion: func(obj interface{}) ([]string, error) {
 			vpc := obj.(*runtimev1alpha1.Vpc)
-			return []string{vpc.Namespace + "/" + vpc.Info.Region}, nil
+			return []string{vpc.Namespace + "/" + vpc.Status.Region}, nil
 		},
 		common.VpcIndexerByNamespace: func(obj interface{}) ([]string, error) {
 			vpc := obj.(*runtimev1alpha1.Vpc)
