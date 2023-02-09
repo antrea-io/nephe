@@ -445,13 +445,17 @@ func convertToAzureAddressPrefix(ruleIPs []*net.IPNet) (*string, *[]string) {
 	return addressPrefix, addressPrefixes
 }
 
-// convertToInternalRulesByAppliedToSGName converts azure rules to securitygroup.IngressRule and securitygroup.EgressRule and split
-// them by security group names.
+// convertToInternalRulesByAppliedToSGName converts azure rules to securitygroup.IngressRule and securitygroup.EgressRule
+// and split them by security group names.
 func convertToInternalRulesByAppliedToSGName(azureSecurityRules *[]network.SecurityRule,
 	vnetID string) (map[string][]securitygroup.IngressRule, map[string][]securitygroup.EgressRule) {
 	nepheControllerATSgNameToIngressRules := make(map[string][]securitygroup.IngressRule)
 	nepheControllerATSgNameToEgressRules := make(map[string][]securitygroup.EgressRule)
 	for _, azureSecurityRule := range *azureSecurityRules {
+		// skip any rules not created by nephe
+		if azureSecurityRule.Description == nil {
+			continue
+		}
 		desc, ok := securitygroup.ExtractCloudDescription(azureSecurityRule.Description)
 		if !ok {
 			// Ignore rules that don't have a valid description field.
