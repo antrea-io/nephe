@@ -181,8 +181,7 @@ func (accCfg *cloudAccountConfig) performInventorySync() error {
 
 			err := serviceCfg.doResourceInventory()
 			if err != nil {
-				accCfg.logger().Error(err, "error fetching resources from cloud", "service", serviceCfg.getName(),
-					"account", accCfg.namespacedName)
+				// set the error status to be used later in `cloudprovideraccount` CR.
 				accCfg.Status.Error = err.Error()
 			}
 			inventoryStats := serviceCfg.getInventoryStats()

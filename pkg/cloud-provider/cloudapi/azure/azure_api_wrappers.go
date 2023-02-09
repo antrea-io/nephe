@@ -237,13 +237,13 @@ type azureVirtualNetworksWrapperImpl struct {
 func (vnet *azureVirtualNetworksWrapperImpl) listAllComplete(ctx context.Context) ([]network.VirtualNetwork, error) {
 	listResultIterator, err := vnet.virtualNetworksClient.ListAllComplete(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list virtual networks, reason %v", err)
+		return nil, fmt.Errorf("failed to list virtual networks: %q", err)
 	}
 
 	var VNListResultIterators []network.VirtualNetwork
 	for ; listResultIterator.NotDone(); err = listResultIterator.NextWithContext(ctx) {
 		if err != nil {
-			return nil, fmt.Errorf("failed to iterate list of virtual networks, reason %v", err)
+			return nil, fmt.Errorf("failed to iterate list of virtual networks: %q", err)
 		}
 		VNListResultIterators = append(VNListResultIterators, listResultIterator.Value())
 	}

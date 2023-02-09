@@ -173,9 +173,6 @@ func (c *cloudCommon) GetCloudAccountComputeResourceCRDs(accountNamespacedName *
 		}
 	}
 
-	c.logger().V(1).Info("account CRDs", "account", accountNamespacedName, "service-type", CloudServiceTypeCompute,
-		"compute", len(computeCRDs))
-
 	return computeCRDs, nil
 }
 

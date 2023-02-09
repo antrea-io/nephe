@@ -248,6 +248,7 @@ func (p *accountPoller) doAccountPoller() {
 	}
 
 	vpcMap, e := cloudInterface.GetVpcInventory(p.namespacedName)
+	vpcCount := len(vpcMap)
 	if e != nil {
 		p.log.Info("failed to fetch cloud vpc list from internal snapshot", "account",
 			p.namespacedName.String(), "error", e)
@@ -259,27 +260,25 @@ func (p *accountPoller) doAccountPoller() {
 	}
 
 	// Perform VM Operations only when CES is added.
+	vmCount := 0
 	if p.selector != nil {
 		virtualMachines := p.getComputeResources(cloudInterface)
 		e = p.doVirtualMachineOperations(virtualMachines)
 		if e != nil {
 			p.log.Info("failed to perform virtual-machine operations", "account", p.namespacedName, "error", e)
 		}
+		vmCount = len(virtualMachines)
 	}
+	p.log.Info("discovered compute resources statistics", "account", p.namespacedName,
+		"vpcs", vpcCount, "virtual-machines", vmCount)
 }
 
 func (p *accountPoller) getComputeResources(cloudInterface common.CloudInterface) []*cloudv1alpha1.VirtualMachine {
-	var e error
-
 	virtualMachines, e := cloudInterface.InstancesGivenProviderAccount(p.namespacedName)
 	if e != nil {
 		p.log.Info("failed to discover compute resources", "account", p.namespacedName, "error", e)
 		return []*cloudv1alpha1.VirtualMachine{}
 	}
-
-	p.log.Info("discovered compute resources statistics", "account", p.namespacedName, "virtual-machines",
-		len(virtualMachines))
-
 	return virtualMachines
 }
 

@@ -108,7 +108,7 @@ func getVirtualMachineTable(resourceGraphAPIClient azureResourceGraphWrapper, qu
 	subscriptions []string) ([]*virtualMachineTable, int64, error) {
 	data, count, err := invokeResourceGraphQuery(resourceGraphAPIClient, query, subscriptions)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("failed to invoke query: %q", err)
 	}
 	if data == nil {
 		return []*virtualMachineTable{}, 0, nil
@@ -120,7 +120,7 @@ func getVirtualMachineTable(resourceGraphAPIClient azureResourceGraphWrapper, qu
 		var virtualMachine virtualMachineTable
 		err = mapstructure.Decode(virtualMachineRow, &virtualMachine)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, fmt.Errorf("failed to decode vm response: %q", err)
 		}
 		virtualMachines = append(virtualMachines, &virtualMachine)
 	}
