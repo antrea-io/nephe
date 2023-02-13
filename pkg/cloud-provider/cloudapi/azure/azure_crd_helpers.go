@@ -109,7 +109,7 @@ func computeInstanceToVirtualMachineCRD(instance *virtualMachineTable, namespace
 
 // ComputeVpcToInternalVpcObject converts vnet object from cloud format(network.VirtualNetwork) to vpc runtime object.
 func ComputeVpcToInternalVpcObject(vnet *network.VirtualNetwork, namespace string, accountName string,
-	region string) *runtimev1alpha1.Vpc {
+	region string, managed bool) *runtimev1alpha1.Vpc {
 	crdName := utils.GenerateShortResourceIdentifier(*vnet.ID, *vnet.Name)
 	tags := make(map[string]string, 0)
 	if len(vnet.Tags) != 0 {
@@ -126,5 +126,5 @@ func ComputeVpcToInternalVpcObject(vnet *network.VirtualNetwork, namespace strin
 		common.VpcLabelRegion:      region,
 	}
 	return utils.GenerateInternalVpcObject(crdName, namespace, labelsMap, strings.ToLower(*vnet.Name),
-		strings.ToLower(*vnet.ID), tags, v1alpha1.AzureCloudProvider, region, cidrs)
+		strings.ToLower(*vnet.ID), tags, v1alpha1.AzureCloudProvider, region, cidrs, managed)
 }

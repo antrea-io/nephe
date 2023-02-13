@@ -136,8 +136,8 @@ func (ec2Cfg *ec2ServiceConfig) getCachedInstances() []*ec2.Instance {
 	return instancesToReturn
 }
 
-// getCachedVpcIDs returns vpcIDs from the cache for the account.
-func (ec2Cfg *ec2ServiceConfig) getCachedVpcIDs() map[string]struct{} {
+// getManagedVpcIDs returns vpcIDs of vpcs containing managed vms.
+func (ec2Cfg *ec2ServiceConfig) getManagedVpcIDs() map[string]struct{} {
 	vpcIDsCopy := make(map[string]struct{})
 	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
@@ -376,10 +376,15 @@ func (ec2Cfg *ec2ServiceConfig) GetVpcInventory() map[string]*runtimev1alpha1.Vp
 			"for", "account", ec2Cfg.accountName)
 		return nil
 	}
+	vpcIDs := ec2Cfg.getManagedVpcIDs()
 	// Convert to kubernetes object and return a map indexed using VPC ID.
 	vpcMap := map[string]*runtimev1alpha1.Vpc{}
 	for _, vpc := range vpcs {
-		vpcObj := ec2VpcToInternalVpcObject(vpc, tokens[0], tokens[1], strings.ToLower(ec2Cfg.credentials.region))
+		managed := false
+		if _, ok := vpcIDs[*vpc.VpcId]; ok {
+			managed = true
+		}
+		vpcObj := ec2VpcToInternalVpcObject(vpc, tokens[0], tokens[1], strings.ToLower(ec2Cfg.credentials.region), managed)
 		vpcMap[strings.ToLower(*vpc.VpcId)] = vpcObj
 	}
 

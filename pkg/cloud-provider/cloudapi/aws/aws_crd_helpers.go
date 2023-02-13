@@ -80,7 +80,7 @@ func ec2InstanceToVirtualMachineCRD(instance *ec2.Instance, namespace string, ac
 }
 
 // ec2VpcToInternalVpcObject converts ec2 vpc object to vpc runtime object.
-func ec2VpcToInternalVpcObject(vpc *ec2.Vpc, namespace string, accountName string, region string) *runtimev1alpha1.Vpc {
+func ec2VpcToInternalVpcObject(vpc *ec2.Vpc, namespace string, accountName string, region string, managed bool) *runtimev1alpha1.Vpc {
 	cloudName := ""
 	tags := make(map[string]string, 0)
 	if len(vpc.Tags) != 0 {
@@ -103,5 +103,5 @@ func ec2VpcToInternalVpcObject(vpc *ec2.Vpc, namespace string, accountName strin
 	}
 
 	return utils.GenerateInternalVpcObject(*vpc.VpcId, namespace, labelsMap, strings.ToLower(cloudName),
-		strings.ToLower(*vpc.VpcId), tags, v1alpha1.AWSCloudProvider, region, cidrs)
+		strings.ToLower(*vpc.VpcId), tags, v1alpha1.AWSCloudProvider, region, cidrs, managed)
 }
