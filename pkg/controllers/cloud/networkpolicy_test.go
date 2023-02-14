@@ -113,26 +113,26 @@ var _ = Describe("NetworkPolicy", func() {
 		vmNameToVirtualMachine = make(map[string]*cloud.VirtualMachine)
 		vmNameToIDMap = make(map[string]string)
 		// ExternalEntity
-		for _, n := range vmNames {
-			vmID := vmNamePrefix + n
+		for _, vmName := range vmNames {
+			vmID := vmNamePrefix + vmName
 			ee := antreatypes.ExternalEntity{}
 			ee.Name = "virtualmachine-" + vmID
 			ee.Namespace = namespace
 			eeOwner := v1.OwnerReference{
 				Kind: reflect.TypeOf(cloud.VirtualMachine{}).Name(),
-				Name: n,
+				Name: vmName,
 			}
 			ee.OwnerReferences = append(ee.OwnerReferences, eeOwner)
 
 			labels := make(map[string]string)
 			// TODO: cleanup dead code
 			labels[config.ExternalEntityLabelKeyKind] = target.GetExternalEntityLabelKind(&cloud.VirtualMachine{})
-			labels[config.ExternalEntityLabelKeyName] = n
+			labels[config.ExternalEntityLabelKeyName] = vmName
 			labels[config.ExternalEntityLabelKeyNamespace] = namespace
 			labels[config.ExternalEntityLabelCloudVPCKey] = vpc
 			ee.Labels = labels
-			vmExternalEntities[n] = &ee
-			vmMembers[n] = &securitygroup.CloudResource{
+			vmExternalEntities[vmName] = &ee
+			vmMembers[vmName] = &securitygroup.CloudResource{
 				Type: securitygroup.CloudResourceTypeVM,
 				CloudResourceID: securitygroup.CloudResourceID{
 					Name: vmID,
@@ -141,15 +141,15 @@ var _ = Describe("NetworkPolicy", func() {
 			}
 
 			vm := cloud.VirtualMachine{}
-			vm.Name = n
+			vm.Name = vmName
 			vm.Namespace = namespace
 			vmAnnotations := make(map[string]string)
 			vmAnnotations[cloudcommon.AnnotationCloudAssignedIDKey] = vmID
 			vmAnnotations[cloudcommon.AnnotationCloudAssignedVPCIDKey] = vpc
 			vmAnnotations[cloudcommon.AnnotationCloudAccountIDKey] = accountID
 			vm.Annotations = vmAnnotations
-			vmNameToVirtualMachine[n] = &vm
-			vmNameToIDMap[n] = vmID
+			vmNameToVirtualMachine[vmName] = &vm
+			vmNameToIDMap[vmName] = vmID
 		}
 
 		// AddressGroups

@@ -103,8 +103,8 @@ func GenerateInternalVpcObject(name string, namespace string, labels map[string]
 	return vpc
 }
 
-// GetCloudResourceCrName gets corresponding cr name from cloud resource id based on cloud type.
-func GetCloudResourceCrName(providerType, name string) string {
+// GetCloudResourceCRName gets corresponding cr name from cloud resource id based on cloud type.
+func GetCloudResourceCRName(providerType, name string) string {
 	switch providerType {
 	case string(cloudv1alpha1.AWSCloudProvider):
 		return name

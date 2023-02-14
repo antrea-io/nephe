@@ -351,18 +351,27 @@ func GetVirtualMachinePolicy(k8sClient client.Client, id, namespace string) (*ru
 
 // CheckVirtualMachinePolicies checks the number of vmp in a given namespace matches expected num and all in success state.
 func CheckVirtualMachinePolicies(k8sClient client.Client, namespace string, num int) error {
-	vmpList := &runtimev1alpha1.VirtualMachinePolicyList{}
-	listOpts := &client.ListOptions{Namespace: namespace}
-	if err := k8sClient.List(context.TODO(), vmpList, listOpts); err != nil {
-		return err
-	}
-	if len(vmpList.Items) != num {
-		return fmt.Errorf("unexpected vmp count %d, expect %d", len(vmpList.Items), num)
-	}
-	for i := 0; i < num; i++ {
-		if vmpList.Items[i].Status.Realization != runtimev1alpha1.Success {
-			return fmt.Errorf("unexpected vmp status %+v", vmpList.Items[i].Status)
+	var retErr error
+	if err := wait.Poll(time.Second*2, time.Second*30, func() (bool, error) {
+		vmpList := &runtimev1alpha1.VirtualMachinePolicyList{}
+		listOpts := &client.ListOptions{Namespace: namespace}
+		if err := k8sClient.List(context.TODO(), vmpList, listOpts); err != nil {
+			retErr = err
+			return false, nil
 		}
+		if len(vmpList.Items) != num {
+			retErr = fmt.Errorf("unexpected vmp count %d, expect %d", len(vmpList.Items), num)
+			return false, nil
+		}
+		for i := 0; i < num; i++ {
+			if vmpList.Items[i].Status.Realization != runtimev1alpha1.Success {
+				retErr = fmt.Errorf("unexpected vmp status %+v", vmpList.Items[i].Status)
+				return false, nil
+			}
+		}
+		return true, nil
+	}); err != nil {
+		return retErr
 	}
 	return nil
 }
