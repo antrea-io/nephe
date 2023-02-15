@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
+	"antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 )
 
@@ -331,7 +332,8 @@ func (ec2Cfg *ec2ServiceConfig) updateNetworkInterfaceSecurityGroups(interfaceID
 func (ec2Cfg *ec2ServiceConfig) getNetworkInterfacesOfVpc(vpcIDs map[string]struct{}) ([]*ec2.NetworkInterface, error) {
 	filters := buildAwsEc2FilterForVpcIDOnlyMatches(vpcIDs)
 	request := &ec2.DescribeNetworkInterfacesInput{
-		Filters: filters,
+		MaxResults: aws.Int64(common.MaxCloudResourceResponse),
+		Filters:    filters,
 	}
 	networkInterfaces, err := ec2Cfg.apiClient.pagedDescribeNetworkInterfaces(request)
 	if err != nil {
@@ -506,12 +508,14 @@ func (ec2Cfg *ec2ServiceConfig) getNepheControllerManagedSecurityGroupsCloudView
 	// get all network interfaces for managed vpcs
 	networkInterfaces, err := ec2Cfg.getNetworkInterfacesOfVpc(vpcIDs)
 	if err != nil {
+		awsPluginLogger().Error(err, "failed to get network interfaces of vpcs", "vpc-ids", vpcIDs)
 		return []securitygroup.SynchronizationContent{}
 	}
 
 	// get all security groups for managed vpcs and build cloud-sg-id to sgObj map by sg managed/unmanaged type
 	cloudSecurityGroups, err := ec2Cfg.getSecurityGroupsOfVpc(vpcIDs)
 	if err != nil {
+		awsPluginLogger().Error(err, "failed to get security groups of vpcs", "vpc-ids", vpcIDs)
 		return []securitygroup.SynchronizationContent{}
 	}
 	managedSgIDToCloudSGObj, unmanagedSgIDToCloudSGObj := getCloudSecurityGroupsByType(cloudSecurityGroups)

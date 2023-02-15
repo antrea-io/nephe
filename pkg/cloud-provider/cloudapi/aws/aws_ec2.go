@@ -213,7 +213,10 @@ func (ec2Cfg *ec2ServiceConfig) getInstances() ([]*ec2.Instance, error) {
 			"account", ec2Cfg.accountName, "resource-filters", "all(nil)")
 		var validInstanceStateFilters []*ec2.Filter
 		validInstanceStateFilters = append(validInstanceStateFilters, buildEc2FilterForValidInstanceStates())
-		request := &ec2.DescribeInstancesInput{Filters: validInstanceStateFilters}
+		request := &ec2.DescribeInstancesInput{
+			MaxResults: aws.Int64(cloudcommon.MaxCloudResourceResponse),
+			Filters:    validInstanceStateFilters,
+		}
 		return ec2Cfg.apiClient.pagedDescribeInstancesWrapper(request)
 	}
 
@@ -226,7 +229,10 @@ func (ec2Cfg *ec2ServiceConfig) getInstances() ([]*ec2.Instance, error) {
 				filter = buildFilterForVPCIDFromFilterForVPCName(filter, ec2Cfg.getCachedVpcNameToID())
 			}
 		}
-		request := &ec2.DescribeInstancesInput{Filters: filter}
+		request := &ec2.DescribeInstancesInput{
+			MaxResults: aws.Int64(cloudcommon.MaxCloudResourceResponse),
+			Filters:    filter,
+		}
 		filterInstances, e := ec2Cfg.apiClient.pagedDescribeInstancesWrapper(request)
 		if e != nil {
 			return nil, e
