@@ -4,12 +4,12 @@ go 1.19
 
 require (
 	antrea.io/antrea v1.10.0
-	github.com/Azure/azure-sdk-for-go v64.0.0+incompatible
-	github.com/Azure/go-autorest/autorest v0.11.24
-	github.com/Azure/go-autorest/autorest/azure/auth v0.5.11
+	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible
+	github.com/Azure/go-autorest/autorest v0.11.28
+	github.com/Azure/go-autorest/autorest/azure/auth v0.5.12
 	github.com/Azure/go-autorest/autorest/to v0.4.0
 	github.com/Azure/go-autorest/autorest/validation v0.3.1 // indirect
-	github.com/aws/aws-sdk-go v1.44.13
+	github.com/aws/aws-sdk-go v1.44.201
 	github.com/cenkalti/backoff/v4 v4.1.3
 	github.com/go-logr/logr v1.2.3
 	github.com/golang/mock v1.6.0
