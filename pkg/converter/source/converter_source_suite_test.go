@@ -52,6 +52,7 @@ var (
 	externalEntitySources      map[string]target.ExternalEntitySource
 	externalEntitySourcesPatch map[string]target.ExternalEntitySource
 	externalNodeSources        map[string]target.ExternalNodeSource
+	externalNodeSourcesPatch   map[string]target.ExternalNodeSource
 )
 
 var _ = BeforeSuite(func() {
@@ -68,6 +69,7 @@ func commonInitTest() {
 	externalEntitySources = testing2.SetupExternalEntitySources(networkInterfaceIPAddresses, testNamespace)
 	externalEntitySourcesPatch = testing2.SetupExternalEntitySources(networkInterfaceIPAddressesPatch, testNamespace)
 	externalNodeSources = testing2.SetupExternalNodeSources(networkInterfaceIPAddresses, testNamespace)
+	externalNodeSourcesPatch = testing2.SetupExternalNodeSources(networkInterfaceIPAddressesPatch, testNamespace)
 }
 
 // Testing converting source crd to target crd

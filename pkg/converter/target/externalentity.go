@@ -16,6 +16,8 @@ package target
 
 import (
 	"reflect"
+	"sort"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -75,10 +77,13 @@ func PatchExternalEntityFrom(
 
 func populateExternalEntityFrom(source ExternalEntitySource, externalEntity *antreatypes.ExternalEntity,
 	cl client.Client) bool {
-	externalEntity.SetLabels(genTargetEntityLabels(source, cl))
+	changed := false
+	if !reflect.DeepEqual(externalEntity.GetLabels(), genTargetEntityLabels(source, cl)) {
+		externalEntity.SetLabels(genTargetEntityLabels(source, cl))
+		changed = true
+	}
 	ipAddrs, _ := source.GetEndPointAddresses()
 	endpoints := make([]antreatypes.Endpoint, 0, len(ipAddrs))
-	changed := false
 	for _, ip := range ipAddrs {
 		endpoints = append(endpoints, antreatypes.Endpoint{IP: ip})
 	}
@@ -86,10 +91,41 @@ func populateExternalEntityFrom(source ExternalEntitySource, externalEntity *ant
 		externalEntity.Spec.ExternalNode = source.GetExternalNodeName(cl)
 		changed = true
 	}
-	if !reflect.DeepEqual(externalEntity.Spec.Ports, source.GetEndPointPort(cl)) {
-		externalEntity.Spec.Ports = source.GetEndPointPort(cl)
+	sourcePorts := source.GetEndPointPort(cl)
+	sort.Slice(externalEntity.Spec.Ports, func(i, j int) bool {
+		if externalEntity.Spec.Ports[i].Name != externalEntity.Spec.Ports[j].Name {
+			return strings.Compare(externalEntity.Spec.Ports[i].Name, externalEntity.Spec.Ports[j].Name) < 0
+		}
+		if externalEntity.Spec.Ports[i].Port != externalEntity.Spec.Ports[j].Port {
+			return externalEntity.Spec.Ports[i].Port < externalEntity.Spec.Ports[j].Port
+		}
+		return strings.Compare(string(externalEntity.Spec.Ports[i].Protocol), string(externalEntity.Spec.Ports[j].Protocol)) < 0
+	})
+	sort.Slice(sourcePorts, func(i, j int) bool {
+		if sourcePorts[i].Name != sourcePorts[j].Name {
+			return strings.Compare(sourcePorts[i].Name, sourcePorts[j].Name) < 0
+		}
+		if sourcePorts[i].Port != sourcePorts[j].Port {
+			return sourcePorts[i].Port < sourcePorts[j].Port
+		}
+		return strings.Compare(string(sourcePorts[i].Protocol), string(sourcePorts[j].Protocol)) < 0
+	})
+	if !reflect.DeepEqual(externalEntity.Spec.Ports, sourcePorts) {
+		externalEntity.Spec.Ports = sourcePorts
 		changed = true
 	}
+	sort.Slice(externalEntity.Spec.Endpoints, func(i, j int) bool {
+		if externalEntity.Spec.Endpoints[i].Name != externalEntity.Spec.Endpoints[j].Name {
+			return strings.Compare(externalEntity.Spec.Endpoints[i].Name, externalEntity.Spec.Endpoints[j].Name) < 0
+		}
+		return strings.Compare(externalEntity.Spec.Endpoints[i].IP, externalEntity.Spec.Endpoints[j].IP) < 0
+	})
+	sort.Slice(endpoints, func(i, j int) bool {
+		if endpoints[i].Name != endpoints[j].Name {
+			return strings.Compare(endpoints[i].Name, endpoints[j].Name) < 0
+		}
+		return strings.Compare(endpoints[i].IP, endpoints[j].IP) < 0
+	})
 	if !reflect.DeepEqual(externalEntity.Spec.Endpoints, endpoints) {
 		externalEntity.Spec.Endpoints = endpoints
 		changed = true

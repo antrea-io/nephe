@@ -163,14 +163,19 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 	if !isNotFound {
 		if isExternalnode {
 			base := client.MergeFrom(externNode.DeepCopy())
-			patch := target.PatchExternalNodeFrom(vm, externNode, v.Client)
-			err = v.Client.Patch(ctx, patch, base)
+			patch, changed := target.PatchExternalNodeFrom(vm, externNode, v.Client)
+			if changed {
+				err = v.Client.Patch(ctx, patch, base)
+			} else {
+				return
+			}
 		} else {
 			base := client.MergeFrom(externEntity.DeepCopy())
 			patch, changed := target.PatchExternalEntityFrom(vm, externEntity, v.Client)
-
 			if changed {
 				err = v.Client.Patch(ctx, patch, base)
+			} else {
+				return
 			}
 		}
 		if err != nil {

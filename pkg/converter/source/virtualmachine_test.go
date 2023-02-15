@@ -49,6 +49,7 @@ var _ = Describe("VirtualMachineConverter", func() {
 		expectedExternalEntities      = make(map[string]*antreav1alpha2.ExternalEntity)
 		expectedExternalPatchEntities = make(map[string]*antreav1alpha2.ExternalEntity)
 		expectedExternalNodes         = make(map[string]*antreav1alpha1.ExternalNode)
+		expectedExternalPatchNodes    = make(map[string]*antreav1alpha1.ExternalNode)
 
 		// Test tunable.
 		useInternalMethod      bool
@@ -173,6 +174,37 @@ var _ = Describe("VirtualMachineConverter", func() {
 			en.Spec.Interfaces = networkInterface
 			expectedExternalNodes[name] = en
 		}
+
+		for name, externalNodeSource := range externalNodeSourcesPatch {
+			en := &antreav1alpha1.ExternalNode{}
+			fetchKey := target.GetExternalNodeKeyFromSource(externalNodeSource)
+			en.Name = fetchKey.Name
+			en.Namespace = fetchKey.Namespace
+			labels := make(map[string]string)
+			accessor, _ := meta.Accessor(externalNodeSource)
+			labels[config.ExternalEntityLabelKeyKind] = target.GetExternalEntityLabelKind(externalNodeSource.EmbedType())
+			labels[config.ExternalEntityLabelKeyName] = strings.ToLower(accessor.GetName())
+			labels[config.ExternalEntityLabelKeyNamespace] = strings.ToLower(accessor.GetNamespace())
+			for k, v := range externalNodeSource.GetLabelsFromClient(nil) {
+				labels[k] = v
+			}
+			accessor, _ = meta.Accessor(externalNodeSource.EmbedType())
+			_ = controllerruntime.SetControllerReference(accessor, en, scheme)
+			for k, v := range externalNodeSource.GetTags() {
+				labels[k+config.ExternalEntityLabelKeyTagPostfix] = v
+			}
+			en.Labels = labels
+			// Currently only one NetworkInterface with multiple IPs is supported.
+			networkInterface := make([]antreav1alpha1.NetworkInterface, 0, len(networkInterfaceNames))
+			for _, name := range networkInterfaceNames {
+				networkInterface = append(networkInterface, antreav1alpha1.NetworkInterface{
+					Name: name,
+					IPs:  networkInterfaceIPAddressesPatch,
+				})
+			}
+			en.Spec.Interfaces = networkInterface
+			expectedExternalPatchNodes[name] = en
+		}
 	})
 
 	AfterEach(func() {
@@ -190,7 +222,7 @@ var _ = Describe("VirtualMachineConverter", func() {
 			finished := make(chan struct{}, 1)
 			outstandingExpects := 0
 			var externalEntitySource target.ExternalEntitySource
-			if op != "patch-addon" {
+			if op != "patchAddon" {
 				externalEntitySource = externalEntitySources[name]
 			} else {
 				externalEntitySource = externalEntitySourcesPatch[name]
@@ -238,7 +270,7 @@ var _ = Describe("VirtualMachineConverter", func() {
 									finished <- struct{}{}
 								}
 							}))
-				} else if op == "patch-addon" {
+				} else if op == "patchAddon" {
 					orderedCalls = append(orderedCalls,
 						mockClient.EXPECT().Patch(mock.Any(), mock.Any(), mock.Any()).
 							Return(externalEntityOpError).
@@ -317,7 +349,7 @@ var _ = Describe("VirtualMachineConverter", func() {
 		Context("Should patch when ExternalEntity is found", func() {
 			table.DescribeTable("When source is",
 				func(name string) {
-					tester(name, "patch-addon")
+					tester(name, "patchAddon")
 				},
 				table.Entry("VirtualMachineSource", "VirtualMachine"),
 			)
@@ -426,7 +458,12 @@ var _ = Describe("VirtualMachineConverter", func() {
 		tester := func(name string, op string) {
 			finished := make(chan struct{}, 1)
 			outstandingExpects := 0
-			externalNodeSource := externalNodeSources[name]
+			var externalNodeSource target.ExternalNodeSource
+			if op != "patchAddon" {
+				externalNodeSource = externalNodeSources[name]
+			} else {
+				externalNodeSource = externalNodeSourcesPatch[name]
+			}
 			if isEmptyEvent {
 				externalNodeSource = emptyExternalNodeSources[name]
 			}
@@ -435,17 +472,29 @@ var _ = Describe("VirtualMachineConverter", func() {
 			orderedCalls := make([]*mock.Call, 0)
 
 			// Determine ExternalNode source exits.
-			orderedCalls = append(orderedCalls,
-				mockClient.EXPECT().Get(mock.Any(), fetchKey, mock.Any()).
-					Return(externalNodeGetErr).
-					Do(func(_ context.Context, _ client.ObjectKey, en *antreav1alpha1.ExternalNode) {
-						expectedExternalNodes[name].DeepCopyInto(en)
-						outstandingExpects--
-						if outstandingExpects == 0 {
-							finished <- struct{}{}
-						}
-					}))
-
+			if op != "patch" {
+				orderedCalls = append(orderedCalls,
+					mockClient.EXPECT().Get(mock.Any(), fetchKey, mock.Any()).
+						Return(externalNodeGetErr).
+						Do(func(_ context.Context, _ client.ObjectKey, en *antreav1alpha1.ExternalNode) {
+							expectedExternalNodes[name].DeepCopyInto(en)
+							outstandingExpects--
+							if outstandingExpects == 0 {
+								finished <- struct{}{}
+							}
+						}))
+			} else {
+				orderedCalls = append(orderedCalls,
+					mockClient.EXPECT().Get(mock.Any(), fetchKey, mock.Any()).
+						Return(externalNodeGetErr).
+						Do(func(_ context.Context, _ client.ObjectKey, en *antreav1alpha1.ExternalNode) {
+							expectedExternalPatchNodes[name].DeepCopyInto(en)
+							outstandingExpects--
+							if outstandingExpects == 0 {
+								finished <- struct{}{}
+							}
+						}))
+			}
 			if expectExternalNodeOp {
 				if op == "create" {
 					orderedCalls = append(orderedCalls,
@@ -458,6 +507,18 @@ var _ = Describe("VirtualMachineConverter", func() {
 									finished <- struct{}{}
 								}
 							}))
+				} else if op == "patchAddon" {
+					orderedCalls = append(orderedCalls,
+						mockClient.EXPECT().Patch(mock.Any(), mock.Any(), mock.Any()).
+							Return(externalNodeOpError).
+							Do(func(_ context.Context, patch runtime.Object, _ client.Patch) {
+								Expect(patch).To(Equal(expectedExternalPatchNodes[name]))
+								outstandingExpects--
+								if outstandingExpects == 0 {
+									finished <- struct{}{}
+								}
+							}))
+
 				} else if op == "patch" {
 					orderedCalls = append(orderedCalls,
 						mockClient.EXPECT().Patch(mock.Any(), mock.Any(), mock.Any()).
@@ -527,6 +588,15 @@ var _ = Describe("VirtualMachineConverter", func() {
 			table.DescribeTable("When source is",
 				func(name string) {
 					tester(name, "patch")
+				},
+				table.Entry("VirtualMachineSource", "VirtualMachine"),
+			)
+		})
+
+		Context("Should patch when ExternalNode is found", func() {
+			table.DescribeTable("When source is",
+				func(name string) {
+					tester(name, "patchAddon")
 				},
 				table.Entry("VirtualMachineSource", "VirtualMachine"),
 			)
