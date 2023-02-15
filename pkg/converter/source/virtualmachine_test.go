@@ -46,8 +46,9 @@ var _ = Describe("VirtualMachineConverter", func() {
 		converter source.VMConverter
 
 		// Test parameters.
-		expectedExternalEntities = make(map[string]*antreav1alpha2.ExternalEntity)
-		expectedExternalNodes    = make(map[string]*antreav1alpha1.ExternalNode)
+		expectedExternalEntities      = make(map[string]*antreav1alpha2.ExternalEntity)
+		expectedExternalPatchEntities = make(map[string]*antreav1alpha2.ExternalEntity)
+		expectedExternalNodes         = make(map[string]*antreav1alpha1.ExternalNode)
 
 		// Test tunable.
 		useInternalMethod      bool
@@ -112,6 +113,35 @@ var _ = Describe("VirtualMachineConverter", func() {
 			expectedExternalEntities[name] = ee
 		}
 
+		for name, externalEntitySourcePatch := range externalEntitySourcesPatch {
+			ee := &antreav1alpha2.ExternalEntity{}
+			fetchKey := target.GetExternalEntityKeyFromSource(externalEntitySourcePatch)
+			ee.Name = fetchKey.Name
+			ee.Namespace = fetchKey.Namespace
+			eps := make([]antreav1alpha2.Endpoint, 0)
+			for _, ip := range networkInterfaceIPAddressesPatch {
+				eps = append(eps, antreav1alpha2.Endpoint{IP: ip})
+			}
+			ee.Spec.Endpoints = eps
+			ee.Spec.Ports = externalEntitySourcePatch.GetEndPointPort(nil)
+			labels := make(map[string]string)
+			accessor, _ := meta.Accessor(externalEntitySourcePatch)
+			labels[config.ExternalEntityLabelKeyKind] = target.GetExternalEntityLabelKind(externalEntitySourcePatch.EmbedType())
+			labels[config.ExternalEntityLabelKeyName] = strings.ToLower(accessor.GetName())
+			labels[config.ExternalEntityLabelKeyNamespace] = strings.ToLower(accessor.GetNamespace())
+			for k, v := range externalEntitySourcePatch.GetLabelsFromClient(nil) {
+				labels[k] = v
+			}
+			accessor, _ = meta.Accessor(externalEntitySourcePatch.EmbedType())
+			_ = controllerruntime.SetControllerReference(accessor, ee, scheme)
+			for k, v := range externalEntitySourcePatch.GetTags() {
+				labels[k+config.ExternalEntityLabelKeyTagPostfix] = v
+			}
+			ee.Labels = labels
+			ee.Spec.ExternalNode = config.ANPNepheController
+			expectedExternalPatchEntities[name] = ee
+		}
+
 		// Setup expected ExternalNode from source resources.
 		for name, externalNodeSource := range externalNodeSources {
 			en := &antreav1alpha1.ExternalNode{}
@@ -159,7 +189,12 @@ var _ = Describe("VirtualMachineConverter", func() {
 		tester := func(name string, op string) {
 			finished := make(chan struct{}, 1)
 			outstandingExpects := 0
-			externalEntitySource := externalEntitySources[name]
+			var externalEntitySource target.ExternalEntitySource
+			if op != "patch-addon" {
+				externalEntitySource = externalEntitySources[name]
+			} else {
+				externalEntitySource = externalEntitySourcesPatch[name]
+			}
 			if isEmptyEvent {
 				externalEntitySource = emptyExternalEntitySources[name]
 			}
@@ -168,17 +203,29 @@ var _ = Describe("VirtualMachineConverter", func() {
 			orderedCalls := make([]*mock.Call, 0)
 
 			// Determine ExternalEntity source exits.
-			orderedCalls = append(orderedCalls,
-				mockClient.EXPECT().Get(mock.Any(), fetchKey, mock.Any()).
-					Return(externalEntityGetErr).
-					Do(func(_ context.Context, _ client.ObjectKey, ee *antreav1alpha2.ExternalEntity) {
-						expectedExternalEntities[name].DeepCopyInto(ee)
-						outstandingExpects--
-						if outstandingExpects == 0 {
-							finished <- struct{}{}
-						}
-					}))
-
+			if op != "patch" {
+				orderedCalls = append(orderedCalls,
+					mockClient.EXPECT().Get(mock.Any(), fetchKey, mock.Any()).
+						Return(externalEntityGetErr).
+						Do(func(_ context.Context, _ client.ObjectKey, ee *antreav1alpha2.ExternalEntity) {
+							expectedExternalEntities[name].DeepCopyInto(ee)
+							outstandingExpects--
+							if outstandingExpects == 0 {
+								finished <- struct{}{}
+							}
+						}))
+			} else {
+				orderedCalls = append(orderedCalls,
+					mockClient.EXPECT().Get(mock.Any(), fetchKey, mock.Any()).
+						Return(externalEntityGetErr).
+						Do(func(_ context.Context, _ client.ObjectKey, ee *antreav1alpha2.ExternalEntity) {
+							expectedExternalPatchEntities[name].DeepCopyInto(ee)
+							outstandingExpects--
+							if outstandingExpects == 0 {
+								finished <- struct{}{}
+							}
+						}))
+			}
 			if expectExternalEntityOp {
 				if op == "create" {
 					orderedCalls = append(orderedCalls,
@@ -186,6 +233,17 @@ var _ = Describe("VirtualMachineConverter", func() {
 							Return(externalEntityOpError).
 							Do(func(_ context.Context, obj runtime.Object) {
 								Expect(obj).To(Equal(expectedExternalEntities[name]))
+								outstandingExpects--
+								if outstandingExpects == 0 {
+									finished <- struct{}{}
+								}
+							}))
+				} else if op == "patch-addon" {
+					orderedCalls = append(orderedCalls,
+						mockClient.EXPECT().Patch(mock.Any(), mock.Any(), mock.Any()).
+							Return(externalEntityOpError).
+							Do(func(_ context.Context, patch runtime.Object, _ client.Patch) {
+								Expect(patch).To(Equal(expectedExternalPatchEntities[name]))
 								outstandingExpects--
 								if outstandingExpects == 0 {
 									finished <- struct{}{}
@@ -257,6 +315,15 @@ var _ = Describe("VirtualMachineConverter", func() {
 		})
 
 		Context("Should patch when ExternalEntity is found", func() {
+			table.DescribeTable("When source is",
+				func(name string) {
+					tester(name, "patch-addon")
+				},
+				table.Entry("VirtualMachineSource", "VirtualMachine"),
+			)
+		})
+
+		Context("Should patch back when ExternalEntity is found", func() {
 			table.DescribeTable("When source is",
 				func(name string) {
 					tester(name, "patch")

@@ -15,6 +15,8 @@
 package target
 
 import (
+	"reflect"
+
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -53,7 +55,7 @@ func NewExternalEntityFrom(
 	source ExternalEntitySource, name, namespace string, cl client.Client,
 	scheme *runtime.Scheme) *antreatypes.ExternalEntity {
 	externalEntity := &antreatypes.ExternalEntity{}
-	populateExternalEntityFrom(source, externalEntity, cl)
+	_ = populateExternalEntityFrom(source, externalEntity, cl)
 	externalEntity.SetName(name)
 	externalEntity.SetNamespace(namespace)
 	accessor, _ := meta.Accessor(source.EmbedType())
@@ -66,20 +68,31 @@ func NewExternalEntityFrom(
 
 // PatchExternalEntityFrom generate a patch for existing ExternalEntity from source.
 func PatchExternalEntityFrom(
-	source ExternalEntitySource, patch *antreatypes.ExternalEntity, cl client.Client) *antreatypes.ExternalEntity {
-	populateExternalEntityFrom(source, patch, cl)
-	return patch
+	source ExternalEntitySource, patch *antreatypes.ExternalEntity, cl client.Client) (*antreatypes.ExternalEntity, bool) {
+	changed := populateExternalEntityFrom(source, patch, cl)
+	return patch, changed
 }
 
 func populateExternalEntityFrom(source ExternalEntitySource, externalEntity *antreatypes.ExternalEntity,
-	cl client.Client) {
+	cl client.Client) bool {
 	externalEntity.SetLabels(genTargetEntityLabels(source, cl))
 	ipAddrs, _ := source.GetEndPointAddresses()
 	endpoints := make([]antreatypes.Endpoint, 0, len(ipAddrs))
+	changed := false
 	for _, ip := range ipAddrs {
 		endpoints = append(endpoints, antreatypes.Endpoint{IP: ip})
 	}
-	externalEntity.Spec.Endpoints = endpoints
-	externalEntity.Spec.Ports = source.GetEndPointPort(cl)
-	externalEntity.Spec.ExternalNode = source.GetExternalNodeName(cl)
+	if externalEntity.Spec.ExternalNode != source.GetExternalNodeName(cl) {
+		externalEntity.Spec.ExternalNode = source.GetExternalNodeName(cl)
+		changed = true
+	}
+	if !reflect.DeepEqual(externalEntity.Spec.Ports, source.GetEndPointPort(cl)) {
+		externalEntity.Spec.Ports = source.GetEndPointPort(cl)
+		changed = true
+	}
+	if !reflect.DeepEqual(externalEntity.Spec.Endpoints, endpoints) {
+		externalEntity.Spec.Endpoints = endpoints
+		changed = true
+	}
+	return changed
 }
