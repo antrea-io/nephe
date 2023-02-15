@@ -135,7 +135,6 @@ func ConfigureK8s(kubeCtl *KubeCtl, params interface{}, yaml string, isDelete bo
 	if err := confParser.Execute(conf, params); err != nil {
 		return fmt.Errorf("parse template failed: %v", err)
 	}
-	// logf.Log.V(1).Info("", "yaml", conf.String())
 	if isDelete {
 		err = kubeCtl.Delete("", conf.Bytes())
 	} else {
@@ -279,18 +278,6 @@ func ConfigureEntitySelectorAndWait(kubeCtl *KubeCtl, k8sClient client.Client, p
 // CheckCloudResourceNetworkPolicies checks NetworkPolicies has been applied to cloud resources.
 func CheckCloudResourceNetworkPolicies(kubeCtl *KubeCtl, k8sClient client.Client, kind, namespace string, ids, anps []string,
 	withAgent bool) error {
-	getVMANPs := func(id string) (map[string]*runtimev1alpha1.NetworkPolicyStatus, error) {
-		v := &runtimev1alpha1.VirtualMachinePolicy{}
-		fetchKey := client.ObjectKey{Name: id, Namespace: namespace}
-		if err := k8sClient.Get(context.TODO(), fetchKey, v); err != nil {
-			if errors.IsNotFound(err) {
-				return nil, nil
-			}
-			return nil, err
-		}
-		return v.Status.NetworkPolicyDetails, nil
-	}
-
 	logf.Log.V(1).Info("Check NetworkPolicy on resources", "resources", ids, "nps", anps)
 
 	if withAgent {
@@ -316,24 +303,27 @@ func CheckCloudResourceNetworkPolicies(kubeCtl *KubeCtl, k8sClient client.Client
 	}
 
 	if err := wait.Poll(time.Second*2, time.Second*300, func() (bool, error) {
-		var getter func(id string) (map[string]*runtimev1alpha1.NetworkPolicyStatus, error)
+		var getter func(k8sClient client.Client, id, namespace string) (*runtimev1alpha1.VirtualMachinePolicy, error)
 		if kind == reflect.TypeOf(v1alpha1.VirtualMachine{}).Name() {
-			getter = getVMANPs
+			getter = GetVirtualMachinePolicy
 		} else {
 			return false, fmt.Errorf("unknown kind %v", kind)
 		}
 
 		for _, id := range ids {
-			npv, err := getter(id)
+			vmp, err := getter(k8sClient, id, namespace)
+			if errors.IsNotFound(err) && len(anps) == 0 {
+				continue
+			}
 			if err != nil {
 				logf.Log.Info("Get resource failed, tolerate", "Resource", id, "Error", err)
 				return false, nil
 			}
-			if len(npv) != len(anps) {
+			if len(vmp.Status.NetworkPolicyDetails) != len(anps) {
 				return false, nil
 			}
 			for _, a := range anps {
-				v, ok := npv[a]
+				v, ok := vmp.Status.NetworkPolicyDetails[a]
 				if !ok {
 					return false, nil
 				}
@@ -349,9 +339,45 @@ func CheckCloudResourceNetworkPolicies(kubeCtl *KubeCtl, k8sClient client.Client
 	return nil
 }
 
+// GetVirtualMachinePolicy gets vmp corresponding to id and namespace.
+func GetVirtualMachinePolicy(k8sClient client.Client, id, namespace string) (*runtimev1alpha1.VirtualMachinePolicy, error) {
+	v := &runtimev1alpha1.VirtualMachinePolicy{}
+	fetchKey := client.ObjectKey{Name: id, Namespace: namespace}
+	if err := k8sClient.Get(context.TODO(), fetchKey, v); err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
+// CheckVirtualMachinePolicies checks the number of vmp in a given namespace matches expected num and all in success state.
+func CheckVirtualMachinePolicies(k8sClient client.Client, namespace string, num int) error {
+	var retErr error
+	if err := wait.Poll(time.Second*2, time.Second*30, func() (bool, error) {
+		vmpList := &runtimev1alpha1.VirtualMachinePolicyList{}
+		listOpts := &client.ListOptions{Namespace: namespace}
+		if err := k8sClient.List(context.TODO(), vmpList, listOpts); err != nil {
+			retErr = err
+			return false, nil
+		}
+		if len(vmpList.Items) != num {
+			retErr = fmt.Errorf("unexpected vmp count %d, expect %d", len(vmpList.Items), num)
+			return false, nil
+		}
+		for i := 0; i < num; i++ {
+			if vmpList.Items[i].Status.Realization != runtimev1alpha1.Success {
+				retErr = fmt.Errorf("unexpected vmp status %+v", vmpList.Items[i].Status)
+				return false, nil
+			}
+		}
+		return true, nil
+	}); err != nil {
+		return retErr
+	}
+	return nil
+}
+
 // ExecuteCmds excutes cmds on resource srcIDs in parallel, and returns error if oks mismatch.
-func ExecuteCmds(vpc CloudVPC, kubctl *KubeCtl,
-	srcIDs []string, ns string, cmds [][]string, oks []bool, retries int) error {
+func ExecuteCmds(vpc CloudVPC, kubctl *KubeCtl, srcIDs []string, ns string, cmds [][]string, oks []bool, retries int) error {
 	var err error
 	for i := 0; i < retries; i++ {
 		chans := make([]chan error, len(oks))
@@ -437,8 +463,7 @@ func GenerateNameFromText(fullText string, focus []string) string {
 }
 
 // SetAgentConfig configures the cluster, generates agent kubeconfigs and sets terraform env vars.
-func SetAgentConfig(c client.Client, ns *corev1.Namespace, cloudProviders, antreaVersion, kubeconfig, dir string,
-	withWindows bool) error {
+func SetAgentConfig(c client.Client, ns *corev1.Namespace, cloudProviders, antreaVersion, kubeconfig, dir string, withWindows bool) error {
 	err := c.Create(context.TODO(), ns)
 	if err != nil {
 		return fmt.Errorf("failed to create static vm namespace %+v", err)

@@ -179,7 +179,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			Expect(err).ToNot(HaveOccurred())
 
 			if !importAfterANP {
-				entityParams := cloudVPC.GetEntitySelectorParameters("test-entity-selector"+ns.Name, ns.Name, kind)
+				entityParams := cloudVPC.GetEntitySelectorParameters("test-entity-selector"+ns.Name, ns.Name, kind, nil)
 				entityParams.Agented = withAgent
 				err = utils.ConfigureEntitySelectorAndWait(kubeCtl, k8sClient, entityParams, kind, num, ns.Name, false)
 				Expect(err).ToNot(HaveOccurred())
@@ -252,7 +252,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 					continue
 				}
 				_ = cloudVPC.GetCloudAccountParameters("test-cloud-account"+ns.Name, ns.Name, cloudCluster)
-				entityParams := cloudVPC.GetEntitySelectorParameters("test-entity-selector"+ns.Name, ns.Name, kind)
+				entityParams := cloudVPC.GetEntitySelectorParameters("test-entity-selector"+ns.Name, ns.Name, kind, nil)
 				entityParams.Agented = withAgent
 				err = utils.ConfigureEntitySelectorAndWait(kubeCtl, k8sClient, entityParams, kind, num, ns.Name, false)
 				Expect(err).ToNot(HaveOccurred())
@@ -735,5 +735,36 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		Expect(err).ToNot(HaveOccurred())
 		time.Sleep(time.Second * 30)
 		verifyIngress(kind, ids[appliedIdx], ips[appliedIdx], srcVMs, oks, true)
+	})
+
+	It("Remove Stale Member", func() {
+		vmCount := 1
+		ids := cloudVPC.GetVMIDs()
+		kind := reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()
+		setup(kind, len(ids), []string{"22"}, false)
+		anpParams.AppliedTo = configANPApplyTo(kind, "", cloudVPC.GetCRDVPCID(), "", "")
+		anpParams.From = configANPToFrom(kind, "", "", "", "", "", namespace.Name,
+			[]string{apachePort}, false)
+		err := utils.ConfigureK8s(kubeCtl, anpParams, k8stemplates.CloudAntreaNetworkPolicy, false)
+		Expect(err).ToNot(HaveOccurred())
+
+		err = utils.CheckCloudResourceNetworkPolicies(
+			kubeCtl, k8sClient, kind, namespace.Name, cloudVPC.GetVMs(), []string{anpSetupParams.Name, anpParams.Name}, withAgent,
+		)
+		Expect(err).ToNot(HaveOccurred())
+
+		// change ces to only select a subset of VMs.
+		entityParams := cloudVPC.GetEntitySelectorParameters("test-entity-selector"+namespace.Name, namespace.Name, kind, ids[:vmCount])
+		err = utils.ConfigureEntitySelectorAndWait(kubeCtl, k8sClient, entityParams, kind, vmCount, namespace.Name, false)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Check vmp after vm change")
+		err = utils.CheckVirtualMachinePolicies(k8sClient, namespace.Name, vmCount)
+		Expect(err).ToNot(HaveOccurred())
+
+		// change ces back for cleanup check.
+		entityParams = cloudVPC.GetEntitySelectorParameters("test-entity-selector"+namespace.Name, namespace.Name, kind, nil)
+		err = utils.ConfigureEntitySelectorAndWait(kubeCtl, k8sClient, entityParams, kind, vmCount, namespace.Name, false)
+		Expect(err).ToNot(HaveOccurred())
 	})
 })

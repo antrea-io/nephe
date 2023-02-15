@@ -155,7 +155,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: VPC Inventory", focusAws, focusAzure), func
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Configure CES and verify VM inventory")
-		entityParams := cloudVPC.GetEntitySelectorParameters("test-entity-selector"+namespace.Name, namespace.Name, kind)
+		entityParams := cloudVPC.GetEntitySelectorParameters("test-entity-selector"+namespace.Name, namespace.Name, kind, nil)
 		logf.Log.V(1).Info("Create CES and verify VM inventory is imported", "ces", entityParams.Name)
 		err = utils.ConfigureEntitySelectorAndWait(kubeCtl, k8sClient, entityParams, kind, len(vmIDs), namespace.Name, false)
 		Expect(err).ToNot(HaveOccurred())

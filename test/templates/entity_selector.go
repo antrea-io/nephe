@@ -18,9 +18,14 @@ type CloudEntitySelectorParameters struct {
 	Name             string
 	Namespace        string
 	CloudAccountName string
-	VPC              string
+	Selector         *SelectorParameters
 	Kind             string
 	Agented          bool
+}
+
+type SelectorParameters struct {
+	VPC string
+	VMs []string
 }
 
 const CloudEntitySelector = `
@@ -32,7 +37,14 @@ metadata:
 spec:
   accountName: {{.CloudAccountName}}
   vmSelector:
+{{- if .Selector.VPC }}
     - vpcMatch:
-        matchID: {{.VPC}}
+        matchID: {{.Selector.VPC}}
+{{ else }}
+    - vmMatch:
+{{- range $vm := .Selector.VMs }}
+        - matchID: {{$vm}}
+{{ end }}
+{{ end }}{{/* .Selector.VPC */}}
       agented: {{.Agented}}
 `

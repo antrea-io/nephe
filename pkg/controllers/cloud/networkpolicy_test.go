@@ -28,7 +28,9 @@ import (
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/watch"
@@ -111,43 +113,43 @@ var _ = Describe("NetworkPolicy", func() {
 		vmNameToVirtualMachine = make(map[string]*cloud.VirtualMachine)
 		vmNameToIDMap = make(map[string]string)
 		// ExternalEntity
-		for _, n := range vmNames {
+		for _, vmName := range vmNames {
+			vmID := vmNamePrefix + vmName
 			ee := antreatypes.ExternalEntity{}
-			ee.Name = "virtualmachine-" + n
+			ee.Name = "virtualmachine-" + vmID
 			ee.Namespace = namespace
 			eeOwner := v1.OwnerReference{
 				Kind: reflect.TypeOf(cloud.VirtualMachine{}).Name(),
-				Name: n,
+				Name: vmName,
 			}
 			ee.OwnerReferences = append(ee.OwnerReferences, eeOwner)
 
 			labels := make(map[string]string)
 			// TODO: cleanup dead code
 			labels[config.ExternalEntityLabelKeyKind] = target.GetExternalEntityLabelKind(&cloud.VirtualMachine{})
-			labels[config.ExternalEntityLabelKeyName] = n
+			labels[config.ExternalEntityLabelKeyName] = vmName
 			labels[config.ExternalEntityLabelKeyNamespace] = namespace
 			labels[config.ExternalEntityLabelCloudVPCKey] = vpc
 			ee.Labels = labels
-			vmExternalEntities[n] = &ee
-			vmMembers[n] = &securitygroup.CloudResource{
+			vmExternalEntities[vmName] = &ee
+			vmMembers[vmName] = &securitygroup.CloudResource{
 				Type: securitygroup.CloudResourceTypeVM,
 				CloudResourceID: securitygroup.CloudResourceID{
-					Name: vmNamePrefix + n,
+					Name: vmID,
 					Vpc:  vpc,
 				},
 			}
 
 			vm := cloud.VirtualMachine{}
-			vmID := vmNamePrefix + n
-			vm.Name = n
+			vm.Name = vmName
 			vm.Namespace = namespace
 			vmAnnotations := make(map[string]string)
 			vmAnnotations[cloudcommon.AnnotationCloudAssignedIDKey] = vmID
 			vmAnnotations[cloudcommon.AnnotationCloudAssignedVPCIDKey] = vpc
 			vmAnnotations[cloudcommon.AnnotationCloudAccountIDKey] = accountID
 			vm.Annotations = vmAnnotations
-			vmNameToVirtualMachine[n] = &vm
-			vmNameToIDMap[n] = vmID
+			vmNameToVirtualMachine[vmName] = &vm
+			vmNameToIDMap[vmName] = vmID
 		}
 
 		// AddressGroups
@@ -302,7 +304,7 @@ var _ = Describe("NetworkPolicy", func() {
 	getGrpMembers := func(gms []antreanetworking.GroupMember) []*securitygroup.CloudResource {
 		ret := make([]*securitygroup.CloudResource, 0)
 		for _, gm := range gms {
-			if vm := strings.TrimPrefix(gm.ExternalEntity.Name, "virtualmachine-"); vm != gm.ExternalEntity.Name {
+			if vm := strings.TrimPrefix(gm.ExternalEntity.Name, "virtualmachine-"+vmNamePrefix); vm != gm.ExternalEntity.Name {
 				ret = append(ret, &securitygroup.CloudResource{
 					Type: securitygroup.CloudResourceTypeVM,
 					CloudResourceID: securitygroup.CloudResourceID{
@@ -320,7 +322,7 @@ var _ = Describe("NetworkPolicy", func() {
 	getGrpExternalEntity := func(gms []antreanetworking.GroupMember) []*antreatypes.ExternalEntity {
 		ret := make([]*antreatypes.ExternalEntity, 0)
 		for _, gm := range gms {
-			if vm := strings.TrimPrefix(gm.ExternalEntity.Name, "virtualmachine-"); vm != gm.ExternalEntity.Name {
+			if vm := strings.TrimPrefix(gm.ExternalEntity.Name, "virtualmachine-"+vmNamePrefix); vm != gm.ExternalEntity.Name {
 				// Trim successful
 				ret = append(ret, vmExternalEntities[vm])
 			}
@@ -332,7 +334,7 @@ var _ = Describe("NetworkPolicy", func() {
 	getGrpVPCs := func(gms []antreanetworking.GroupMember) map[string]struct{} {
 		ret := make(map[string]struct{})
 		for _, gm := range gms {
-			if vm := strings.TrimPrefix(gm.ExternalEntity.Name, "virtualmachine-"); vm != gm.ExternalEntity.Name {
+			if vm := strings.TrimPrefix(gm.ExternalEntity.Name, "virtualmachine-"+vmNamePrefix); vm != gm.ExternalEntity.Name {
 				ret[vpc] = struct{}{}
 			}
 		}
@@ -585,8 +587,12 @@ var _ = Describe("NetworkPolicy", func() {
 		return chans
 	}
 
-	checkGrpPatchChange := func(grpName string, members []antreanetworking.GroupMember, memberChange bool,
+	checkGrpPatchChange := func(grpName string, members []antreanetworking.GroupMember, staleMember bool,
 		oldMembers []*antreatypes.ExternalEntity, membershipOnly bool) {
+		var retErr error
+		if staleMember {
+			retErr = errors.NewNotFound(schema.GroupResource{}, "")
+		}
 		eelist := make([]*antreatypes.ExternalEntity, 0)
 		if members != nil {
 			eelist = append(eelist, getGrpExternalEntity(members)...)
@@ -597,7 +603,7 @@ var _ = Describe("NetworkPolicy", func() {
 			ref.DeepCopyInto(ee)
 			key := client.ObjectKey{Name: ee.Name, Namespace: ee.Namespace}
 			mockClient.EXPECT().Get(mock.Any(), key, mock.Any()).
-				Return(nil).AnyTimes(). // because unchanged member does not Get.
+				Return(retErr).AnyTimes(). // because unchanged member does not Get.
 				Do(func(_ context.Context, key client.ObjectKey, out *antreatypes.ExternalEntity) {
 					ee.DeepCopyInto(out)
 				})
@@ -613,7 +619,7 @@ var _ = Describe("NetworkPolicy", func() {
 			}
 
 		}
-		if memberChange {
+		if !staleMember {
 			for vpc := range getGrpVPCs(members) {
 				ch := make(chan error)
 				grpID := &securitygroup.CloudResource{
@@ -875,6 +881,11 @@ var _ = Describe("NetworkPolicy", func() {
 		}
 	}
 
+	verifyVmp := func(vmpNum int) {
+		vmpList := reconciler.virtualMachinePolicyIndexer.List()
+		Expect(len(vmpList)).To(Equal(vmpNum))
+	}
+
 	verifyNPStatus := func(trackedVMs map[string]*cloud.VirtualMachine, hasPolicy, hasError bool) {
 		for idx := len(addrGrpNames); idx < len(addrGrpNames)+len(appliedToGrpsNames); idx++ {
 			vm := trackedVMs[vmNamePrefix+vmNames[idx]]
@@ -969,7 +980,7 @@ var _ = Describe("NetworkPolicy", func() {
 		remove := vmExternalEntities[vmNames[0]]
 		addrGrp := addrGrps[0]
 		p1 := patchAddrGrpMember(addrGrp, add, remove, 0)
-		checkGrpPatchChange(addrGrp.Name, addrGrp.GroupMembers, true, []*antreatypes.ExternalEntity{remove}, true)
+		checkGrpPatchChange(addrGrp.Name, addrGrp.GroupMembers, false, []*antreatypes.ExternalEntity{remove}, true)
 		var err error
 		event := watch.Event{Type: watch.Modified, Object: p1}
 		err = reconciler.processAddrGrp(event)
@@ -984,13 +995,30 @@ var _ = Describe("NetworkPolicy", func() {
 		remove := vmExternalEntities[vmNames[2]]
 		appliedToGrp := appliedToGrps[0]
 		p1 := patchAppliedToGrpMember(appliedToGrp, add, remove, 0)
-		checkGrpPatchChange(appliedToGrp.Name, appliedToGrp.GroupMembers, true, []*antreatypes.ExternalEntity{remove}, false)
-		var err error
+		checkGrpPatchChange(appliedToGrp.Name, appliedToGrp.GroupMembers, false, []*antreatypes.ExternalEntity{remove}, false)
 		event := watch.Event{Type: watch.Modified, Object: p1}
-		err = reconciler.processAppliedToGrp(event)
+		err := reconciler.processAppliedToGrp(event)
 		Expect(err).ToNot(HaveOccurred())
 
 		wait()
+	})
+
+	It("Modify appliedToGroup remove stale member", func() {
+		createAndVerifyNP(false)
+		trackedVMs := make(map[string]*cloud.VirtualMachine)
+		verifyNPTracker(trackedVMs, true, false)
+		verifyVmp(len(trackedVMs))
+
+		// modify event remove stale member.
+		remove := vmExternalEntities[vmNames[2]]
+		appliedToGrp := appliedToGrps[0]
+		p1 := patchAppliedToGrpMember(appliedToGrp, nil, remove, 0)
+		checkGrpPatchChange(appliedToGrp.Name, appliedToGrp.GroupMembers, true, []*antreatypes.ExternalEntity{remove}, false)
+
+		event := watch.Event{Type: watch.Modified, Object: p1}
+		err := reconciler.processAppliedToGrp(event)
+		Expect(err).ToNot(HaveOccurred())
+		verifyVmp(len(trackedVMs) - 1)
 	})
 
 	It("Modify networkPolicy address group cloud member", func() {
@@ -1004,10 +1032,9 @@ var _ = Describe("NetworkPolicy", func() {
 
 		anp.Rules[0].From.AddressGroups = append(anp.Rules[0].From.AddressGroups, "ag-patch")
 
-		var err error
 		checkAddrGroup(ag)
 		event := watch.Event{Type: watch.Added, Object: ag}
-		err = reconciler.processAddrGrp(event)
+		err := reconciler.processAddrGrp(event)
 		Expect(err).ToNot(HaveOccurred())
 
 		ingress := ingressRule[0]
@@ -1049,11 +1076,13 @@ var _ = Describe("NetworkPolicy", func() {
 		createAndVerifyNP(false)
 		verifyNPTracker(trackedVMs, true, false)
 		verifyNPStatus(trackedVMs, true, false)
+		verifyVmp(len(trackedVMs))
 		// return delete error
 		sgConfig.sgDeleteError = fmt.Errorf("dummy")
 		deleteAndVerifyNP(false)
 		verifyNPTracker(trackedVMs, false, true)
 		verifyNPStatus(trackedVMs, false, true)
+		verifyVmp(len(trackedVMs))
 		// retry without delete error
 		sgConfig.sgDeleteError = nil
 		verifyDeleteNP(false)
@@ -1061,6 +1090,7 @@ var _ = Describe("NetworkPolicy", func() {
 		wait()
 		verifyNPTracker(trackedVMs, false, false)
 		verifyNPStatus(trackedVMs, false, false)
+		verifyVmp(0)
 	})
 
 	It("Create NetworkPolicy groups after security group garbage collection", func() {

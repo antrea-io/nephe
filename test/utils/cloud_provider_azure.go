@@ -241,14 +241,20 @@ func (p *azureVPC) GetCloudAccountParameters(name, namespace string, _ bool) k8s
 	return out
 }
 
-func (p *azureVPC) GetEntitySelectorParameters(name, namespace, kind string) k8stemplates.CloudEntitySelectorParameters {
-	return k8stemplates.CloudEntitySelectorParameters{
+// GetEntitySelectorParameters gets the CloudEntitySelector parameters to import given VMs.
+// All VMs in the VPC will be imported if vms is nil.
+func (p *azureVPC) GetEntitySelectorParameters(name, namespace, kind string, vms []string) k8stemplates.CloudEntitySelectorParameters {
+	out := k8stemplates.CloudEntitySelectorParameters{
 		Name:             name,
 		Namespace:        namespace,
-		VPC:              p.GetVPCID(),
+		Selector:         &k8stemplates.SelectorParameters{VPC: p.GetVPCID()},
 		CloudAccountName: p.currentAccountName,
 		Kind:             kind,
 	}
+	if vms != nil {
+		out.Selector = &k8stemplates.SelectorParameters{VMs: vms}
+	}
+	return out
 }
 
 func (p *azureVPC) VMCmd(vm string, vmCmd []string, timeout time.Duration) (string, error) {

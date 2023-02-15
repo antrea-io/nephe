@@ -134,7 +134,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Pods", focusAws, focusAzur
 
 		if importing {
 			entityParams := cloudVPC.GetEntitySelectorParameters("test-entity-selector", vmNamespace.Name,
-				reflect.TypeOf(cloud.VirtualMachine{}).Name())
+				reflect.TypeOf(cloud.VirtualMachine{}).Name(), nil)
 			err = utils.ConfigureEntitySelectorAndWait(kubeCtl, k8sClient, entityParams,
 				reflect.TypeOf(cloud.VirtualMachine{}).Name(),
 				len(cloudVPC.GetVMs()), vmNamespace.Name, false)
@@ -163,7 +163,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Pods", focusAws, focusAzur
 
 			if importFirst {
 				entityParams := cloudVPC.GetEntitySelectorParameters("test-entity-selector", vmNamespace.Name,
-					reflect.TypeOf(cloud.VirtualMachine{}).Name())
+					reflect.TypeOf(cloud.VirtualMachine{}).Name(), nil)
 				err := utils.ConfigureEntitySelectorAndWait(kubeCtl, k8sClient, entityParams,
 					reflect.TypeOf(cloud.VirtualMachine{}).Name(),
 					len(cloudVPC.GetVMs()), vmNamespace.Name, false)
