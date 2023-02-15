@@ -27,6 +27,7 @@ type VpcStatus struct {
 	Region   string                 `json:"region,omitempty"`
 	Tags     map[string]string      `json:"tags,omitempty"`
 	Cidrs    []string               `json:"cidrs,omitempty"`
+	Managed  bool                   `json:"managed,omitempty"`
 }
 
 // +kubebuilder:object:root=true

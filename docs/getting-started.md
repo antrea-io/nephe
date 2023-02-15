@@ -195,22 +195,22 @@ kubectl get vpc -A
 
 ```text
 # Output
-NAMESPACE   NAME                    CLOUD PROVIDER   REGION
-sample-ns   vpc-0f54c9f1b395038ab   AWS              us-west-1
-sample-ns   vpc-04269a331ab6cd649   AWS              us-west-1
-sample-ns   vpc-047156bebab1083c9   AWS              us-west-1
+NAMESPACE   NAME                    CLOUD PROVIDER   REGION      MANAGED
+sample-ns   vpc-0d6bb6a4a880bd9ad   AWS              us-west-1   true
+sample-ns   vpc-04269a331ab6cd649   AWS              us-west-1   false
+sample-ns   vpc-047156bebab1083c9   AWS              us-west-1   false
 ```
 
 Use describe on VPC object to get `Id` or `Name` field and use it in vpcMatch
 section of `CloudEntitySelector` configuration.
 
 ```bash
-kubectl describe vpc vpc-0f54c9f1b395038ab -n sample-ns
+kubectl describe vpc vpc-0d6bb6a4a880bd9ad -n sample-ns
 ```
 
 ```text
 # Output
-Name:         vpc-0f54c9f1b395038ab
+Name:         vpc-0d6bb6a4a880bd9ad
 Namespace:    sample-ns
 Labels:       account-name=cloudprovideraccount-aws-sample
               region=us-west-1
@@ -223,7 +223,7 @@ Spec:
   Cidrs:
     10.0.0.0/16
   Cloud Provider:  AWS
-  Id:              vpc-0f54c9f1b395038ab
+  Id:              vpc-0d6bb6a4a880bd9ad
   Name:            test-us-west1-vpc
   Region:          us-west-1
   Tags:

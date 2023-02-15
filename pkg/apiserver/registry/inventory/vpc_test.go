@@ -51,7 +51,8 @@ var _ = Describe("VPC", func() {
 			Tags: map[string]string{
 				"no.delete": "true",
 			},
-			Cidrs: []string{"192.168.1.1/24"},
+			Cidrs:   []string{"192.168.1.1/24"},
+			Managed: true,
 		},
 	}
 	cacheTest2 := &runtimev1alpha1.Vpc{
@@ -65,7 +66,8 @@ var _ = Describe("VPC", func() {
 			Tags: map[string]string{
 				"no.delete": "true",
 			},
-			Cidrs: []string{"192.168.1.1/24"},
+			Cidrs:   []string{"192.168.1.1/24"},
+			Managed: false,
 		},
 	}
 	cacheTest3 := &runtimev1alpha1.Vpc{
@@ -83,8 +85,9 @@ var _ = Describe("VPC", func() {
 			Tags: map[string]string{
 				"no.delete": "true",
 			},
-			Region: "region",
-			Cidrs:  []string{"192.168.1.1/24"},
+			Region:  "region",
+			Cidrs:   []string{"192.168.1.1/24"},
+			Managed: true,
 		},
 	}
 
@@ -133,7 +136,8 @@ var _ = Describe("VPC", func() {
 						Tags: map[string]string{
 							"no.delete": "true",
 						},
-						Cidrs: []string{"192.168.1.1/24"},
+						Cidrs:   []string{"192.168.1.1/24"},
+						Managed: true,
 					},
 				},
 				{
@@ -151,8 +155,9 @@ var _ = Describe("VPC", func() {
 						Tags: map[string]string{
 							"no.delete": "true",
 						},
-						Region: "region",
-						Cidrs:  []string{"192.168.1.1/24"},
+						Region:  "region",
+						Cidrs:   []string{"192.168.1.1/24"},
+						Managed: true,
 					},
 				},
 			},
@@ -174,8 +179,9 @@ var _ = Describe("VPC", func() {
 						Tags: map[string]string{
 							"no.delete": "true",
 						},
-						Region: "region",
-						Cidrs:  []string{"192.168.1.1/24"},
+						Region:  "region",
+						Cidrs:   []string{"192.168.1.1/24"},
+						Managed: true,
 					},
 				},
 			},
@@ -274,10 +280,11 @@ var _ = Describe("VPC", func() {
 			{Name: "NAME", Type: "string", Description: "Name"},
 			{Name: "CLOUD PROVIDER", Type: "string", Description: "Cloud Provider"},
 			{Name: "REGION", Type: "string", Description: "Region"},
+			{Name: "MANAGED", Type: "bool", Description: "Managed VPC"},
 		},
 		Rows: []metav1.TableRow{
 			{
-				Cells: []interface{}{"targetId4", v1alpha1.AWSCloudProvider, "us-west-2"},
+				Cells: []interface{}{"targetId4", v1alpha1.AWSCloudProvider, "us-west-2", false},
 			},
 		},
 	}

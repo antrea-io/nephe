@@ -808,7 +808,7 @@ func (c *azureCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *security
 	}
 
 	vnetPeerPairs := computeService.getVnetPeers(vnetID)
-	vnetCachedIDs := computeService.getCachedVnetIDs()
+	vnetCachedIDs := computeService.getManagedVnetIDs()
 	vnetVMs, _ := computeService.getVirtualMachines()
 	// ruleIP := vnetVMs[len(vnetVMs)-1].NetworkInterfaces[0].PrivateIps[0]
 	// AT sg name per vnet is fixed and predefined. Get azure nsg name for it.
@@ -975,7 +975,7 @@ func (c *azureCloud) GetEnforcedSecurity() []securitygroup.SynchronizationConten
 }
 
 func (computeCfg *computeServiceConfig) getNepheControllerManagedSecurityGroupsCloudView() []securitygroup.SynchronizationContent {
-	vnetIDs := computeCfg.getCachedVnetIDs()
+	vnetIDs := computeCfg.getManagedVnetIDs()
 	if len(vnetIDs) == 0 {
 		return []securitygroup.SynchronizationContent{}
 	}
@@ -1004,7 +1004,7 @@ func (computeCfg *computeServiceConfig) getNepheControllerManagedSecurityGroupsC
 
 func (computeCfg *computeServiceConfig) ifPeerProcessing(vnetID string) bool {
 	vnetPeerPairs := computeCfg.getVnetPeers(vnetID)
-	vnetCachedIDs := computeCfg.getCachedVnetIDs()
+	vnetCachedIDs := computeCfg.getManagedVnetIDs()
 	for _, vnetPeerPair := range vnetPeerPairs {
 		vnetPeerID, _, _ := vnetPeerPair[0], vnetPeerPair[1], vnetPeerPair[2]
 		if _, ok := vnetCachedIDs[vnetPeerID]; ok {

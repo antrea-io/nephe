@@ -79,7 +79,8 @@ func GenerateShortResourceIdentifier(id string, prefixToAdd string) string {
 
 // GenerateInternalVpcObject generates runtimev1alpha1 vpc object using the input parameters.
 func GenerateInternalVpcObject(name string, namespace string, labels map[string]string, cloudName string,
-	cloudId string, tags map[string]string, cloudProvider cloudv1alpha1.CloudProvider, region string, cidrs []string) *runtimev1alpha1.Vpc {
+	cloudId string, tags map[string]string, cloudProvider cloudv1alpha1.CloudProvider,
+	region string, cidrs []string, managed bool) *runtimev1alpha1.Vpc {
 	status := &runtimev1alpha1.VpcStatus{
 		Name:     cloudName,
 		Id:       cloudId,
@@ -87,6 +88,7 @@ func GenerateInternalVpcObject(name string, namespace string, labels map[string]
 		Region:   region,
 		Tags:     tags,
 		Cidrs:    cidrs,
+		Managed:  managed,
 	}
 
 	vpc := &runtimev1alpha1.Vpc{

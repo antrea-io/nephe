@@ -127,7 +127,8 @@ func (computeCfg *computeServiceConfig) getCachedVirtualMachines() []*virtualMac
 	return instancesToReturn
 }
 
-func (computeCfg *computeServiceConfig) getCachedVnetIDs() map[string]struct{} {
+// getManagedVnetIDs returns vnetIDs of vnets containing managed vms.
+func (computeCfg *computeServiceConfig) getManagedVnetIDs() map[string]struct{} {
 	vnetIDsCopy := make(map[string]struct{})
 	snapshot := computeCfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
@@ -348,11 +349,17 @@ func (computeCfg *computeServiceConfig) GetVpcInventory() map[string]*runtimev1a
 		return nil
 	}
 
+	vnetIDs := computeCfg.getManagedVnetIDs()
+
 	// Convert to kubernetes object and return a map indexed using VnetID.
 	vpcMap := map[string]*runtimev1alpha1.Vpc{}
 	for _, vpc := range snapshot.(*computeResourcesCacheSnapshot).vnets {
 		if strings.EqualFold(*vpc.Location, computeCfg.credentials.region) {
-			vpcObj := ComputeVpcToInternalVpcObject(&vpc, tokens[0], tokens[1], strings.ToLower(computeCfg.credentials.region))
+			managed := false
+			if _, ok := vnetIDs[strings.ToLower(*vpc.ID)]; ok {
+				managed = true
+			}
+			vpcObj := ComputeVpcToInternalVpcObject(&vpc, tokens[0], tokens[1], strings.ToLower(computeCfg.credentials.region), managed)
 			vpcMap[strings.ToLower(*vpc.ID)] = vpcObj
 		}
 	}
