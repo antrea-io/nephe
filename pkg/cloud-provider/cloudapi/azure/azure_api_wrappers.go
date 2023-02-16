@@ -17,49 +17,48 @@ package azure
 import (
 	"context"
 	"fmt"
-
-	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2021-03-01/network"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/Azure/azure-sdk-for-go/services/resourcegraph/mgmt/2021-03-01/resourcegraph"
-	"github.com/Azure/go-autorest/autorest"
 )
 
 type azureNwIntfWrapper interface {
 	createOrUpdate(ctx context.Context, resourceGroupName string, networkInterfaceName string,
-		parameters network.Interface) (network.Interface, error)
-	listAllComplete(ctx context.Context) ([]network.Interface, error)
+		parameters armnetwork.Interface) (armnetwork.Interface, error)
+	listAllComplete(ctx context.Context) ([]armnetwork.Interface, error)
 }
 type azureNwIntfWrapperImpl struct {
-	nwIntfAPIClient network.InterfacesClient
+	nwIntfAPIClient armnetwork.InterfacesClient
 }
 
 func (nwIntf *azureNwIntfWrapperImpl) createOrUpdate(ctx context.Context, resourceGroupName string, networkIntfName string,
-	parameters network.Interface) (network.Interface, error) {
-	var nwInterface network.Interface
+	parameters armnetwork.Interface) (armnetwork.Interface, error) {
+	var nwInterface armnetwork.Interface
 	nwIntfClient := nwIntf.nwIntfAPIClient
-	future, err := nwIntfClient.CreateOrUpdate(ctx, resourceGroupName, networkIntfName, parameters)
+	future, err := nwIntfClient.BeginCreateOrUpdate(ctx, resourceGroupName, networkIntfName, parameters, nil)
 	if err != nil {
 		return nwInterface, fmt.Errorf("cannot create %v, reason: %v", networkIntfName, err)
 	}
 
-	err = future.WaitForCompletionRef(ctx, nwIntfClient.Client)
+	resp, err := future.PollUntilDone(ctx, nil)
 	if err != nil {
 		return nwInterface, fmt.Errorf("cannot get network-interface create or update future response: %v", err)
 	}
 
-	return future.Result(nwIntfClient)
+	return resp.Interface, nil
 }
-func (nwIntf *azureNwIntfWrapperImpl) listAllComplete(ctx context.Context) ([]network.Interface, error) {
-	listResultIterator, err := nwIntf.nwIntfAPIClient.ListAllComplete(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list network interfaces, reason %v", err)
-	}
 
-	var networkInterfaces []network.Interface
-	for ; listResultIterator.NotDone(); err = listResultIterator.NextWithContext(ctx) {
+func (nwIntf *azureNwIntfWrapperImpl) listAllComplete(ctx context.Context) ([]armnetwork.Interface, error) {
+	var networkInterfaces []armnetwork.Interface
+
+	listResultIterator := nwIntf.nwIntfAPIClient.NewListAllPager(nil)
+	for listResultIterator.More() {
+		nextResult, err := listResultIterator.NextPage(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to iterate list of network interface, reason %v", err)
 		}
-		networkInterfaces = append(networkInterfaces, listResultIterator.Value())
+		for _, v := range nextResult.Value {
+			networkInterfaces = append(networkInterfaces, *v)
+		}
 	}
 
 	return networkInterfaces, nil
@@ -67,66 +66,69 @@ func (nwIntf *azureNwIntfWrapperImpl) listAllComplete(ctx context.Context) ([]ne
 
 type azureNsgWrapper interface {
 	createOrUpdate(ctx context.Context, resourceGroupName string, networkSecurityGroupName string,
-		parameters network.SecurityGroup) (nsg network.SecurityGroup, err error)
-	get(ctx context.Context, resourceGroupName string, networkSecurityGroupName string, expand string) (result network.SecurityGroup,
+		parameters armnetwork.SecurityGroup) (nsg armnetwork.SecurityGroup, err error)
+	get(ctx context.Context, resourceGroupName string, networkSecurityGroupName string, expand string) (result armnetwork.SecurityGroup,
 		err error)
 	delete(ctx context.Context, resourceGroupName string, networkSecurityGroupName string) error
-	listAllComplete(ctx context.Context) ([]network.SecurityGroup, error)
+	listAllComplete(ctx context.Context) ([]armnetwork.SecurityGroup, error)
 }
 type azureNsgWrapperImpl struct {
-	nsgAPIClient network.SecurityGroupsClient
+	nsgAPIClient armnetwork.SecurityGroupsClient
 }
 
 func (sg *azureNsgWrapperImpl) createOrUpdate(ctx context.Context, resourceGroupName string, networkSecurityGroupName string,
-	parameters network.SecurityGroup) (network.SecurityGroup, error) {
-	var nsg network.SecurityGroup
+	parameters armnetwork.SecurityGroup) (armnetwork.SecurityGroup, error) {
+	var nsg armnetwork.SecurityGroup
 	nsgClient := sg.nsgAPIClient
-	future, err := nsgClient.CreateOrUpdate(ctx, resourceGroupName, networkSecurityGroupName, parameters)
+	poller, err := nsgClient.BeginCreateOrUpdate(ctx, resourceGroupName, networkSecurityGroupName, parameters, nil)
 	if err != nil {
-		return nsg, fmt.Errorf("cannot create %v, reason: %v", networkSecurityGroupName, err)
+		return nsg, fmt.Errorf("cannot finish create request for nsg %v, reason: %v", networkSecurityGroupName, err)
 	}
 
-	err = future.WaitForCompletionRef(ctx, nsgClient.Client)
+	res, err := poller.PollUntilDone(ctx, nil)
 	if err != nil {
 		return nsg, fmt.Errorf("cannot get nsg create or update future response: %v", err)
 	}
 
-	return future.Result(nsgClient)
+	return res.SecurityGroup, nil
 }
 func (sg *azureNsgWrapperImpl) get(ctx context.Context, resourceGroupName string, networkSecurityGroupName string,
-	expand string) (result network.SecurityGroup, err error) {
-	return sg.nsgAPIClient.Get(ctx, resourceGroupName, networkSecurityGroupName, expand)
+	expand string) (result armnetwork.SecurityGroup, err error) {
+	var nsg armnetwork.SecurityGroup
+	res, err := sg.nsgAPIClient.Get(ctx, resourceGroupName, networkSecurityGroupName,
+		&armnetwork.SecurityGroupsClientGetOptions{Expand: nil})
+	if err != nil {
+		return nsg, err
+		//"cannot get response for nsg get request %v for asg %s", err, networkSecurityGroupName)
+	}
+	return res.SecurityGroup, nil
 }
 func (sg *azureNsgWrapperImpl) delete(ctx context.Context, resourceGroupName string, networkSecurityGroupName string) error {
 	nsgClient := sg.nsgAPIClient
-	future, err := nsgClient.Delete(ctx, resourceGroupName, networkSecurityGroupName)
+	poller, err := nsgClient.BeginDelete(ctx, resourceGroupName, networkSecurityGroupName, nil)
 	if err != nil {
-		detailError := err.(autorest.DetailedError)
-		if detailError.StatusCode != 404 {
-			return fmt.Errorf("cannot delete nsg %v, reason: %v", networkSecurityGroupName, err)
-		}
-		return nil
+		return fmt.Errorf("failed to finish delete request for nsg %v, reason: %v", networkSecurityGroupName, err)
 	}
 
-	err = future.WaitForCompletionRef(ctx, nsgClient.Client)
+	_, err = poller.PollUntilDone(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("cannot get nsg delete future response: %v", err)
 	}
 
 	return nil
 }
-func (sg *azureNsgWrapperImpl) listAllComplete(ctx context.Context) ([]network.SecurityGroup, error) {
-	listResultIterator, err := sg.nsgAPIClient.ListAllComplete(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list network security groups, reason %v", err)
-	}
+func (sg *azureNsgWrapperImpl) listAllComplete(ctx context.Context) ([]armnetwork.SecurityGroup, error) {
+	var nsgs []armnetwork.SecurityGroup
 
-	var nsgs []network.SecurityGroup
-	for ; listResultIterator.NotDone(); err = listResultIterator.NextWithContext(ctx) {
+	pager := sg.nsgAPIClient.NewListAllPager(nil)
+	for pager.More() {
+		nextResult, err := pager.NextPage(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to iterate list of security groups, reason %v", err)
 		}
-		nsgs = append(nsgs, listResultIterator.Value())
+		for _, v := range nextResult.Value {
+			nsgs = append(nsgs, *v)
+		}
 	}
 
 	return nsgs, nil
@@ -134,82 +136,99 @@ func (sg *azureNsgWrapperImpl) listAllComplete(ctx context.Context) ([]network.S
 
 type azureAsgWrapper interface {
 	createOrUpdate(ctx context.Context, resourceGroupName string, applicationSecurityGroupName string,
-		parameters network.ApplicationSecurityGroup) (network.ApplicationSecurityGroup, error)
-	get(ctx context.Context, resourceGroupName string, applicationSecurityGroupName string) (network.ApplicationSecurityGroup, error)
-	listComplete(ctx context.Context, resourceGroupName string) ([]network.ApplicationSecurityGroup, error)
-	listAllComplete(ctx context.Context) ([]network.ApplicationSecurityGroup, error)
+		parameters armnetwork.ApplicationSecurityGroup) (armnetwork.ApplicationSecurityGroup, error)
+	get(ctx context.Context, resourceGroupName string, applicationSecurityGroupName string) (armnetwork.ApplicationSecurityGroup, error)
+	listComplete(ctx context.Context, resourceGroupName string) ([]armnetwork.ApplicationSecurityGroup, error)
+	listAllComplete(ctx context.Context) ([]armnetwork.ApplicationSecurityGroup, error)
 	delete(ctx context.Context, resourceGroupName string, applicationSecurityGroupName string) error
 }
 type azureAsgWrapperImpl struct {
-	asgAPIClient network.ApplicationSecurityGroupsClient
+	asgAPIClient armnetwork.ApplicationSecurityGroupsClient
 }
 
 func (asg *azureAsgWrapperImpl) createOrUpdate(ctx context.Context, resourceGroupName string,
-	applicationSecurityGroupName string, parameters network.ApplicationSecurityGroup) (network.ApplicationSecurityGroup, error) {
-	var appsg network.ApplicationSecurityGroup
+	applicationSecurityGroupName string, parameters armnetwork.ApplicationSecurityGroup) (armnetwork.ApplicationSecurityGroup, error) {
+	var appsg armnetwork.ApplicationSecurityGroup
+	azurePluginLogger().Info("Test: starting of create asg function", "rg", resourceGroupName)
 	asgClient := asg.asgAPIClient
-	future, err := asgClient.CreateOrUpdate(ctx, resourceGroupName, applicationSecurityGroupName, parameters)
+	poller, err := asgClient.BeginCreateOrUpdate(ctx, resourceGroupName, applicationSecurityGroupName, parameters, nil)
+
+	azurePluginLogger().Info("Test: after BeginCreateOrUpdate", "err", err)
 	if err != nil {
-		return appsg, fmt.Errorf("cannot create asg %v, reason: %v", applicationSecurityGroupName, err)
+		return appsg, fmt.Errorf("cannot finish asg create request, asg %v, reason: %v", applicationSecurityGroupName, err)
 	}
 
-	err = future.WaitForCompletionRef(ctx, asgClient.Client)
+	res, err := poller.PollUntilDone(ctx, nil)
+	azurePluginLogger().Info("Test: after PollUntilDone", "asg", asg, "err", err)
 	if err != nil {
-		return appsg, fmt.Errorf("cannot get asg create or update future response: %v", err)
+		return appsg, fmt.Errorf("cannot get asg create or update response: %v", err)
 	}
 
-	return future.Result(asgClient)
+	appsg = res.ApplicationSecurityGroup
+
+	return appsg, nil
 }
 func (asg *azureAsgWrapperImpl) get(ctx context.Context, resourceGroupName string,
-	applicationSecurityGroupName string) (network.ApplicationSecurityGroup, error) {
-	return asg.asgAPIClient.Get(ctx, resourceGroupName, applicationSecurityGroupName)
-}
-func (asg *azureAsgWrapperImpl) listComplete(ctx context.Context, resourceGroupName string) ([]network.ApplicationSecurityGroup, error) {
-	listResultIterator, err := asg.asgAPIClient.ListComplete(ctx, resourceGroupName)
+	applicationSecurityGroupName string) (armnetwork.ApplicationSecurityGroup, error) {
+	var appsg armnetwork.ApplicationSecurityGroup
+	//var respErr *azcore.ResponseError
+	res, err := asg.asgAPIClient.Get(ctx, resourceGroupName, applicationSecurityGroupName, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list of asgs for resource-group: %v, reason %v", resourceGroupName, err)
+		return appsg, err
+		/*
+			if errors.As(err, &respErr) {
+				azurePluginLogger().Info("Test: asg get call returns an error", "status code", respErr.StatusCode)
+				if respErr.StatusCode != http.StatusNotFound {
+					return appsg, err
+				}
+			}
+
+		*/
 	}
 
-	var asgs []network.ApplicationSecurityGroup
-	for ; listResultIterator.NotDone(); err = listResultIterator.NextWithContext(ctx) {
+	appsg = res.ApplicationSecurityGroup
+	return appsg, nil
+}
+func (asg *azureAsgWrapperImpl) listComplete(ctx context.Context, resourceGroupName string) ([]armnetwork.ApplicationSecurityGroup, error) {
+	var asgs []armnetwork.ApplicationSecurityGroup
+	listResultIterator := asg.asgAPIClient.NewListPager(resourceGroupName, nil)
+	for listResultIterator.More() {
+		nextResult, err := listResultIterator.NextPage(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to iterate list of asgs for resource-group: %v, reason %v", resourceGroupName, err)
 		}
-		asgs = append(asgs, listResultIterator.Value())
+		for _, v := range nextResult.Value {
+			asgs = append(asgs, *v)
+		}
 	}
 
 	return asgs, nil
 }
-func (asg *azureAsgWrapperImpl) listAllComplete(ctx context.Context) ([]network.ApplicationSecurityGroup, error) {
-	listResultIterator, err := asg.asgAPIClient.ListAllComplete(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list application security groups, reason %v", err)
-	}
-
-	var asgs []network.ApplicationSecurityGroup
-	for ; listResultIterator.NotDone(); err = listResultIterator.NextWithContext(ctx) {
+func (asg *azureAsgWrapperImpl) listAllComplete(ctx context.Context) ([]armnetwork.ApplicationSecurityGroup, error) {
+	var asgs []armnetwork.ApplicationSecurityGroup
+	listResultIterator := asg.asgAPIClient.NewListAllPager(nil)
+	for listResultIterator.More() {
+		nextResult, err := listResultIterator.NextPage(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to iterate list of application security groups, reason %v", err)
+			return nil, fmt.Errorf("failed to iterate list of asgs, reason %v", err)
 		}
-		asgs = append(asgs, listResultIterator.Value())
+		for _, v := range nextResult.Value {
+			asgs = append(asgs, *v)
+		}
 	}
 
 	return asgs, nil
 }
 func (asg *azureAsgWrapperImpl) delete(ctx context.Context, resourceGroupName string, applicationSecurityGroupName string) error {
 	asgClient := asg.asgAPIClient
-	future, err := asgClient.Delete(ctx, resourceGroupName, applicationSecurityGroupName)
+	poller, err := asgClient.BeginDelete(ctx, resourceGroupName, applicationSecurityGroupName, nil)
 	if err != nil {
-		detailError := err.(autorest.DetailedError)
-		if detailError.StatusCode != 404 {
-			return fmt.Errorf("cannot delete asg %v, reason: %v", applicationSecurityGroupName, err)
-		}
-		return nil
+		return fmt.Errorf("cannot delete asg %v, reason: %v", applicationSecurityGroupName, err)
 	}
 
-	err = future.WaitForCompletionRef(ctx, asgClient.Client)
+	_, err = poller.PollUntilDone(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("cannot get asg delete future response: %v", err)
+		return fmt.Errorf("cannot get asg delete poll response: %v", err)
 	}
 
 	return nil
@@ -228,24 +247,23 @@ func (rg *azureResourceGraphWrapperImpl) resources(ctx context.Context, query re
 }
 
 type azureVirtualNetworksWrapper interface {
-	listAllComplete(ctx context.Context) ([]network.VirtualNetwork, error)
+	listAllComplete(ctx context.Context) ([]armnetwork.VirtualNetwork, error)
 }
 type azureVirtualNetworksWrapperImpl struct {
-	virtualNetworksClient network.VirtualNetworksClient
+	virtualNetworksClient armnetwork.VirtualNetworksClient
 }
 
-func (vnet *azureVirtualNetworksWrapperImpl) listAllComplete(ctx context.Context) ([]network.VirtualNetwork, error) {
-	listResultIterator, err := vnet.virtualNetworksClient.ListAllComplete(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list virtual networks: %q", err)
-	}
-
-	var VNListResultIterators []network.VirtualNetwork
-	for ; listResultIterator.NotDone(); err = listResultIterator.NextWithContext(ctx) {
+func (vnet *azureVirtualNetworksWrapperImpl) listAllComplete(ctx context.Context) ([]armnetwork.VirtualNetwork, error) {
+	var VNListResultIterators []armnetwork.VirtualNetwork
+	pager := vnet.virtualNetworksClient.NewListAllPager(nil)
+	for pager.More() {
+		nextResult, err := pager.NextPage(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to iterate list of virtual networks: %q", err)
 		}
-		VNListResultIterators = append(VNListResultIterators, listResultIterator.Value())
+		for _, v := range nextResult.Value {
+			VNListResultIterators = append(VNListResultIterators, *v)
+		}
 	}
 
 	return VNListResultIterators, nil

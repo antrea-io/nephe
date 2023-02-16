@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2021-03-01/network"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/Azure/go-autorest/autorest/to"
 
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
@@ -27,32 +27,39 @@ import (
 
 // networkInterfaces returns network interfaces SDK api client.
 func (p *azureServiceSdkConfigProvider) networkInterfaces(subscriptionID string) (azureNwIntfWrapper, error) {
-	interfacesClient := network.NewInterfacesClient(subscriptionID)
-	interfacesClient.Authorizer = p.authorizer
-	return &azureNwIntfWrapperImpl{nwIntfAPIClient: interfacesClient}, nil
+	interfacesClient, _ := armnetwork.NewInterfacesClient(subscriptionID, p.cred, nil)
+
+	return &azureNwIntfWrapperImpl{nwIntfAPIClient: *interfacesClient}, nil
 }
 
-func updateNetworkInterfaceAsg(nwIntfAPIClient azureNwIntfWrapper, nwIntfObj network.Interface,
-	asgObjToAttachOrDetach network.ApplicationSecurityGroup, isAttach bool) error {
+func updateNetworkInterfaceAsg(nwIntfAPIClient azureNwIntfWrapper, nwIntfObj armnetwork.Interface,
+	asgObjToAttachOrDetach armnetwork.ApplicationSecurityGroup, isAttach bool) error {
 	if nwIntfObj.ID == nil {
 		return fmt.Errorf("network interface object is empty")
 	}
 
 	_, rgName, resName, _ := extractFieldsFromAzureResourceID(*nwIntfObj.ID)
 
+	if nwIntfObj.Properties == nil {
+		return fmt.Errorf("network interface Properties is empty")
+	}
 	ipConfigurations := getAsgUpdatedIPConfigurations(&nwIntfObj, asgObjToAttachOrDetach, isAttach)
-	nwIntfObj.IPConfigurations = ipConfigurations
+	nwIntfObj.Properties.IPConfigurations = ipConfigurations
 
 	_, err := nwIntfAPIClient.createOrUpdate(context.Background(), rgName, resName, nwIntfObj)
 	azurePluginLogger().Info("updated network-interface", "ID", *nwIntfObj.ID, "err", err)
 	return err
 }
 
-func updateNetworkInterfaceNsg(nwIntfAPIClient azureNwIntfWrapper, nwIntfObj network.Interface,
-	nsgObjToAttachOrDetach network.SecurityGroup, asgObjToAttachOrDetach network.ApplicationSecurityGroup,
+func updateNetworkInterfaceNsg(nwIntfAPIClient azureNwIntfWrapper, nwIntfObj armnetwork.Interface,
+	nsgObjToAttachOrDetach armnetwork.SecurityGroup, asgObjToAttachOrDetach armnetwork.ApplicationSecurityGroup,
 	isAttach bool, tagKey string) error {
 	if nwIntfObj.ID == nil {
 		return fmt.Errorf("network interface object is empty")
+	}
+
+	if nwIntfObj.Properties == nil {
+		return fmt.Errorf("network interface Properties is empty")
 	}
 
 	_, rgName, resName, _ := extractFieldsFromAzureResourceID(*nwIntfObj.ID)
@@ -60,8 +67,8 @@ func updateNetworkInterfaceNsg(nwIntfAPIClient azureNwIntfWrapper, nwIntfObj net
 	nsg, tags := getUpdatedNetworkInterfaceNsgAndTags(&nwIntfObj, nsgObjToAttachOrDetach, isAttach, tagKey)
 	ipConfigurations := getAsgUpdatedIPConfigurations(&nwIntfObj, asgObjToAttachOrDetach, isAttach)
 
-	nwIntfObj.IPConfigurations = ipConfigurations
-	nwIntfObj.NetworkSecurityGroup = nsg
+	nwIntfObj.Properties.IPConfigurations = ipConfigurations
+	nwIntfObj.Properties.NetworkSecurityGroup = nsg
 	nwIntfObj.Tags = tags
 	_, err := nwIntfAPIClient.createOrUpdate(context.Background(), rgName, resName, nwIntfObj)
 	azurePluginLogger().Info("updated network-interface", "ID", *nwIntfObj.ID, "err", err)
@@ -69,13 +76,13 @@ func updateNetworkInterfaceNsg(nwIntfAPIClient azureNwIntfWrapper, nwIntfObj net
 	return err
 }
 
-func getNetworkInterfacesGivenIDs(nwIntfAPIClient azureNwIntfWrapper, nwIntfIDSet map[string]struct{}) (map[string]network.Interface,
+func getNetworkInterfacesGivenIDs(nwIntfAPIClient azureNwIntfWrapper, nwIntfIDSet map[string]struct{}) (map[string]armnetwork.Interface,
 	error) {
 	nwIntfObjs, err := nwIntfAPIClient.listAllComplete(context.Background())
 	if err != nil {
 		return nil, err
 	}
-	nwIntfIDToObj := make(map[string]network.Interface)
+	nwIntfIDToObj := make(map[string]armnetwork.Interface)
 	for _, nwIntfObj := range nwIntfObjs {
 		nwIntfIDLowerCase := strings.ToLower(*nwIntfObj.ID)
 		if _, found := nwIntfIDSet[nwIntfIDLowerCase]; found {
@@ -86,45 +93,57 @@ func getNetworkInterfacesGivenIDs(nwIntfAPIClient azureNwIntfWrapper, nwIntfIDSe
 	return nwIntfIDToObj, nil
 }
 
-func getAsgUpdatedIPConfigurations(nwIntfObj *network.Interface, asgObjToAttachOrDetach network.ApplicationSecurityGroup,
-	isAttach bool) *[]network.InterfaceIPConfiguration {
-	var currentNwIntfAsgs []network.ApplicationSecurityGroup
-	ipConfigurations := nwIntfObj.IPConfigurations
-	for _, ipConfiguration := range *ipConfigurations {
-		if !*ipConfiguration.Primary {
+func getAsgUpdatedIPConfigurations(nwIntfObj *armnetwork.Interface, asgObjToAttachOrDetach armnetwork.ApplicationSecurityGroup,
+	isAttach bool) []*armnetwork.InterfaceIPConfiguration {
+	var currentNwIntfAsgs []armnetwork.ApplicationSecurityGroup
+	ipConfigurations := nwIntfObj.Properties.IPConfigurations
+
+	for _, ipConfiguration := range ipConfigurations {
+		if ipConfiguration.Properties == nil {
 			continue
 		}
-		if ipConfiguration.ApplicationSecurityGroups != nil {
-			currentNwIntfAsgs = append(currentNwIntfAsgs, *ipConfiguration.ApplicationSecurityGroups...)
+		if !*ipConfiguration.Properties.Primary {
+			continue
+		}
+		if len(ipConfiguration.Properties.ApplicationSecurityGroups) != 0 {
+			for _, asg := range ipConfiguration.Properties.ApplicationSecurityGroups {
+				currentNwIntfAsgs = append(currentNwIntfAsgs, *asg)
+			}
 		}
 		break
 	}
 
-	var newNwIntfAsgs []network.ApplicationSecurityGroup
+	var newNwIntfAsgs []*armnetwork.ApplicationSecurityGroup
 	if isAttach {
-		newNwIntfAsgs = append(newNwIntfAsgs, currentNwIntfAsgs...)
-		newNwIntfAsgs = append(newNwIntfAsgs, asgObjToAttachOrDetach)
+		for _, asg := range currentNwIntfAsgs {
+			newNwIntfAsgs = append(newNwIntfAsgs, &asg)
+		}
+		newNwIntfAsgs = append(newNwIntfAsgs, &asgObjToAttachOrDetach)
 	} else {
 		asgToDetachIDLowercase := strings.ToLower(*asgObjToAttachOrDetach.ID)
 		for _, currentNwIntfAsg := range currentNwIntfAsgs {
 			if strings.Compare(asgToDetachIDLowercase, strings.ToLower(*currentNwIntfAsg.ID)) == 0 {
 				continue
 			}
-			newNwIntfAsgs = append(newNwIntfAsgs, currentNwIntfAsg)
+			newNwIntfAsgs = append(newNwIntfAsgs, &currentNwIntfAsg)
 		}
 	}
 
-	for _, ipConfigurations := range *ipConfigurations {
-		ipConfigurations.ApplicationSecurityGroups = &newNwIntfAsgs
+	for _, ipConfigurations := range ipConfigurations {
+		if ipConfigurations.Properties == nil {
+			continue
+		}
+		ipConfigurations.Properties.ApplicationSecurityGroups = newNwIntfAsgs
 	}
 	return ipConfigurations
 }
 
-func getUpdatedNetworkInterfaceNsgAndTags(nwIntfObj *network.Interface, nsgObjToAttachOrDetach network.SecurityGroup, isAttach bool,
-	tagKey string) (*network.SecurityGroup, map[string]*string) {
+func getUpdatedNetworkInterfaceNsgAndTags(nwIntfObj *armnetwork.Interface, nsgObjToAttachOrDetach armnetwork.SecurityGroup, isAttach bool,
+	tagKey string) (*armnetwork.SecurityGroup, map[string]*string) {
 	currentTags := nwIntfObj.Tags
+
 	if isAttach {
-		nwIntfObj.NetworkSecurityGroup = &nsgObjToAttachOrDetach
+		nwIntfObj.Properties.NetworkSecurityGroup = &nsgObjToAttachOrDetach
 		if currentTags == nil {
 			currentTags = make(map[string]*string)
 		}
@@ -132,11 +151,11 @@ func getUpdatedNetworkInterfaceNsgAndTags(nwIntfObj *network.Interface, nsgObjTo
 	} else {
 		delete(currentTags, tagKey)
 		if !hasAnyNepheControllerSecurityGroupTags(currentTags) {
-			nwIntfObj.NetworkSecurityGroup = nil
+			nwIntfObj.Properties.NetworkSecurityGroup = nil
 		}
 	}
 
-	return nwIntfObj.NetworkSecurityGroup, currentTags
+	return nwIntfObj.Properties.NetworkSecurityGroup, currentTags
 }
 
 func hasAnyNepheControllerSecurityGroupTags(tags map[string]*string) bool {

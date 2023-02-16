@@ -17,18 +17,19 @@ package azure
 import (
 	"fmt"
 
+	"antrea.io/nephe/pkg/cloud-provider/cloudapi/internal"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/azure/auth"
 	"k8s.io/apimachinery/pkg/types"
 
-	"antrea.io/nephe/pkg/cloud-provider/cloudapi/internal"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
 
 const (
 	azureComputeServiceNameCompute = internal.CloudServiceName("COMPUTE")
 )
 
-// azureServiceClientCreateInterface provides interface to create aws service clients.
+// azureServiceClientCreateInterface provides interface to create azure service clients.
 type azureServiceClientCreateInterface interface {
 	resourceGraph() (azureResourceGraphWrapper, error)
 	networkInterfaces(subscriptionID string) (azureNwIntfWrapper, error)
@@ -42,6 +43,7 @@ type azureServiceClientCreateInterface interface {
 // Implements azureServiceClientCreateInterface interface.
 type azureServiceSdkConfigProvider struct {
 	authorizer autorest.Authorizer
+	cred       *azidentity.ClientSecretCredential
 }
 
 // azureServicesHelper.
@@ -56,6 +58,12 @@ func (h *azureServicesHelperImpl) newServiceSdkConfigProvider(accCreds *azureAcc
 	azureServiceClientCreateInterface, error) {
 	var authorizer autorest.Authorizer
 	var err error
+
+	cred, err := azidentity.NewClientSecretCredential(accCreds.TenantID, accCreds.ClientID, accCreds.ClientKey, nil)
+	if err != nil {
+		return nil, fmt.Errorf("unable to initialize Azure authorizer from credentials: %v", err)
+	}
+
 	clientConfig := auth.NewClientCredentialsConfig(accCreds.ClientID, accCreds.ClientKey, accCreds.TenantID)
 	authorizer, err = clientConfig.Authorizer()
 	if err != nil {
@@ -63,6 +71,7 @@ func (h *azureServicesHelperImpl) newServiceSdkConfigProvider(accCreds *azureAcc
 	}
 	configProvider := &azureServiceSdkConfigProvider{
 		authorizer: authorizer,
+		cred:       cred,
 	}
 	return configProvider, nil
 }
@@ -79,11 +88,11 @@ func newAzureServiceConfigs(accountNamespacedName *types.NamespacedName, accCred
 		return nil, err
 	}
 
-	ec2Service, err := newComputeServiceConfig(accountNamespacedName.String(), azureServiceClientCreator, azureAccountCredentials)
+	computeService, err := newComputeServiceConfig(accountNamespacedName.String(), azureServiceClientCreator, azureAccountCredentials)
 	if err != nil {
 		return nil, err
 	}
-	serviceConfigs = append(serviceConfigs, ec2Service)
+	serviceConfigs = append(serviceConfigs, computeService)
 
 	return serviceConfigs, nil
 }

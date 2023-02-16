@@ -15,9 +15,8 @@
 package azure
 
 import (
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"strings"
-
-	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2021-03-01/network"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
@@ -108,7 +107,7 @@ func computeInstanceToVirtualMachineCRD(instance *virtualMachineTable, namespace
 }
 
 // ComputeVpcToInternalVpcObject converts vnet object from cloud format(network.VirtualNetwork) to vpc runtime object.
-func ComputeVpcToInternalVpcObject(vnet *network.VirtualNetwork, namespace string, accountName string,
+func ComputeVpcToInternalVpcObject(vnet *armnetwork.VirtualNetwork, namespace string, accountName string,
 	region string, managed bool) *runtimev1alpha1.Vpc {
 	crdName := utils.GenerateShortResourceIdentifier(*vnet.ID, *vnet.Name)
 	tags := make(map[string]string, 0)
@@ -118,8 +117,10 @@ func ComputeVpcToInternalVpcObject(vnet *network.VirtualNetwork, namespace strin
 		}
 	}
 	cidrs := make([]string, 0)
-	if vnet.AddressSpace != nil && vnet.AddressSpace.AddressPrefixes != nil {
-		cidrs = append(cidrs, *vnet.AddressSpace.AddressPrefixes...)
+	if vnet.Properties != nil && vnet.Properties.AddressSpace != nil && vnet.Properties.AddressSpace.AddressPrefixes != nil {
+		for _, cidr := range vnet.Properties.AddressSpace.AddressPrefixes {
+			cidrs = append(cidrs, *cidr)
+		}
 	}
 	labelsMap := map[string]string{
 		common.VpcLabelAccountName: accountName,
