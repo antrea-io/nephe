@@ -142,7 +142,7 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *cloudv1a
 	}
 	cloudType, err := r.Poller.getCloudType(accountNamespacedName)
 	if err != nil {
-		return fmt.Errorf("%s %s, err: %v", errorMsgSelectorAddFail, selectorNamespacedName.Name, err)
+		return fmt.Errorf("%s, %s %v", err.Error(), errorMsgSelectorAddFail, selectorNamespacedName)
 	}
 
 	cloudInterface, err := cloudprovider.GetCloudInterface(common.ProviderType(cloudType))
@@ -153,12 +153,21 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *cloudv1a
 	r.selectorToAccountMap[*selectorNamespacedName] = *accountNamespacedName
 	err = cloudInterface.AddAccountResourceSelector(accountNamespacedName, selector)
 	if err != nil {
+		r.Log.Info(errorMsgSelectorAddFail, "selector", selectorNamespacedName, "error", err)
 		_ = r.processDelete(selectorNamespacedName)
 		return fmt.Errorf("%s %s, err: %v", errorMsgSelectorAddFail, selectorNamespacedName.Name, err)
 	}
 
 	err = r.Poller.updateAccountPoller(accountNamespacedName, selector)
 	if err != nil {
+		r.Log.Info(errorMsgSelectorAddFail, "selector", selectorNamespacedName, "error", err)
+		_ = r.processDelete(selectorNamespacedName)
+		return err
+	}
+
+	err = r.Poller.RestartAccountPoller(accountNamespacedName)
+	if err != nil {
+		r.Log.Info(errorMsgSelectorAddFail, "selector", selectorNamespacedName, "error", err)
 		_ = r.processDelete(selectorNamespacedName)
 		return err
 	}

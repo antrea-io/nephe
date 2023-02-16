@@ -153,6 +153,11 @@ func (r *CloudProviderAccountReconciler) processCreate(namespacedName *types.Nam
 			return err
 		}
 		go wait.Until(accPoller.doAccountPoller, time.Duration(accPoller.pollIntvInSeconds)*time.Second, accPoller.ch)
+	} else {
+		err = r.Poller.RestartAccountPoller(namespacedName)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -164,6 +169,7 @@ func (r *CloudProviderAccountReconciler) processDelete(namespacedName *types.Nam
 	if err != nil {
 		return err
 	}
+	r.Log.V(1).Info("removed account poller", "account", namespacedName.String())
 
 	err = r.Inventory.DeleteVpcCache(namespacedName)
 	if err != nil {

@@ -20,11 +20,13 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-logr/logr"
 	"go.uber.org/multierr"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -53,6 +55,7 @@ type accountPoller struct {
 	selector          *cloudv1alpha1.CloudEntitySelector
 	vmSelector        cache.Indexer
 	ch                chan struct{}
+	mutex             sync.Mutex
 	inventory         *inventory.Inventory
 }
 
@@ -156,10 +159,13 @@ func (p *Poller) removeAccountPoller(namespacedName *types.NamespacedName) error
 			cloudInterface.RemoveAccountResourcesSelector(namespacedName, poller.selector.Name)
 		}
 
+		poller.mutex.Lock()
 		if poller.ch != nil {
 			close(poller.ch)
 			poller.ch = nil
 		}
+		poller.mutex.Unlock()
+
 		delete(p.accPollers, *namespacedName)
 	}
 
@@ -174,7 +180,7 @@ func (p *Poller) getCloudType(name *types.NamespacedName) (cloudv1alpha1.CloudPr
 	if pollerScope, exists := p.accPollers[*name]; exists {
 		return pollerScope.cloudType, nil
 	}
-	return "", fmt.Errorf("account poller not found, account %s", name.String())
+	return "", fmt.Errorf("%s %v", errorMsgAccountPollerNotFound, name)
 }
 
 // updateAccountPoller updates accountPoller object with CES specific information.
@@ -184,7 +190,7 @@ func (p *Poller) updateAccountPoller(name *types.NamespacedName, selector *cloud
 
 	accPoller, found := p.accPollers[*name]
 	if !found {
-		return fmt.Errorf("%s %s", errorMsgSelectorAddFail, name.String())
+		return fmt.Errorf("%s %v", errorMsgAccountPollerNotFound, name)
 	}
 
 	if selector.Spec.VMSelector != nil {
@@ -217,7 +223,38 @@ func (p *Poller) updateAccountPoller(name *types.NamespacedName, selector *cloud
 	return nil
 }
 
+// RestartAccountPoller stops and starts a goroutine making sure there is only one account poller goroutine at a time.
+func (p *Poller) RestartAccountPoller(name *types.NamespacedName) error {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	accPoller, found := p.accPollers[*name]
+	if !found {
+		return fmt.Errorf("%s %v", errorMsgAccountPollerNotFound, name)
+	}
+
+	// Acquire mutex lock to make sure doAccountPoller is not running while new gorutine is started.
+	accPoller.mutex.Lock()
+
+	if accPoller.ch != nil {
+		p.log.Info("Stop account poller goroutine", "account", name)
+		close(accPoller.ch)
+		accPoller.ch = nil
+	}
+
+	p.log.Info("Start account poller goroutine", "account", name)
+	accPoller.ch = make(chan struct{})
+	go wait.Until(accPoller.doAccountPoller, time.Duration(accPoller.pollIntvInSeconds)*time.Second, accPoller.ch)
+
+	accPoller.mutex.Unlock()
+
+	return nil
+}
+
 func (p *accountPoller) doAccountPoller() {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
 	cloudInterface, e := cloudprovider.GetCloudInterface(common.ProviderType(p.cloudType))
 	if e != nil {
 		p.log.Error(e, "failed to get cloud interface", "account", p.namespacedName)

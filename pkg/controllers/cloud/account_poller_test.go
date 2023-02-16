@@ -156,5 +156,34 @@ var _ = Describe("Account poller", func() {
 			Expect(accPoller).To(Not(BeNil()))
 			Expect(exists).To(BeTrue())
 		})
+		It("Account poller restart", func() {
+			_ = fakeClient.Create(context.Background(), secret)
+			_ = fakeClient.Create(context.Background(), account)
+
+			accountCloudType, err := utils.GetAccountProviderType(account)
+			Expect(err).ShouldNot(HaveOccurred())
+			accPoller, exists := reconciler.Poller.addAccountPoller(accountCloudType, &testAccountNamespacedName, account, reconciler)
+			Expect(accPoller).To(Not(BeNil()))
+			Expect(exists).To(BeFalse())
+
+			err = reconciler.Poller.RestartAccountPoller(&testAccountNamespacedName)
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+		It("Account poller not available during restart", func() {
+			_ = fakeClient.Create(context.Background(), secret)
+			_ = fakeClient.Create(context.Background(), account)
+
+			accountCloudType, err := utils.GetAccountProviderType(account)
+			Expect(err).ShouldNot(HaveOccurred())
+			accPoller, exists := reconciler.Poller.addAccountPoller(accountCloudType, &testAccountNamespacedName, account, reconciler)
+			Expect(accPoller).To(Not(BeNil()))
+			Expect(exists).To(BeFalse())
+
+			err = reconciler.Poller.removeAccountPoller(&testAccountNamespacedName)
+			Expect(err).ShouldNot(HaveOccurred())
+			err = reconciler.Poller.RestartAccountPoller(&testAccountNamespacedName)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring(errorMsgAccountPollerNotFound))
+		})
 	})
 })
