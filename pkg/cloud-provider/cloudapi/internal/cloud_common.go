@@ -65,7 +65,7 @@ type CloudCommonInterface interface {
 }
 
 type cloudCommon struct {
-	mutex               sync.Mutex
+	mutex               sync.RWMutex
 	commonHelper        CloudCommonHelperInterface
 	logger              func() logging.Logger
 	accountConfigs      map[types.NamespacedName]CloudAccountInterface
@@ -108,26 +108,21 @@ func (c *cloudCommon) AddCloudAccount(client client.Client, account *cloudv1alph
 	return nil
 }
 
-func (c *cloudCommon) deleteCloudAccount(namespacedName *types.NamespacedName) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	delete(c.accountConfigs, *namespacedName)
-}
-
 func (c *cloudCommon) RemoveCloudAccount(namespacedName *types.NamespacedName) {
 	_, found := c.GetCloudAccountByName(namespacedName)
 	if !found {
 		c.logger().V(0).Info("unable to find cloud account", "account", *namespacedName)
 		return
 	}
-	c.deleteCloudAccount(namespacedName)
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	delete(c.accountConfigs, *namespacedName)
 }
 
 // GetCloudAccountByName finds accCfg matching the namespacedName.
 func (c *cloudCommon) GetCloudAccountByName(namespacedName *types.NamespacedName) (CloudAccountInterface, bool) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 
 	accCfg, found := c.accountConfigs[*namespacedName]
 	return accCfg, found
@@ -139,28 +134,31 @@ func (c *cloudCommon) GetCloudAccountByAccountId(accountID *string) (CloudAccoun
 	tokens := strings.Split(*accountID, "/")
 	if len(tokens) == 2 {
 		namespacedName := types.NamespacedName{Namespace: tokens[0], Name: tokens[1]}
-		c.mutex.Lock()
-		defer c.mutex.Unlock()
-		accCfg, found := c.accountConfigs[namespacedName]
+		accCfg, found := c.GetCloudAccountByName(&namespacedName)
 		return accCfg, found
 	} else {
-		c.logger().V(0).Info("Account ID is not in the expected format", "AccountID", accountID)
+		c.logger().V(0).Info("account id is not in the expected format", "AccountID", accountID)
 		return nil, false
 	}
 }
 
+// GetCloudAccounts returns a copy of all account configs.
 func (c *cloudCommon) GetCloudAccounts() map[types.NamespacedName]CloudAccountInterface {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 
-	return c.accountConfigs
+	accountConfigs := map[types.NamespacedName]CloudAccountInterface{}
+	for namespacedName, accCfg := range c.accountConfigs {
+		accountConfigs[namespacedName] = accCfg
+	}
+	return accountConfigs
 }
 
 func (c *cloudCommon) GetCloudAccountComputeResourceCRDs(accountNamespacedName *types.NamespacedName) ([]*cloudv1alpha1.VirtualMachine,
 	error) {
 	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
 	if !found {
-		return nil, fmt.Errorf("unable to find cloud account %v", *accountNamespacedName)
+		return nil, fmt.Errorf("unable to find cloud account: %v", *accountNamespacedName)
 	}
 	namespace := accCfg.GetNamespacedName().Namespace
 
@@ -195,7 +193,7 @@ func (c *cloudCommon) GetAllCloudAccountsComputeResourceCRDs() ([]*cloudv1alpha1
 func (c *cloudCommon) AddSelector(accountNamespacedName *types.NamespacedName, selector *cloudv1alpha1.CloudEntitySelector) error {
 	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
 	if !found {
-		return fmt.Errorf("account not found %v", *accountNamespacedName)
+		return fmt.Errorf("unable to find cloud account: %v", *accountNamespacedName)
 	}
 
 	for _, serviceCfg := range accCfg.GetServiceConfigs() {
@@ -214,7 +212,7 @@ func (c *cloudCommon) AddSelector(accountNamespacedName *types.NamespacedName, s
 func (c *cloudCommon) RemoveSelector(accNamespacedName *types.NamespacedName, selectorName string) {
 	accCfg, found := c.GetCloudAccountByName(accNamespacedName)
 	if !found {
-		c.logger().Info("Not found", "account", *accNamespacedName, "name", selectorName)
+		c.logger().Info("Account not found", "account", *accNamespacedName, "name", selectorName)
 		return
 	}
 
@@ -226,7 +224,7 @@ func (c *cloudCommon) RemoveSelector(accNamespacedName *types.NamespacedName, se
 func (c *cloudCommon) GetStatus(accountNamespacedName *types.NamespacedName) (*cloudv1alpha1.CloudProviderAccountStatus, error) {
 	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
 	if !found {
-		return nil, fmt.Errorf("account not found %v", *accountNamespacedName)
+		return nil, fmt.Errorf("unable to find cloud account: %v", *accountNamespacedName)
 	}
 
 	return accCfg.GetStatus(), nil
@@ -236,7 +234,7 @@ func (c *cloudCommon) GetStatus(accountNamespacedName *types.NamespacedName) (*c
 func (c *cloudCommon) AddInventoryPoller(accountNamespacedName *types.NamespacedName) error {
 	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
 	if !found {
-		return fmt.Errorf("account not found %v", *accountNamespacedName)
+		return fmt.Errorf("unable to find cloud account: %v", *accountNamespacedName)
 	}
 
 	err := accCfg.startPeriodicInventorySync()
@@ -251,7 +249,7 @@ func (c *cloudCommon) AddInventoryPoller(accountNamespacedName *types.Namespaced
 func (c *cloudCommon) DeleteInventoryPoller(accountNamespacedName *types.NamespacedName) error {
 	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
 	if !found {
-		return fmt.Errorf("account not found %v", *accountNamespacedName)
+		return fmt.Errorf("unable to find cloud account %v", *accountNamespacedName)
 	}
 
 	accCfg.stopPeriodicInventorySync()
@@ -262,7 +260,7 @@ func (c *cloudCommon) DeleteInventoryPoller(accountNamespacedName *types.Namespa
 func (c *cloudCommon) GetVpcInventory(accountNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.Vpc, error) {
 	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
 	if !found {
-		return nil, fmt.Errorf("unable to find cloud account %v", *accountNamespacedName)
+		return nil, fmt.Errorf("unable to find cloud account: %v", *accountNamespacedName)
 	}
 
 	serviceConfigs := accCfg.GetServiceConfigs()

@@ -36,8 +36,6 @@ const (
 )
 
 var (
-	mutex sync.Mutex
-
 	awsAnyProtocolValue = "-1"
 	tcpUDPPortStart     = 0
 	tcpUDPPortEnd       = 65535
@@ -655,9 +653,6 @@ func getMemberNicCloudResourcesAttachedToOtherSGs(members []securitygroup.CloudR
 
 // CreateSecurityGroup invokes cloud api and creates the cloud security group based on securityGroupIdentifier.
 func (c *awsCloud) CreateSecurityGroup(securityGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) (*string, error) {
-	mutex.Lock()
-	defer mutex.Unlock()
-
 	vpcID := securityGroupIdentifier.Vpc
 	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
 	if !found {
@@ -682,9 +677,6 @@ func (c *awsCloud) CreateSecurityGroup(securityGroupIdentifier *securitygroup.Cl
 // UpdateSecurityGroupRules invokes cloud api and updates cloud security group with addRules and rmRules.
 func (c *awsCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *securitygroup.CloudResource,
 	addRules, rmRules, _ []*securitygroup.CloudRule) error {
-	mutex.Lock()
-	defer mutex.Unlock()
-
 	addIRule := make([]*securitygroup.CloudRule, 0)
 	rmIRule := make([]*securitygroup.CloudRule, 0)
 	addERule := make([]*securitygroup.CloudRule, 0)
@@ -778,9 +770,6 @@ func (c *awsCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *securitygr
 // UpdateSecurityGroupMembers invokes cloud api and attaches/detaches nics to/from the cloud security group.
 func (c *awsCloud) UpdateSecurityGroupMembers(securityGroupIdentifier *securitygroup.CloudResource,
 	cloudResourceIdentifiers []*securitygroup.CloudResource, membershipOnly bool) error {
-	mutex.Lock()
-	defer mutex.Unlock()
-
 	vpcID := securityGroupIdentifier.Vpc
 	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
 	if !found {
@@ -818,9 +807,6 @@ func (c *awsCloud) UpdateSecurityGroupMembers(securityGroupIdentifier *securityg
 
 // DeleteSecurityGroup invokes cloud api and deletes the cloud security group. Any attached resource will be moved to default sg.
 func (c *awsCloud) DeleteSecurityGroup(securityGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) error {
-	mutex.Lock()
-	defer mutex.Unlock()
-
 	vpcID := securityGroupIdentifier.Vpc
 	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
 	if !found {
@@ -863,9 +849,6 @@ func (c *awsCloud) DeleteSecurityGroup(securityGroupIdentifier *securitygroup.Cl
 }
 
 func (c *awsCloud) GetEnforcedSecurity() []securitygroup.SynchronizationContent {
-	mutex.Lock()
-	defer mutex.Unlock()
-
 	inventoryInitWaitDuration := 30 * time.Second
 
 	var accNamespacedNames []types.NamespacedName
