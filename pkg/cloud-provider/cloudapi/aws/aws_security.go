@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
+	"antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 )
 
@@ -35,8 +36,6 @@ const (
 )
 
 var (
-	mutex sync.Mutex
-
 	awsAnyProtocolValue = "-1"
 	tcpUDPPortStart     = 0
 	tcpUDPPortEnd       = 65535
@@ -331,7 +330,8 @@ func (ec2Cfg *ec2ServiceConfig) updateNetworkInterfaceSecurityGroups(interfaceID
 func (ec2Cfg *ec2ServiceConfig) getNetworkInterfacesOfVpc(vpcIDs map[string]struct{}) ([]*ec2.NetworkInterface, error) {
 	filters := buildAwsEc2FilterForVpcIDOnlyMatches(vpcIDs)
 	request := &ec2.DescribeNetworkInterfacesInput{
-		Filters: filters,
+		MaxResults: aws.Int64(common.MaxCloudResourceResponse),
+		Filters:    filters,
 	}
 	networkInterfaces, err := ec2Cfg.apiClient.pagedDescribeNetworkInterfaces(request)
 	if err != nil {
@@ -506,12 +506,14 @@ func (ec2Cfg *ec2ServiceConfig) getNepheControllerManagedSecurityGroupsCloudView
 	// get all network interfaces for managed vpcs
 	networkInterfaces, err := ec2Cfg.getNetworkInterfacesOfVpc(vpcIDs)
 	if err != nil {
+		awsPluginLogger().Error(err, "failed to get network interfaces of vpcs", "vpc-ids", vpcIDs)
 		return []securitygroup.SynchronizationContent{}
 	}
 
 	// get all security groups for managed vpcs and build cloud-sg-id to sgObj map by sg managed/unmanaged type
 	cloudSecurityGroups, err := ec2Cfg.getSecurityGroupsOfVpc(vpcIDs)
 	if err != nil {
+		awsPluginLogger().Error(err, "failed to get security groups of vpcs", "vpc-ids", vpcIDs)
 		return []securitygroup.SynchronizationContent{}
 	}
 	managedSgIDToCloudSGObj, unmanagedSgIDToCloudSGObj := getCloudSecurityGroupsByType(cloudSecurityGroups)
@@ -651,9 +653,6 @@ func getMemberNicCloudResourcesAttachedToOtherSGs(members []securitygroup.CloudR
 
 // CreateSecurityGroup invokes cloud api and creates the cloud security group based on securityGroupIdentifier.
 func (c *awsCloud) CreateSecurityGroup(securityGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) (*string, error) {
-	mutex.Lock()
-	defer mutex.Unlock()
-
 	vpcID := securityGroupIdentifier.Vpc
 	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
 	if !found {
@@ -678,9 +677,6 @@ func (c *awsCloud) CreateSecurityGroup(securityGroupIdentifier *securitygroup.Cl
 // UpdateSecurityGroupRules invokes cloud api and updates cloud security group with addRules and rmRules.
 func (c *awsCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *securitygroup.CloudResource,
 	addRules, rmRules, _ []*securitygroup.CloudRule) error {
-	mutex.Lock()
-	defer mutex.Unlock()
-
 	addIRule := make([]*securitygroup.CloudRule, 0)
 	rmIRule := make([]*securitygroup.CloudRule, 0)
 	addERule := make([]*securitygroup.CloudRule, 0)
@@ -774,9 +770,6 @@ func (c *awsCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *securitygr
 // UpdateSecurityGroupMembers invokes cloud api and attaches/detaches nics to/from the cloud security group.
 func (c *awsCloud) UpdateSecurityGroupMembers(securityGroupIdentifier *securitygroup.CloudResource,
 	cloudResourceIdentifiers []*securitygroup.CloudResource, membershipOnly bool) error {
-	mutex.Lock()
-	defer mutex.Unlock()
-
 	vpcID := securityGroupIdentifier.Vpc
 	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
 	if !found {
@@ -814,9 +807,6 @@ func (c *awsCloud) UpdateSecurityGroupMembers(securityGroupIdentifier *securityg
 
 // DeleteSecurityGroup invokes cloud api and deletes the cloud security group. Any attached resource will be moved to default sg.
 func (c *awsCloud) DeleteSecurityGroup(securityGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) error {
-	mutex.Lock()
-	defer mutex.Unlock()
-
 	vpcID := securityGroupIdentifier.Vpc
 	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
 	if !found {
@@ -859,9 +849,6 @@ func (c *awsCloud) DeleteSecurityGroup(securityGroupIdentifier *securitygroup.Cl
 }
 
 func (c *awsCloud) GetEnforcedSecurity() []securitygroup.SynchronizationContent {
-	mutex.Lock()
-	defer mutex.Unlock()
-
 	inventoryInitWaitDuration := 30 * time.Second
 
 	var accNamespacedNames []types.NamespacedName

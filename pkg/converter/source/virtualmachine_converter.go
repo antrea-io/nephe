@@ -55,7 +55,9 @@ func (v VMConverter) Start() {
 				return
 			}
 			vm := &VirtualMachineSource{recv}
-			v.processEvent(vm, failedUpdates, false, vm.Status.Agented)
+			go func() {
+				v.processEvent(vm, failedUpdates, false, vm.Status.Agented)
+			}()
 		case recv := <-v.retryCh:
 			vm := &VirtualMachineSource{recv}
 			v.processEvent(vm, failedUpdates, true, vm.Status.Agented)

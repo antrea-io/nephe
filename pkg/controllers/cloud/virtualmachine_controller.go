@@ -29,6 +29,10 @@ import (
 	"antrea.io/nephe/pkg/logging"
 )
 
+const (
+	converterChannelBuffer = 50
+)
+
 // VirtualMachineReconciler reconciles a VirtualMachine object.
 type VirtualMachineReconciler struct {
 	client.Client
@@ -79,7 +83,7 @@ func (r *VirtualMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.converter = converter.VMConverter{
 		Client: r.Client,
 		Log:    logging.GetLogger("converter").WithName("VMConverter"),
-		Ch:     make(chan cloudv1alpha1.VirtualMachine),
+		Ch:     make(chan cloudv1alpha1.VirtualMachine, converterChannelBuffer),
 		Scheme: r.Scheme,
 	}
 	if err := ctrl.NewControllerManagedBy(mgr).For(&cloudv1alpha1.VirtualMachine{}).Complete(r); err != nil {

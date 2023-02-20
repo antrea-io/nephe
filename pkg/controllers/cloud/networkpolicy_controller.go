@@ -55,6 +55,8 @@ const (
 	operationCount    = 15
 	cloudSyncInterval = 0xff // 256 Seconds
 
+	cloudResponseChBuffer = 50
+
 	// NetworkPolicy controller is ready to sync after it receives bookmarks from
 	// networkpolicy, addrssGroup and appliedToGroup.
 	npSyncReadyBookMarkCnt = 3
@@ -180,10 +182,13 @@ func (r *NetworkPolicyReconciler) sendRuleRealizationStatus(anp *antreanetworkin
 		status.Nodes[0].RealizationFailure = true
 		status.Nodes[0].Message = err.Error()
 	}
-	r.Log.V(1).Info("Updating rule realization.", "NP", anp.Name, "Namespace", anp.Namespace, "err", err)
-	if e := r.antreaClient.NetworkPolicies().UpdateStatus(context.TODO(), status.Name, status); e != nil {
-		r.Log.Error(e, "rule realization send failed.", "NP", anp.Name, "Namespace", anp.Namespace)
-	}
+
+	go func() {
+		r.Log.V(1).Info("Updating rule realization.", "NP", anp.Name, "Namespace", anp.Namespace, "err", err)
+		if e := r.antreaClient.NetworkPolicies().UpdateStatus(context.TODO(), status.Name, status); e != nil {
+			r.Log.Error(e, "rule realization send failed.", "NP", anp.Name, "Namespace", anp.Namespace)
+		}
+	}()
 }
 
 // normalizedANPObject updates ANP object with Nephe friendly name. Required for Azure
@@ -752,7 +757,7 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			},
 		})
 	r.localRequest = make(chan watch.Event)
-	r.cloudResponse = make(chan *securityGroupStatus)
+	r.cloudResponse = make(chan *securityGroupStatus, cloudResponseChBuffer)
 	r.pendingDeleteGroups = NewPendingItemQueue(r, nil)
 	opCnt := operationCount
 	r.retryQueue = NewPendingItemQueue(r, &opCnt)

@@ -34,6 +34,8 @@ var (
 	AnnotationCloudAssignedNameKey  = "cloud-assigned-name"
 	AnnotationCloudAssignedVPCIDKey = "cloud-assigned-vpc-id"
 	AnnotationCloudAccountIDKey     = "cloud-account-id"
+
+	MaxCloudResourceResponse int64 = 100
 )
 
 type ProviderType v1alpha1.CloudProvider
