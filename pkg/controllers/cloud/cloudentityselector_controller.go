@@ -135,26 +135,26 @@ func (r *CloudEntitySelectorReconciler) updatePendingSyncCountAndStatus() {
 
 func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *cloudv1alpha1.CloudEntitySelector,
 	selectorNamespacedName *types.NamespacedName) error {
+	r.Log.Info("Received request", "selector", selectorNamespacedName, "operation", "create/update")
 	accountNamespacedName := &types.NamespacedName{
 		Namespace: selector.Namespace,
 		Name:      selector.Spec.AccountName,
 	}
 	cloudType, err := r.Poller.getCloudType(accountNamespacedName)
 	if err != nil {
-		return fmt.Errorf("%s %s", errorMsgSelectorAddFail, selectorNamespacedName.Name)
+		return fmt.Errorf("%s %s, err: %v", errorMsgSelectorAddFail, selectorNamespacedName.Name, err)
 	}
 
 	cloudInterface, err := cloudprovider.GetCloudInterface(common.ProviderType(cloudType))
 	if err != nil {
-		return err
+		return fmt.Errorf("%s %s, err: %v", errorMsgSelectorAddFail, selectorNamespacedName.Name, err)
 	}
 
 	r.selectorToAccountMap[*selectorNamespacedName] = *accountNamespacedName
 	err = cloudInterface.AddAccountResourceSelector(accountNamespacedName, selector)
 	if err != nil {
 		_ = r.processDelete(selectorNamespacedName)
-		r.Log.Info("selector add failed", "selector", selectorNamespacedName)
-		return err
+		return fmt.Errorf("%s %s, err: %v", errorMsgSelectorAddFail, selectorNamespacedName.Name, err)
 	}
 
 	err = r.Poller.updateAccountPoller(accountNamespacedName, selector)
@@ -167,6 +167,7 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *cloudv1a
 }
 
 func (r *CloudEntitySelectorReconciler) processDelete(selectorNamespacedName *types.NamespacedName) error {
+	r.Log.Info("Received request", "selector", selectorNamespacedName, "operation", "delete")
 	accountNamespacedName, found := r.selectorToAccountMap[*selectorNamespacedName]
 	if !found {
 		return fmt.Errorf("%s %s", errorMsgSelectorAccountMapNotFound, selectorNamespacedName.String())

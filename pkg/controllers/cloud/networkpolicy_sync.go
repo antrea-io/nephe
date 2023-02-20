@@ -93,7 +93,7 @@ func (a *appliedToSecurityGroup) sync(syncContent *securitygroup.Synchronization
 	}
 	nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAppliedToGrp, a.id.Name)
 	if err != nil {
-		log.Error(err, "Get networkPolicy by indexer", "Index", networkPolicyIndexerByAppliedToGrp, "Key", a.id.Name)
+		log.Error(err, "get networkPolicy by indexer", "Index", networkPolicyIndexerByAppliedToGrp, "Key", a.id.Name)
 		return
 	}
 	items := make(map[string]int)
@@ -265,6 +265,7 @@ func (r *NetworkPolicyReconciler) syncWithCloud() {
 	if r.bookmarkCnt < npSyncReadyBookMarkCnt {
 		return
 	}
+	log.V(1).Info("Started synchronizing cloud security groups with controller")
 	ch := securitygroup.CloudSecurityGroup.GetSecurityGroupSyncChan()
 	cloudAddrSGs := make(map[securitygroup.CloudResourceID]*securitygroup.SynchronizationContent)
 	cloudAppliedToSGs := make(map[securitygroup.CloudResourceID]*securitygroup.SynchronizationContent)
@@ -279,6 +280,7 @@ func (r *NetworkPolicyReconciler) syncWithCloud() {
 		}
 		// Removes unknown sg.
 		if _, ok, _ := indexer.GetByKey(content.Resource.CloudResourceID.String()); !ok {
+			log.V(0).Info("Delete SecurityGroup not found in cache", "Name", content.Resource.Name, "MembershipOnly", content.MembershipOnly)
 			state := securityGroupStateCreated
 			_ = sgNew(&content.Resource, []*securitygroup.CloudResource{}, &state).delete(r)
 			continue
@@ -321,6 +323,7 @@ func (r *NetworkPolicyReconciler) syncWithCloud() {
 			break
 		}
 	}
+	log.V(1).Info("Done synchronizing cloud security groups with controller")
 }
 
 // processBookMark process bookmark event and return true.

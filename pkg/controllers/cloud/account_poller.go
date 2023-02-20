@@ -78,7 +78,7 @@ func (p *Poller) addAccountPoller(cloudType cloudv1alpha1.CloudProvider, namespa
 	defer p.mutex.Unlock()
 
 	if pollerScope, exists := p.accPollers[*namespacedName]; exists {
-		p.log.Info("poller exists", "account", namespacedName)
+		p.log.Info("Poller exists", "account", namespacedName)
 		return pollerScope, exists
 	}
 
@@ -137,7 +137,7 @@ func (p *Poller) addAccountPoller(cloudType cloudv1alpha1.CloudProvider, namespa
 		})
 
 	p.accPollers[*namespacedName] = poller
-	p.log.Info("poller will be created", "account", namespacedName)
+	p.log.Info("Poller will be created", "account", namespacedName)
 	return poller, false
 }
 
@@ -220,14 +220,46 @@ func (p *Poller) updateAccountPoller(name *types.NamespacedName, selector *cloud
 func (p *accountPoller) doAccountPoller() {
 	cloudInterface, e := cloudprovider.GetCloudInterface(common.ProviderType(p.cloudType))
 	if e != nil {
-		p.log.Info("failed to get cloud interface", "account", p.namespacedName, "error", e)
+		p.log.Error(e, "failed to get cloud interface", "account", p.namespacedName)
 		return
 	}
 
-	account := &cloudv1alpha1.CloudProviderAccount{}
-	e = p.Get(context.TODO(), *p.namespacedName, account)
+	p.updateAccountStatus(cloudInterface)
+
+	vpcMap, e := cloudInterface.GetVpcInventory(p.namespacedName)
+	vpcCount := len(vpcMap)
 	if e != nil {
-		p.log.Info("failed to get account", "account", p.namespacedName, "account", account, "error", e)
+		p.log.Error(e, "failed to fetch cloud vpc list from internal snapshot", "account",
+			p.namespacedName.String())
+		return
+	}
+
+	e = p.inventory.BuildVpcCache(vpcMap, p.namespacedName)
+	if e != nil {
+		p.log.Error(e, "failed to build vpc cache", "account", p.namespacedName.String())
+	}
+
+	// Perform VM Operations only when CES is added.
+	vmCount := 0
+	if p.selector != nil {
+		virtualMachines := p.getComputeResources(cloudInterface)
+		e = p.doVirtualMachineOperations(virtualMachines)
+		if e != nil {
+			p.log.Error(e, "failed to perform virtual-machine operations", "account", p.namespacedName)
+		}
+		vmCount = len(virtualMachines)
+	}
+	p.log.Info("Discovered compute resources statistics", "account", p.namespacedName,
+		"vpcs", vpcCount, "virtual-machines", vmCount)
+}
+
+// updateAccountStatus updates status of a CPA object when it's changed.
+func (p *accountPoller) updateAccountStatus(cloudInterface common.CloudInterface) {
+	account := &cloudv1alpha1.CloudProviderAccount{}
+	e := p.Get(context.TODO(), *p.namespacedName, account)
+	if e != nil {
+		p.log.Error(e, "failed to get account", "account", p.namespacedName)
+		return
 	}
 
 	discoveredStatus := cloudv1alpha1.CloudProviderAccountStatus{}
@@ -239,43 +271,18 @@ func (p *accountPoller) doAccountPoller() {
 	}
 
 	if account.Status != discoveredStatus {
-		updateAccountStatus(&account.Status, &discoveredStatus)
+		account.Status.Error = discoveredStatus.Error
 		e = p.Client.Status().Update(context.TODO(), account)
 		if e != nil {
-			p.log.Info("failed to update account status", "account", p.namespacedName, "err", e)
+			p.log.Error(e, "failed to update account status", "account", p.namespacedName)
 		}
 	}
-
-	vpcMap, e := cloudInterface.GetVpcInventory(p.namespacedName)
-	vpcCount := len(vpcMap)
-	if e != nil {
-		p.log.Info("failed to fetch cloud vpc list from internal snapshot", "account",
-			p.namespacedName.String(), "error", e)
-	}
-
-	err := p.inventory.BuildVpcCache(vpcMap, p.namespacedName)
-	if err != nil {
-		p.log.Info("failed to build vpc inventory", "account", p.namespacedName.String(), "error", err)
-	}
-
-	// Perform VM Operations only when CES is added.
-	vmCount := 0
-	if p.selector != nil {
-		virtualMachines := p.getComputeResources(cloudInterface)
-		e = p.doVirtualMachineOperations(virtualMachines)
-		if e != nil {
-			p.log.Info("failed to perform virtual-machine operations", "account", p.namespacedName, "error", e)
-		}
-		vmCount = len(virtualMachines)
-	}
-	p.log.Info("discovered compute resources statistics", "account", p.namespacedName,
-		"vpcs", vpcCount, "virtual-machines", vmCount)
 }
 
 func (p *accountPoller) getComputeResources(cloudInterface common.CloudInterface) []*cloudv1alpha1.VirtualMachine {
 	virtualMachines, e := cloudInterface.InstancesGivenProviderAccount(p.namespacedName)
 	if e != nil {
-		p.log.Info("failed to discover compute resources", "account", p.namespacedName, "error", e)
+		p.log.Error(e, "failed to discover compute resources", "account", p.namespacedName)
 		return []*cloudv1alpha1.VirtualMachine{}
 	}
 	return virtualMachines
@@ -295,7 +302,7 @@ func (p *accountPoller) doVirtualMachineOperations(virtualMachines []*cloudv1alp
 				err = multierr.Append(err, e)
 				continue
 			}
-			p.log.Info("created", "vm-name", vm.Name)
+			p.log.Info("Created vm", "name", vm.Name)
 		}
 	}
 
@@ -307,7 +314,7 @@ func (p *accountPoller) doVirtualMachineOperations(virtualMachines []*cloudv1alp
 				err = multierr.Append(err, e)
 				continue
 			}
-			p.log.Info("updated", "vm-name", vm.Name)
+			p.log.Info("Updated vm", "name", vm.Name)
 		}
 	}
 
@@ -319,12 +326,12 @@ func (p *accountPoller) doVirtualMachineOperations(virtualMachines []*cloudv1alp
 				err = multierr.Append(err, e)
 				continue
 			}
-			p.log.Info("deleted", "vm-name", vm.Name)
+			p.log.Info("Deleted vm", "name", vm.Name)
 		}
 	}
 
 	if len(virtualMachinesToCreate) != 0 || len(virtualMachinesToDelete) != 0 || len(virtualMachinesToUpdate) != 0 {
-		p.log.Info("virtual-machine crd statistics", "account", p.namespacedName,
+		p.log.Info("VirtualMachine crd statistics", "account", p.namespacedName,
 			"created", len(virtualMachinesToCreate), "deleted", len(virtualMachinesToDelete), "updated", len(virtualMachinesToUpdate))
 	}
 
@@ -359,8 +366,8 @@ func (p *accountPoller) findVirtualMachinesByOperation(discoveredVirtualMachines
 			if !areDiscoveredFieldsSameVirtualMachineStatus(currentVirtualMachine.Status, discoveredVirtualMachine.Status) {
 				virtualMachinesToUpdate = append(virtualMachinesToUpdate, discoveredVirtualMachine)
 			} else if currentVirtualMachine.Status.Agented != p.isVMAgented(&currentVirtualMachine) {
-				p.log.Info("vm selector changed, update VM",
-					"vm-name", currentVirtualMachine.Name)
+				p.log.Info("VirtualMachine selector changed, update vm",
+					"name", currentVirtualMachine.Name)
 				virtualMachinesToUpdate = append(virtualMachinesToUpdate, discoveredVirtualMachine)
 			}
 		}
@@ -524,29 +531,25 @@ func updateCloudDiscoveredFieldsOfVirtualMachineStatus(current, discovered *clou
 	current.Tags = discovered.Tags
 }
 
-func updateAccountStatus(current, discovered *cloudv1alpha1.CloudProviderAccountStatus) {
-	current.Error = discovered.Error
-}
-
 // createVirtualMachineCR creates VirtualMachine CR and updates the status.
 func (p *accountPoller) createVirtualMachineCR(vm *cloudv1alpha1.VirtualMachine) (err error) {
 	err = controllerutil.SetControllerReference(p.selector, vm, p.scheme)
 	if err != nil {
-		p.log.Info("error setting controller owner reference", "err", err)
+		p.log.Error(err, "failed to set controller owner reference for vm", "name", vm.Name)
 		return err
 	}
 	// save status since create will update VM object and remove status field from it.
 	vmStatus := vm.Status
 	err = p.Client.Create(context.TODO(), vm)
 	if err != nil {
-		p.log.Info("virtual machine create failed", "name", vm.Name, "err", err)
+		p.log.Error(err, "failed to create vm", "name", vm.Name)
 		return err
 	}
 	vmStatus.Agented = p.isVMAgented(vm)
 	vm.Status = vmStatus
 	err = p.Client.Status().Update(context.TODO(), vm)
 	if err != nil {
-		p.log.Info("virtual machine status update failed", "account", p.namespacedName, "name", vm.Name, "err", err)
+		p.log.Error(err, "failed to update status for vm", "account", p.namespacedName, "name", vm.Name)
 		return err
 	}
 	return nil
@@ -563,7 +566,7 @@ func (p *accountPoller) updateVirtualMachineCR(vm *cloudv1alpha1.VirtualMachine)
 	err = p.Get(context.TODO(), vmNamespacedName, currentVM)
 	if err != nil {
 		if client.IgnoreNotFound(err) != nil {
-			p.log.V(1).Info("unable to find to update", "vm-name", vm.Name, "err", err)
+			p.log.Error(err, "failed to update vm", "name", vm.Name)
 			return err
 		}
 	}
@@ -586,7 +589,7 @@ func (p *accountPoller) updateVirtualMachineCR(vm *cloudv1alpha1.VirtualMachine)
 		updateCloudDiscoveredFieldsOfVirtualMachineStatus(&currentVM.Status, &vm.Status)
 		err = p.Client.Status().Update(context.TODO(), currentVM)
 		if err != nil {
-			p.log.Info("virtual machine status update failed", "account", p.namespacedName, "name", vm.Name, "err", err)
+			p.log.Error(err, "failed to update status for vm", "account", p.namespacedName, "name", vm.Name)
 			return err
 		}
 	}
@@ -598,7 +601,7 @@ func (p *accountPoller) deleteVirtualMachineCR(vm *cloudv1alpha1.VirtualMachine)
 	err = p.Delete(context.TODO(), vm)
 	if err != nil {
 		if client.IgnoreNotFound(err) != nil {
-			p.log.V(1).Info("unable to delete", "vm-name", vm.Name, "err", err)
+			p.log.Error(err, "failed to delete vm", "name", vm.Name)
 			return err
 		}
 	}

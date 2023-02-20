@@ -46,17 +46,17 @@ func registerCloudProvider(providerType cloudcommon.ProviderType, cloud cloudcom
 	providersMutex.Lock()
 	defer providersMutex.Unlock()
 	if _, found := providers[providerType]; found {
-		corePluginLogger().V(0).Info("cloudv1alpha1 provider already exists",
+		corePluginLogger().V(0).Info("crd.v1alpha1 cloud provider already exists",
 			"type", providerType)
 		return
 	}
 	providers[providerType] = cloud
 
-	corePluginLogger().V(1).Info("registered cloudv1alpha1 provider successfully",
+	corePluginLogger().V(1).Info("registered crd.v1alpha1 cloud provider successfully",
 		"type", providerType)
 }
 
-// GetCloudInterface returns an instance of the cloudv1alpha1 provider type, or nil if
+// GetCloudInterface returns an instance of the crd.v1alpha1 cloud Provider type, or nil if
 // the type is unknown.  The error return is only used if the named provider
 // was known but failed to initialize.
 func GetCloudInterface(providerType cloudcommon.ProviderType) (cloudcommon.CloudInterface, error) {
@@ -64,7 +64,7 @@ func GetCloudInterface(providerType cloudcommon.ProviderType) (cloudcommon.Cloud
 	defer providersMutex.Unlock()
 	cloud, found := providers[providerType]
 	if !found {
-		return nil, fmt.Errorf("unsupported cloudv1alpha1 provider %q", providerType)
+		return nil, fmt.Errorf("unsupported crd.v1alpha1 cloud provider %q", providerType)
 	}
 	return cloud, nil
 }

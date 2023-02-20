@@ -152,9 +152,11 @@ var _ = Describe(fmt.Sprintf("%s,%s: Basic CRD Read-Write", focusAws, focusAzure
 		logf.Log.Info("Delete", "account", account.Name)
 		err := k8sClient.Delete(context.TODO(), account)
 		Expect(err).ToNot(HaveOccurred())
+		time.Sleep(1 * time.Second)
 		logf.Log.Info("Delete", "secret", secret.Name)
 		err = k8sClient.Delete(context.TODO(), secret)
 		Expect(err).ToNot(HaveOccurred())
+		time.Sleep(1 * time.Second)
 	}
 
 	table.DescribeTable("Modifying CRDs",
@@ -173,6 +175,8 @@ var _ = Describe(fmt.Sprintf("%s,%s: Basic CRD Read-Write", focusAws, focusAzure
 			By("Can be added")
 			err := k8sClient.Create(context.TODO(), crd)
 			Expect(err).ToNot(HaveOccurred())
+			// Sleep for a second, so that CR is processed by the reconciler.
+			time.Sleep(1 * time.Second)
 
 			By("Can be retrieved")
 			key := client.ObjectKeyFromObject(crd)
@@ -182,6 +186,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: Basic CRD Read-Write", focusAws, focusAzure
 			By("Can be deleted")
 			err = k8sClient.Delete(context.TODO(), crd)
 			Expect(err).ToNot(HaveOccurred())
+			time.Sleep(1 * time.Second)
 
 			if deleteAccount != nil {
 				deleteAccount()

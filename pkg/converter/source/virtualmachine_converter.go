@@ -16,6 +16,7 @@ package source
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -62,22 +63,25 @@ func (v VMConverter) Start() {
 	}
 }
 
-func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[string]retryRecord, isRetry bool, isAgent bool) {
+func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[string]retryRecord, isRetry bool, isExternalnode bool) {
 	var err error
 	var fetchKey client.ObjectKey
-	log := v.Log.WithName("processEvent")
+	var resource string
 
-	if isAgent {
+	if isExternalnode {
+		resource = "ExternalNode"
 		fetchKey = target.GetExternalNodeKeyFromSource(vm)
 	} else {
+		resource = "ExternalEntity"
 		fetchKey = target.GetExternalEntityKeyFromSource(vm)
 	}
-	log.Info("Received event", "Key", fetchKey, "Agented", isAgent)
+	v.Log.V(1).Info(fmt.Sprintf("Received %s event", resource), "Key", fetchKey)
 	if isRetry {
 		retry, ok := failedUpdates[fetchKey.String()]
 		// ignore event if newer event succeeds or newer event retrying
 		if !ok || v.isNewEvent(retry.item.(*VirtualMachineSource), vm) {
-			log.Info("Ignore retry", "Key", fetchKey, "retryCount", retry.retryCount)
+			v.Log.Info(fmt.Sprintf("Ignore retry for %s", resource), "Key", fetchKey,
+				"retryCount", retry.retryCount)
 			return
 		}
 	}
@@ -95,7 +99,8 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 		}
 		record.retryCount += 1
 		if record.retryCount >= maxRetry {
-			log.Info("Max retry reached, ignoring", "Key", fetchKey, "maxRetry", maxRetry)
+			v.Log.Info(fmt.Sprintf("Max retry reached, ignoring %s", resource), "Key", fetchKey,
+				"maxRetry", maxRetry)
 			delete(failedUpdates, fetchKey.String())
 			return
 		}
@@ -108,7 +113,8 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 	ctx := context.Background()
 	ips, err := vm.GetEndPointAddresses()
 	if err != nil {
-		log.Info("Failed to get IP address for", "Name", fetchKey, "err", err)
+		v.Log.Info(fmt.Sprintf("Failed to get IP address for %s", resource), "Name", fetchKey,
+			"err", err)
 		return
 	}
 
@@ -116,7 +122,7 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 	externNode := &antreav1alpha1.ExternalNode{}
 	externEntity := &antreav1alpha2.ExternalEntity{}
 	isNotFound := false
-	if isAgent {
+	if isExternalnode {
 		err = v.Client.Get(ctx, fetchKey, externNode)
 	} else {
 		err = v.Client.Get(ctx, fetchKey, externEntity)
@@ -124,7 +130,7 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 	if err != nil {
 		err = client.IgnoreNotFound(err)
 		if err != nil {
-			log.Error(err, "unable to fetch ", "Key", fetchKey)
+			v.Log.Error(err, fmt.Sprintf("unable to fetch %s", resource), "Key", fetchKey)
 			return
 		}
 		isNotFound = true
@@ -137,23 +143,23 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 
 	// Delete.
 	if isDelete && !isNotFound {
-		if isAgent {
+		if isExternalnode {
 			err = v.Client.Delete(ctx, externNode)
 		} else {
 			err = v.Client.Delete(ctx, externEntity)
 		}
 		err = client.IgnoreNotFound(err)
 		if err != nil {
-			log.Error(err, "unable to delete ", "Key", fetchKey)
+			v.Log.Error(err, fmt.Sprintf("unable to delete resource %s", resource), "Key", fetchKey)
 		} else {
-			log.V(1).Info("Deleted resource", "Key", fetchKey)
+			v.Log.Info(fmt.Sprintf("Deleted %s", resource), "Key", fetchKey)
 		}
 		return
 	}
 
 	// Update.
 	if !isNotFound {
-		if isAgent {
+		if isExternalnode {
 			base := client.MergeFrom(externNode.DeepCopy())
 			patch := target.PatchExternalNodeFrom(vm, externNode, v.Client)
 			err = v.Client.Patch(ctx, patch, base)
@@ -163,15 +169,15 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 			err = v.Client.Patch(ctx, patch, base)
 		}
 		if err != nil {
-			log.Error(err, "unable to patch ", "Key", fetchKey)
+			v.Log.Error(err, fmt.Sprintf("unable to patch %s", resource), "Key", fetchKey)
 		} else {
-			log.V(1).Info("Patched resource", "Key", fetchKey)
+			v.Log.Info(fmt.Sprintf("Patched %s", resource), "Key", fetchKey)
 		}
 		return
 	}
 
 	// Create.
-	if isAgent {
+	if isExternalnode {
 		externNode = target.NewExternalNodeFrom(vm, fetchKey.Name, fetchKey.Namespace, v.Client, v.Scheme)
 		err = v.Client.Create(ctx, externNode)
 	} else {
@@ -179,9 +185,9 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 		err = v.Client.Create(ctx, externEntity)
 	}
 	if err != nil {
-		log.Error(err, "unable to create ", "Key", fetchKey)
+		v.Log.Error(err, fmt.Sprintf("unable to create %s", resource), "Key", fetchKey)
 	} else {
-		log.V(1).Info("Created resource", "Key", fetchKey)
+		v.Log.Info(fmt.Sprintf("Created %s", resource), "Key", fetchKey)
 	}
 }
 

@@ -72,8 +72,8 @@ func (inventory *Inventory) BuildVpcCache(vpcMap map[string]*runtimev1alpha1.Vpc
 			err = inventory.vpcStore.Update(v)
 		}
 		if err != nil {
-			return fmt.Errorf("failed to add vpc into vpc cache, vpc id %s, account %v, error %v",
-				v.Status.Id, *namespacedName, err)
+			return fmt.Errorf("failed to add vpc into vpc cache, vpc id: %s, error: %v",
+				v.Status.Id, err)
 		}
 	}
 
