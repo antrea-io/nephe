@@ -37,10 +37,9 @@ import (
 )
 
 const (
-	accountResourceToCreate       = "TO_CREATE"
-	accountResourceToDelete       = "TO_DELETE"
-	accountResourceToUpdate       = "TO_UPDATE"
-	errorMsgAccountPollerNotFound = "account poller not found"
+	accountResourceToCreate = "TO_CREATE"
+	accountResourceToDelete = "TO_DELETE"
+	accountResourceToUpdate = "TO_UPDATE"
 )
 
 type accountPoller struct {

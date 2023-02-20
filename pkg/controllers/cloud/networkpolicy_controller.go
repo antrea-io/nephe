@@ -75,6 +75,10 @@ type NetworkPolicyReconciler struct {
 	Scheme       *runtime.Scheme
 	antreaClient antreanetworkingclient.ControlplaneV1beta2Interface
 
+	// ExternalEntity Reconcile
+	pendingSyncCount int
+	initialized      bool
+
 	// Watcher interfaces
 	addrGroupWatcher      watch.Interface
 	appliedToGroupWatcher watch.Interface
@@ -517,9 +521,16 @@ func (r *NetworkPolicyReconciler) LocalEvent(event watch.Event) {
 
 // Start starts NetworkPolicyReconciler.
 func (r *NetworkPolicyReconciler) Start(stop context.Context) error {
-	// TODO: remove sleep and implement re-sync on controller restart.
-	// introducing a sleep of 5 seconds to allow CPA and CES controllers to reconcile CRs.
-	time.Sleep(5 * time.Second)
+	// Wait for ExternalEntity to be started.
+	if err := r.externalEntityStart(stop); err != nil {
+		return err
+	}
+
+	// Wait till all the dependent controllers are synced.
+	if err := GetControllerSyncStatusInstance().waitForControllersToSync([]controllerType{ControllerTypeCPA,
+		ControllerTypeCES, ControllerTypeEE, ControllerTypeVM}, syncTimeout); err != nil {
+		return err
+	}
 
 	if err := r.resetWatchers(); err != nil {
 		r.Log.Error(err, "Start watchers")
@@ -585,10 +596,48 @@ func (r *NetworkPolicyReconciler) Start(stop context.Context) error {
 	}
 }
 
+// externalEntityStart performs the initialization of the controller.
+// A controller is said to be initialized only when the dependent controllers
+// are synced, and it keeps a count of pending CRs to be reconciled.
+func (r *NetworkPolicyReconciler) externalEntityStart(_ context.Context) error {
+	if err := GetControllerSyncStatusInstance().waitForControllersToSync([]controllerType{ControllerTypeCPA}, syncTimeout); err != nil {
+		r.Log.Error(err, "dependent controller sync failed", "controller", ControllerTypeCPA.String())
+		return err
+	}
+	eeList := &antreav1alpha2.ExternalEntityList{}
+	if err := r.Client.List(context.TODO(), eeList, &client.ListOptions{}); err != nil {
+		return err
+	}
+
+	r.pendingSyncCount = len(eeList.Items)
+	if r.pendingSyncCount == 0 {
+		GetControllerSyncStatusInstance().SetControllerSyncStatus(ControllerTypeEE)
+	}
+	r.initialized = true
+	r.Log.Info("Init done", "controller", ControllerTypeEE.String())
+	return nil
+}
+
 // Reconcile exists to cache ExternalEntities in shared informer.
 func (r *NetworkPolicyReconciler) Reconcile(_ context.Context, req ctrl.Request) (ctrl.Result, error) {
-	r.Log.V(1).Info("Received ExternalEntity", "namespacedName", req.NamespacedName)
+	if !r.initialized {
+		if err := GetControllerSyncStatusInstance().waitTillControllerIsInitialized(&r.initialized, initTimeout, ControllerTypeEE); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+	r.updatePendingSyncCountAndStatus()
 	return ctrl.Result{}, nil
+}
+
+// updatePendingSyncCountAndStatus decrements the pendingSyncCount and when
+// pendingSyncCount is 0, sets the sync status.
+func (r *NetworkPolicyReconciler) updatePendingSyncCountAndStatus() {
+	if r.pendingSyncCount > 0 {
+		r.pendingSyncCount--
+		if r.pendingSyncCount == 0 {
+			GetControllerSyncStatusInstance().SetControllerSyncStatus(ControllerTypeEE)
+		}
+	}
 }
 
 // backgroundProcess runs background processes.

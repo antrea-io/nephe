@@ -16,6 +16,7 @@ package cloud
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -45,6 +46,9 @@ type CloudProviderAccountReconciler struct {
 	accountProviderType map[types.NamespacedName]common.ProviderType
 	Inventory           *inventory.Inventory
 	Poller              *Poller
+	pendingSyncCount    int
+	Mgr                 *ctrl.Manager
+	initialized         bool
 }
 
 // nolint:lll
@@ -53,6 +57,12 @@ type CloudProviderAccountReconciler struct {
 
 func (r *CloudProviderAccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = r.Log.WithValues("cloudprovideraccount", req.NamespacedName)
+
+	if !r.initialized {
+		if err := GetControllerSyncStatusInstance().waitTillControllerIsInitialized(&r.initialized, initTimeout, ControllerTypeCPA); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
 
 	providerAccount := &cloudv1alpha1.CloudProviderAccount{}
 	err := r.Get(ctx, req.NamespacedName, providerAccount)
@@ -64,19 +74,57 @@ func (r *CloudProviderAccountReconciler) Reconcile(ctx context.Context, req ctrl
 		return ctrl.Result{}, err
 	}
 
-	err = r.processCreate(&req.NamespacedName, providerAccount)
-	if err != nil {
+	if err = r.processCreate(&req.NamespacedName, providerAccount); err != nil {
 		_ = r.processDelete(&req.NamespacedName)
+		return ctrl.Result{}, err
 	}
 
-	return ctrl.Result{}, err
+	r.updatePendingSyncCountAndStatus()
+	return ctrl.Result{}, nil
 }
 
 func (r *CloudProviderAccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.accountProviderType = make(map[types.NamespacedName]common.ProviderType)
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&cloudv1alpha1.CloudProviderAccount{}).
-		Complete(r)
+	if err := ctrl.NewControllerManagedBy(mgr).For(&cloudv1alpha1.CloudProviderAccount{}).Complete(r); err != nil {
+		return err
+	}
+	return mgr.Add(r)
+}
+
+// Start performs the initialization of the controller.
+// A controller is said to be initialized only when the dependent controllers
+// are synced, and controller keeps a count of pending CRs to be reconciled.
+func (r *CloudProviderAccountReconciler) Start(context.Context) error {
+	r.Log.Info("Waiting for shared informer caches to be synced")
+	// Blocking call to wait till the informer caches are synced by controller run-time
+	// or the context is Done.
+	if !(*r.Mgr).GetCache().WaitForCacheSync(context.TODO()) {
+		return fmt.Errorf("failed to sync shared informer cache")
+	}
+
+	cpaList := &cloudv1alpha1.CloudProviderAccountList{}
+	if err := r.Client.List(context.TODO(), cpaList, &client.ListOptions{}); err != nil {
+		return err
+	}
+
+	r.pendingSyncCount = len(cpaList.Items)
+	if r.pendingSyncCount == 0 {
+		GetControllerSyncStatusInstance().SetControllerSyncStatus(ControllerTypeCPA)
+	}
+	r.initialized = true
+	r.Log.Info("Init done", "controller", ControllerTypeCPA.String())
+	return nil
+}
+
+// updatePendingSyncCountAndStatus decrements the pendingSyncCount and when
+// pendingSyncCount is 0, sets the sync status.
+func (r *CloudProviderAccountReconciler) updatePendingSyncCountAndStatus() {
+	if r.pendingSyncCount > 0 {
+		r.pendingSyncCount--
+		if r.pendingSyncCount == 0 {
+			GetControllerSyncStatusInstance().SetControllerSyncStatus(ControllerTypeCPA)
+		}
+	}
 }
 
 func (r *CloudProviderAccountReconciler) processCreate(namespacedName *types.NamespacedName,

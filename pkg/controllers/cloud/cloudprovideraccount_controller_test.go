@@ -49,6 +49,7 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 			reconciler                *CloudProviderAccountReconciler
 			secret                    *corev1.Secret
 			fakeClient                client.WithWatch
+			pollIntv                  uint
 		)
 
 		BeforeEach(func() {
@@ -69,7 +70,7 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 				Poller:              InitPollers(),
 			}
 
-			var pollIntv uint = 1
+			pollIntv = 1
 			account = &v1alpha1.CloudProviderAccount{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      testAccountNamespacedName.Name,

@@ -60,6 +60,8 @@ var _ = Describe("VirtualmachineController", func() {
 			reconciler := &VirtualMachineReconciler{
 				Log:    logf.Log,
 				Client: mockClient,
+				// Set VMController as initialized.
+				Initialized: true,
 			}
 			reconciler.converter = source.VMConverter{
 				Log: logf.Log,

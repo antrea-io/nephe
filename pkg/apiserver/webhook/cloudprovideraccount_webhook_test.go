@@ -45,6 +45,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
+	"antrea.io/nephe/pkg/controllers/cloud"
 	"antrea.io/nephe/pkg/controllers/utils"
 	"antrea.io/nephe/pkg/logging"
 )
@@ -130,6 +131,9 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 			err = validator.InjectDecoder(decoder)
 			Expect(err).Should(BeNil())
 
+			// set CPA sync status.
+			cloud.GetControllerSyncStatusInstance().SetControllerSyncStatus(cloud.ControllerTypeCPA)
+
 			mutator = &CPAMutator{
 				Client: fakeClient,
 				Log:    logging.GetLogger("webhook").WithName("CloudProviderAccount"),
@@ -203,6 +207,41 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 			response := mutator.Handle(context.Background(), accountReq)
 			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 			Expect(response.AdmissionResponse.Allowed).To(BeFalse())
+		})
+		It("Validate controller is not initialized", func() {
+			account := &v1alpha1.CloudProviderAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testAccountNamespacedName.Name,
+					Namespace: testAccountNamespacedName.Namespace,
+				},
+				Spec: v1alpha1.CloudProviderAccountSpec{},
+			}
+			encodedAccount, _ = json.Marshal(account)
+			accountReq = admission.Request{
+				AdmissionRequest: v1.AdmissionRequest{
+					Kind: metav1.GroupVersionKind{
+						Group:   "",
+						Version: "v1alpha1",
+						Kind:    "CloudProviderAccount",
+					},
+					Resource: metav1.GroupVersionResource{
+						Group:    "",
+						Version:  "v1alpha1",
+						Resource: "CloudProviderAccounts",
+					},
+					Name:      testAccountNamespacedName.Name,
+					Namespace: testAccountNamespacedName.Namespace,
+					Operation: v1.Create,
+					Object: runtime.RawExtension{
+						Raw: encodedAccount,
+					},
+				},
+			}
+			cloud.GetControllerSyncStatusInstance().ResetControllerSyncStatus(cloud.ControllerTypeCPA)
+			response := validator.Handle(context.Background(), accountReq)
+			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
+			Expect(response.AdmissionResponse.Allowed).To(BeFalse())
+			Expect(response.String()).Should(ContainSubstring(cloud.ErrorMsgControllerInitializing))
 		})
 		It("Validate unknown cloud provider", func() {
 			account := &v1alpha1.CloudProviderAccount{

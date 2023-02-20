@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
+	"antrea.io/nephe/pkg/controllers/cloud"
 	"antrea.io/nephe/pkg/controllers/utils"
 )
 
@@ -141,6 +142,10 @@ type CESValidator struct {
 // Handle handles validator admission requests for CES.
 func (v *CESValidator) Handle(ctx context.Context, req admission.Request) admission.Response {
 	v.Log.V(1).Info("Received CES admission webhook request", "Name", req.Name, "Operation", req.Operation)
+	if !cloud.GetControllerSyncStatusInstance().IsControllerSynced(cloud.ControllerTypeCES) {
+		return admission.Errored(http.StatusBadRequest, fmt.Errorf("%v %v, retry after sometime",
+			cloud.ControllerTypeCES.String(), cloud.ErrorMsgControllerInitializing))
+	}
 	switch req.Operation {
 	case admissionv1.Create:
 		return v.validateCreate(req)
