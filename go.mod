@@ -20,6 +20,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	go.uber.org/multierr v1.6.0
 	go.uber.org/zap v1.19.1
+	golang.org/x/exp v0.0.0-20230213192124-5e25df0256eb
 	golang.org/x/oauth2 v0.0.0-20220223155221-ee480838109b // indirect
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.24.2
@@ -129,8 +130,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	sigs.k8s.io/json v0.0.0-20211208200746-9f7c6b3444d2 // indirect
 )
-
-require golang.org/x/exp v0.0.0-20230213192124-5e25df0256eb
 
 // antrea dependency.
 replace (

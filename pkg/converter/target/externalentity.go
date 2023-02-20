@@ -92,43 +92,40 @@ func populateExternalEntityFrom(source ExternalEntitySource, externalEntity *ant
 		changed = true
 	}
 	sourcePorts := source.GetEndPointPort(cl)
-	sort.Slice(externalEntity.Spec.Ports, func(i, j int) bool {
-		if externalEntity.Spec.Ports[i].Name != externalEntity.Spec.Ports[j].Name {
-			return strings.Compare(externalEntity.Spec.Ports[i].Name, externalEntity.Spec.Ports[j].Name) < 0
-		}
-		if externalEntity.Spec.Ports[i].Port != externalEntity.Spec.Ports[j].Port {
-			return externalEntity.Spec.Ports[i].Port < externalEntity.Spec.Ports[j].Port
-		}
-		return strings.Compare(string(externalEntity.Spec.Ports[i].Protocol), string(externalEntity.Spec.Ports[j].Protocol)) < 0
-	})
-	sort.Slice(sourcePorts, func(i, j int) bool {
-		if sourcePorts[i].Name != sourcePorts[j].Name {
-			return strings.Compare(sourcePorts[i].Name, sourcePorts[j].Name) < 0
-		}
-		if sourcePorts[i].Port != sourcePorts[j].Port {
-			return sourcePorts[i].Port < sourcePorts[j].Port
-		}
-		return strings.Compare(string(sourcePorts[i].Protocol), string(sourcePorts[j].Protocol)) < 0
-	})
+	sortNamedPort(externalEntity.Spec.Ports)
+	sortNamedPort(sourcePorts)
 	if !reflect.DeepEqual(externalEntity.Spec.Ports, sourcePorts) {
 		externalEntity.Spec.Ports = sourcePorts
 		changed = true
 	}
-	sort.Slice(externalEntity.Spec.Endpoints, func(i, j int) bool {
-		if externalEntity.Spec.Endpoints[i].Name != externalEntity.Spec.Endpoints[j].Name {
-			return strings.Compare(externalEntity.Spec.Endpoints[i].Name, externalEntity.Spec.Endpoints[j].Name) < 0
+
+	sortEndpoint(externalEntity.Spec.Endpoints)
+	sortEndpoint(endpoints)
+	if !reflect.DeepEqual(externalEntity.Spec.Endpoints, endpoints) {
+		externalEntity.Spec.Endpoints = endpoints
+		changed = true
+	}
+
+	return changed
+}
+
+func sortNamedPort(ports []antreatypes.NamedPort) {
+	sort.Slice(ports, func(i, j int) bool {
+		if ports[i].Name != ports[j].Name {
+			return strings.Compare(ports[i].Name, ports[j].Name) < 0
 		}
-		return strings.Compare(externalEntity.Spec.Endpoints[i].IP, externalEntity.Spec.Endpoints[j].IP) < 0
+		if ports[i].Port != ports[j].Port {
+			return ports[i].Port < ports[j].Port
+		}
+		return strings.Compare(string(ports[i].Protocol), string(ports[j].Protocol)) < 0
 	})
+}
+
+func sortEndpoint(endpoints []antreatypes.Endpoint) {
 	sort.Slice(endpoints, func(i, j int) bool {
 		if endpoints[i].Name != endpoints[j].Name {
 			return strings.Compare(endpoints[i].Name, endpoints[j].Name) < 0
 		}
 		return strings.Compare(endpoints[i].IP, endpoints[j].IP) < 0
 	})
-	if !reflect.DeepEqual(externalEntity.Spec.Endpoints, endpoints) {
-		externalEntity.Spec.Endpoints = endpoints
-		changed = true
-	}
-	return changed
 }

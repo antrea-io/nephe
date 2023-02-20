@@ -86,21 +86,20 @@ func populateExternalNodeFrom(source ExternalNodeSource, externalNode *antreav1a
 			IPs:  ips,
 		})
 	}
-	sort.Slice(externalNode.Spec.Interfaces, func(i, j int) bool {
-		if externalNode.Spec.Interfaces[i].Name == externalNode.Spec.Interfaces[j].Name {
-			return slices.Compare(externalNode.Spec.Interfaces[i].IPs, externalNode.Spec.Interfaces[j].IPs) < 0
-		}
-		return strings.Compare(externalNode.Spec.Interfaces[i].Name, externalNode.Spec.Interfaces[j].Name) < 0
-	})
+	sortNetworkInterface(externalNode.Spec.Interfaces)
+	sortNetworkInterface(networkInterface)
+	if !reflect.DeepEqual(externalNode.Spec.Interfaces, networkInterface) {
+		externalNode.Spec.Interfaces = networkInterface
+		changed = true
+	}
+	return changed
+}
+
+func sortNetworkInterface(networkInterface []antreav1alpha1.NetworkInterface) {
 	sort.Slice(networkInterface, func(i, j int) bool {
 		if networkInterface[i].Name == networkInterface[j].Name {
 			return slices.Compare(networkInterface[i].IPs, networkInterface[j].IPs) < 0
 		}
 		return strings.Compare(networkInterface[i].Name, networkInterface[j].Name) < 0
 	})
-	if !reflect.DeepEqual(externalNode.Spec.Interfaces, networkInterface) {
-		externalNode.Spec.Interfaces = networkInterface
-		changed = true
-	}
-	return changed
 }
