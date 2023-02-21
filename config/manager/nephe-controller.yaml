@@ -17,6 +17,16 @@ spec:
   selector:
     control-plane: nephe-controller
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nephe-config
+  namespace: system
+data:
+  nephe-controller.conf: |
+    # Specifies the prefix to be used while creating cloud resources.
+    # CloudResourcePrefix: nephe
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -53,9 +63,16 @@ spec:
           - name: apiserver-cert
             mountPath: /tmp/k8s-apiserver/serving-certs
             readOnly: true
+          - name: nephe-config
+            mountPath: /tmp/nephe/nephe-controller.conf
+            subPath: nephe-controller.conf
+            readOnly: true
       volumes:
         - name: apiserver-cert
           secret:
             defaultMode: 420
             secretName: serving-cert
+        - name: nephe-config
+          configMap: 
+            name: nephe-config
       terminationGracePeriodSeconds: 10

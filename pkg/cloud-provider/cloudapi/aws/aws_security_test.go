@@ -34,6 +34,7 @@ import (
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
+	"antrea.io/nephe/pkg/controllers/config"
 )
 
 var _ = Describe("AWS Cloud Security", func() {
@@ -127,6 +128,9 @@ var _ = Describe("AWS Cloud Security", func() {
 
 		err = cloudInterface.AddAccountResourceSelector(testAccountNamespacedName, selector)
 		Expect(err).Should(BeNil())
+
+		cloudResourcePrefix := config.DefaultCloudResourcePrefix
+		securitygroup.SetCloudResourcePrefix(&(cloudResourcePrefix))
 
 		// wait for instances to be populated
 		time.Sleep(time.Duration(pollIntv+1) * time.Second)

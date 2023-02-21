@@ -49,6 +49,20 @@ func (m *MockNetworkPolicyController) EXPECT() *MockNetworkPolicyControllerMockR
 	return m.recorder
 }
 
+// IsCloudResourceCreated mocks base method.
+func (m *MockNetworkPolicyController) IsCloudResourceCreated() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsCloudResourceCreated")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsCloudResourceCreated indicates an expected call of IsCloudResourceCreated.
+func (mr *MockNetworkPolicyControllerMockRecorder) IsCloudResourceCreated() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsCloudResourceCreated", reflect.TypeOf((*MockNetworkPolicyController)(nil).IsCloudResourceCreated))
+}
+
 // LocalEvent mocks base method.
 func (m *MockNetworkPolicyController) LocalEvent(arg0 watch.Event) {
 	m.ctrl.T.Helper()

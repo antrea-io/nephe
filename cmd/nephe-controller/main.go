@@ -86,6 +86,16 @@ func main() {
 	// Initialize Account poller map.
 	poller := controllers.InitPollers()
 
+	configMapController := &controllers.ConfigMapReconciler{
+		Client: mgr.GetClient(),
+		Log:    logging.GetLogger("controllers").WithName("ConfigMap"),
+		Scheme: mgr.GetScheme(),
+	}
+	if err = configMapController.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ConfigMap")
+		os.Exit(1)
+	}
+
 	if err = (&controllers.CloudEntitySelectorReconciler{
 		Client: mgr.GetClient(),
 		Log:    logging.GetLogger("controllers").WithName("CloudEntitySelector"),
@@ -133,6 +143,11 @@ func main() {
 	mgr.GetWebhookServer().Register("/validate-v1-secret",
 		&webhook.Admission{Handler: &nephewebhook.SecretValidator{Client: mgr.GetClient(),
 			Log: logging.GetLogger("webhook").WithName("Secret")}})
+
+	// Register webhook for ConfigMap.
+	mgr.GetWebhookServer().Register("/validate-v1-configmap",
+		&webhook.Admission{Handler: &nephewebhook.ConfigMapValidator{Client: mgr.GetClient(),
+			Log: logging.GetLogger("webhook").WithName("ConfigMap"), NpControllerInterface: npController}})
 
 	// Register webhook for CloudProviderAccount Mutator.
 	mgr.GetWebhookServer().Register("/mutate-crd-cloud-antrea-io-v1alpha1-cloudprovideraccount",
