@@ -53,7 +53,7 @@ func (computeCfg *computeServiceConfig) getNetworkInterfacesOfVnet(vnetIDSet map
 	if err != nil {
 		return nil, err
 	}
-	nwIntfs, _, err := getNetworkInterfaceTable(computeCfg.resourceGraphAPIClient, query, []string{subscriptionID})
+	nwIntfs, _, err := getNetworkInterfaceTable(computeCfg.resourceGraphAPIClient, query, []*string{&subscriptionID})
 	return nwIntfs, err
 }
 

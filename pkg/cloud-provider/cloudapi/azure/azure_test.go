@@ -17,9 +17,9 @@ package azure
 import (
 	"context"
 	"fmt"
-	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2021-03-01/network"
-	"github.com/Azure/azure-sdk-for-go/services/resourcegraph/mgmt/2021-03-01/resourcegraph"
-	"github.com/Azure/go-autorest/autorest"
+
+	network "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
+	resourcegraph "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -457,17 +457,19 @@ var _ = Describe("Azure", func() {
 	})
 })
 
-func getResourceGraphResult() resourcegraph.QueryResponse {
+func getResourceGraphResult() resourcegraph.ClientResourcesResponse {
 	var records int64 = 0
-	result := resourcegraph.QueryResponse{
-		Response:        autorest.Response{},
-		TotalRecords:    &records,
-		Count:           nil,
-		ResultTruncated: "",
-		SkipToken:       nil,
-		Data:            nil,
-		Facets:          nil,
+	result := resourcegraph.ClientResourcesResponse{
+		QueryResponse: resourcegraph.QueryResponse{
+			TotalRecords:    &records,
+			Count:           nil,
+			ResultTruncated: nil,
+			SkipToken:       nil,
+			Data:            nil,
+			Facets:          nil,
+		},
 	}
+
 	return result
 }
 
@@ -497,17 +499,17 @@ func createVnetObject(vnetIDs []string) []network.VirtualNetwork {
 		value := vnetIDs[i]
 		tags := make(map[string]*string)
 		tags[key] = &value
-		addressPrefix := make([]string, 0)
+		addressPrefix := make([]*string, 0)
 		prefix := "192.16.0.0/24"
-		addressPrefix = append(addressPrefix, prefix)
+		addressPrefix = append(addressPrefix, &prefix)
 		vnet := &network.VirtualNetwork{
 			Location: &region,
 			ID:       &vnetIDs[i],
 			Name:     &name,
 			Tags:     tags,
-			VirtualNetworkPropertiesFormat: &network.VirtualNetworkPropertiesFormat{
-				AddressSpace:           &network.AddressSpace{AddressPrefixes: &addressPrefix},
-				VirtualNetworkPeerings: &[]network.VirtualNetworkPeering{},
+			Properties: &network.VirtualNetworkPropertiesFormat{
+				AddressSpace:           &network.AddressSpace{AddressPrefixes: addressPrefix},
+				VirtualNetworkPeerings: []*network.VirtualNetworkPeering{},
 			},
 		}
 		vnets = append(vnets, *vnet)

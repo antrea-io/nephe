@@ -105,7 +105,7 @@ const (
 )
 
 func getVirtualMachineTable(resourceGraphAPIClient azureResourceGraphWrapper, query *string,
-	subscriptions []string) ([]*virtualMachineTable, int64, error) {
+	subscriptions []*string) ([]*virtualMachineTable, int64, error) {
 	data, count, err := invokeResourceGraphQuery(resourceGraphAPIClient, query, subscriptions)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to invoke query: %q", err)

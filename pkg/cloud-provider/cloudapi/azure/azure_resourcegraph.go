@@ -16,8 +16,9 @@ package azure
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/Azure/azure-sdk-for-go/services/resourcegraph/mgmt/2021-03-01/resourcegraph"
+	resourcegraph "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph"
 )
 
 const (
@@ -33,19 +34,25 @@ const (
 
 // resourceGraph returns resource-graph SDK apiClient.
 func (p *azureServiceSdkConfigProvider) resourceGraph() (azureResourceGraphWrapper, error) {
-	baseClient := resourcegraph.New()
-	baseClient.Authorizer = p.authorizer
+	baseClient, err := resourcegraph.NewClient(p.cred, nil)
+	if err != nil {
+		fmt.Println("failed to create arm resource graph client")
+	}
+
+	//baseClient := resourcegraph.New()
+	//baseClient.Authorizer = p.authorizer
 	return &azureResourceGraphWrapperImpl{resourceGraphAPIClient: baseClient}, nil
 }
 
 func invokeResourceGraphQuery(resourceGraphAPIClient azureResourceGraphWrapper, query *string,
-	subscriptions []string) (interface{}, int64, error) {
+	subscriptions []*string) (interface{}, int64, error) {
+	resultFmt := resourcegraph.ResultFormatObjectArray
 	requestOptions := resourcegraph.QueryRequestOptions{
-		ResultFormat: resourcegraph.ResultFormatObjectArray,
+		ResultFormat: &resultFmt,
 	}
 
 	request := resourcegraph.QueryRequest{
-		Subscriptions: &subscriptions,
+		Subscriptions: subscriptions,
 		Query:         query,
 		Options:       &requestOptions,
 		Facets:        nil,

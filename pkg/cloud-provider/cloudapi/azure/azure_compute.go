@@ -172,8 +172,8 @@ func (computeCfg *computeServiceConfig) getVirtualMachines() ([]*virtualMachineT
 		azurePluginLogger().V(1).Info("fetching vm resources from cloud",
 			"account", computeCfg.accountName, "resource-filters", "configured")
 	}
-	var subscriptions []string
-	subscriptions = append(subscriptions, computeCfg.credentials.SubscriptionID)
+	var subscriptions []*string
+	subscriptions = append(subscriptions, &computeCfg.credentials.SubscriptionID)
 
 	var virtualMachines []*virtualMachineTable
 	for _, filter := range filters {

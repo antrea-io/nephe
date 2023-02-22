@@ -17,8 +17,9 @@ package azure
 import (
 	"context"
 	"fmt"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
-	"github.com/Azure/azure-sdk-for-go/services/resourcegraph/mgmt/2021-03-01/resourcegraph"
+	resourcegraph "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph"
 )
 
 type azureNwIntfWrapper interface {
@@ -235,15 +236,14 @@ func (asg *azureAsgWrapperImpl) delete(ctx context.Context, resourceGroupName st
 }
 
 type azureResourceGraphWrapper interface {
-	resources(ctx context.Context, query resourcegraph.QueryRequest) (result resourcegraph.QueryResponse, err error)
+	resources(ctx context.Context, query resourcegraph.QueryRequest) (result resourcegraph.ClientResourcesResponse, err error)
 }
 type azureResourceGraphWrapperImpl struct {
-	resourceGraphAPIClient resourcegraph.BaseClient
+	resourceGraphAPIClient *resourcegraph.Client
 }
 
-func (rg *azureResourceGraphWrapperImpl) resources(ctx context.Context, query resourcegraph.QueryRequest) (
-	result resourcegraph.QueryResponse, err error) {
-	return rg.resourceGraphAPIClient.Resources(ctx, query)
+func (rg *azureResourceGraphWrapperImpl) resources(ctx context.Context, query resourcegraph.QueryRequest) (result resourcegraph.ClientResourcesResponse, err error) {
+	return rg.resourceGraphAPIClient.Resources(ctx, query, nil)
 }
 
 type azureVirtualNetworksWrapper interface {
