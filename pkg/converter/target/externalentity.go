@@ -15,6 +15,10 @@
 package target
 
 import (
+	"reflect"
+	"sort"
+	"strings"
+
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -53,7 +57,7 @@ func NewExternalEntityFrom(
 	source ExternalEntitySource, name, namespace string, cl client.Client,
 	scheme *runtime.Scheme) *antreatypes.ExternalEntity {
 	externalEntity := &antreatypes.ExternalEntity{}
-	populateExternalEntityFrom(source, externalEntity, cl)
+	_ = populateExternalEntityFrom(source, externalEntity, cl)
 	externalEntity.SetName(name)
 	externalEntity.SetNamespace(namespace)
 	accessor, _ := meta.Accessor(source.EmbedType())
@@ -66,20 +70,62 @@ func NewExternalEntityFrom(
 
 // PatchExternalEntityFrom generate a patch for existing ExternalEntity from source.
 func PatchExternalEntityFrom(
-	source ExternalEntitySource, patch *antreatypes.ExternalEntity, cl client.Client) *antreatypes.ExternalEntity {
-	populateExternalEntityFrom(source, patch, cl)
-	return patch
+	source ExternalEntitySource, patch *antreatypes.ExternalEntity, cl client.Client) (*antreatypes.ExternalEntity, bool) {
+	changed := populateExternalEntityFrom(source, patch, cl)
+	return patch, changed
 }
 
 func populateExternalEntityFrom(source ExternalEntitySource, externalEntity *antreatypes.ExternalEntity,
-	cl client.Client) {
-	externalEntity.SetLabels(genTargetEntityLabels(source, cl))
+	cl client.Client) bool {
+	changed := false
+	if !reflect.DeepEqual(externalEntity.GetLabels(), genTargetEntityLabels(source, cl)) {
+		externalEntity.SetLabels(genTargetEntityLabels(source, cl))
+		changed = true
+	}
 	ipAddrs, _ := source.GetEndPointAddresses()
 	endpoints := make([]antreatypes.Endpoint, 0, len(ipAddrs))
 	for _, ip := range ipAddrs {
 		endpoints = append(endpoints, antreatypes.Endpoint{IP: ip})
 	}
-	externalEntity.Spec.Endpoints = endpoints
-	externalEntity.Spec.Ports = source.GetEndPointPort(cl)
-	externalEntity.Spec.ExternalNode = source.GetExternalNodeName(cl)
+	if externalEntity.Spec.ExternalNode != source.GetExternalNodeName(cl) {
+		externalEntity.Spec.ExternalNode = source.GetExternalNodeName(cl)
+		changed = true
+	}
+	sourcePorts := source.GetEndPointPort(cl)
+	sortNamedPort(externalEntity.Spec.Ports)
+	sortNamedPort(sourcePorts)
+	if !reflect.DeepEqual(externalEntity.Spec.Ports, sourcePorts) {
+		externalEntity.Spec.Ports = sourcePorts
+		changed = true
+	}
+
+	sortEndpoint(externalEntity.Spec.Endpoints)
+	sortEndpoint(endpoints)
+	if !reflect.DeepEqual(externalEntity.Spec.Endpoints, endpoints) {
+		externalEntity.Spec.Endpoints = endpoints
+		changed = true
+	}
+
+	return changed
+}
+
+func sortNamedPort(ports []antreatypes.NamedPort) {
+	sort.Slice(ports, func(i, j int) bool {
+		if ports[i].Name != ports[j].Name {
+			return strings.Compare(ports[i].Name, ports[j].Name) < 0
+		}
+		if ports[i].Port != ports[j].Port {
+			return ports[i].Port < ports[j].Port
+		}
+		return strings.Compare(string(ports[i].Protocol), string(ports[j].Protocol)) < 0
+	})
+}
+
+func sortEndpoint(endpoints []antreatypes.Endpoint) {
+	sort.Slice(endpoints, func(i, j int) bool {
+		if endpoints[i].Name != endpoints[j].Name {
+			return strings.Compare(endpoints[i].Name, endpoints[j].Name) < 0
+		}
+		return strings.Compare(endpoints[i].IP, endpoints[j].IP) < 0
+	})
 }

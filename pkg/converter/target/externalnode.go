@@ -15,6 +15,11 @@
 package target
 
 import (
+	"reflect"
+	"sort"
+	"strings"
+
+	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -58,13 +63,17 @@ func NewExternalNodeFrom(
 
 // PatchExternalNodeFrom generate a patch for existing ExternalNode from source.
 func PatchExternalNodeFrom(
-	source ExternalNodeSource, patch *antreav1alpha1.ExternalNode, cl client.Client) *antreav1alpha1.ExternalNode {
-	populateExternalNodeFrom(source, patch, cl)
-	return patch
+	source ExternalNodeSource, patch *antreav1alpha1.ExternalNode, cl client.Client) (*antreav1alpha1.ExternalNode, bool) {
+	changed := populateExternalNodeFrom(source, patch, cl)
+	return patch, changed
 }
 
-func populateExternalNodeFrom(source ExternalNodeSource, externalNode *antreav1alpha1.ExternalNode, cl client.Client) {
-	externalNode.SetLabels(genTargetEntityLabels(source, cl))
+func populateExternalNodeFrom(source ExternalNodeSource, externalNode *antreav1alpha1.ExternalNode, cl client.Client) bool {
+	changed := false
+	if !reflect.DeepEqual(externalNode.GetLabels(), genTargetEntityLabels(source, cl)) {
+		externalNode.SetLabels(genTargetEntityLabels(source, cl))
+		changed = true
+	}
 	interfaces, _ := source.GetNetworkInterfaces()
 	networkInterface := make([]antreav1alpha1.NetworkInterface, 0, len(interfaces))
 	for _, intf := range interfaces {
@@ -77,5 +86,20 @@ func populateExternalNodeFrom(source ExternalNodeSource, externalNode *antreav1a
 			IPs:  ips,
 		})
 	}
-	externalNode.Spec.Interfaces = networkInterface
+	sortNetworkInterface(externalNode.Spec.Interfaces)
+	sortNetworkInterface(networkInterface)
+	if !reflect.DeepEqual(externalNode.Spec.Interfaces, networkInterface) {
+		externalNode.Spec.Interfaces = networkInterface
+		changed = true
+	}
+	return changed
+}
+
+func sortNetworkInterface(networkInterface []antreav1alpha1.NetworkInterface) {
+	sort.Slice(networkInterface, func(i, j int) bool {
+		if networkInterface[i].Name == networkInterface[j].Name {
+			return slices.Compare(networkInterface[i].IPs, networkInterface[j].IPs) < 0
+		}
+		return strings.Compare(networkInterface[i].Name, networkInterface[j].Name) < 0
+	})
 }
