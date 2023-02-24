@@ -295,7 +295,6 @@ func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(ap
 	appliedToGroupNepheControllerName := appliedToGroupID.GetCloudName(false)
 	azurePluginLogger().Info("building security rules", "applied to security group", appliedToGroupNepheControllerName)
 	for _, rule := range currentNsgSecurityRules {
-		azurePluginLogger().Info("Test: buildEffectiveNSGSecurityRulesToApply", "current nsg rule", rule)
 		if rule.Properties == nil {
 			azurePluginLogger().Info("Test: skip rule as Properties field is empty")
 			continue
@@ -320,7 +319,6 @@ func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(ap
 			continue
 		}
 		if *rule.Properties.Direction == armnetwork.SecurityRuleDirectionInbound {
-			azurePluginLogger().Info("Test: buildEffectiveNSGSecurityRulesToApply, inside  SecurityRuleDirectionInbound direction")
 			currentNsgIngressRules = append(currentNsgIngressRules, *rule)
 		} else {
 			currentNsgEgressRules = append(currentNsgEgressRules, *rule)
@@ -348,18 +346,12 @@ func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(ap
 
 	rules := make([]*armnetwork.SecurityRule, 0)
 	for ind, _ := range allIngressRules {
-		azurePluginLogger().Info("Test: adding to final slice", "rule", &allIngressRules[ind])
 		rules = append(rules, &allIngressRules[ind])
 	}
 	for ind, _ := range allEgressRules {
-		azurePluginLogger().Info("Test: adding to final slice", "rule", &allEgressRules[ind])
 		rules = append(rules, &allEgressRules[ind])
 	}
 
-	for _, rule := range rules {
-		azurePluginLogger().Info("Test: reprint rules", "rule", rule)
-	}
-	azurePluginLogger().Info("Test: size of final slice", "len rule", len(rules))
 	return rules, nil
 }
 
@@ -874,7 +866,6 @@ func (c *azureCloud) CreateSecurityGroup(securityGroupIdentifier *securitygroup.
 
 		// create azure asg corresponding to AT sg.
 		cloudAsgName := securityGroupIdentifier.GetCloudName(false)
-		azurePluginLogger().Info("Test: calling create sg", "at", cloudAsgName)
 		_, err = createOrGetApplicationSecurityGroup(computeService.asgAPIClient, location, rgName, cloudAsgName)
 		if err != nil {
 			return nil, fmt.Errorf("azure asg %v create failed for AT sg %v, reason: %w", cloudAsgName, securityGroupIdentifier.Name, err)

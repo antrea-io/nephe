@@ -60,9 +60,7 @@ func createOrGetNetworkSecurityGroup(nsgAPIClient azureNsgWrapper, location stri
 
 func updateNetworkSecurityGroupRules(nsgAPIClient azureNsgWrapper, location string, rgName string, cloudSgName string,
 	rules []*armnetwork.SecurityRule) error {
-	for _, rule := range rules {
-		azurePluginLogger().Info("Test: updateNetworkSecurityGroupRules", "rule", *rule)
-	}
+
 	securityGroupParams := armnetwork.SecurityGroup{
 		Properties: &armnetwork.SecurityGroupPropertiesFormat{
 			SecurityRules: rules,

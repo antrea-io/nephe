@@ -115,17 +115,17 @@ func getAsgUpdatedIPConfigurations(nwIntfObj *armnetwork.Interface, asgObjToAtta
 
 	var newNwIntfAsgs []*armnetwork.ApplicationSecurityGroup
 	if isAttach {
-		for _, asg := range currentNwIntfAsgs {
-			newNwIntfAsgs = append(newNwIntfAsgs, &asg)
+		for ind, _ := range currentNwIntfAsgs {
+			newNwIntfAsgs = append(newNwIntfAsgs, &currentNwIntfAsgs[ind])
 		}
 		newNwIntfAsgs = append(newNwIntfAsgs, &asgObjToAttachOrDetach)
 	} else {
 		asgToDetachIDLowercase := strings.ToLower(*asgObjToAttachOrDetach.ID)
-		for _, currentNwIntfAsg := range currentNwIntfAsgs {
-			if strings.Compare(asgToDetachIDLowercase, strings.ToLower(*currentNwIntfAsg.ID)) == 0 {
+		for ind, _ := range currentNwIntfAsgs {
+			if strings.Compare(asgToDetachIDLowercase, strings.ToLower(*currentNwIntfAsgs[ind].ID)) == 0 {
 				continue
 			}
-			newNwIntfAsgs = append(newNwIntfAsgs, &currentNwIntfAsg)
+			newNwIntfAsgs = append(newNwIntfAsgs, &currentNwIntfAsgs[ind])
 		}
 	}
 

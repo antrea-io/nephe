@@ -52,13 +52,11 @@ func updateSecurityRuleNameAndPriority(existingRules []armnetwork.SecurityRule, 
 
 	rulePriority := int32(ruleStartPriority)
 	for _, rule := range existingRules {
-		azurePluginLogger().Info("Test: updateSecurityRuleNameAndPriority", "existing rule", rule)
 		if rule.Properties == nil {
 			azurePluginLogger().Info("Test: rule properties nil")
 			continue
 		}
 		if *rule.Properties.Priority == vnetToVnetDenyRulePriority {
-			azurePluginLogger().Info("Test: updateSecurityRuleNameAndPriority inside 4096 rule priority", "name", *rule.Name)
 			defaultRulesByName[*rule.Name] = rule
 			continue
 		}
@@ -66,15 +64,12 @@ func updateSecurityRuleNameAndPriority(existingRules []armnetwork.SecurityRule, 
 		rule.Name = &ruleName
 		rule.Properties.Priority = to.Int32Ptr(rulePriority)
 
-		azurePluginLogger().Info("Test: updateSecurityRuleNameAndPriority, updating rules slice", "rules", rule)
 		rules = append(rules, rule)
 		rulePriority++
 	}
 
 	for _, rule := range newRules {
-		azurePluginLogger().Info("Test: updateSecurityRuleNameAndPriority", "new rule", rule)
 		if *rule.Properties.Priority == vnetToVnetDenyRulePriority {
-			azurePluginLogger().Info("Test: updateSecurityRuleNameAndPriority inside 4096 rule priority", "name", *rule.Name)
 			defaultRulesByName[*rule.Name] = rule
 			continue
 		}
@@ -82,17 +77,13 @@ func updateSecurityRuleNameAndPriority(existingRules []armnetwork.SecurityRule, 
 		rule.Name = &ruleName
 		rule.Properties.Priority = to.Int32Ptr(rulePriority)
 
-		azurePluginLogger().Info("Test: updateSecurityRuleNameAndPriority, updating rules slice", "rules", rule)
 		rules = append(rules, rule)
 		rulePriority++
 	}
 
 	for _, rule := range defaultRulesByName {
-		azurePluginLogger().Info("Test: updateSecurityRuleNameAndPriority, default rule", "rule", rule)
-		azurePluginLogger().Info("Test: updateSecurityRuleNameAndPriority, updating rules slice", "rules", rule)
 		rules = append(rules, rule)
 	}
-	azurePluginLogger().Info("Test: updateSecurityRuleNameAndPriority, rules len", "len rules", len(rules))
 
 	return rules
 }
