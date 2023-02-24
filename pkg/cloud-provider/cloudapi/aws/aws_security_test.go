@@ -130,6 +130,9 @@ var _ = Describe("AWS Cloud Security", func() {
 		err = cloudInterface.AddAccountResourceSelector(testAccountNamespacedName, selector)
 		Expect(err).Should(BeNil())
 
+		err = cloudInterface.DoInventoryPoll(testAccountNamespacedName)
+		Expect(err).Should(BeNil())
+
 		cloudResourcePrefix := config.DefaultCloudResourcePrefix
 		securitygroup.SetCloudResourcePrefix(&(cloudResourcePrefix))
 

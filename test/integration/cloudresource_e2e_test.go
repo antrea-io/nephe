@@ -753,18 +753,18 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		)
 		Expect(err).ToNot(HaveOccurred())
 
-		// change ces to only select a subset of VMs.
+		By("Change CES selector to import only a subset of VMs")
 		entityParams := cloudVPC.GetEntitySelectorParameters("test-entity-selector"+namespace.Name, namespace.Name, kind, ids[:vmCount])
 		err = utils.ConfigureEntitySelectorAndWait(kubeCtl, k8sClient, entityParams, kind, vmCount, namespace.Name, false)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("Check vmp after vm change")
+		By("Check VMPs after importing subset of VMs")
 		err = utils.CheckVirtualMachinePolicies(k8sClient, namespace.Name, vmCount)
 		Expect(err).ToNot(HaveOccurred())
 
-		// change ces back for cleanup check.
+		By("Revert CES selector to import all VMS")
 		entityParams = cloudVPC.GetEntitySelectorParameters("test-entity-selector"+namespace.Name, namespace.Name, kind, nil)
-		err = utils.ConfigureEntitySelectorAndWait(kubeCtl, k8sClient, entityParams, kind, vmCount, namespace.Name, false)
+		err = utils.ConfigureEntitySelectorAndWait(kubeCtl, k8sClient, entityParams, kind, len(cloudVPC.GetVMs()), namespace.Name, false)
 		Expect(err).ToNot(HaveOccurred())
 	})
 })

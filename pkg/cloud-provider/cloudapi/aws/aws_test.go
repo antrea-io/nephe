@@ -148,7 +148,7 @@ var _ = Describe("AWS cloud", func() {
 				Expect(found).To(BeTrue())
 				Expect(accCfg).To(Not(BeNil()))
 
-				errPolAdd := c.AddInventoryPoller(&testAccountNamespacedName)
+				errPolAdd := c.DoInventoryPoll(&testAccountNamespacedName)
 				Expect(errPolAdd).Should(BeNil())
 
 				err = checkVpcPollResult(c, testAccountNamespacedName, vpcIDs)
@@ -183,7 +183,7 @@ var _ = Describe("AWS cloud", func() {
 				Expect(found).To(BeTrue())
 				Expect(accCfg).To(Not(BeNil()))
 
-				errPolAdd := c.AddInventoryPoller(&testAccountNamespacedName)
+				errPolAdd := c.DoInventoryPoll(&testAccountNamespacedName)
 				Expect(errPolAdd).Should(BeNil())
 
 				vpcMap, err := c.GetVpcInventory(&testAccountNamespacedName)
@@ -219,10 +219,10 @@ var _ = Describe("AWS cloud", func() {
 				Expect(found).To(BeTrue())
 				Expect(accCfg).To(Not(BeNil()))
 
-				errPolAdd := c.AddInventoryPoller(&testAccountNamespacedName)
+				errPolAdd := c.DoInventoryPoll(&testAccountNamespacedName)
 				Expect(errPolAdd).Should(BeNil())
 
-				errPolDel := c.DeleteInventoryPoller(&testAccountNamespacedName)
+				errPolDel := c.DeleteInventoryPoll(&testAccountNamespacedName)
 				Expect(errPolDel).Should(BeNil())
 
 				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).Times(0)
@@ -262,6 +262,9 @@ var _ = Describe("AWS cloud", func() {
 				errSelAdd := c.AddAccountResourceSelector(&testAccountNamespacedName, selector)
 				Expect(errSelAdd).Should(BeNil())
 
+				err = c.DoInventoryPoll(&testAccountNamespacedName)
+				Expect(err).Should(BeNil())
+
 				err = checkAccountAddSuccessCondition(c, testAccountNamespacedName, instanceIds)
 				Expect(err).Should(BeNil())
 			})
@@ -295,6 +298,9 @@ var _ = Describe("AWS cloud", func() {
 				errSelAdd := c.AddAccountResourceSelector(&testAccountNamespacedName, selector)
 				Expect(errSelAdd).Should(BeNil())
 
+				err = c.DoInventoryPoll(&testAccountNamespacedName)
+				Expect(err).Should(BeNil())
+
 				err = checkAccountAddSuccessCondition(c, testAccountNamespacedName, instanceIds)
 				Expect(err).Should(BeNil())
 			})
@@ -315,6 +321,9 @@ var _ = Describe("AWS cloud", func() {
 
 				errSelAdd := c.AddAccountResourceSelector(&testAccountNamespacedName, selector)
 				Expect(errSelAdd).Should(BeNil())
+
+				err = c.DoInventoryPoll(&testAccountNamespacedName)
+				Expect(err).Should(BeNil())
 
 				err = checkAccountAddSuccessCondition(c, testAccountNamespacedName, instanceIds)
 				Expect(err).Should(BeNil())

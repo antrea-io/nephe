@@ -224,6 +224,7 @@ func (p *Poller) updateAccountPoller(name *types.NamespacedName, selector *cloud
 }
 
 // RestartAccountPoller stops and starts a goroutine making sure there is only one account poller goroutine at a time.
+// TODO: Should be called on CPA Update/Delete and CES Add/Update/Delete.
 func (p *Poller) RestartAccountPoller(name *types.NamespacedName) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
@@ -233,25 +234,24 @@ func (p *Poller) RestartAccountPoller(name *types.NamespacedName) error {
 		return fmt.Errorf("%s %v", errorMsgAccountPollerNotFound, name)
 	}
 
-	// Acquire mutex lock to make sure doAccountPoller is not running while new gorutine is started.
+	// Acquire mutex lock to make sure doAccountPolling is not running while new goroutine is started.
 	accPoller.mutex.Lock()
 
 	if accPoller.ch != nil {
-		p.log.Info("Stop account poller goroutine", "account", name)
 		close(accPoller.ch)
 		accPoller.ch = nil
 	}
 
-	p.log.Info("Start account poller goroutine", "account", name)
+	p.log.Info("Restart account poller", "account", name)
 	accPoller.ch = make(chan struct{})
-	go wait.Until(accPoller.doAccountPoller, time.Duration(accPoller.pollIntvInSeconds)*time.Second, accPoller.ch)
+	go wait.Until(accPoller.doAccountPolling, time.Duration(accPoller.pollIntvInSeconds)*time.Second, accPoller.ch)
 
 	accPoller.mutex.Unlock()
 
 	return nil
 }
 
-func (p *accountPoller) doAccountPoller() {
+func (p *accountPoller) doAccountPolling() {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
@@ -261,8 +261,14 @@ func (p *accountPoller) doAccountPoller() {
 		return
 	}
 
+	e = cloudInterface.DoInventoryPoll(p.namespacedName)
+	if e != nil {
+		p.log.Error(e, "failed to get poll cloud inventory", "account", p.namespacedName)
+	}
+
 	p.updateAccountStatus(cloudInterface)
 
+	// TODO: Avoid calling plugin to get VPC inventory from snapshot.
 	vpcMap, e := cloudInterface.GetVpcInventory(p.namespacedName)
 	vpcCount := len(vpcMap)
 	if e != nil {
@@ -279,6 +285,7 @@ func (p *accountPoller) doAccountPoller() {
 	// Perform VM Operations only when CES is added.
 	vmCount := 0
 	if p.selector != nil {
+		// TODO: Avoid calling plugin to get VM inventory from snapshot.
 		virtualMachines := p.getComputeResources(cloudInterface)
 		e = p.doVirtualMachineOperations(virtualMachines)
 		if e != nil {

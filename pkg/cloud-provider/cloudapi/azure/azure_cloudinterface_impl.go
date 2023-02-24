@@ -105,14 +105,14 @@ func (c *azureCloud) GetAccountStatus(accNamespacedName *types.NamespacedName) (
 	return c.cloudCommon.GetStatus(accNamespacedName)
 }
 
-// AddInventoryPoller adds poller for polling cloud inventory.
-func (c *azureCloud) AddInventoryPoller(accountNamespacedName *types.NamespacedName) error {
-	return c.cloudCommon.AddInventoryPoller(accountNamespacedName)
+// DoInventoryPoll calls cloud API to get vm and vpc resources.
+func (c *azureCloud) DoInventoryPoll(accountNamespacedName *types.NamespacedName) error {
+	return c.cloudCommon.DoInventoryPoll(accountNamespacedName)
 }
 
-// DeleteInventoryPoller deletes an existing poller created for polling cloud inventory.
-func (c *azureCloud) DeleteInventoryPoller(accountNamespacedName *types.NamespacedName) error {
-	return c.cloudCommon.DeleteInventoryPoller(accountNamespacedName)
+// DeleteInventoryPoll resets cloud snapshot to nil.
+func (c *azureCloud) DeleteInventoryPoll(accountNamespacedName *types.NamespacedName) error {
+	return c.cloudCommon.DeleteInventoryPoll(accountNamespacedName)
 }
 
 // GetVpcInventory pulls cloud vpc inventory from internal snapshot.

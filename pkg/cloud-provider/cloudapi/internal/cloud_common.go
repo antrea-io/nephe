@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	"go.uber.org/multierr"
 	"k8s.io/apimachinery/pkg/types"
@@ -57,9 +56,9 @@ type CloudCommonInterface interface {
 
 	GetStatus(accNamespacedName *types.NamespacedName) (*cloudv1alpha1.CloudProviderAccountStatus, error)
 
-	AddInventoryPoller(accountNamespacedName *types.NamespacedName) error
+	DoInventoryPoll(accountNamespacedName *types.NamespacedName) error
 
-	DeleteInventoryPoller(accountNamespacedName *types.NamespacedName) error
+	DeleteInventoryPoll(accountNamespacedName *types.NamespacedName) error
 
 	GetVpcInventory(accountNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.Vpc, error)
 }
@@ -97,8 +96,7 @@ func (c *cloudCommon) AddCloudAccount(client client.Client, account *cloudv1alph
 		return c.updateCloudAccountConfig(client, credentials, existingConfig)
 	}
 
-	config, err := c.newCloudAccountConfig(client, namespacedName, credentials,
-		time.Duration(*account.Spec.PollIntervalInSeconds)*time.Second, c.logger)
+	config, err := c.newCloudAccountConfig(client, namespacedName, credentials, c.logger)
 	if err != nil {
 		return err
 	}
@@ -200,12 +198,6 @@ func (c *cloudCommon) AddSelector(accountNamespacedName *types.NamespacedName, s
 		serviceCfg.setResourceFilters(selector)
 	}
 
-	// Invoke this function to force inventory scan for vms soon after CES add.
-	err := accCfg.startPeriodicInventorySync()
-	if err != nil {
-		return fmt.Errorf("failed to sync inventory, account: %v, err: %v", *accountNamespacedName, err)
-	}
-
 	return nil
 }
 
@@ -230,14 +222,14 @@ func (c *cloudCommon) GetStatus(accountNamespacedName *types.NamespacedName) (*c
 	return accCfg.GetStatus(), nil
 }
 
-// AddInventoryPoller adds a periodic poller for fetching cloud inventory.
-func (c *cloudCommon) AddInventoryPoller(accountNamespacedName *types.NamespacedName) error {
+// DoInventoryPoll calls cloud API to get vm and vpc resources.
+func (c *cloudCommon) DoInventoryPoll(accountNamespacedName *types.NamespacedName) error {
 	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
 	if !found {
 		return fmt.Errorf("unable to find cloud account: %v", *accountNamespacedName)
 	}
 
-	err := accCfg.startPeriodicInventorySync()
+	err := accCfg.performInventorySync()
 	if err != nil {
 		return fmt.Errorf("failed to sync inventory, account: %v, err: %v", *accountNamespacedName, err)
 	}
@@ -245,14 +237,14 @@ func (c *cloudCommon) AddInventoryPoller(accountNamespacedName *types.Namespaced
 	return nil
 }
 
-// DeleteInventoryPoller deletes an existing poller created for polling cloud inventory along with clearing set filters.
-func (c *cloudCommon) DeleteInventoryPoller(accountNamespacedName *types.NamespacedName) error {
+// DeleteInventoryPoll resets cloud snapshot to nil.
+func (c *cloudCommon) DeleteInventoryPoll(accountNamespacedName *types.NamespacedName) error {
 	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
 	if !found {
 		return fmt.Errorf("unable to find cloud account %v", *accountNamespacedName)
 	}
 
-	accCfg.stopPeriodicInventorySync()
+	accCfg.resetInventorySync()
 	return nil
 }
 

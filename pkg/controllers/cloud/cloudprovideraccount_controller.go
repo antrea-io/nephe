@@ -144,15 +144,10 @@ func (r *CloudProviderAccountReconciler) processCreate(namespacedName *types.Nam
 		return fmt.Errorf("%s, err: %v", errorMsgAccountAddFail, err)
 	}
 
-	accPoller, preExists := r.Poller.addAccountPoller(accountCloudType, namespacedName, account, r)
+	accPoller, exists := r.Poller.addAccountPoller(accountCloudType, namespacedName, account, r)
 
-	if !preExists {
-		err = cloudInterface.AddInventoryPoller(namespacedName)
-		if err != nil {
-			_ = r.Poller.removeAccountPoller(namespacedName)
-			return err
-		}
-		go wait.Until(accPoller.doAccountPoller, time.Duration(accPoller.pollIntvInSeconds)*time.Second, accPoller.ch)
+	if !exists {
+		go wait.Until(accPoller.doAccountPolling, time.Duration(accPoller.pollIntvInSeconds)*time.Second, accPoller.ch)
 	} else {
 		err = r.Poller.RestartAccountPoller(namespacedName)
 		if err != nil {
@@ -181,7 +176,8 @@ func (r *CloudProviderAccountReconciler) processDelete(namespacedName *types.Nam
 	if err != nil {
 		return err
 	}
-	err = cloudInterface.DeleteInventoryPoller(namespacedName)
+
+	err = cloudInterface.DeleteInventoryPoll(namespacedName)
 	if err != nil {
 		return err
 	}
