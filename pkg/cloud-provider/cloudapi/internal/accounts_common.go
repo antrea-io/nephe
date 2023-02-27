@@ -33,7 +33,7 @@ type CloudAccountInterface interface {
 	GetStatus() *cloudv1alpha1.CloudProviderAccountStatus
 
 	performInventorySync() error
-	resetInventorySync()
+	resetInventorySyncCache()
 }
 
 type cloudAccountConfig struct {
@@ -218,7 +218,7 @@ func (accCfg *cloudAccountConfig) GetStatus() *cloudv1alpha1.CloudProviderAccoun
 	return accCfg.Status
 }
 
-func (accCfg *cloudAccountConfig) resetInventorySync() {
+func (accCfg *cloudAccountConfig) resetInventorySyncCache() {
 	for _, serviceConfig := range accCfg.serviceConfigs {
 		serviceConfig.resetCachedState()
 	}

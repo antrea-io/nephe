@@ -58,7 +58,7 @@ type CloudCommonInterface interface {
 
 	DoInventoryPoll(accountNamespacedName *types.NamespacedName) error
 
-	DeleteInventoryPoll(accountNamespacedName *types.NamespacedName) error
+	DeleteInventoryPollCache(accountNamespacedName *types.NamespacedName) error
 
 	GetVpcInventory(accountNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.Vpc, error)
 }
@@ -237,14 +237,14 @@ func (c *cloudCommon) DoInventoryPoll(accountNamespacedName *types.NamespacedNam
 	return nil
 }
 
-// DeleteInventoryPoll resets cloud snapshot to nil.
-func (c *cloudCommon) DeleteInventoryPoll(accountNamespacedName *types.NamespacedName) error {
+// DeleteInventoryPollCache resets cloud snapshot to nil.
+func (c *cloudCommon) DeleteInventoryPollCache(accountNamespacedName *types.NamespacedName) error {
 	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
 	if !found {
 		return fmt.Errorf("unable to find cloud account %v", *accountNamespacedName)
 	}
 
-	accCfg.resetInventorySync()
+	accCfg.resetInventorySyncCache()
 	return nil
 }
 

@@ -144,29 +144,33 @@ func (p *Poller) addAccountPoller(cloudType cloudv1alpha1.CloudProvider, namespa
 	return poller, false
 }
 
-// removeAccountPoller removes an account poller from accPollers map.
+// removeAccountPoller stops account poller thread and removes account poller entry from accPollers map.
 func (p *Poller) removeAccountPoller(namespacedName *types.NamespacedName) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
-	poller, found := p.accPollers[*namespacedName]
-	if found {
-		if poller.selector != nil {
-			cloudInterface, err := cloudprovider.GetCloudInterface(common.ProviderType(poller.cloudType))
-			if err != nil {
-				return err
+	if poller, found := p.accPollers[*namespacedName]; found {
+		if poller != nil {
+			if poller.selector != nil {
+				cloudInterface, err := cloudprovider.GetCloudInterface(common.ProviderType(poller.cloudType))
+				if err != nil {
+					return err
+				}
+				cloudInterface.RemoveAccountResourcesSelector(namespacedName, poller.selector.Name)
 			}
-			cloudInterface.RemoveAccountResourcesSelector(namespacedName, poller.selector.Name)
-		}
 
-		poller.mutex.Lock()
-		if poller.ch != nil {
-			close(poller.ch)
-			poller.ch = nil
-		}
-		poller.mutex.Unlock()
+			// Stop go-routine.
+			poller.mutex.Lock()
+			if poller.ch != nil {
+				close(poller.ch)
+				poller.ch = nil
+			}
+			poller.mutex.Unlock()
 
-		delete(p.accPollers, *namespacedName)
+			// To avoid race condition between CES Delete and CPA Delete wrt account poller workflow
+			// remove entry for the account from accPollers map now.
+			delete(p.accPollers, *namespacedName)
+		}
 	}
 
 	return nil
@@ -223,9 +227,8 @@ func (p *Poller) updateAccountPoller(name *types.NamespacedName, selector *cloud
 	return nil
 }
 
-// RestartAccountPoller stops and starts a goroutine making sure there is only one account poller goroutine at a time.
-// TODO: Should be called on CPA Update/Delete and CES Add/Update/Delete.
-func (p *Poller) RestartAccountPoller(name *types.NamespacedName) error {
+// restartAccountPoller stops and starts a goroutine making sure there is only one account poller goroutine at a time.
+func (p *Poller) restartAccountPoller(name *types.NamespacedName) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
@@ -236,17 +239,15 @@ func (p *Poller) RestartAccountPoller(name *types.NamespacedName) error {
 
 	// Acquire mutex lock to make sure doAccountPolling is not running while new goroutine is started.
 	accPoller.mutex.Lock()
-
 	if accPoller.ch != nil {
 		close(accPoller.ch)
 		accPoller.ch = nil
 	}
+	accPoller.mutex.Unlock()
 
-	p.log.Info("Restart account poller", "account", name)
+	p.log.Info("Restarting account poller", "account", name)
 	accPoller.ch = make(chan struct{})
 	go wait.Until(accPoller.doAccountPolling, time.Duration(accPoller.pollIntvInSeconds)*time.Second, accPoller.ch)
-
-	accPoller.mutex.Unlock()
 
 	return nil
 }
@@ -263,7 +264,7 @@ func (p *accountPoller) doAccountPolling() {
 
 	e = cloudInterface.DoInventoryPoll(p.namespacedName)
 	if e != nil {
-		p.log.Error(e, "failed to get poll cloud inventory", "account", p.namespacedName)
+		p.log.Error(e, "failed to poll cloud inventory", "account", p.namespacedName)
 	}
 
 	p.updateAccountStatus(cloudInterface)

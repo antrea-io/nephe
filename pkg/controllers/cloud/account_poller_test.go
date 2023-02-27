@@ -166,7 +166,7 @@ var _ = Describe("Account poller", func() {
 			Expect(accPoller).To(Not(BeNil()))
 			Expect(exists).To(BeFalse())
 
-			err = reconciler.Poller.RestartAccountPoller(&testAccountNamespacedName)
+			err = reconciler.Poller.restartAccountPoller(&testAccountNamespacedName)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 		It("Account poller not available during restart", func() {
@@ -181,7 +181,7 @@ var _ = Describe("Account poller", func() {
 
 			err = reconciler.Poller.removeAccountPoller(&testAccountNamespacedName)
 			Expect(err).ShouldNot(HaveOccurred())
-			err = reconciler.Poller.RestartAccountPoller(&testAccountNamespacedName)
+			err = reconciler.Poller.restartAccountPoller(&testAccountNamespacedName)
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).Should(ContainSubstring(errorMsgAccountPollerNotFound))
 		})

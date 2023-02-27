@@ -215,7 +215,7 @@ var _ = Describe("Azure", func() {
 
 				errPolAdd := c.DoInventoryPoll(testAccountNamespacedName)
 				Expect(errPolAdd).Should(BeNil())
-				errPolDel := c.DeleteInventoryPoll(testAccountNamespacedName)
+				errPolDel := c.DeleteInventoryPollCache(testAccountNamespacedName)
 				Expect(errPolDel).Should(BeNil())
 				mockazureVirtualNetworksWrapper.EXPECT().listAllComplete(gomock.Any()).Return(createVnetObject(vnetIDs), nil).MinTimes(0)
 			})

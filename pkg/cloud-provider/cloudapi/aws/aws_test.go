@@ -222,7 +222,7 @@ var _ = Describe("AWS cloud", func() {
 				errPolAdd := c.DoInventoryPoll(&testAccountNamespacedName)
 				Expect(errPolAdd).Should(BeNil())
 
-				errPolDel := c.DeleteInventoryPoll(&testAccountNamespacedName)
+				errPolDel := c.DeleteInventoryPollCache(&testAccountNamespacedName)
 				Expect(errPolDel).Should(BeNil())
 
 				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).Times(0)

@@ -105,14 +105,14 @@ func (c *azureCloud) GetAccountStatus(accNamespacedName *types.NamespacedName) (
 	return c.cloudCommon.GetStatus(accNamespacedName)
 }
 
-// DoInventoryPoll calls cloud API to get vm and vpc resources.
+// DoInventoryPoll calls cloud API to get cloud resources.
 func (c *azureCloud) DoInventoryPoll(accountNamespacedName *types.NamespacedName) error {
 	return c.cloudCommon.DoInventoryPoll(accountNamespacedName)
 }
 
-// DeleteInventoryPoll resets cloud snapshot to nil.
-func (c *azureCloud) DeleteInventoryPoll(accountNamespacedName *types.NamespacedName) error {
-	return c.cloudCommon.DeleteInventoryPoll(accountNamespacedName)
+// DeleteInventoryPollCache resets cloud snapshot to nil.
+func (c *azureCloud) DeleteInventoryPollCache(accountNamespacedName *types.NamespacedName) error {
+	return c.cloudCommon.DeleteInventoryPollCache(accountNamespacedName)
 }
 
 // GetVpcInventory pulls cloud vpc inventory from internal snapshot.
