@@ -29,7 +29,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/pkg/controllers/config"
@@ -40,7 +39,7 @@ var _ = Describe("ConfigMapController", func() {
 		testNamespacedName1 = types.NamespacedName{Namespace: "nephe-system", Name: "nephe-config"}
 		testNamespacedName2 = types.NamespacedName{Namespace: "system", Name: "config"}
 		controllerConfig    = "nephe-controller.conf"
-		conf                = `{"CloudResourcePrefix": "anp"}`
+		conf                = `{"CloudResourcePrefix": "anp", "CloudSyncInterval": 70}`
 
 		reconciler *ConfigMapReconciler
 		request    ctrl.Request
@@ -53,12 +52,7 @@ var _ = Describe("ConfigMapController", func() {
 		utilruntime.Must(v1alpha1.AddToScheme(newScheme))
 		utilruntime.Must(v1.AddToScheme(newScheme))
 		fakeClient = fake.NewClientBuilder().WithScheme(newScheme).Build()
-		reconciler = &ConfigMapReconciler{
-			Log:              logf.Log,
-			Client:           fakeClient,
-			Scheme:           scheme,
-			ControllerConfig: &config.ControllerConfig{},
-		}
+		reconciler = GetConfigMapControllerInstance().Configure(fakeClient, scheme)
 		request = ctrl.Request{}
 	})
 
@@ -89,15 +83,26 @@ var _ = Describe("ConfigMapController", func() {
 
 		},
 
-		table.Entry("Set the CloudResourcePrefix",
+		table.Entry("Set the CloudResourcePrefix and CloudSyncInterval",
 			testNamespacedName1.Name, testNamespacedName1.Namespace, conf, true, false),
 		table.Entry("ConfigMap contains different name and namespace",
 			testNamespacedName2.Name, testNamespacedName2.Namespace, conf, true, false),
-		table.Entry("Set the default CloudResourcePrefix",
+		table.Entry("Set the default CloudResourcePrefix and CloudSyncInterval",
 			testNamespacedName1.Name, testNamespacedName1.Namespace, ``, true, false),
 		table.Entry("ConfigMap not found",
 			testNamespacedName1.Name, testNamespacedName1.Namespace, conf, false, true),
 		table.Entry("Invalid ConfigMap data",
 			testNamespacedName1.Name, testNamespacedName1.Namespace, `{"CloudResourcePrefix:::"}`, true, true),
+		table.Entry("Invalid CloudSyncInterval",
+			testNamespacedName1.Name, testNamespacedName1.Namespace, `{"CloudSyncInterval": 7}`, true, false),
+	)
+
+	table.DescribeTable("Controller",
+		func() {
+			configmapController := GetConfigMapControllerInstance()
+			Expect(configmapController).NotTo(BeNil())
+		},
+
+		table.Entry("Get the ConfigMap controller"),
 	)
 })

@@ -18,12 +18,14 @@ import "regexp"
 
 const (
 	DefaultCloudResourcePrefix = "nephe"
+	DefaultCloudSyncInterval   = 300
 	ConfigMapName              = "nephe-config"
 	ConfigMapNamespace         = "nephe-system"
 )
 
 type ControllerConfig struct {
 	CloudResourcePrefix string `yaml:"CloudResourcePrefix,omitempty"`
+	CloudSyncInterval   int64  `yaml:"CloudSyncInterval,omitempty"`
 }
 
 // ValidateName validates the name

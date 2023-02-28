@@ -28,18 +28,57 @@ import (
 
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 	"antrea.io/nephe/pkg/controllers/config"
+	"antrea.io/nephe/pkg/logging"
 )
+
+type ConfigMapHandler func(controllerConfig *config.ControllerConfig)
+
+// controllerConfigType use to identify the fields in ControllerConfig
+type controllerConfigType int
 
 type ConfigMapReconciler struct {
 	client.Client
-	Log              logr.Logger
-	Scheme           *runtime.Scheme
-	ControllerConfig *config.ControllerConfig
-	pendingSyncCount int
+	Scheme *runtime.Scheme
+	log    logr.Logger
+
+	ControllerConfig     *config.ControllerConfig
+	pendingSyncCount     int
+	configmapHandlerFunc map[controllerConfigType][]ConfigMapHandler
+}
+
+const (
+	cloudSyncIntervalConfig controllerConfigType = iota
+)
+
+var (
+	configmapReconciler *ConfigMapReconciler
+)
+
+func init() {
+	configmapReconciler = &ConfigMapReconciler{}
+	configmapReconciler.ControllerConfig = &config.ControllerConfig{
+		CloudResourcePrefix: config.DefaultCloudResourcePrefix,
+		CloudSyncInterval:   config.DefaultCloudSyncInterval,
+	}
+	configmapReconciler.configmapHandlerFunc = make(map[controllerConfigType][]ConfigMapHandler)
+	configmapReconciler.pendingSyncCount = 1
+}
+
+// GetConfigMapControllerInstance gets the ConfigMap controller instance.
+func GetConfigMapControllerInstance() *ConfigMapReconciler {
+	return configmapReconciler
+}
+
+// Configure configures the client, scheme and log.
+func (r *ConfigMapReconciler) Configure(client client.Client, scheme *runtime.Scheme) *ConfigMapReconciler {
+	r.Client = client
+	r.Scheme = scheme
+	r.log = logging.GetLogger("controllers").WithName("ConfigMap")
+	return r
 }
 
 func (r *ConfigMapReconciler) Reconcile(_ context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = r.Log.WithValues("configmap", req.NamespacedName)
+	_ = r.log.WithValues("configmap", req.NamespacedName)
 	// Process 'nephe-config' ConfigMap only.
 	if req.Namespace != config.ConfigMapNamespace || req.Name != config.ConfigMapName {
 		return ctrl.Result{}, nil
@@ -51,38 +90,39 @@ func (r *ConfigMapReconciler) Reconcile(_ context.Context, req ctrl.Request) (ct
 	}
 	newControllerConfig := &config.ControllerConfig{}
 	if err := yaml.UnmarshalStrict([]byte(configMap.Data["nephe-controller.conf"]), newControllerConfig); err != nil {
-		r.Log.Error(err, "error in unmarshalling ConfigMap")
+		r.log.Error(err, "error in unmarshalling ConfigMap")
 		return ctrl.Result{}, err
 	}
-
+	// set the cloud resource prefix.
 	if err := r.setCloudResourcePrefix(newControllerConfig.CloudResourcePrefix); err != nil {
 		// Unable to continue as prefix is not valid.
-		r.Log.Error(err, "exiting nephe-controller")
+		r.log.Error(err, "exiting nephe-controller")
 		os.Exit(1)
 	}
 	r.updatePendingSyncCountAndStatus()
+	// set the cloud sync interval.
+	r.setCloudSyncIntervalConfig(newControllerConfig.CloudSyncInterval)
+
 	return ctrl.Result{}, nil
 }
 
 // setCloudResourcePrefix sets the CloudResourcePrefix, returns error when invalid.
 func (r *ConfigMapReconciler) setCloudResourcePrefix(prefix string) error {
 	if len(prefix) == 0 {
-		r.Log.Info("Setting CloudResourcePrefix to default", "Old", r.ControllerConfig.CloudResourcePrefix,
-			"New", config.DefaultCloudResourcePrefix)
+		r.log.Info("Setting CloudResourcePrefix to default", "CloudResourcePrefix", config.DefaultCloudResourcePrefix)
 		r.ControllerConfig.CloudResourcePrefix = config.DefaultCloudResourcePrefix
 		return nil
 	}
 
 	if !(config.ValidateName(prefix)) {
 		return fmt.Errorf("invalid CloudResourcePrefix %s, "+
-			"First and last characters should be alphanumeric and "+
-			"'-' characters are allowed only in the middle", prefix)
+			"Only alphanumeric and '-' characters are allowed."+
+			" Special character '-' is only allowed at the middle", prefix)
 	}
 
-	// Update the CloudResourcePrefix
+	// Update the CloudResourcePrefix.
 	if r.ControllerConfig.CloudResourcePrefix != prefix {
-		r.Log.V(1).Info("Updating the CloudResourcePrefix",
-			"Old", r.ControllerConfig.CloudResourcePrefix, "New", prefix)
+		r.log.Info("Updating the CloudResourcePrefix", "CloudResourcePrefix", prefix)
 		r.ControllerConfig.CloudResourcePrefix = prefix
 	}
 	return nil
@@ -97,13 +137,38 @@ func (r *ConfigMapReconciler) updatePendingSyncCountAndStatus() {
 	}
 }
 
+// setCloudSyncInterval sets the CloudSyncInterval.
+func (r *ConfigMapReconciler) setCloudSyncIntervalConfig(interval int64) {
+	if interval == 0 {
+		r.log.Info("Setting CloudSyncInterval to default", "CloudSyncInterval", config.DefaultCloudSyncInterval)
+		r.ControllerConfig.CloudSyncInterval = config.DefaultCloudSyncInterval
+	} else if interval < config.DefaultCloudSyncInterval {
+		r.ControllerConfig.CloudSyncInterval = config.DefaultCloudSyncInterval
+		r.log.Info(fmt.Sprintf("Invalid CloudSyncInterval %d, "+
+			"CloudSyncInterval should be >= %d seconds. So using default interval", interval, config.DefaultCloudSyncInterval))
+	} else if interval != r.ControllerConfig.CloudSyncInterval {
+		r.log.Info("Updating the CloudSyncInterval", "CloudSyncInterval", interval)
+		r.ControllerConfig.CloudSyncInterval = interval
+	} else {
+		return
+	}
+	r.notifyConfigMapHandlers(cloudSyncIntervalConfig)
+}
+
+// registerConfigMapHandlers registers the ConfigMapHandler functions.
+func (r *ConfigMapReconciler) registerConfigMapHandlers(handler ConfigMapHandler, configType controllerConfigType) {
+	r.configmapHandlerFunc[configType] = append(r.configmapHandlerFunc[configType], handler)
+}
+
+// notifyConfigMapHandlers notifies the ConfigMapHandlers registered functions.
+func (r *ConfigMapReconciler) notifyConfigMapHandlers(configType controllerConfigType) {
+	for i := 0; i < len(r.configmapHandlerFunc[configType]); i++ {
+		r.configmapHandlerFunc[configType][i](r.ControllerConfig)
+	}
+}
+
 // SetupWithManager registers ConfigMapReconciler with manager.
 func (r *ConfigMapReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.ControllerConfig = &config.ControllerConfig{
-		CloudResourcePrefix: config.DefaultCloudResourcePrefix,
-	}
-	// Expect only 'nephe-config' ConfigMap to be reconciled.
-	r.pendingSyncCount = 1
 	securitygroup.SetCloudResourcePrefix(&r.ControllerConfig.CloudResourcePrefix)
 	return ctrl.NewControllerManagedBy(mgr).For(&corev1.ConfigMap{}).Complete(r)
 }

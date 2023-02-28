@@ -86,11 +86,7 @@ func main() {
 	// Initialize Account poller map.
 	poller := controllers.InitPollers()
 
-	configMapController := &controllers.ConfigMapReconciler{
-		Client: mgr.GetClient(),
-		Log:    logging.GetLogger("controllers").WithName("ConfigMap"),
-		Scheme: mgr.GetScheme(),
-	}
+	configMapController := controllers.GetConfigMapControllerInstance().Configure(mgr.GetClient(), mgr.GetScheme())
 	if err = configMapController.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ConfigMap")
 		os.Exit(1)

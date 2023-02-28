@@ -60,19 +60,23 @@ func (v *ConfigMapValidator) InjectDecoder(d *admission.Decoder) error {
 	return nil
 }
 
-// getCloudResourcePrefix get the CloudResourcePrefix from the ConfigMap.
-func (v *ConfigMapValidator) getCloudResourcePrefix(configMap *corev1.ConfigMap) (string, error) {
+// getControllerConfig get the ControllerConfig from the ConfigMap.
+func (v *ConfigMapValidator) getControllerConfig(configMap *corev1.ConfigMap) (*config.ControllerConfig, error) {
 	configData := configMap.Data["nephe-controller.conf"]
 	controllerConfig := &config.ControllerConfig{}
 	err := yaml.UnmarshalStrict([]byte(configData), controllerConfig)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	// When cloud resource prefix is empty use default
+	// When cloud resource prefix is empty use default.
 	if len(controllerConfig.CloudResourcePrefix) == 0 {
 		controllerConfig.CloudResourcePrefix = config.DefaultCloudResourcePrefix
 	}
-	return controllerConfig.CloudResourcePrefix, nil
+	// When cloud sync interval is empty use default.
+	if controllerConfig.CloudSyncInterval == 0 {
+		controllerConfig.CloudSyncInterval = config.DefaultCloudSyncInterval
+	}
+	return controllerConfig, nil
 }
 
 // validateCreate validates the ConfigMap create.
@@ -94,7 +98,7 @@ func (v *ConfigMapValidator) validateUpdate(req admission.Request) admission.Res
 		return admission.Allowed("")
 	}
 
-	newCloudResourcePrefix, err := v.getCloudResourcePrefix(newConfigMap)
+	newControllerConfig, err := v.getControllerConfig(newConfigMap)
 	if err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
@@ -106,24 +110,26 @@ func (v *ConfigMapValidator) validateUpdate(req admission.Request) admission.Res
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
-	oldCloudResourcePrefix, err := v.getCloudResourcePrefix(oldConfigMap)
+	oldControllerConfig, err := v.getControllerConfig(oldConfigMap)
 	if err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
-	if newCloudResourcePrefix == oldCloudResourcePrefix {
-		return admission.Allowed("")
-	}
-	if v.NpControllerInterface.IsCloudResourceCreated() {
-		return admission.Denied(fmt.Sprintf("cloud resource is already created with CloudResourcePrefix %s. "+
-			"Please delete the resource and try or use the same CloudResourcePrefix",
-			oldCloudResourcePrefix))
-	}
-	if len(newCloudResourcePrefix) > 0 {
-		if !config.ValidateName(newCloudResourcePrefix) {
+	if newControllerConfig.CloudResourcePrefix != oldControllerConfig.CloudResourcePrefix {
+		if !config.ValidateName(newControllerConfig.CloudResourcePrefix) {
 			return admission.Denied(fmt.Sprintf("invalid CloudResourcePrefix %s, "+
-				"First and last characters should be alphanumeric and '-' characters are allowed only in the middle.",
-				newCloudResourcePrefix))
+				"Only alphanumeric and '-' characters are allowed."+
+				" Special character '-' is only allowed at the middle", newControllerConfig.CloudResourcePrefix))
+		}
+		if v.NpControllerInterface.IsCloudResourceCreated() {
+			return admission.Denied(fmt.Sprintf("cloud resource is already created with CloudResourcePrefix %s. "+
+				"Please delete the resource(s) and retry", oldControllerConfig.CloudResourcePrefix))
+		}
+	}
+	if newControllerConfig.CloudSyncInterval != oldControllerConfig.CloudSyncInterval {
+		if newControllerConfig.CloudSyncInterval < config.DefaultCloudSyncInterval {
+			return admission.Denied(fmt.Sprintf("invalid CloudSyncInterval %d, "+
+				"CloudSyncInterval should be >= %d seconds", newControllerConfig.CloudSyncInterval, config.DefaultCloudSyncInterval))
 		}
 	}
 	return admission.Allowed("")

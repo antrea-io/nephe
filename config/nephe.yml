@@ -692,8 +692,10 @@ subjects:
 apiVersion: v1
 data:
   nephe-controller.conf: |
-    # Specifies the prefix to be used while creating cloud resources.
+    # Specifies the prefix to be used while creating the cloud resources.
     # CloudResourcePrefix: nephe
+    # Specifies the interval (in seconds) to be used for syncing cloud resources with controller.
+    # CloudSyncInterval: 300
 kind: ConfigMap
 metadata:
   name: nephe-config

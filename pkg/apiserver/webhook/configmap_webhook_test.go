@@ -96,8 +96,9 @@ var _ = Describe("Webhook", func() {
 			encodedConfigMap []byte
 			err              error
 		)
+
 		BeforeEach(func() {
-			conf1 := `{"CloudResourcePrefix": "anp"}`
+			conf1 := `{"CloudResourcePrefix": "anp", "CloudSyncInterval": 70}`
 			configMap = &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testNamespacedName1.Name,
@@ -122,9 +123,11 @@ var _ = Describe("Webhook", func() {
 			err = ConfigMapValidatorTest.InjectDecoder(decoder)
 			Expect(err).Should(BeNil())
 		})
+
 		AfterEach(func() {
 			mockCtrl.Finish()
 		})
+
 		It("Validate ConfigMap create", func() {
 			req = admission.Request{
 				AdmissionRequest: v1.AdmissionRequest{
@@ -150,34 +153,35 @@ var _ = Describe("Webhook", func() {
 			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 			Expect(response.Allowed).To(BeTrue())
 		})
+
 		It("Validate ConfigMap update", func() {
 			conf := `{"CloudResourcePrefix": "addressgroups"}`
-			// ConfigMap name and namespace is different
+			// ConfigMap name and namespace is different.
 			req = getRequestForConfigMapUpdate(testNamespacedName2.Name, testNamespacedName2.Namespace, conf, encodedConfigMap)
 			response := ConfigMapValidatorTest.Handle(context.Background(), req)
 			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 			Expect(response.Allowed).To(BeTrue())
 
-			// Invalid Old ConfigMap
+			// Invalid Old ConfigMap.
 			req = getRequestForConfigMapUpdate(testNamespacedName1.Name, testNamespacedName1.Namespace, conf, nil)
 			response = ConfigMapValidatorTest.Handle(context.Background(), req)
 			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 			Expect(response.Allowed).To(BeFalse())
 
-			// CloudResourceCreated is false
+			// CloudResourceCreated is false.
 			req = getRequestForConfigMapUpdate(testNamespacedName1.Name, testNamespacedName1.Namespace, conf, encodedConfigMap)
 			mockNetworkPolicyController.EXPECT().IsCloudResourceCreated().Return(false)
 			response = ConfigMapValidatorTest.Handle(context.Background(), req)
 			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 			Expect(response.Allowed).To(BeTrue())
 
-			// CloudResourceCreated is true
+			// CloudResourceCreated is true.
 			mockNetworkPolicyController.EXPECT().IsCloudResourceCreated().Return(true)
 			response = ConfigMapValidatorTest.Handle(context.Background(), req)
 			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 			Expect(response.Allowed).To(BeFalse())
 
-			// Invalid CloudResourcePrefix name
+			// Invalid CloudResourcePrefix name.
 			conf = `{"CloudResourcePrefix": "-addressgroups"}`
 			req = getRequestForConfigMapUpdate(testNamespacedName1.Name, testNamespacedName1.Namespace, conf, encodedConfigMap)
 			mockNetworkPolicyController.EXPECT().IsCloudResourceCreated().Return(false)
@@ -185,14 +189,22 @@ var _ = Describe("Webhook", func() {
 			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 			Expect(response.Allowed).To(BeFalse())
 
-			// Invalid ConfigMap data
+			// Invalid ConfigMap data.
 			conf = `{"CloudResourcePrefix"::: "addressgroups"}`
 			req = getRequestForConfigMapUpdate(testNamespacedName1.Name, testNamespacedName1.Namespace, conf, encodedConfigMap)
 			response = ConfigMapValidatorTest.Handle(context.Background(), req)
 			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 			Expect(response.Allowed).To(BeFalse())
 
+			// Invalid CloudSyncInterval.
+			conf = `{"CloudResourcePrefix": "addressgroups", "CloudSyncInterval": 10}`
+			req = getRequestForConfigMapUpdate(testNamespacedName1.Name, testNamespacedName1.Namespace, conf, encodedConfigMap)
+			mockNetworkPolicyController.EXPECT().IsCloudResourceCreated().Return(false)
+			response = ConfigMapValidatorTest.Handle(context.Background(), req)
+			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
+			Expect(response.Allowed).To(BeFalse())
 		})
+
 		It("Validate ConfigMap Delete", func() {
 			req = admission.Request{
 				AdmissionRequest: v1.AdmissionRequest{

@@ -52,8 +52,7 @@ const (
 	cloudRuleIndexerByAppliedToGrp              = "AppliedToGrp"
 	virtualMachineIndexerByCloudID              = "metadata.annotations.cloud-assigned-id"
 
-	operationCount    = 15
-	cloudSyncInterval = 0xff // 256 Seconds
+	operationCount = 15
 
 	cloudResponseChBuffer = 50
 
@@ -103,12 +102,22 @@ type NetworkPolicyReconciler struct {
 	cloudResponse chan *securityGroupStatus
 
 	// syncedWithCloud is true if controller has synchronized with cloud at least once.
-	syncedWithCloud bool
+	syncedWithCloud   bool
+	cloudSyncInterval int64
+	lastSyncTime      int64
+
 	// Bookmark events received prior to sync with the cloud.
 	bookmarkCnt int
 
 	// localRequest sends and receives network policy requests from local stack.
 	localRequest chan watch.Event
+}
+
+// setCloudSyncInterval set the cloud sync interval.
+func (r *NetworkPolicyReconciler) setCloudSyncInterval(controllerConfig *config.ControllerConfig) {
+	r.cloudSyncInterval = controllerConfig.CloudSyncInterval
+	r.lastSyncTime = time.Now().Unix()
+	r.Log.Info("Updated the CloudSyncInterval", "CloudSyncInterval", r.cloudSyncInterval)
 }
 
 // isNetworkPolicySupported check if network policy is supported.
@@ -589,8 +598,9 @@ func (r *NetworkPolicyReconciler) Start(stop context.Context) error {
 		case <-ticker.C:
 			r.backgroupProcess()
 			r.retryQueue.CheckToRun()
-			if time.Now().Unix()&cloudSyncInterval == 0 {
+			if time.Now().Unix()-r.lastSyncTime >= r.cloudSyncInterval {
 				r.syncWithCloud()
+				r.lastSyncTime = time.Now().Unix()
 			}
 		case <-stop.Done():
 			r.Log.Info("Is stopped")
@@ -653,6 +663,7 @@ func (r *NetworkPolicyReconciler) backgroupProcess() {
 
 // SetupWithManager sets up NetworkPolicyReconciler with manager.
 func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	GetConfigMapControllerInstance().registerConfigMapHandlers(r.setCloudSyncInterval, cloudSyncIntervalConfig)
 	r.addrSGIndexer = cache.NewIndexer(
 		// Each addrSecurityGroup is uniquely identified by its ID.
 		func(obj interface{}) (string, error) {
