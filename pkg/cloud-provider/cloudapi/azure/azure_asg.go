@@ -17,10 +17,11 @@ package azure
 import (
 	"context"
 	"errors"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"net/http"
 	"strings"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 )
@@ -40,7 +41,6 @@ func createOrGetApplicationSecurityGroup(asgAPIClient azureAsgWrapper, location 
 	asg, err := asgAPIClient.get(context.Background(), rgName, cloudAsgName)
 	if err != nil {
 		if errors.As(err, &respErr) {
-			azurePluginLogger().Info("Test: asg get call returns an error", "status code", respErr.StatusCode)
 			if respErr.StatusCode != http.StatusNotFound {
 				return "", err
 			}
@@ -51,9 +51,7 @@ func createOrGetApplicationSecurityGroup(asgAPIClient azureAsgWrapper, location 
 		appSecurityGroupParams := armnetwork.ApplicationSecurityGroup{
 			Location: &location,
 		}
-		azurePluginLogger().Info("Test: calling create asg")
 		asg, err = asgAPIClient.createOrUpdate(context.Background(), rgName, cloudAsgName, appSecurityGroupParams)
-		azurePluginLogger().Info("Test: create asg returns", "err", err)
 		if err != nil {
 			return "", err
 		}

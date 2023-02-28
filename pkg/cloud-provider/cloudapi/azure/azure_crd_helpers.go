@@ -15,8 +15,9 @@
 package azure
 
 import (
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"strings"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
@@ -117,7 +118,8 @@ func ComputeVpcToInternalVpcObject(vnet *armnetwork.VirtualNetwork, namespace st
 		}
 	}
 	cidrs := make([]string, 0)
-	if vnet.Properties != nil && vnet.Properties.AddressSpace != nil && vnet.Properties.AddressSpace.AddressPrefixes != nil {
+	properties := vnet.Properties
+	if properties != nil && properties.AddressSpace != nil && len(properties.AddressSpace.AddressPrefixes) > 0 {
 		for _, cidr := range vnet.Properties.AddressSpace.AddressPrefixes {
 			cidrs = append(cidrs, *cidr)
 		}

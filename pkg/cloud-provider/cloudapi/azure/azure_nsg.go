@@ -17,10 +17,11 @@ package azure
 import (
 	"context"
 	"errors"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"net/http"
 	"strings"
+
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 )
 
 // securityGroups returns security-groups apiClient.
@@ -38,7 +39,6 @@ func createOrGetNetworkSecurityGroup(nsgAPIClient azureNsgWrapper, location stri
 	nsg, err := nsgAPIClient.get(context.Background(), rgName, cloudSgName, "")
 	if err != nil {
 		if errors.As(err, &respErr) {
-			azurePluginLogger().Info("Test: nsg get call returns an error", "status code", respErr.StatusCode)
 			if respErr.StatusCode != http.StatusNotFound {
 				return "", err
 			}
@@ -60,7 +60,6 @@ func createOrGetNetworkSecurityGroup(nsgAPIClient azureNsgWrapper, location stri
 
 func updateNetworkSecurityGroupRules(nsgAPIClient azureNsgWrapper, location string, rgName string, cloudSgName string,
 	rules []*armnetwork.SecurityRule) error {
-
 	securityGroupParams := armnetwork.SecurityGroup{
 		Properties: &armnetwork.SecurityGroupPropertiesFormat{
 			SecurityRules: rules,

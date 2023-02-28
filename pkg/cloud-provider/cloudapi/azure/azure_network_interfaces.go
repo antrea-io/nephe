@@ -28,10 +28,10 @@ import (
 // networkInterfaces returns network interfaces SDK api client.
 func (p *azureServiceSdkConfigProvider) networkInterfaces(subscriptionID string) (azureNwIntfWrapper, error) {
 	interfacesClient, _ := armnetwork.NewInterfacesClient(subscriptionID, p.cred, nil)
-
 	return &azureNwIntfWrapperImpl{nwIntfAPIClient: *interfacesClient}, nil
 }
 
+// updateNetworkInterfaceAsg updates network interface on cloud with the new set of ASGs.
 func updateNetworkInterfaceAsg(nwIntfAPIClient azureNwIntfWrapper, nwIntfObj armnetwork.Interface,
 	asgObjToAttachOrDetach armnetwork.ApplicationSecurityGroup, isAttach bool) error {
 	if nwIntfObj.ID == nil {
@@ -41,7 +41,7 @@ func updateNetworkInterfaceAsg(nwIntfAPIClient azureNwIntfWrapper, nwIntfObj arm
 	_, rgName, resName, _ := extractFieldsFromAzureResourceID(*nwIntfObj.ID)
 
 	if nwIntfObj.Properties == nil {
-		return fmt.Errorf("network interface Properties is empty")
+		return fmt.Errorf("network interface Properties is empty, cannot update network interface with asg")
 	}
 	ipConfigurations := getAsgUpdatedIPConfigurations(&nwIntfObj, asgObjToAttachOrDetach, isAttach)
 	nwIntfObj.Properties.IPConfigurations = ipConfigurations
@@ -51,6 +51,7 @@ func updateNetworkInterfaceAsg(nwIntfAPIClient azureNwIntfWrapper, nwIntfObj arm
 	return err
 }
 
+// updateNetworkInterfaceNsg updates network interface on cloud with new set of NSGs.
 func updateNetworkInterfaceNsg(nwIntfAPIClient azureNwIntfWrapper, nwIntfObj armnetwork.Interface,
 	nsgObjToAttachOrDetach armnetwork.SecurityGroup, asgObjToAttachOrDetach armnetwork.ApplicationSecurityGroup,
 	isAttach bool, tagKey string) error {
@@ -59,7 +60,7 @@ func updateNetworkInterfaceNsg(nwIntfAPIClient azureNwIntfWrapper, nwIntfObj arm
 	}
 
 	if nwIntfObj.Properties == nil {
-		return fmt.Errorf("network interface Properties is empty")
+		return fmt.Errorf("network interface Properties is empty,  cannot update network interface with nsg")
 	}
 
 	_, rgName, resName, _ := extractFieldsFromAzureResourceID(*nwIntfObj.ID)
@@ -76,6 +77,7 @@ func updateNetworkInterfaceNsg(nwIntfAPIClient azureNwIntfWrapper, nwIntfObj arm
 	return err
 }
 
+// getNetworkInterfacesGivenIDs returns the network interface objects from cloud matching the interface IDS in nwIntfIDSet.
 func getNetworkInterfacesGivenIDs(nwIntfAPIClient azureNwIntfWrapper, nwIntfIDSet map[string]struct{}) (map[string]armnetwork.Interface,
 	error) {
 	nwIntfObjs, err := nwIntfAPIClient.listAllComplete(context.Background())
@@ -93,6 +95,7 @@ func getNetworkInterfacesGivenIDs(nwIntfAPIClient azureNwIntfWrapper, nwIntfIDSe
 	return nwIntfIDToObj, nil
 }
 
+// getAsgUpdatedIPConfigurations adds/deletes the ASG from the list of ASGs attached to an interface object.
 func getAsgUpdatedIPConfigurations(nwIntfObj *armnetwork.Interface, asgObjToAttachOrDetach armnetwork.ApplicationSecurityGroup,
 	isAttach bool) []*armnetwork.InterfaceIPConfiguration {
 	var currentNwIntfAsgs []armnetwork.ApplicationSecurityGroup
@@ -105,7 +108,7 @@ func getAsgUpdatedIPConfigurations(nwIntfObj *armnetwork.Interface, asgObjToAtta
 		if !*ipConfiguration.Properties.Primary {
 			continue
 		}
-		if len(ipConfiguration.Properties.ApplicationSecurityGroups) != 0 {
+		if len(ipConfiguration.Properties.ApplicationSecurityGroups) > 0 {
 			for _, asg := range ipConfiguration.Properties.ApplicationSecurityGroups {
 				currentNwIntfAsgs = append(currentNwIntfAsgs, *asg)
 			}
@@ -115,13 +118,13 @@ func getAsgUpdatedIPConfigurations(nwIntfObj *armnetwork.Interface, asgObjToAtta
 
 	var newNwIntfAsgs []*armnetwork.ApplicationSecurityGroup
 	if isAttach {
-		for ind, _ := range currentNwIntfAsgs {
+		for ind := range currentNwIntfAsgs {
 			newNwIntfAsgs = append(newNwIntfAsgs, &currentNwIntfAsgs[ind])
 		}
 		newNwIntfAsgs = append(newNwIntfAsgs, &asgObjToAttachOrDetach)
 	} else {
 		asgToDetachIDLowercase := strings.ToLower(*asgObjToAttachOrDetach.ID)
-		for ind, _ := range currentNwIntfAsgs {
+		for ind := range currentNwIntfAsgs {
 			if strings.Compare(asgToDetachIDLowercase, strings.ToLower(*currentNwIntfAsgs[ind].ID)) == 0 {
 				continue
 			}
@@ -138,8 +141,9 @@ func getAsgUpdatedIPConfigurations(nwIntfObj *armnetwork.Interface, asgObjToAtta
 	return ipConfigurations
 }
 
-func getUpdatedNetworkInterfaceNsgAndTags(nwIntfObj *armnetwork.Interface, nsgObjToAttachOrDetach armnetwork.SecurityGroup, isAttach bool,
-	tagKey string) (*armnetwork.SecurityGroup, map[string]*string) {
+// getUpdatedNetworkInterfaceNsgAndTags adds/deletes NSG from network interface object bssed on isAttach parameter.
+func getUpdatedNetworkInterfaceNsgAndTags(nwIntfObj *armnetwork.Interface, nsgObjToAttachOrDetach armnetwork.SecurityGroup,
+	isAttach bool, tagKey string) (*armnetwork.SecurityGroup, map[string]*string) {
 	currentTags := nwIntfObj.Tags
 
 	if isAttach {

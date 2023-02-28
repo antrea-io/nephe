@@ -16,8 +16,11 @@ package azure
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	resourcegraph "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph"
 )
@@ -35,14 +38,14 @@ func (nwIntf *azureNwIntfWrapperImpl) createOrUpdate(ctx context.Context, resour
 	parameters armnetwork.Interface) (armnetwork.Interface, error) {
 	var nwInterface armnetwork.Interface
 	nwIntfClient := nwIntf.nwIntfAPIClient
-	future, err := nwIntfClient.BeginCreateOrUpdate(ctx, resourceGroupName, networkIntfName, parameters, nil)
+	poller, err := nwIntfClient.BeginCreateOrUpdate(ctx, resourceGroupName, networkIntfName, parameters, nil)
 	if err != nil {
 		return nwInterface, fmt.Errorf("cannot create %v, reason: %v", networkIntfName, err)
 	}
 
-	resp, err := future.PollUntilDone(ctx, nil)
+	resp, err := poller.PollUntilDone(ctx, nil)
 	if err != nil {
-		return nwInterface, fmt.Errorf("cannot get network-interface create or update future response: %v", err)
+		return nwInterface, fmt.Errorf("cannot get network-interface create or update poll response: %v", err)
 	}
 
 	return resp.Interface, nil
@@ -50,7 +53,6 @@ func (nwIntf *azureNwIntfWrapperImpl) createOrUpdate(ctx context.Context, resour
 
 func (nwIntf *azureNwIntfWrapperImpl) listAllComplete(ctx context.Context) ([]armnetwork.Interface, error) {
 	var networkInterfaces []armnetwork.Interface
-
 	listResultIterator := nwIntf.nwIntfAPIClient.NewListAllPager(nil)
 	for listResultIterator.More() {
 		nextResult, err := listResultIterator.NextPage(ctx)
@@ -83,12 +85,12 @@ func (sg *azureNsgWrapperImpl) createOrUpdate(ctx context.Context, resourceGroup
 	nsgClient := sg.nsgAPIClient
 	poller, err := nsgClient.BeginCreateOrUpdate(ctx, resourceGroupName, networkSecurityGroupName, parameters, nil)
 	if err != nil {
-		return nsg, fmt.Errorf("cannot finish create request for nsg %v, reason: %v", networkSecurityGroupName, err)
+		return nsg, fmt.Errorf("cannot create nsg %v, reason: %v", networkSecurityGroupName, err)
 	}
 
 	res, err := poller.PollUntilDone(ctx, nil)
 	if err != nil {
-		return nsg, fmt.Errorf("cannot get nsg create or update future response: %v", err)
+		return nsg, fmt.Errorf("cannot get nsg create or update poll response: %v", err)
 	}
 
 	return res.SecurityGroup, nil
@@ -99,28 +101,32 @@ func (sg *azureNsgWrapperImpl) get(ctx context.Context, resourceGroupName string
 	res, err := sg.nsgAPIClient.Get(ctx, resourceGroupName, networkSecurityGroupName,
 		&armnetwork.SecurityGroupsClientGetOptions{Expand: nil})
 	if err != nil {
-		return nsg, err
-		//"cannot get response for nsg get request %v for asg %s", err, networkSecurityGroupName)
+		return nsg, fmt.Errorf("cannot retrieve nsg %v, reason %v", networkSecurityGroupName, err)
 	}
+
 	return res.SecurityGroup, nil
 }
 func (sg *azureNsgWrapperImpl) delete(ctx context.Context, resourceGroupName string, networkSecurityGroupName string) error {
+	var respErr *azcore.ResponseError
 	nsgClient := sg.nsgAPIClient
 	poller, err := nsgClient.BeginDelete(ctx, resourceGroupName, networkSecurityGroupName, nil)
 	if err != nil {
-		return fmt.Errorf("failed to finish delete request for nsg %v, reason: %v", networkSecurityGroupName, err)
+		if errors.As(err, &respErr) {
+			if respErr.StatusCode != http.StatusNotFound {
+				return fmt.Errorf("cannot delete nsg %v, reason: %v", networkSecurityGroupName, err)
+			}
+		}
 	}
 
 	_, err = poller.PollUntilDone(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("cannot get nsg delete future response: %v", err)
+		return fmt.Errorf("cannot get nsg delete poll response: %v", err)
 	}
 
 	return nil
 }
 func (sg *azureNsgWrapperImpl) listAllComplete(ctx context.Context) ([]armnetwork.SecurityGroup, error) {
 	var nsgs []armnetwork.SecurityGroup
-
 	pager := sg.nsgAPIClient.NewListAllPager(nil)
 	for pager.More() {
 		nextResult, err := pager.NextPage(ctx)
@@ -150,21 +156,16 @@ type azureAsgWrapperImpl struct {
 func (asg *azureAsgWrapperImpl) createOrUpdate(ctx context.Context, resourceGroupName string,
 	applicationSecurityGroupName string, parameters armnetwork.ApplicationSecurityGroup) (armnetwork.ApplicationSecurityGroup, error) {
 	var appsg armnetwork.ApplicationSecurityGroup
-	azurePluginLogger().Info("Test: starting of create asg function", "rg", resourceGroupName)
 	asgClient := asg.asgAPIClient
 	poller, err := asgClient.BeginCreateOrUpdate(ctx, resourceGroupName, applicationSecurityGroupName, parameters, nil)
-
-	azurePluginLogger().Info("Test: after BeginCreateOrUpdate", "err", err)
 	if err != nil {
-		return appsg, fmt.Errorf("cannot finish asg create request, asg %v, reason: %v", applicationSecurityGroupName, err)
+		return appsg, fmt.Errorf("cannot create asg %v, reason: %v", applicationSecurityGroupName, err)
 	}
 
 	res, err := poller.PollUntilDone(ctx, nil)
-	azurePluginLogger().Info("Test: after PollUntilDone", "asg", asg, "err", err)
 	if err != nil {
-		return appsg, fmt.Errorf("cannot get asg create or update response: %v", err)
+		return appsg, fmt.Errorf("cannot get asg create or update poll response: %v", err)
 	}
-
 	appsg = res.ApplicationSecurityGroup
 
 	return appsg, nil
@@ -172,31 +173,23 @@ func (asg *azureAsgWrapperImpl) createOrUpdate(ctx context.Context, resourceGrou
 func (asg *azureAsgWrapperImpl) get(ctx context.Context, resourceGroupName string,
 	applicationSecurityGroupName string) (armnetwork.ApplicationSecurityGroup, error) {
 	var appsg armnetwork.ApplicationSecurityGroup
-	//var respErr *azcore.ResponseError
 	res, err := asg.asgAPIClient.Get(ctx, resourceGroupName, applicationSecurityGroupName, nil)
 	if err != nil {
-		return appsg, err
-		/*
-			if errors.As(err, &respErr) {
-				azurePluginLogger().Info("Test: asg get call returns an error", "status code", respErr.StatusCode)
-				if respErr.StatusCode != http.StatusNotFound {
-					return appsg, err
-				}
-			}
-
-		*/
+		return appsg, fmt.Errorf("cannot retrieve asg %v, reason %v", applicationSecurityGroupName, err)
 	}
 
 	appsg = res.ApplicationSecurityGroup
 	return appsg, nil
 }
-func (asg *azureAsgWrapperImpl) listComplete(ctx context.Context, resourceGroupName string) ([]armnetwork.ApplicationSecurityGroup, error) {
+func (asg *azureAsgWrapperImpl) listComplete(ctx context.Context,
+	resourceGroupName string) ([]armnetwork.ApplicationSecurityGroup, error) {
 	var asgs []armnetwork.ApplicationSecurityGroup
 	listResultIterator := asg.asgAPIClient.NewListPager(resourceGroupName, nil)
 	for listResultIterator.More() {
 		nextResult, err := listResultIterator.NextPage(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to iterate list of asgs for resource-group: %v, reason %v", resourceGroupName, err)
+			return nil, fmt.Errorf("failed to iterate list of asgs for"+
+				"resource-group: %v, reason %v", resourceGroupName, err)
 		}
 		for _, v := range nextResult.Value {
 			asgs = append(asgs, *v)
@@ -222,9 +215,14 @@ func (asg *azureAsgWrapperImpl) listAllComplete(ctx context.Context) ([]armnetwo
 }
 func (asg *azureAsgWrapperImpl) delete(ctx context.Context, resourceGroupName string, applicationSecurityGroupName string) error {
 	asgClient := asg.asgAPIClient
+	var respErr *azcore.ResponseError
 	poller, err := asgClient.BeginDelete(ctx, resourceGroupName, applicationSecurityGroupName, nil)
 	if err != nil {
-		return fmt.Errorf("cannot delete asg %v, reason: %v", applicationSecurityGroupName, err)
+		if errors.As(err, &respErr) {
+			if respErr.StatusCode != http.StatusNotFound {
+				return fmt.Errorf("cannot delete asg %v, reason: %v", applicationSecurityGroupName, err)
+			}
+		}
 	}
 
 	_, err = poller.PollUntilDone(ctx, nil)
@@ -242,7 +240,8 @@ type azureResourceGraphWrapperImpl struct {
 	resourceGraphAPIClient *resourcegraph.Client
 }
 
-func (rg *azureResourceGraphWrapperImpl) resources(ctx context.Context, query resourcegraph.QueryRequest) (result resourcegraph.ClientResourcesResponse, err error) {
+func (rg *azureResourceGraphWrapperImpl) resources(ctx context.Context,
+	query resourcegraph.QueryRequest) (result resourcegraph.ClientResourcesResponse, err error) {
 	return rg.resourceGraphAPIClient.Resources(ctx, query, nil)
 }
 

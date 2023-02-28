@@ -17,10 +17,10 @@ package azure
 import (
 	"context"
 	"fmt"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"strings"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/mohae/deepcopy"
 
@@ -232,14 +232,14 @@ func (computeCfg *computeServiceConfig) DoResourceInventory() error {
 	} else {
 		exists := struct{}{}
 		vnetIDs := make(map[string]struct{})
-		//vpcPeers := computeCfg.buildMapVpcPeers(vnets)
+		vpcPeers := computeCfg.buildMapVpcPeers(vnets)
 		vmIDToInfoMap := make(map[cloudcommon.InstanceID]*virtualMachineTable)
 		for _, vm := range virtualMachines {
 			id := cloudcommon.InstanceID(strings.ToLower(*vm.ID))
 			vmIDToInfoMap[id] = vm
 			vnetIDs[*vm.VnetID] = exists
 		}
-		computeCfg.resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{vmIDToInfoMap, vnets, vnetIDs, nil})
+		computeCfg.resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{vmIDToInfoMap, vnets, vnetIDs, vpcPeers})
 	}
 	return nil
 }
@@ -319,7 +319,6 @@ func (computeCfg *computeServiceConfig) buildMapVpcPeers(results []armnetwork.Vi
 
 	for _, result := range results {
 		if result.Properties == nil {
-			azurePluginLogger().Info("Test: virtual network peer properties nil")
 			continue
 		}
 		properties := result.Properties
@@ -327,12 +326,14 @@ func (computeCfg *computeServiceConfig) buildMapVpcPeers(results []armnetwork.Vi
 			for _, peerConn := range properties.VirtualNetworkPeerings {
 				var requesterID, destinationID, sourceID string
 				accepterID := strings.ToLower(*result.ID)
-				if peerConn.Properties != nil && peerConn.Properties.RemoteVirtualNetwork != nil {
+				peerProperties := peerConn.Properties
+				if peerProperties != nil && peerProperties.RemoteVirtualNetwork != nil {
 					requesterID = strings.ToLower(*peerConn.Properties.RemoteVirtualNetwork.ID)
 				}
 
-				if peerConn.Properties.RemoteAddressSpace != nil && len(peerConn.Properties.RemoteAddressSpace.AddressPrefixes) > 0 {
-					destinationID = strings.ToLower(*peerConn.Properties.RemoteAddressSpace.AddressPrefixes[0])
+				if peerProperties != nil && peerProperties.RemoteAddressSpace != nil &&
+					len(peerProperties.RemoteAddressSpace.AddressPrefixes) > 0 {
+					destinationID = strings.ToLower(*peerProperties.RemoteAddressSpace.AddressPrefixes[0])
 				}
 				if properties.AddressSpace != nil && len(properties.AddressSpace.AddressPrefixes) > 0 {
 					sourceID = strings.ToLower(*properties.AddressSpace.AddressPrefixes[0])

@@ -72,7 +72,7 @@ func (computeCfg *computeServiceConfig) processAppliedToMembership(appliedToGrou
 	perVnetNsgNameLowercase := appliedToSG.GetCloudName(false) + "-" + suffix
 	cloudSgNameLowercase := appliedToGroupIdentifier.GetCloudName(isPeer)
 
-	// get NSG and ASG details corresponding to applied to group
+	// get NSG and ASG details corresponding to applied to group.
 	nsgObj, err := computeCfg.nsgAPIClient.get(context.Background(), rgName, perVnetNsgNameLowercase, "")
 	if err != nil {
 		return err
@@ -296,7 +296,6 @@ func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(ap
 	azurePluginLogger().Info("building security rules", "applied to security group", appliedToGroupNepheControllerName)
 	for _, rule := range currentNsgSecurityRules {
 		if rule.Properties == nil {
-			azurePluginLogger().Info("Test: skip rule as Properties field is empty")
 			continue
 		}
 		// skip any rules not created by nephe.
@@ -375,7 +374,6 @@ func (computeCfg *computeServiceConfig) buildEffectivePeerNSGSecurityRulesToAppl
 	azurePluginLogger().Info("building peering security rules", "applied to security group", appliedToGroupNepheControllerName)
 	for _, rule := range currentNsgSecurityRules {
 		if rule.Properties == nil {
-			azurePluginLogger().Info("Test: skip rule as Properties field is empty")
 			continue
 		}
 
@@ -501,7 +499,7 @@ func (computeCfg *computeServiceConfig) removeReferencesToSecurityGroup(id *secu
 	nsgUpdateRequired := false
 	for _, rule := range currentNsgRules {
 		if rule.Properties == nil {
-			azurePluginLogger().Info("Test: Properties field empty in a rule")
+			continue
 		}
 		srcAsgUpdated := false
 		dstAsgUpdated := false
@@ -673,7 +671,6 @@ func (computeCfg *computeServiceConfig) getATGroupView(nepheControllerATSGNameTo
 		}
 
 		if networkSecurityGroup.Properties == nil {
-			azurePluginLogger().Info("Test:Properties in nsg is nil")
 			continue
 		}
 		nepheControllerATSgNameToIngressRulesMap, nepheControllerATSgNameToEgressRulesMap :=
