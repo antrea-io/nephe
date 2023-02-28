@@ -941,6 +941,7 @@ func (c *azureCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *security
 		if _, ok := vnetCachedIDs[vnetPeerID]; ok {
 			var ruleIP *string
 			for _, vnetVM := range vnetVMs {
+				azurePluginLogger().Info("Accessing VM network interfaces", vnetVM.Name)
 				if *vnetVM.VnetID == vnetID {
 					ruleIP = vnetVM.NetworkInterfaces[0].PrivateIps[0]
 				}
