@@ -278,11 +278,13 @@ func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(ap
 	appliedToGroupNepheControllerName := appliedToGroupID.GetCloudName(false)
 	azurePluginLogger().Info("building security rules", "applied to security group", appliedToGroupNepheControllerName)
 	for _, rule := range *currentNsgSecurityRules {
-		// skip any rules not created by nephe
-		if rule.Description == nil {
+		desc, ok := securitygroup.ExtractCloudDescription(rule.Description)
+		if !ok {
+			// Ignore rules that don't have a valid description field.
+			azurePluginLogger().V(4).Info("Failed to extract cloud rule description", "desc", desc, "rule", rule)
 			continue
 		}
-		ruleAddrGroupName := *rule.Description
+		ruleAddrGroupName := desc.AppliedToGroup
 		_, _, isNepheControllerCreatedRule := securitygroup.IsNepheControllerCreatedSG(ruleAddrGroupName)
 		if !isNepheControllerCreatedRule {
 			continue
@@ -340,11 +342,13 @@ func (computeCfg *computeServiceConfig) buildEffectivePeerNSGSecurityRulesToAppl
 	appliedToGroupNepheControllerName := appliedToGroupID.GetCloudName(false)
 	azurePluginLogger().Info("building peering security rules", "applied to security group", appliedToGroupNepheControllerName)
 	for _, rule := range *currentNsgSecurityRules {
-		// skip any rules not created by nephe
-		if rule.Description == nil {
+		desc, ok := securitygroup.ExtractCloudDescription(rule.Description)
+		if !ok {
+			// Ignore rules that don't have a valid description field.
+			azurePluginLogger().V(4).Info("Failed to extract cloud rule description", "desc", desc, "rule", rule)
 			continue
 		}
-		ruleAddrGroupName := *rule.Description
+		ruleAddrGroupName := desc.AppliedToGroup
 		_, _, isNepheControllerCreatedRule := securitygroup.IsNepheControllerCreatedSG(ruleAddrGroupName)
 		if !isNepheControllerCreatedRule {
 			continue
@@ -738,7 +742,7 @@ func (c *azureCloud) CreateSecurityGroup(securityGroupIdentifier *securitygroup.
 	location := computeService.credentials.region
 
 	if !membershipOnly {
-		// per vnet only one appliedTo SG will be created. Hence always use the same pre-assigned name.
+		// per vnet only one appliedTo SG will be created. Hence, always use the same pre-assigned name.
 		appliedToAddrID := securitygroup.CloudResourceID{
 			Name: appliedToSecurityGroupNamePerVnet,
 			Vpc:  securityGroupIdentifier.Vpc,

@@ -41,6 +41,7 @@ var _ = Describe("Azure Cloud Security", func() {
 	var (
 		testAccountNamespacedName               = &types.NamespacedName{Namespace: "namespace01", Name: "account01"}
 		testAccountNamespacedNameNotExist       = &types.NamespacedName{Namespace: "notexist01", Name: "notexist01"}
+		testAnpNamespace                        = &types.NamespacedName{Namespace: "test-anp-ns", Name: "test-anp"}
 		testSubID                               = "SubID"
 		credentials                             = "credentials"
 		testClientID                            = "ClientID"
@@ -395,7 +396,7 @@ var _ = Describe("Azure Cloud Security", func() {
 						Protocol:  &testProtocol,
 						FromPort:  &testFromPort,
 						FromSrcIP: fromSrcIP,
-					}},
+					}, NetworkPolicy: testAnpNamespace.String()},
 					{
 						Rule: &securitygroup.EgressRule{
 							Protocol: &testProtocol,
@@ -404,18 +405,19 @@ var _ = Describe("Azure Cloud Security", func() {
 							ToSecurityGroups: []*securitygroup.CloudResourceID{
 								&webAddressGroupIdentifier03.CloudResourceID,
 							},
-						}},
+						}, NetworkPolicy: testAnpNamespace.String()},
 				}
 
 				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*securitygroup.CloudRule{}, addRules)
 				Expect(err).Should(BeNil())
 			})
 
-			It("Should fail to update Security rules -- asg not found", func() {
+			//  Creating cloud security rules without a description field is not allowed.
+			It("Should fail to update Security rules -- invalid namespacedname", func() {
 				webAddressGroupIdentifier03 := &securitygroup.CloudResource{
 					Type: securitygroup.CloudResourceTypeVM,
 					CloudResourceID: securitygroup.CloudResourceID{
-						Name: nsgID,
+						Name: atAsgName,
 						Vpc:  testVnetID01,
 					},
 					AccountID:     testAccountNamespacedName.String(),
@@ -442,10 +444,87 @@ var _ = Describe("Azure Cloud Security", func() {
 				}
 
 				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*securitygroup.CloudRule{}, addRules)
-				Expect(err).Should(Not(BeNil()))
+				Expect(err).ShouldNot(BeNil())
+			})
+
+			It("Should fail to update Security rules -- asg not found", func() {
+				webAddressGroupIdentifier03 := &securitygroup.CloudResource{
+					Type: securitygroup.CloudResourceTypeVM,
+					CloudResourceID: securitygroup.CloudResourceID{
+						Name: nsgID,
+						Vpc:  testVnetID01,
+					},
+					AccountID:     testAccountNamespacedName.String(),
+					CloudProvider: string(v1alpha1.AzureCloudProvider),
+				}
+
+				fromSrcIP := getFromSrcIP(testCidrStr)
+
+				addRules := []*securitygroup.CloudRule{{
+					Rule: &securitygroup.IngressRule{
+						Protocol:  &testProtocol,
+						FromPort:  &testFromPort,
+						FromSrcIP: fromSrcIP,
+					}, NetworkPolicy: testAnpNamespace.String()},
+					{
+						Rule: &securitygroup.EgressRule{
+							Protocol: &testProtocol,
+							ToPort:   &testToPort,
+							ToDstIP:  fromSrcIP,
+							ToSecurityGroups: []*securitygroup.CloudResourceID{
+								&webAddressGroupIdentifier03.CloudResourceID,
+							},
+						}, NetworkPolicy: testAnpNamespace.String()},
+				}
+
+				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*securitygroup.CloudRule{}, addRules)
+				Expect(err).ShouldNot(BeNil())
 			})
 
 			It("Should update Security rules for Peerings", func() {
+				webAddressGroupIdentifier03 := &securitygroup.CloudResource{
+					Type: securitygroup.CloudResourceTypeVM,
+					CloudResourceID: securitygroup.CloudResourceID{
+						Name: atAsgName,
+						Vpc:  testVnetPeerID01,
+					},
+					AccountID:     testAccountNamespacedName.String(),
+					CloudProvider: string(v1alpha1.AzureCloudProvider),
+				}
+
+				cidr := ipaddr.NewIPAddressString(testCidrStr)
+				subnet, _ := cidr.GetAddress().ToPrefixBlock(), cidr.GetHostAddress()
+				var ipNet = net.IPNet{
+					IP:   subnet.GetNetIP(),
+					Mask: subnet.GetNetworkMask().Bytes(),
+				}
+				fromSrcIP := []*net.IPNet{
+					&ipNet,
+				}
+
+				addRules := []*securitygroup.CloudRule{{
+					Rule: &securitygroup.IngressRule{
+						Protocol:  &testProtocol,
+						FromPort:  &testFromPort,
+						FromSrcIP: fromSrcIP,
+					}, NetworkPolicy: testAnpNamespace.String()},
+					{
+						Rule: &securitygroup.EgressRule{
+							Protocol: &testProtocol,
+							ToPort:   &testToPort,
+							ToDstIP:  fromSrcIP,
+							ToSecurityGroups: []*securitygroup.CloudResourceID{
+								&webAddressGroupIdentifier03.CloudResourceID,
+							},
+						}, NetworkPolicy: testAnpNamespace.String()},
+				}
+
+				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*securitygroup.CloudRule{}, addRules)
+				Expect(err).Should(BeNil())
+			})
+
+			//  Creating cloud security rules without a description field is not allowed.
+			It("Should fail to update Security rules for Peerings -- invalid namespacedname", func() {
 				webAddressGroupIdentifier03 := &securitygroup.CloudResource{
 					Type: securitygroup.CloudResourceTypeVM,
 					CloudResourceID: securitygroup.CloudResourceID{
@@ -484,7 +563,7 @@ var _ = Describe("Azure Cloud Security", func() {
 				}
 
 				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*securitygroup.CloudRule{}, addRules)
-				Expect(err).Should(BeNil())
+				Expect(err).ShouldNot(BeNil())
 			})
 		})
 

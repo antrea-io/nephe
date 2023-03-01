@@ -96,11 +96,14 @@ func convertIngressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResou
 	}
 
 	rulePriority := int32(ruleStartPriority)
-	description := appliedToGroupID.GetCloudName(false)
 	for _, obj := range rules {
 		rule := obj.Rule.(*securitygroup.IngressRule)
 		if rule == nil {
 			continue
+		}
+		description, err := securitygroup.GenerateCloudDescription(obj.NetworkPolicy, appliedToGroupID.GetCloudName(false))
+		if err != nil {
+			return []network.SecurityRule{}, fmt.Errorf("unable to generate rule description, err: %v", err)
 		}
 		protoName, err := convertToAzureProtocolName(rule.Protocol)
 		if err != nil {
@@ -148,11 +151,14 @@ func convertIngressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudR
 	var securityRules []network.SecurityRule
 
 	rulePriority := int32(ruleStartPriority)
-	description := appliedToGroupID.GetCloudName(false)
 	for _, obj := range rules {
 		rule := obj.Rule.(*securitygroup.IngressRule)
 		if rule == nil {
 			continue
+		}
+		description, err := securitygroup.GenerateCloudDescription(obj.NetworkPolicy, appliedToGroupID.GetCloudName(false))
+		if err != nil {
+			return []network.SecurityRule{}, fmt.Errorf("unable to generate rule description, err: %v", err)
 		}
 		protoName, err := convertToAzureProtocolName(rule.Protocol)
 		if err != nil {
@@ -219,11 +225,14 @@ func convertEgressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResour
 	}
 
 	rulePriority := int32(ruleStartPriority)
-	description := appliedToGroupID.GetCloudName(false)
 	for _, obj := range rules {
 		rule := obj.Rule.(*securitygroup.EgressRule)
 		if rule == nil {
 			continue
+		}
+		description, err := securitygroup.GenerateCloudDescription(obj.NetworkPolicy, appliedToGroupID.GetCloudName(false))
+		if err != nil {
+			return []network.SecurityRule{}, fmt.Errorf("unable to generate rule description, err: %v", err)
 		}
 		protoName, err := convertToAzureProtocolName(rule.Protocol)
 		if err != nil {
@@ -270,11 +279,14 @@ func convertEgressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudRe
 	var securityRules []network.SecurityRule
 
 	rulePriority := int32(ruleStartPriority)
-	description := appliedToGroupID.GetCloudName(false)
 	for _, obj := range rules {
 		rule := obj.Rule.(*securitygroup.EgressRule)
 		if rule == nil {
 			continue
+		}
+		description, err := securitygroup.GenerateCloudDescription(obj.NetworkPolicy, appliedToGroupID.GetCloudName(false))
+		if err != nil {
+			return []network.SecurityRule{}, fmt.Errorf("unable to generate rule description, err: %v", err)
 		}
 		protoName, err := convertToAzureProtocolName(rule.Protocol)
 		if err != nil {
@@ -440,7 +452,13 @@ func convertToInternalRulesByAppliedToSGName(azureSecurityRules *[]network.Secur
 	nepheControllerATSgNameToIngressRules := make(map[string][]securitygroup.IngressRule)
 	nepheControllerATSgNameToEgressRules := make(map[string][]securitygroup.EgressRule)
 	for _, azureSecurityRule := range *azureSecurityRules {
-		sgName, _, isATSg := securitygroup.IsNepheControllerCreatedSG(*azureSecurityRule.Description)
+		desc, ok := securitygroup.ExtractCloudDescription(azureSecurityRule.Description)
+		if !ok {
+			// Ignore rules that don't have a valid description field.
+			azurePluginLogger().V(4).Info("Failed to extract cloud rule description", "desc", desc, "rule", azureSecurityRule)
+			continue
+		}
+		sgName, _, isATSg := securitygroup.IsNepheControllerCreatedSG(desc.AppliedToGroup)
 		if !isATSg {
 			continue
 		}

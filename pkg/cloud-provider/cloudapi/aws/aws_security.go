@@ -44,12 +44,13 @@ var (
 var vpcIDToDefaultSecurityGroup = make(map[string]string)
 
 func buildEc2UserIDGroupPairs(addressGroupIdentifiers []*securitygroup.CloudResourceID,
-	cloudSGNameToObj map[string]*ec2.SecurityGroup) []*ec2.UserIdGroupPair {
+	cloudSGNameToObj map[string]*ec2.SecurityGroup, description *string) []*ec2.UserIdGroupPair {
 	var userIDGroupPairs []*ec2.UserIdGroupPair
 	for _, addressGroupIdentifier := range addressGroupIdentifiers {
 		group := cloudSGNameToObj[addressGroupIdentifier.GetCloudName(true)]
 		userIDGroupPair := &ec2.UserIdGroupPair{
-			GroupId: group.GroupId,
+			GroupId:     group.GroupId,
+			Description: description,
 		}
 		userIDGroupPairs = append(userIDGroupPairs, userIDGroupPair)
 	}
@@ -85,7 +86,7 @@ func (ec2Cfg *ec2ServiceConfig) createOrGetSecurityGroups(vpcID string, cloudSgN
 	map[string]*ec2.SecurityGroup, error) {
 	vpcIDs := []string{vpcID}
 
-	// for cloudSgs get details from clouds, if they already exists in cloud
+	// for cloudSgs get details from clouds, if they already exist in cloud.
 	cloudSgNameToCloudSGObj, err := ec2Cfg.getCloudSecurityGroupsWithNameFromCloud(vpcIDs, cloudSgNames)
 	if err != nil {
 		return nil, err
@@ -106,7 +107,7 @@ func (ec2Cfg *ec2ServiceConfig) createOrGetSecurityGroups(vpcID string, cloudSgN
 		}
 	}
 
-	// return the up to date cloud objects for SGs
+	// return the up-to-date cloud objects for SGs
 	if len(cloudSgNamesToCreate) == 0 {
 		awsPluginLogger().Info("No new security group to be created")
 		return cloudSgNameToCloudSGObj, nil
@@ -127,7 +128,7 @@ func (ec2Cfg *ec2ServiceConfig) createCloudSecurityGroup(cloudSGName string, vpc
 	awsPluginLogger().Info("Security group created, wait for two more seconds", "Result", response, "vpcID", vpcID)
 
 	// with previous call to create success, expectation is subsequent get will return created SG. but in rare cases get
-	// is not returning the details of created SG. Hence wait with exponential backoff for max 2 second before declaring error.
+	// is not returning the details of created SG. Hence, wait with exponential backoff for max 2 second before declaring error.
 	// On error delete created SG
 	out, err := ec2Cfg.waitForCloudSecurityGroupCreation(cloudSGName, vpcID, 2*time.Second)
 	if err != nil {
@@ -204,8 +205,12 @@ func (ec2Cfg *ec2ServiceConfig) realizeIngressIPPermissions(cloudSgObj *ec2.Secu
 		if rule == nil {
 			continue
 		}
-		idGroupPairs := buildEc2UserIDGroupPairs(rule.FromSecurityGroups, cloudSGNameToObj)
-		ipRanges := convertToEc2IpRanges(rule.FromSrcIP, len(rule.FromSecurityGroups) > 0)
+		description, err := securitygroup.GenerateCloudDescription(obj.NetworkPolicy, *cloudSgObj.GroupName)
+		if err != nil {
+			return fmt.Errorf("unable to generate rule description, err: %v", err)
+		}
+		idGroupPairs := buildEc2UserIDGroupPairs(rule.FromSecurityGroups, cloudSGNameToObj, &description)
+		ipRanges := convertToEc2IpRanges(rule.FromSrcIP, len(rule.FromSecurityGroups) > 0, &description)
 		startPort, endPort := convertToIPPermissionPort(rule.FromPort, rule.Protocol)
 		ipPermission := &ec2.IpPermission{
 			FromPort:         startPort,
@@ -249,8 +254,13 @@ func (ec2Cfg *ec2ServiceConfig) realizeEgressIPPermissions(cloudSgObj *ec2.Secur
 		if rule == nil {
 			continue
 		}
-		idGroupPairs := buildEc2UserIDGroupPairs(rule.ToSecurityGroups, cloudSGNameToObj)
-		ipRanges := convertToEc2IpRanges(rule.ToDstIP, len(rule.ToSecurityGroups) > 0)
+		description, err := securitygroup.GenerateCloudDescription(obj.NetworkPolicy, *cloudSgObj.GroupName)
+		if err != nil {
+			return fmt.Errorf("unable to generate rule description, err: %v", err)
+		}
+
+		idGroupPairs := buildEc2UserIDGroupPairs(rule.ToSecurityGroups, cloudSGNameToObj, &description)
+		ipRanges := convertToEc2IpRanges(rule.ToDstIP, len(rule.ToSecurityGroups) > 0, &description)
 		startPort, endPort := convertToIPPermissionPort(rule.ToPort, rule.Protocol)
 		ipPermission := &ec2.IpPermission{
 			FromPort:         startPort,
