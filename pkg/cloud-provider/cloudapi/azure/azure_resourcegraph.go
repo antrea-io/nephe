@@ -16,7 +16,6 @@ package azure
 
 import (
 	"context"
-	"fmt"
 
 	resourcegraph "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph"
 )
@@ -36,7 +35,7 @@ const (
 func (p *azureServiceSdkConfigProvider) resourceGraph() (azureResourceGraphWrapper, error) {
 	baseClient, err := resourcegraph.NewClient(p.cred, nil)
 	if err != nil {
-		fmt.Println("failed to create arm resource graph client")
+		return nil, err
 	}
 
 	return &azureResourceGraphWrapperImpl{resourceGraphAPIClient: baseClient}, nil

@@ -344,11 +344,11 @@ func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(ap
 	allEgressRules := updateSecurityRuleNameAndPriority(currentNsgEgressRules, newEgressSecurityRules)
 
 	rules := make([]*armnetwork.SecurityRule, 0)
-	for ind := range allIngressRules {
-		rules = append(rules, &allIngressRules[ind])
+	for index := range allIngressRules {
+		rules = append(rules, &allIngressRules[index])
 	}
-	for ind := range allEgressRules {
-		rules = append(rules, &allEgressRules[ind])
+	for index := range allEgressRules {
+		rules = append(rules, &allEgressRules[index])
 	}
 
 	return rules, nil
@@ -377,7 +377,7 @@ func (computeCfg *computeServiceConfig) buildEffectivePeerNSGSecurityRulesToAppl
 			continue
 		}
 
-		// skip any rules not created by nephe
+		// skip any rules not created by nephe.
 		if rule.Properties.Description == nil {
 			continue
 		}
@@ -422,11 +422,11 @@ func (computeCfg *computeServiceConfig) buildEffectivePeerNSGSecurityRulesToAppl
 	allEgressRules := updateSecurityRuleNameAndPriority(currentNsgEgressRules, newEgressSecurityRules)
 
 	var rules []*armnetwork.SecurityRule
-	for ind := range allIngressRules {
-		rules = append(rules, &allIngressRules[ind])
+	for index := range allIngressRules {
+		rules = append(rules, &allIngressRules[index])
 	}
-	for ind := range allEgressRules {
-		rules = append(rules, &allEgressRules[ind])
+	for index := range allEgressRules {
+		rules = append(rules, &allEgressRules[index])
 	}
 
 	return rules, nil

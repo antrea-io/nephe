@@ -268,7 +268,6 @@ func (computeCfg *computeServiceConfig) GetResourceCRDs(namespace string, accoun
 
 	for _, virtualMachine := range virtualMachines {
 		// build VirtualMachine CRD
-		azurePluginLogger().V(1).Info("Converting VM from VirtualMachineTable to CRD", "name", virtualMachine.Name)
 		vmCRD := computeInstanceToVirtualMachineCRD(virtualMachine, namespace, accountId)
 		vmCRDs = append(vmCRDs, vmCRD)
 	}

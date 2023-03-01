@@ -25,6 +25,5 @@ func (p *azureServiceSdkConfigProvider) virtualNetworks(subscriptionID string) (
 		return nil, err
 	}
 
-	//virtualNetworkClient.CheckIPAddressAvailability()
 	return &azureVirtualNetworksWrapperImpl{virtualNetworksClient: *virtualNetworkClient}, nil
 }

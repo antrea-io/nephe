@@ -463,7 +463,7 @@ func convertToInternalRulesByAppliedToSGName(azureSecurityRules []*armnetwork.Se
 		if azureSecurityRule.Properties == nil {
 			continue
 		}
-		// skip any rules not created by nephe
+		// skip any rules not created by nephe.
 		if azureSecurityRule.Properties.Description == nil {
 			continue
 		}

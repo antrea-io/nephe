@@ -66,7 +66,7 @@ func computeInstanceToVirtualMachineCRD(instance *virtualMachineTable, namespace
 		if len(nwInf.PublicIps) > 0 {
 			for _, publicIP := range nwInf.PublicIps {
 				ipAddressCRD := v1alpha1.IPAddress{
-					AddressType: v1alpha1.AddressTypeInternalIP,
+					AddressType: v1alpha1.AddressTypeExternalIP,
 					Address:     *publicIP,
 				}
 				ipAddressCRDs = append(ipAddressCRDs, ipAddressCRD)

@@ -55,7 +55,7 @@ func (h *azureServicesHelperImpl) newServiceSdkConfigProvider(accCreds *azureAcc
 	azureServiceClientCreateInterface, error) {
 	var err error
 
-	//TODO: Expose an option in CPA to specify the cloud type, AzurePublic, AzureGovernment and AzureChina.
+	// TODO: Expose an option in CPA to specify the cloud type, AzurePublic, AzureGovernment and AzureChina.
 	cred, err := azidentity.NewClientSecretCredential(accCreds.TenantID, accCreds.ClientID, accCreds.ClientKey, nil)
 	if err != nil {
 		return nil, fmt.Errorf("unable to initialize Azure authorizer from credentials: %v", err)

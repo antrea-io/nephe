@@ -41,7 +41,7 @@ func updateNetworkInterfaceAsg(nwIntfAPIClient azureNwIntfWrapper, nwIntfObj arm
 	_, rgName, resName, _ := extractFieldsFromAzureResourceID(*nwIntfObj.ID)
 
 	if nwIntfObj.Properties == nil {
-		return fmt.Errorf("network interface Properties is empty, cannot update network interface with asg")
+		return fmt.Errorf("network interface properties is empty, cannot update network interface with asg")
 	}
 	ipConfigurations := getAsgUpdatedIPConfigurations(&nwIntfObj, asgObjToAttachOrDetach, isAttach)
 	nwIntfObj.Properties.IPConfigurations = ipConfigurations
@@ -118,17 +118,17 @@ func getAsgUpdatedIPConfigurations(nwIntfObj *armnetwork.Interface, asgObjToAtta
 
 	var newNwIntfAsgs []*armnetwork.ApplicationSecurityGroup
 	if isAttach {
-		for ind := range currentNwIntfAsgs {
-			newNwIntfAsgs = append(newNwIntfAsgs, &currentNwIntfAsgs[ind])
+		for index := range currentNwIntfAsgs {
+			newNwIntfAsgs = append(newNwIntfAsgs, &currentNwIntfAsgs[index])
 		}
 		newNwIntfAsgs = append(newNwIntfAsgs, &asgObjToAttachOrDetach)
 	} else {
 		asgToDetachIDLowercase := strings.ToLower(*asgObjToAttachOrDetach.ID)
-		for ind := range currentNwIntfAsgs {
-			if strings.Compare(asgToDetachIDLowercase, strings.ToLower(*currentNwIntfAsgs[ind].ID)) == 0 {
+		for index := range currentNwIntfAsgs {
+			if strings.Compare(asgToDetachIDLowercase, strings.ToLower(*currentNwIntfAsgs[index].ID)) == 0 {
 				continue
 			}
-			newNwIntfAsgs = append(newNwIntfAsgs, &currentNwIntfAsgs[ind])
+			newNwIntfAsgs = append(newNwIntfAsgs, &currentNwIntfAsgs[index])
 		}
 	}
 
