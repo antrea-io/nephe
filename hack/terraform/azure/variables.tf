@@ -46,24 +46,24 @@ variable "azure_vm_os_types" {
   }))
   default = [
     {
-      name      = "ubuntu-host"
-      offer     = "UbuntuServer"
-      publisher = "Canonical"
-      sku       = "16.04-LTS"
+      name      = "ubuntu-host1"
+      offer     = "0001-com-ubuntu-server-focal"
+      publisher = "canonical"
+      sku       = "20_04-lts-gen2"
       init      = "init_script_ubuntu.sh"
     },
     {
-      name      = "rhel-host"
+      name      = "rhel-host2"
       offer     = "RHEL"
       publisher = "RedHat"
-      sku       = "8.1-ci"
+      sku       = "91-gen2"
       init      = "init_script_rhel.sh"
     },
     {
-      name      = "centos-host"
+      name      = "centos-host3"
       offer     = "CentOS"
       publisher = "OpenLogic"
-      sku       = "8_1"
+      sku       = "8_5"
       init      = "init_script_centos.sh"
     }
   ]
