@@ -75,6 +75,7 @@ type azureNsgWrapper interface {
 	delete(ctx context.Context, resourceGroupName string, networkSecurityGroupName string) error
 	listAllComplete(ctx context.Context) ([]armnetwork.SecurityGroup, error)
 }
+
 type azureNsgWrapperImpl struct {
 	nsgAPIClient armnetwork.SecurityGroupsClient
 }
@@ -95,6 +96,7 @@ func (sg *azureNsgWrapperImpl) createOrUpdate(ctx context.Context, resourceGroup
 
 	return res.SecurityGroup, nil
 }
+
 func (sg *azureNsgWrapperImpl) get(ctx context.Context, resourceGroupName string, networkSecurityGroupName string,
 	expand string) (result armnetwork.SecurityGroup, err error) {
 	var nsg armnetwork.SecurityGroup
@@ -106,6 +108,7 @@ func (sg *azureNsgWrapperImpl) get(ctx context.Context, resourceGroupName string
 
 	return res.SecurityGroup, nil
 }
+
 func (sg *azureNsgWrapperImpl) delete(ctx context.Context, resourceGroupName string, networkSecurityGroupName string) error {
 	var respErr *azcore.ResponseError
 	nsgClient := sg.nsgAPIClient
@@ -125,6 +128,7 @@ func (sg *azureNsgWrapperImpl) delete(ctx context.Context, resourceGroupName str
 
 	return nil
 }
+
 func (sg *azureNsgWrapperImpl) listAllComplete(ctx context.Context) ([]armnetwork.SecurityGroup, error) {
 	var nsgs []armnetwork.SecurityGroup
 	pager := sg.nsgAPIClient.NewListAllPager(nil)
@@ -149,6 +153,7 @@ type azureAsgWrapper interface {
 	listAllComplete(ctx context.Context) ([]armnetwork.ApplicationSecurityGroup, error)
 	delete(ctx context.Context, resourceGroupName string, applicationSecurityGroupName string) error
 }
+
 type azureAsgWrapperImpl struct {
 	asgAPIClient armnetwork.ApplicationSecurityGroupsClient
 }
@@ -170,6 +175,7 @@ func (asg *azureAsgWrapperImpl) createOrUpdate(ctx context.Context, resourceGrou
 
 	return appsg, nil
 }
+
 func (asg *azureAsgWrapperImpl) get(ctx context.Context, resourceGroupName string,
 	applicationSecurityGroupName string) (armnetwork.ApplicationSecurityGroup, error) {
 	var appsg armnetwork.ApplicationSecurityGroup
@@ -181,6 +187,7 @@ func (asg *azureAsgWrapperImpl) get(ctx context.Context, resourceGroupName strin
 	appsg = res.ApplicationSecurityGroup
 	return appsg, nil
 }
+
 func (asg *azureAsgWrapperImpl) listComplete(ctx context.Context,
 	resourceGroupName string) ([]armnetwork.ApplicationSecurityGroup, error) {
 	var asgs []armnetwork.ApplicationSecurityGroup
@@ -198,6 +205,7 @@ func (asg *azureAsgWrapperImpl) listComplete(ctx context.Context,
 
 	return asgs, nil
 }
+
 func (asg *azureAsgWrapperImpl) listAllComplete(ctx context.Context) ([]armnetwork.ApplicationSecurityGroup, error) {
 	var asgs []armnetwork.ApplicationSecurityGroup
 	listResultIterator := asg.asgAPIClient.NewListAllPager(nil)
@@ -213,6 +221,7 @@ func (asg *azureAsgWrapperImpl) listAllComplete(ctx context.Context) ([]armnetwo
 
 	return asgs, nil
 }
+
 func (asg *azureAsgWrapperImpl) delete(ctx context.Context, resourceGroupName string, applicationSecurityGroupName string) error {
 	asgClient := asg.asgAPIClient
 	var respErr *azcore.ResponseError
@@ -236,6 +245,7 @@ func (asg *azureAsgWrapperImpl) delete(ctx context.Context, resourceGroupName st
 type azureResourceGraphWrapper interface {
 	resources(ctx context.Context, query resourcegraph.QueryRequest) (result resourcegraph.ClientResourcesResponse, err error)
 }
+
 type azureResourceGraphWrapperImpl struct {
 	resourceGraphAPIClient *resourcegraph.Client
 }
@@ -248,6 +258,7 @@ func (rg *azureResourceGraphWrapperImpl) resources(ctx context.Context,
 type azureVirtualNetworksWrapper interface {
 	listAllComplete(ctx context.Context) ([]armnetwork.VirtualNetwork, error)
 }
+
 type azureVirtualNetworksWrapperImpl struct {
 	virtualNetworksClient armnetwork.VirtualNetworksClient
 }

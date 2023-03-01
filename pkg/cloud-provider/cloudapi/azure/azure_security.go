@@ -61,7 +61,7 @@ func (computeCfg *computeServiceConfig) getNetworkInterfacesOfVnet(vnetIDSet map
 func (computeCfg *computeServiceConfig) processAppliedToMembership(appliedToGroupIdentifier *securitygroup.CloudResourceID,
 	networkInterfaces []*networkInterfaceTable, rgName string, memberVirtualMachines map[string]struct{},
 	memberNetworkInterfaces map[string]struct{}, isPeer bool) error {
-	// appliedTo sg has asg as well as nsg created corresponding to it. Hence update membership for both asg and nsg.
+	// appliedTo sg has asg as well as nsg created corresponding to it. Hence, update membership for both asg and nsg.
 	appliedToGroupOriginalNameToBeUsedAsTag := appliedToGroupIdentifier.GetCloudName(false)
 	appliedToSG := securitygroup.CloudResourceID{
 		Name: appliedToSecurityGroupNamePerVnet,
@@ -344,10 +344,10 @@ func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(ap
 	allEgressRules := updateSecurityRuleNameAndPriority(currentNsgEgressRules, newEgressSecurityRules)
 
 	rules := make([]*armnetwork.SecurityRule, 0)
-	for ind, _ := range allIngressRules {
+	for ind := range allIngressRules {
 		rules = append(rules, &allIngressRules[ind])
 	}
-	for ind, _ := range allEgressRules {
+	for ind := range allEgressRules {
 		rules = append(rules, &allEgressRules[ind])
 	}
 
@@ -422,10 +422,10 @@ func (computeCfg *computeServiceConfig) buildEffectivePeerNSGSecurityRulesToAppl
 	allEgressRules := updateSecurityRuleNameAndPriority(currentNsgEgressRules, newEgressSecurityRules)
 
 	var rules []*armnetwork.SecurityRule
-	for ind, _ := range allIngressRules {
+	for ind := range allIngressRules {
 		rules = append(rules, &allIngressRules[ind])
 	}
-	for ind, _ := range allEgressRules {
+	for ind := range allEgressRules {
 		rules = append(rules, &allEgressRules[ind])
 	}
 
@@ -930,7 +930,7 @@ func (c *azureCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *security
 	suffix := tokens[len(tokens)-1]
 	appliedToGroupPerVnetNsgNepheControllerName := appliedToSgID.GetCloudName(false) + "-" + suffix
 	// convert to azure security rules and build effective rules to be applied to AT sg azure NSG
-	rules := []*armnetwork.SecurityRule{}
+	var rules []*armnetwork.SecurityRule
 	flag := 0
 	for _, vnetPeerPair := range vnetPeerPairs {
 		vnetPeerID, _, _ := vnetPeerPair[0], vnetPeerPair[1], vnetPeerPair[2]

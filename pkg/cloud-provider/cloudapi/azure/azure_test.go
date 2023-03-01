@@ -492,7 +492,7 @@ func setupClientAndCloud(mockAzureServiceHelper *MockazureServicesHelper, accoun
 }
 
 func createVnetObject(vnetIDs []string) []network.VirtualNetwork {
-	vnets := []network.VirtualNetwork{}
+	var vnets []network.VirtualNetwork
 	for i := range vnetIDs {
 		name := vnetIDs[i]
 		key := "Name"

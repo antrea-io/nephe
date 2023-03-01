@@ -17,12 +17,10 @@ package azure
 import (
 	"fmt"
 
-	"antrea.io/nephe/pkg/cloud-provider/cloudapi/internal"
-	"github.com/Azure/go-autorest/autorest"
-	"github.com/Azure/go-autorest/autorest/azure/auth"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"antrea.io/nephe/pkg/cloud-provider/cloudapi/internal"
 )
 
 const (
@@ -42,8 +40,7 @@ type azureServiceClientCreateInterface interface {
 // azureServiceSdkConfigProvider provides config required to create azure service clients.
 // Implements azureServiceClientCreateInterface interface.
 type azureServiceSdkConfigProvider struct {
-	authorizer autorest.Authorizer
-	cred       *azidentity.ClientSecretCredential
+	cred *azidentity.ClientSecretCredential
 }
 
 // azureServicesHelper.
@@ -56,7 +53,6 @@ type azureServicesHelperImpl struct{}
 // newServiceSdkConfigProvider returns config to create azure services clients.
 func (h *azureServicesHelperImpl) newServiceSdkConfigProvider(accCreds *azureAccountConfig) (
 	azureServiceClientCreateInterface, error) {
-	var authorizer autorest.Authorizer
 	var err error
 
 	//TODO: Expose an option in CPA to specify the cloud type, AzurePublic, AzureGovernment and AzureChina.
@@ -65,14 +61,8 @@ func (h *azureServicesHelperImpl) newServiceSdkConfigProvider(accCreds *azureAcc
 		return nil, fmt.Errorf("unable to initialize Azure authorizer from credentials: %v", err)
 	}
 
-	clientConfig := auth.NewClientCredentialsConfig(accCreds.ClientID, accCreds.ClientKey, accCreds.TenantID)
-	authorizer, err = clientConfig.Authorizer()
-	if err != nil {
-		return nil, fmt.Errorf("unable to initialize Azure authorizer from credentials: %v", err)
-	}
 	configProvider := &azureServiceSdkConfigProvider{
-		authorizer: authorizer,
-		cred:       cred,
+		cred: cred,
 	}
 	return configProvider, nil
 }

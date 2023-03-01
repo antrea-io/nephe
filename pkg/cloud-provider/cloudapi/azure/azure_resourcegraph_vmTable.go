@@ -106,7 +106,6 @@ const (
 		"| project id, name, properties, status=properties.extended.instanceView.powerState.code, networkInterfaces, tags, vnetId"
 )
 
-// Using the fix suggested in the issue: https://github.com/mitchellh/mapstructure/issues/159
 func ToTimeHookFunc() mapstructure.DecodeHookFunc {
 	return func(
 		f reflect.Type,
@@ -129,6 +128,10 @@ func ToTimeHookFunc() mapstructure.DecodeHookFunc {
 	}
 }
 
+// customDecode use a timeHookFunc() to convert *time.time to desired format.
+// Cannot use 'mapstructure.decode' directly, since it does not understand the type *time.time
+// 'Properties.TimeCreated' expected a map, got 'string' 0xc0003ae060
+// Use the fix suggested in the issue: https://github.com/mitchellh/mapstructure/issues/159
 func customDecode(input map[string]interface{}, result interface{}) error {
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		Metadata: nil,

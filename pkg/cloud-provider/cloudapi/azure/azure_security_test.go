@@ -255,7 +255,7 @@ var _ = Describe("Azure Cloud Security", func() {
 			cloudResourcePrefix := config.DefaultCloudResourcePrefix
 			securitygroup.SetCloudResourcePrefix(&(cloudResourcePrefix))
 
-			vnetList := []network.VirtualNetwork{}
+			var vnetList []network.VirtualNetwork
 			vnet := new(network.VirtualNetwork)
 			vnet.Name = &testVnet01
 			vnet.ID = &testVnetID01

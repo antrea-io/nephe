@@ -39,8 +39,6 @@ func (p *azureServiceSdkConfigProvider) resourceGraph() (azureResourceGraphWrapp
 		fmt.Println("failed to create arm resource graph client")
 	}
 
-	//baseClient := resourcegraph.New()
-	//baseClient.Authorizer = p.authorizer
 	return &azureResourceGraphWrapperImpl{resourceGraphAPIClient: baseClient}, nil
 }
 
