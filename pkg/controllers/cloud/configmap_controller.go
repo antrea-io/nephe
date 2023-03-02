@@ -35,11 +35,12 @@ type ConfigMapReconciler struct {
 	Log              logr.Logger
 	Scheme           *runtime.Scheme
 	ControllerConfig *config.ControllerConfig
+	pendingSyncCount int
 }
 
 func (r *ConfigMapReconciler) Reconcile(_ context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = r.Log.WithValues("configmap", req.NamespacedName)
-	// Process nephe-config ConfigMaps only.
+	// Process 'nephe-config' ConfigMap only.
 	if req.Namespace != config.ConfigMapNamespace || req.Name != config.ConfigMapName {
 		return ctrl.Result{}, nil
 	}
@@ -59,6 +60,7 @@ func (r *ConfigMapReconciler) Reconcile(_ context.Context, req ctrl.Request) (ct
 		r.Log.Error(err, "exiting nephe-controller")
 		os.Exit(1)
 	}
+	r.updatePendingSyncCountAndStatus()
 	return ctrl.Result{}, nil
 }
 
@@ -86,11 +88,22 @@ func (r *ConfigMapReconciler) setCloudResourcePrefix(prefix string) error {
 	return nil
 }
 
+// updatePendingSyncCountAndStatus decrements the pendingSyncCount and when
+// pendingSyncCount is 0, sets the sync status.
+func (r *ConfigMapReconciler) updatePendingSyncCountAndStatus() {
+	if r.pendingSyncCount == 1 {
+		r.pendingSyncCount--
+		GetControllerSyncStatusInstance().SetControllerSyncStatus(ControllerTypeCM)
+	}
+}
+
 // SetupWithManager registers ConfigMapReconciler with manager.
 func (r *ConfigMapReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.ControllerConfig = &config.ControllerConfig{
 		CloudResourcePrefix: config.DefaultCloudResourcePrefix,
 	}
+	// Expect only 'nephe-config' ConfigMap to be reconciled.
+	r.pendingSyncCount = 1
 	securitygroup.SetCloudResourcePrefix(&r.ControllerConfig.CloudResourcePrefix)
 	return ctrl.NewControllerManagedBy(mgr).For(&corev1.ConfigMap{}).Complete(r)
 }

@@ -112,7 +112,6 @@ func main() {
 		Scheme:    mgr.GetScheme(),
 		Inventory: cloudInventory,
 		Poller:    poller,
-		Mgr:       &mgr,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CloudProviderAccount")
 		os.Exit(1)
