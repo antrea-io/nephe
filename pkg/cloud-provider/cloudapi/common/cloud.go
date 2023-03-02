@@ -65,10 +65,10 @@ type AccountMgmtInterface interface {
 	RemoveAccountResourcesSelector(accNamespacedName *types.NamespacedName, selector string)
 	// GetAccountStatus gets accounts status.
 	GetAccountStatus(accNamespacedName *types.NamespacedName) (*cloudv1alpha1.CloudProviderAccountStatus, error)
-	// AddInventoryPoller kicks start a periodic cloud inventory polling.
-	AddInventoryPoller(accountNamespacedName *types.NamespacedName) error
-	// DeleteInventoryPoller stops cloud inventory polling.
-	DeleteInventoryPoller(accountNamespacedName *types.NamespacedName) error
+	// DoInventoryPoll calls cloud API to get cloud resources.
+	DoInventoryPoll(accountNamespacedName *types.NamespacedName) error
+	// DeleteInventoryPollCache resets cloud snapshot to nil.
+	DeleteInventoryPollCache(accountNamespacedName *types.NamespacedName) error
 	// GetVpcInventory gets vpc inventory from internal stored snapshot.
 	GetVpcInventory(accountNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.Vpc, error)
 }

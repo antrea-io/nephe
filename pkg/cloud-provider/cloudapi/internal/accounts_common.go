@@ -17,11 +17,9 @@ package internal
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"go.uber.org/multierr"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
@@ -34,19 +32,17 @@ type CloudAccountInterface interface {
 	GetServiceConfigByName(name CloudServiceName) (CloudServiceInterface, error)
 	GetStatus() *cloudv1alpha1.CloudProviderAccountStatus
 
-	startPeriodicInventorySync() error
-	stopPeriodicInventorySync()
+	performInventorySync() error
+	resetInventorySyncCache()
 }
 
 type cloudAccountConfig struct {
-	mutex                 sync.Mutex
-	namespacedName        *types.NamespacedName
-	credentials           interface{}
-	serviceConfigs        map[CloudServiceName]*CloudServiceCommon
-	inventoryPollInterval time.Duration
-	inventoryChannel      chan struct{}
-	logger                func() logging.Logger
-	Status                *cloudv1alpha1.CloudProviderAccountStatus
+	mutex          sync.Mutex
+	namespacedName *types.NamespacedName
+	credentials    interface{}
+	serviceConfigs map[CloudServiceName]*CloudServiceCommon
+	logger         func() logging.Logger
+	Status         *cloudv1alpha1.CloudProviderAccountStatus
 }
 
 type CloudCredentialValidatorFunc func(client client.Client, credentials interface{}) (interface{}, error)
@@ -55,7 +51,7 @@ type CloudServiceConfigCreatorFunc func(namespacedName *types.NamespacedName, cl
 	helper interface{}) ([]CloudServiceInterface, error)
 
 func (c *cloudCommon) newCloudAccountConfig(client client.Client, namespacedName *types.NamespacedName, credentials interface{},
-	pollInterval time.Duration, loggerFunc func() logging.Logger) (CloudAccountInterface, error) {
+	loggerFunc func() logging.Logger) (CloudAccountInterface, error) {
 	credentialsValidatorFunc := c.commonHelper.SetAccountCredentialsFunc()
 	if credentialsValidatorFunc == nil {
 		return nil, fmt.Errorf("registered cloud-credentials validator function cannot be nil")
@@ -86,12 +82,11 @@ func (c *cloudCommon) newCloudAccountConfig(client client.Client, namespacedName
 
 	status := &cloudv1alpha1.CloudProviderAccountStatus{}
 	return &cloudAccountConfig{
-		logger:                loggerFunc,
-		namespacedName:        namespacedName,
-		inventoryPollInterval: pollInterval,
-		serviceConfigs:        serviceConfigMap,
-		credentials:           cloudConvertedCredential,
-		Status:                status,
+		logger:         loggerFunc,
+		namespacedName: namespacedName,
+		serviceConfigs: serviceConfigMap,
+		credentials:    cloudConvertedCredential,
+		Status:         status,
 	}, nil
 }
 
@@ -181,8 +176,9 @@ func (accCfg *cloudAccountConfig) performInventorySync() error {
 
 			err := serviceCfg.doResourceInventory()
 			if err != nil {
-				// set the error status to be used later in `cloudprovideraccount` CR.
+				// set the error status to be used later in `CloudProviderAccount` CR.
 				accCfg.Status.Error = err.Error()
+				ch <- err
 			}
 			inventoryStats := serviceCfg.getInventoryStats()
 			inventoryStats.UpdateInventoryPollStats(err)
@@ -195,7 +191,6 @@ func (accCfg *cloudAccountConfig) performInventorySync() error {
 			err = multierr.Append(err, e)
 		}
 	}
-
 	return err
 }
 
@@ -223,35 +218,7 @@ func (accCfg *cloudAccountConfig) GetStatus() *cloudv1alpha1.CloudProviderAccoun
 	return accCfg.Status
 }
 
-func (accCfg *cloudAccountConfig) startPeriodicInventorySync() error {
-	err := accCfg.performInventorySync()
-	if err != nil {
-		return err
-	}
-
-	accCfg.mutex.Lock()
-	defer accCfg.mutex.Unlock()
-
-	if accCfg.inventoryChannel == nil {
-		ch := make(chan struct{})
-		condFunc := func() (bool, error) {
-			_ = accCfg.performInventorySync()
-			return false, nil
-		}
-		// nolint:errcheck
-		go wait.PollUntil(accCfg.inventoryPollInterval, condFunc, ch)
-		accCfg.inventoryChannel = ch
-	}
-
-	return err
-}
-
-func (accCfg *cloudAccountConfig) stopPeriodicInventorySync() {
-	if accCfg.inventoryChannel != nil {
-		close(accCfg.inventoryChannel)
-		accCfg.inventoryChannel = nil
-	}
-
+func (accCfg *cloudAccountConfig) resetInventorySyncCache() {
 	for _, serviceConfig := range accCfg.serviceConfigs {
 		serviceConfig.resetCachedState()
 	}

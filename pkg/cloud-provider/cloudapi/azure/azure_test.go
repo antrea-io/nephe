@@ -183,7 +183,7 @@ var _ = Describe("Azure", func() {
 				Expect(found).To(BeTrue())
 				Expect(accCfg).To(Not(BeNil()))
 
-				errPolAdd := c.AddInventoryPoller(testAccountNamespacedName)
+				errPolAdd := c.DoInventoryPoll(testAccountNamespacedName)
 				Expect(errPolAdd).Should(BeNil())
 
 				vnetMap, err := c.GetVpcInventory(testAccountNamespacedName)
@@ -213,9 +213,9 @@ var _ = Describe("Azure", func() {
 				Expect(found).To(BeTrue())
 				Expect(accCfg).To(Not(BeNil()))
 
-				errPolAdd := c.AddInventoryPoller(testAccountNamespacedName)
+				errPolAdd := c.DoInventoryPoll(testAccountNamespacedName)
 				Expect(errPolAdd).Should(BeNil())
-				errPolDel := c.DeleteInventoryPoller(testAccountNamespacedName)
+				errPolDel := c.DeleteInventoryPollCache(testAccountNamespacedName)
 				Expect(errPolDel).Should(BeNil())
 				mockazureVirtualNetworksWrapper.EXPECT().listAllComplete(gomock.Any()).Return(createVnetObject(vnetIDs), nil).MinTimes(0)
 			})

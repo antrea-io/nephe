@@ -20,11 +20,13 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-logr/logr"
 	"go.uber.org/multierr"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -53,6 +55,7 @@ type accountPoller struct {
 	selector          *cloudv1alpha1.CloudEntitySelector
 	vmSelector        cache.Indexer
 	ch                chan struct{}
+	mutex             sync.Mutex
 	inventory         *inventory.Inventory
 }
 
@@ -141,26 +144,33 @@ func (p *Poller) addAccountPoller(cloudType cloudv1alpha1.CloudProvider, namespa
 	return poller, false
 }
 
-// removeAccountPoller removes an account poller from accPollers map.
+// removeAccountPoller stops account poller thread and removes account poller entry from accPollers map.
 func (p *Poller) removeAccountPoller(namespacedName *types.NamespacedName) error {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
-	poller, found := p.accPollers[*namespacedName]
-	if found {
-		if poller.selector != nil {
-			cloudInterface, err := cloudprovider.GetCloudInterface(common.ProviderType(poller.cloudType))
-			if err != nil {
-				return err
+	if poller, found := p.accPollers[*namespacedName]; found {
+		if poller != nil {
+			if poller.selector != nil {
+				cloudInterface, err := cloudprovider.GetCloudInterface(common.ProviderType(poller.cloudType))
+				if err != nil {
+					return err
+				}
+				cloudInterface.RemoveAccountResourcesSelector(namespacedName, poller.selector.Name)
 			}
-			cloudInterface.RemoveAccountResourcesSelector(namespacedName, poller.selector.Name)
-		}
 
-		if poller.ch != nil {
-			close(poller.ch)
-			poller.ch = nil
+			// Stop go-routine.
+			poller.mutex.Lock()
+			if poller.ch != nil {
+				close(poller.ch)
+				poller.ch = nil
+			}
+			poller.mutex.Unlock()
+
+			// To avoid race condition between CES Delete and CPA Delete wrt account poller workflow
+			// remove entry for the account from accPollers map now.
+			delete(p.accPollers, *namespacedName)
 		}
-		delete(p.accPollers, *namespacedName)
 	}
 
 	return nil
@@ -174,7 +184,7 @@ func (p *Poller) getCloudType(name *types.NamespacedName) (cloudv1alpha1.CloudPr
 	if pollerScope, exists := p.accPollers[*name]; exists {
 		return pollerScope.cloudType, nil
 	}
-	return "", fmt.Errorf("account poller not found, account %s", name.String())
+	return "", fmt.Errorf("%s %v", errorMsgAccountPollerNotFound, name)
 }
 
 // updateAccountPoller updates accountPoller object with CES specific information.
@@ -184,7 +194,7 @@ func (p *Poller) updateAccountPoller(name *types.NamespacedName, selector *cloud
 
 	accPoller, found := p.accPollers[*name]
 	if !found {
-		return fmt.Errorf("%s %s", errorMsgSelectorAddFail, name.String())
+		return fmt.Errorf("%s %v", errorMsgAccountPollerNotFound, name)
 	}
 
 	if selector.Spec.VMSelector != nil {
@@ -217,15 +227,49 @@ func (p *Poller) updateAccountPoller(name *types.NamespacedName, selector *cloud
 	return nil
 }
 
-func (p *accountPoller) doAccountPoller() {
+// restartAccountPoller stops and starts a goroutine making sure there is only one account poller goroutine at a time.
+func (p *Poller) restartAccountPoller(name *types.NamespacedName) error {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	accPoller, found := p.accPollers[*name]
+	if !found {
+		return fmt.Errorf("%s %v", errorMsgAccountPollerNotFound, name)
+	}
+
+	// Acquire mutex lock to make sure doAccountPolling is not running while new goroutine is started.
+	accPoller.mutex.Lock()
+	if accPoller.ch != nil {
+		close(accPoller.ch)
+		accPoller.ch = nil
+	}
+	accPoller.mutex.Unlock()
+
+	p.log.Info("Restarting account poller", "account", name)
+	accPoller.ch = make(chan struct{})
+	go wait.Until(accPoller.doAccountPolling, time.Duration(accPoller.pollIntvInSeconds)*time.Second, accPoller.ch)
+
+	return nil
+}
+
+func (p *accountPoller) doAccountPolling() {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
 	cloudInterface, e := cloudprovider.GetCloudInterface(common.ProviderType(p.cloudType))
 	if e != nil {
 		p.log.Error(e, "failed to get cloud interface", "account", p.namespacedName)
 		return
 	}
 
+	e = cloudInterface.DoInventoryPoll(p.namespacedName)
+	if e != nil {
+		p.log.Error(e, "failed to poll cloud inventory", "account", p.namespacedName)
+	}
+
 	p.updateAccountStatus(cloudInterface)
 
+	// TODO: Avoid calling plugin to get VPC inventory from snapshot.
 	vpcMap, e := cloudInterface.GetVpcInventory(p.namespacedName)
 	vpcCount := len(vpcMap)
 	if e != nil {
@@ -242,6 +286,7 @@ func (p *accountPoller) doAccountPoller() {
 	// Perform VM Operations only when CES is added.
 	vmCount := 0
 	if p.selector != nil {
+		// TODO: Avoid calling plugin to get VM inventory from snapshot.
 		virtualMachines := p.getComputeResources(cloudInterface)
 		e = p.doVirtualMachineOperations(virtualMachines)
 		if e != nil {

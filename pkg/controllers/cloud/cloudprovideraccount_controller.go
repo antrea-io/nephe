@@ -130,6 +130,7 @@ func (r *CloudProviderAccountReconciler) updatePendingSyncCountAndStatus() {
 func (r *CloudProviderAccountReconciler) processCreate(namespacedName *types.NamespacedName,
 	account *cloudv1alpha1.CloudProviderAccount) error {
 	r.Log.Info("Received request", "account", namespacedName, "operation", "create/update")
+
 	accountCloudType, err := utils.GetAccountProviderType(account)
 	if err != nil {
 		return fmt.Errorf("%s, err: %v", errorMsgAccountAddFail, err)
@@ -144,15 +145,15 @@ func (r *CloudProviderAccountReconciler) processCreate(namespacedName *types.Nam
 		return fmt.Errorf("%s, err: %v", errorMsgAccountAddFail, err)
 	}
 
-	accPoller, preExists := r.Poller.addAccountPoller(accountCloudType, namespacedName, account, r)
+	accPoller, exists := r.Poller.addAccountPoller(accountCloudType, namespacedName, account, r)
 
-	if !preExists {
-		err = cloudInterface.AddInventoryPoller(namespacedName)
+	if !exists {
+		go wait.Until(accPoller.doAccountPolling, time.Duration(accPoller.pollIntvInSeconds)*time.Second, accPoller.ch)
+	} else {
+		err = r.Poller.restartAccountPoller(namespacedName)
 		if err != nil {
-			_ = r.Poller.removeAccountPoller(namespacedName)
 			return err
 		}
-		go wait.Until(accPoller.doAccountPoller, time.Duration(accPoller.pollIntvInSeconds)*time.Second, accPoller.ch)
 	}
 
 	return nil
@@ -160,22 +161,25 @@ func (r *CloudProviderAccountReconciler) processCreate(namespacedName *types.Nam
 
 func (r *CloudProviderAccountReconciler) processDelete(namespacedName *types.NamespacedName) error {
 	r.Log.Info("Received request", "account", namespacedName, "operation", "delete")
+
 	err := r.Poller.removeAccountPoller(namespacedName)
 	if err != nil {
 		return err
 	}
-
-	err = r.Inventory.DeleteVpcCache(namespacedName)
-	if err != nil {
-		return err
-	}
+	r.Log.V(1).Info("removed account poller", "account", namespacedName.String())
 
 	cloudType := r.getAccountProviderType(namespacedName)
 	cloudInterface, err := cloudprovider.GetCloudInterface(cloudType)
 	if err != nil {
 		return err
 	}
-	err = cloudInterface.DeleteInventoryPoller(namespacedName)
+
+	err = cloudInterface.DeleteInventoryPollCache(namespacedName)
+	if err != nil {
+		return err
+	}
+
+	err = r.Inventory.DeleteVpcCache(namespacedName)
 	if err != nil {
 		return err
 	}

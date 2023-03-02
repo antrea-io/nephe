@@ -270,7 +270,7 @@ func ConfigureEntitySelectorAndWait(kubeCtl *KubeCtl, k8sClient client.Client, p
 		}
 		return false, fmt.Errorf("unknown kind %v", kind)
 	}); err != nil {
-		return fmt.Errorf("failed to get cloud resources %s(%d) in namespace %s: %w", kind, num, namespace, err)
+		return fmt.Errorf("failed to get cloud resources %s, expected count %d, namespace %s: %w", kind, num, namespace, err)
 	}
 	return nil
 }

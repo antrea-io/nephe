@@ -67,20 +67,6 @@ func (mr *MockCloudInterfaceMockRecorder) AddAccountResourceSelector(accNamespac
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddAccountResourceSelector", reflect.TypeOf((*MockCloudInterface)(nil).AddAccountResourceSelector), accNamespacedName, selector)
 }
 
-// AddInventoryPoller mocks base method.
-func (m *MockCloudInterface) AddInventoryPoller(accountNamespacedName *types.NamespacedName) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddInventoryPoller", accountNamespacedName)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// AddInventoryPoller indicates an expected call of AddInventoryPoller.
-func (mr *MockCloudInterfaceMockRecorder) AddInventoryPoller(accountNamespacedName interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddInventoryPoller", reflect.TypeOf((*MockCloudInterface)(nil).AddInventoryPoller), accountNamespacedName)
-}
-
 // AddProviderAccount mocks base method.
 func (m *MockCloudInterface) AddProviderAccount(client client.Client, account *v1alpha1.CloudProviderAccount) error {
 	m.ctrl.T.Helper()
@@ -110,18 +96,18 @@ func (mr *MockCloudInterfaceMockRecorder) CreateSecurityGroup(securityGroupIdent
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSecurityGroup", reflect.TypeOf((*MockCloudInterface)(nil).CreateSecurityGroup), securityGroupIdentifier, membershipOnly)
 }
 
-// DeleteInventoryPoller mocks base method.
-func (m *MockCloudInterface) DeleteInventoryPoller(accountNamespacedName *types.NamespacedName) error {
+// DeleteInventoryPollCache mocks base method.
+func (m *MockCloudInterface) DeleteInventoryPollCache(accountNamespacedName *types.NamespacedName) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteInventoryPoller", accountNamespacedName)
+	ret := m.ctrl.Call(m, "DeleteInventoryPollCache", accountNamespacedName)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DeleteInventoryPoller indicates an expected call of DeleteInventoryPoller.
-func (mr *MockCloudInterfaceMockRecorder) DeleteInventoryPoller(accountNamespacedName interface{}) *gomock.Call {
+// DeleteInventoryPollCache indicates an expected call of DeleteInventoryPollCache.
+func (mr *MockCloudInterfaceMockRecorder) DeleteInventoryPollCache(accountNamespacedName interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteInventoryPoller", reflect.TypeOf((*MockCloudInterface)(nil).DeleteInventoryPoller), accountNamespacedName)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteInventoryPollCache", reflect.TypeOf((*MockCloudInterface)(nil).DeleteInventoryPollCache), accountNamespacedName)
 }
 
 // DeleteSecurityGroup mocks base method.
@@ -136,6 +122,20 @@ func (m *MockCloudInterface) DeleteSecurityGroup(securityGroupIdentifier *securi
 func (mr *MockCloudInterfaceMockRecorder) DeleteSecurityGroup(securityGroupIdentifier, membershipOnly interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSecurityGroup", reflect.TypeOf((*MockCloudInterface)(nil).DeleteSecurityGroup), securityGroupIdentifier, membershipOnly)
+}
+
+// DoInventoryPoll mocks base method.
+func (m *MockCloudInterface) DoInventoryPoll(accountNamespacedName *types.NamespacedName) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DoInventoryPoll", accountNamespacedName)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DoInventoryPoll indicates an expected call of DoInventoryPoll.
+func (mr *MockCloudInterfaceMockRecorder) DoInventoryPoll(accountNamespacedName interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DoInventoryPoll", reflect.TypeOf((*MockCloudInterface)(nil).DoInventoryPoll), accountNamespacedName)
 }
 
 // GetAccountStatus mocks base method.
@@ -315,20 +315,6 @@ func (mr *MockAccountMgmtInterfaceMockRecorder) AddAccountResourceSelector(accNa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddAccountResourceSelector", reflect.TypeOf((*MockAccountMgmtInterface)(nil).AddAccountResourceSelector), accNamespacedName, selector)
 }
 
-// AddInventoryPoller mocks base method.
-func (m *MockAccountMgmtInterface) AddInventoryPoller(accountNamespacedName *types.NamespacedName) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddInventoryPoller", accountNamespacedName)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// AddInventoryPoller indicates an expected call of AddInventoryPoller.
-func (mr *MockAccountMgmtInterfaceMockRecorder) AddInventoryPoller(accountNamespacedName interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddInventoryPoller", reflect.TypeOf((*MockAccountMgmtInterface)(nil).AddInventoryPoller), accountNamespacedName)
-}
-
 // AddProviderAccount mocks base method.
 func (m *MockAccountMgmtInterface) AddProviderAccount(client client.Client, account *v1alpha1.CloudProviderAccount) error {
 	m.ctrl.T.Helper()
@@ -343,18 +329,32 @@ func (mr *MockAccountMgmtInterfaceMockRecorder) AddProviderAccount(client, accou
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddProviderAccount", reflect.TypeOf((*MockAccountMgmtInterface)(nil).AddProviderAccount), client, account)
 }
 
-// DeleteInventoryPoller mocks base method.
-func (m *MockAccountMgmtInterface) DeleteInventoryPoller(accountNamespacedName *types.NamespacedName) error {
+// DeleteInventoryPollCache mocks base method.
+func (m *MockAccountMgmtInterface) DeleteInventoryPollCache(accountNamespacedName *types.NamespacedName) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteInventoryPoller", accountNamespacedName)
+	ret := m.ctrl.Call(m, "DeleteInventoryPollCache", accountNamespacedName)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DeleteInventoryPoller indicates an expected call of DeleteInventoryPoller.
-func (mr *MockAccountMgmtInterfaceMockRecorder) DeleteInventoryPoller(accountNamespacedName interface{}) *gomock.Call {
+// DeleteInventoryPollCache indicates an expected call of DeleteInventoryPollCache.
+func (mr *MockAccountMgmtInterfaceMockRecorder) DeleteInventoryPollCache(accountNamespacedName interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteInventoryPoller", reflect.TypeOf((*MockAccountMgmtInterface)(nil).DeleteInventoryPoller), accountNamespacedName)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteInventoryPollCache", reflect.TypeOf((*MockAccountMgmtInterface)(nil).DeleteInventoryPollCache), accountNamespacedName)
+}
+
+// DoInventoryPoll mocks base method.
+func (m *MockAccountMgmtInterface) DoInventoryPoll(accountNamespacedName *types.NamespacedName) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DoInventoryPoll", accountNamespacedName)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DoInventoryPoll indicates an expected call of DoInventoryPoll.
+func (mr *MockAccountMgmtInterfaceMockRecorder) DoInventoryPoll(accountNamespacedName interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DoInventoryPoll", reflect.TypeOf((*MockAccountMgmtInterface)(nil).DoInventoryPoll), accountNamespacedName)
 }
 
 // GetAccountStatus mocks base method.

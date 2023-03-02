@@ -136,13 +136,14 @@ func (r *CloudEntitySelectorReconciler) updatePendingSyncCountAndStatus() {
 func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *cloudv1alpha1.CloudEntitySelector,
 	selectorNamespacedName *types.NamespacedName) error {
 	r.Log.Info("Received request", "selector", selectorNamespacedName, "operation", "create/update")
+
 	accountNamespacedName := &types.NamespacedName{
 		Namespace: selector.Namespace,
 		Name:      selector.Spec.AccountName,
 	}
 	cloudType, err := r.Poller.getCloudType(accountNamespacedName)
 	if err != nil {
-		return fmt.Errorf("%s %s, err: %v", errorMsgSelectorAddFail, selectorNamespacedName.Name, err)
+		return fmt.Errorf("%s, %s %v", err.Error(), errorMsgSelectorAddFail, selectorNamespacedName)
 	}
 
 	cloudInterface, err := cloudprovider.GetCloudInterface(common.ProviderType(cloudType))
@@ -151,15 +152,32 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *cloudv1a
 	}
 
 	r.selectorToAccountMap[*selectorNamespacedName] = *accountNamespacedName
+
+	callCESDelete := false
+	defer func() {
+		if callCESDelete {
+			_ = r.processDelete(selectorNamespacedName)
+		}
+	}()
+
 	err = cloudInterface.AddAccountResourceSelector(accountNamespacedName, selector)
 	if err != nil {
-		_ = r.processDelete(selectorNamespacedName)
+		r.Log.Info(errorMsgSelectorAddFail, "selector", selectorNamespacedName, "error", err)
+		callCESDelete = true
 		return fmt.Errorf("%s %s, err: %v", errorMsgSelectorAddFail, selectorNamespacedName.Name, err)
 	}
 
 	err = r.Poller.updateAccountPoller(accountNamespacedName, selector)
 	if err != nil {
-		_ = r.processDelete(selectorNamespacedName)
+		r.Log.Info(errorMsgSelectorAddFail, "selector", selectorNamespacedName, "error", err)
+		callCESDelete = true
+		return err
+	}
+
+	err = r.Poller.restartAccountPoller(accountNamespacedName)
+	if err != nil {
+		r.Log.Info(errorMsgSelectorAddFail, "selector", selectorNamespacedName, "error", err)
+		callCESDelete = true
 		return err
 	}
 
@@ -168,6 +186,7 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *cloudv1a
 
 func (r *CloudEntitySelectorReconciler) processDelete(selectorNamespacedName *types.NamespacedName) error {
 	r.Log.Info("Received request", "selector", selectorNamespacedName, "operation", "delete")
+
 	accountNamespacedName, found := r.selectorToAccountMap[*selectorNamespacedName]
 	if !found {
 		return fmt.Errorf("%s %s", errorMsgSelectorAccountMapNotFound, selectorNamespacedName.String())
@@ -186,6 +205,10 @@ func (r *CloudEntitySelectorReconciler) processDelete(selectorNamespacedName *ty
 	}
 
 	cloudInterface.RemoveAccountResourcesSelector(&tempAccountNamespacedName, selectorNamespacedName.Name)
+
+	if err := r.Poller.restartAccountPoller(&tempAccountNamespacedName); err != nil {
+		return err
+	}
 
 	return nil
 }
