@@ -36,6 +36,8 @@ const (
 )
 
 var (
+	mutex sync.Mutex
+
 	awsAnyProtocolValue = "-1"
 	tcpUDPPortStart     = 0
 	tcpUDPPortEnd       = 65535
@@ -84,9 +86,8 @@ func buildEc2CloudSgNamesFromRules(appliedToGroupIdentifier *securitygroup.Cloud
 
 func (ec2Cfg *ec2ServiceConfig) createOrGetSecurityGroups(vpcID string, cloudSgNames map[string]struct{}) (
 	map[string]*ec2.SecurityGroup, error) {
-	vpcIDs := []string{vpcID}
-
 	// for cloudSgs get details from clouds, if they already exist in cloud.
+	vpcIDs := []string{vpcID}
 	cloudSgNameToCloudSGObj, err := ec2Cfg.getCloudSecurityGroupsWithNameFromCloud(vpcIDs, cloudSgNames)
 	if err != nil {
 		return nil, err
@@ -99,6 +100,13 @@ func (ec2Cfg *ec2ServiceConfig) createOrGetSecurityGroups(vpcID string, cloudSgN
 			cloudSgNamesToCreate[cloudSgName] = struct{}{}
 		}
 	}
+
+	// return the up-to-date cloud objects for SGs
+	if len(cloudSgNamesToCreate) == 0 {
+		awsPluginLogger().Info("No new security group to be created")
+		return cloudSgNameToCloudSGObj, nil
+	}
+
 	for cloudSgName := range cloudSgNamesToCreate {
 		err := ec2Cfg.createCloudSecurityGroup(cloudSgName, vpcID)
 		if err != nil {
@@ -107,11 +115,6 @@ func (ec2Cfg *ec2ServiceConfig) createOrGetSecurityGroups(vpcID string, cloudSgN
 		}
 	}
 
-	// return the up-to-date cloud objects for SGs
-	if len(cloudSgNamesToCreate) == 0 {
-		awsPluginLogger().Info("No new security group to be created")
-		return cloudSgNameToCloudSGObj, nil
-	}
 	return ec2Cfg.getCloudSecurityGroupsWithNameFromCloud(vpcIDs, cloudSgNames)
 }
 
@@ -663,6 +666,9 @@ func getMemberNicCloudResourcesAttachedToOtherSGs(members []securitygroup.CloudR
 
 // CreateSecurityGroup invokes cloud api and creates the cloud security group based on securityGroupIdentifier.
 func (c *awsCloud) CreateSecurityGroup(securityGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) (*string, error) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	vpcID := securityGroupIdentifier.Vpc
 	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
 	if !found {
@@ -687,6 +693,9 @@ func (c *awsCloud) CreateSecurityGroup(securityGroupIdentifier *securitygroup.Cl
 // UpdateSecurityGroupRules invokes cloud api and updates cloud security group with addRules and rmRules.
 func (c *awsCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *securitygroup.CloudResource,
 	addRules, rmRules, _ []*securitygroup.CloudRule) error {
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	addIRule := make([]*securitygroup.CloudRule, 0)
 	rmIRule := make([]*securitygroup.CloudRule, 0)
 	addERule := make([]*securitygroup.CloudRule, 0)
@@ -780,6 +789,9 @@ func (c *awsCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *securitygr
 // UpdateSecurityGroupMembers invokes cloud api and attaches/detaches nics to/from the cloud security group.
 func (c *awsCloud) UpdateSecurityGroupMembers(securityGroupIdentifier *securitygroup.CloudResource,
 	cloudResourceIdentifiers []*securitygroup.CloudResource, membershipOnly bool) error {
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	vpcID := securityGroupIdentifier.Vpc
 	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
 	if !found {
@@ -817,6 +829,9 @@ func (c *awsCloud) UpdateSecurityGroupMembers(securityGroupIdentifier *securityg
 
 // DeleteSecurityGroup invokes cloud api and deletes the cloud security group. Any attached resource will be moved to default sg.
 func (c *awsCloud) DeleteSecurityGroup(securityGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) error {
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	vpcID := securityGroupIdentifier.Vpc
 	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
 	if !found {
@@ -833,14 +848,12 @@ func (c *awsCloud) DeleteSecurityGroup(securityGroupIdentifier *securitygroup.Cl
 	vpcIDs := []string{vpcID}
 	cloudSgNameToDelete := securityGroupIdentifier.GetCloudName(membershipOnly)
 	out, err := ec2Service.getCloudSecurityGroupsWithNameFromCloud(vpcIDs, map[string]struct{}{cloudSgNameToDelete: {}})
-	if err != nil {
+	if err != nil || len(out) == 0 {
 		return err
 	}
-	if len(out) == 0 {
-		return nil
-	}
-	cloudSgIDToDelete := out[cloudSgNameToDelete].GroupId
 
+	// Detach security group from interfaces before deleting.
+	cloudSgIDToDelete := out[cloudSgNameToDelete].GroupId
 	err = ec2Service.updateSecurityGroupMembers(cloudSgIDToDelete, cloudSgNameToDelete, vpcID, nil, membershipOnly)
 	if err != nil {
 		return err
