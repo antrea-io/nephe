@@ -16,31 +16,37 @@ package azure
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2021-03-01/network"
-	"github.com/Azure/go-autorest/autorest"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 )
 
 // securityGroups returns security-groups apiClient.
 func (p *azureServiceSdkConfigProvider) securityGroups(subscriptionID string) (azureNsgWrapper, error) {
-	securityGroupsClient := network.NewSecurityGroupsClient(subscriptionID)
-	securityGroupsClient.Authorizer = p.authorizer
-	return &azureNsgWrapperImpl{nsgAPIClient: securityGroupsClient}, nil
+	securityGroupsClient, err := armnetwork.NewSecurityGroupsClient(subscriptionID, p.cred, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &azureNsgWrapperImpl{nsgAPIClient: *securityGroupsClient}, nil
 }
 
 func createOrGetNetworkSecurityGroup(nsgAPIClient azureNsgWrapper, location string, rgName string,
 	cloudSgName string) (string, error) {
+	var respErr *azcore.ResponseError
 	nsg, err := nsgAPIClient.get(context.Background(), rgName, cloudSgName, "")
 	if err != nil {
-		detailError := err.(autorest.DetailedError)
-		if detailError.StatusCode != 404 {
-			return "", err
+		if errors.As(err, &respErr) {
+			if respErr.StatusCode != http.StatusNotFound {
+				return "", err
+			}
 		}
 	}
 
 	if nsg.ID == nil {
-		securityGroupParams := network.SecurityGroup{
+		securityGroupParams := armnetwork.SecurityGroup{
 			Location: &location,
 		}
 		nsg, err = nsgAPIClient.createOrUpdate(context.Background(), rgName, cloudSgName, securityGroupParams)
@@ -53,10 +59,10 @@ func createOrGetNetworkSecurityGroup(nsgAPIClient azureNsgWrapper, location stri
 }
 
 func updateNetworkSecurityGroupRules(nsgAPIClient azureNsgWrapper, location string, rgName string, cloudSgName string,
-	rules []network.SecurityRule) error {
-	securityGroupParams := network.SecurityGroup{
-		SecurityGroupPropertiesFormat: &network.SecurityGroupPropertiesFormat{
-			SecurityRules: &rules,
+	rules []*armnetwork.SecurityRule) error {
+	securityGroupParams := armnetwork.SecurityGroup{
+		Properties: &armnetwork.SecurityGroupPropertiesFormat{
+			SecurityRules: rules,
 		},
 		Name:     &cloudSgName,
 		Location: &location,

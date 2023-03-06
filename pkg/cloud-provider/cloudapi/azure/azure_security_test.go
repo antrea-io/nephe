@@ -20,7 +20,7 @@ import (
 	"net"
 	"strings"
 
-	network "github.com/Azure/azure-sdk-for-go/services/network/mgmt/2021-03-01/network"
+	network "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -178,15 +178,15 @@ var _ = Describe("Azure Cloud Security", func() {
 			mockazureService.EXPECT().resourceGraph().Return(mockazureResourceGraph, nil)
 			mockazureVirtualNetworksWrapper.EXPECT().listAllComplete(gomock.Any()).AnyTimes()
 			mockazureResourceGraph.EXPECT().resources(gomock.Any(), gomock.Any()).Return(getResourceGraphResult(), nil).AnyTimes()
-			atAsg := network.ApplicationSecurityGroup{ID: &testATAsgID, Name: &atAsgID}
-			agAsg := network.ApplicationSecurityGroup{ID: &testAGAsgID, Name: &agAsgID}
-			asglist := []network.ApplicationSecurityGroup{agAsg, atAsg}
+			atAsg := &network.ApplicationSecurityGroup{ID: &testATAsgID, Name: &atAsgID}
+			agAsg := &network.ApplicationSecurityGroup{ID: &testAGAsgID, Name: &agAsgID}
+			asglist := []network.ApplicationSecurityGroup{*agAsg, *atAsg}
 
-			nsgrule := network.SecurityRule{
+			nsgrule := &network.SecurityRule{
 				ID: &nsgID,
-				SecurityRulePropertiesFormat: &network.SecurityRulePropertiesFormat{
-					SourceApplicationSecurityGroups:      &[]network.ApplicationSecurityGroup{agAsg},
-					DestinationApplicationSecurityGroups: &[]network.ApplicationSecurityGroup{atAsg},
+				Properties: &network.SecurityRulePropertiesFormat{
+					SourceApplicationSecurityGroups:      []*network.ApplicationSecurityGroup{agAsg},
+					DestinationApplicationSecurityGroups: []*network.ApplicationSecurityGroup{atAsg},
 					Priority:                             &testPriority,
 					SourcePortRange:                      &testSourcePortRange,
 					DestinationPortRange:                 &testDestinationPortRange,
@@ -194,8 +194,8 @@ var _ = Describe("Azure Cloud Security", func() {
 			}
 
 			nsg := network.SecurityGroup{
-				SecurityGroupPropertiesFormat: &network.SecurityGroupPropertiesFormat{
-					SecurityRules: &[]network.SecurityRule{nsgrule},
+				Properties: &network.SecurityGroupPropertiesFormat{
+					SecurityRules: []*network.SecurityRule{nsgrule},
 				},
 				ID:   &testNsgID,
 				Name: &nsgID,
@@ -205,7 +205,7 @@ var _ = Describe("Azure Cloud Security", func() {
 			mockazureNsgWrapper.EXPECT().get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nsg, nil).AnyTimes()
 			mockazureNwIntfWrapper.EXPECT().listAllComplete(gomock.Any()).AnyTimes()
 
-			mockazureAsgWrapper.EXPECT().createOrUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(agAsg, nil).AnyTimes()
+			mockazureAsgWrapper.EXPECT().createOrUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(*agAsg, nil).AnyTimes()
 			mockazureAsgWrapper.EXPECT().get(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 			mockazureAsgWrapper.EXPECT().delete(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 			mockazureAsgWrapper.EXPECT().listComplete(gomock.Any(), gomock.Any()).Return(asglist, nil).AnyTimes()
@@ -255,7 +255,7 @@ var _ = Describe("Azure Cloud Security", func() {
 			cloudResourcePrefix := config.DefaultCloudResourcePrefix
 			securitygroup.SetCloudResourcePrefix(&(cloudResourcePrefix))
 
-			vnetList := []network.VirtualNetwork{}
+			var vnetList []network.VirtualNetwork
 			vnet := new(network.VirtualNetwork)
 			vnet.Name = &testVnet01
 			vnet.ID = &testVnetID01

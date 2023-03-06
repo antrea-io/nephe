@@ -17,7 +17,7 @@ package azure
 import (
 	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2021-03-01/network"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
@@ -66,7 +66,7 @@ func computeInstanceToVirtualMachineCRD(instance *virtualMachineTable, namespace
 		if len(nwInf.PublicIps) > 0 {
 			for _, publicIP := range nwInf.PublicIps {
 				ipAddressCRD := v1alpha1.IPAddress{
-					AddressType: v1alpha1.AddressTypeInternalIP,
+					AddressType: v1alpha1.AddressTypeExternalIP,
 					Address:     *publicIP,
 				}
 				ipAddressCRDs = append(ipAddressCRDs, ipAddressCRD)
@@ -108,7 +108,7 @@ func computeInstanceToVirtualMachineCRD(instance *virtualMachineTable, namespace
 }
 
 // ComputeVpcToInternalVpcObject converts vnet object from cloud format(network.VirtualNetwork) to vpc runtime object.
-func ComputeVpcToInternalVpcObject(vnet *network.VirtualNetwork, namespace string, accountName string,
+func ComputeVpcToInternalVpcObject(vnet *armnetwork.VirtualNetwork, namespace string, accountName string,
 	region string, managed bool) *runtimev1alpha1.Vpc {
 	crdName := utils.GenerateShortResourceIdentifier(*vnet.ID, *vnet.Name)
 	tags := make(map[string]string, 0)
@@ -118,8 +118,11 @@ func ComputeVpcToInternalVpcObject(vnet *network.VirtualNetwork, namespace strin
 		}
 	}
 	cidrs := make([]string, 0)
-	if vnet.AddressSpace != nil && vnet.AddressSpace.AddressPrefixes != nil {
-		cidrs = append(cidrs, *vnet.AddressSpace.AddressPrefixes...)
+	properties := vnet.Properties
+	if properties != nil && properties.AddressSpace != nil && len(properties.AddressSpace.AddressPrefixes) > 0 {
+		for _, cidr := range vnet.Properties.AddressSpace.AddressPrefixes {
+			cidrs = append(cidrs, *cidr)
+		}
 	}
 	labelsMap := map[string]string{
 		common.VpcLabelAccountName: accountName,

@@ -17,8 +17,7 @@ package azure
 import (
 	"fmt"
 
-	"github.com/Azure/go-autorest/autorest"
-	"github.com/Azure/go-autorest/autorest/azure/auth"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"k8s.io/apimachinery/pkg/types"
 
 	"antrea.io/nephe/pkg/cloud-provider/cloudapi/internal"
@@ -28,7 +27,7 @@ const (
 	azureComputeServiceNameCompute = internal.CloudServiceName("COMPUTE")
 )
 
-// azureServiceClientCreateInterface provides interface to create aws service clients.
+// azureServiceClientCreateInterface provides interface to create azure service clients.
 type azureServiceClientCreateInterface interface {
 	resourceGraph() (azureResourceGraphWrapper, error)
 	networkInterfaces(subscriptionID string) (azureNwIntfWrapper, error)
@@ -41,7 +40,7 @@ type azureServiceClientCreateInterface interface {
 // azureServiceSdkConfigProvider provides config required to create azure service clients.
 // Implements azureServiceClientCreateInterface interface.
 type azureServiceSdkConfigProvider struct {
-	authorizer autorest.Authorizer
+	cred *azidentity.ClientSecretCredential
 }
 
 // azureServicesHelper.
@@ -54,15 +53,16 @@ type azureServicesHelperImpl struct{}
 // newServiceSdkConfigProvider returns config to create azure services clients.
 func (h *azureServicesHelperImpl) newServiceSdkConfigProvider(accCreds *azureAccountConfig) (
 	azureServiceClientCreateInterface, error) {
-	var authorizer autorest.Authorizer
 	var err error
-	clientConfig := auth.NewClientCredentialsConfig(accCreds.ClientID, accCreds.ClientKey, accCreds.TenantID)
-	authorizer, err = clientConfig.Authorizer()
+
+	// TODO: Expose an option in CPA to specify the cloud type, AzurePublic, AzureGovernment and AzureChina.
+	cred, err := azidentity.NewClientSecretCredential(accCreds.TenantID, accCreds.ClientID, accCreds.ClientKey, nil)
 	if err != nil {
 		return nil, fmt.Errorf("unable to initialize Azure authorizer from credentials: %v", err)
 	}
+
 	configProvider := &azureServiceSdkConfigProvider{
-		authorizer: authorizer,
+		cred: cred,
 	}
 	return configProvider, nil
 }
@@ -79,11 +79,11 @@ func newAzureServiceConfigs(accountNamespacedName *types.NamespacedName, accCred
 		return nil, err
 	}
 
-	ec2Service, err := newComputeServiceConfig(accountNamespacedName.String(), azureServiceClientCreator, azureAccountCredentials)
+	computeService, err := newComputeServiceConfig(accountNamespacedName.String(), azureServiceClientCreator, azureAccountCredentials)
 	if err != nil {
 		return nil, err
 	}
-	serviceConfigs = append(serviceConfigs, ec2Service)
+	serviceConfigs = append(serviceConfigs, computeService)
 
 	return serviceConfigs, nil
 }

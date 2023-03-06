@@ -61,3 +61,11 @@ func mergeSet(ms ...map[string]struct{}) map[string]struct{} {
 	}
 	return result
 }
+
+// emptyString checks if string is nil or empty
+func emptyString(s *string) bool {
+	if s == nil || len(*s) == 0 {
+		return true
+	}
+	return false
+}

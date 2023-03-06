@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2021-03-01/network"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/mohae/deepcopy"
 
@@ -45,7 +45,7 @@ type computeServiceConfig struct {
 
 type computeResourcesCacheSnapshot struct {
 	virtualMachines map[cloudcommon.InstanceID]*virtualMachineTable
-	vnets           []network.VirtualNetwork
+	vnets           []armnetwork.VirtualNetwork
 	vnetIDs         map[string]struct{}
 	vnetPeers       map[string][][]string
 }
@@ -172,8 +172,8 @@ func (computeCfg *computeServiceConfig) getVirtualMachines() ([]*virtualMachineT
 		azurePluginLogger().V(1).Info("fetching vm resources from cloud",
 			"account", computeCfg.accountName, "resource-filters", "configured")
 	}
-	var subscriptions []string
-	subscriptions = append(subscriptions, computeCfg.credentials.SubscriptionID)
+	var subscriptions []*string
+	subscriptions = append(subscriptions, &computeCfg.credentials.SubscriptionID)
 
 	var virtualMachines []*virtualMachineTable
 	for _, filter := range filters {
@@ -309,22 +309,35 @@ func (computeCfg *computeServiceConfig) UpdateServiceConfig(newConfig internal.C
 }
 
 // getVpcs invokes cloud API to fetch the list of vnets.
-func (computeCfg *computeServiceConfig) getVpcs() ([]network.VirtualNetwork, error) {
+func (computeCfg *computeServiceConfig) getVpcs() ([]armnetwork.VirtualNetwork, error) {
 	return computeCfg.vnetAPIClient.listAllComplete(context.Background())
 }
 
-func (computeCfg *computeServiceConfig) buildMapVpcPeers(results []network.VirtualNetwork) map[string][][]string {
+func (computeCfg *computeServiceConfig) buildMapVpcPeers(results []armnetwork.VirtualNetwork) map[string][][]string {
 	vpcPeers := make(map[string][][]string)
 
 	for _, result := range results {
-		if len(*result.VirtualNetworkPropertiesFormat.VirtualNetworkPeerings) > 0 {
-			for _, peerConn := range *result.VirtualNetworkPropertiesFormat.VirtualNetworkPeerings {
+		if result.Properties == nil {
+			continue
+		}
+		properties := result.Properties
+		if len(properties.VirtualNetworkPeerings) > 0 {
+			for _, peerConn := range properties.VirtualNetworkPeerings {
+				var requesterID, destinationID, sourceID string
 				accepterID := strings.ToLower(*result.ID)
-				requesterID := strings.ToLower(*peerConn.VirtualNetworkPeeringPropertiesFormat.RemoteVirtualNetwork.ID)
-				AddressPrefixes := *result.VirtualNetworkPropertiesFormat.AddressSpace.AddressPrefixes
-				sourceID := strings.ToLower(AddressPrefixes[0])
-				AddressPrefixes = *peerConn.VirtualNetworkPeeringPropertiesFormat.RemoteAddressSpace.AddressPrefixes
-				destinationID := strings.ToLower(AddressPrefixes[0])
+				peerProperties := peerConn.Properties
+				if peerProperties != nil && peerProperties.RemoteVirtualNetwork != nil {
+					requesterID = strings.ToLower(*peerConn.Properties.RemoteVirtualNetwork.ID)
+				}
+
+				if peerProperties != nil && peerProperties.RemoteAddressSpace != nil &&
+					len(peerProperties.RemoteAddressSpace.AddressPrefixes) > 0 {
+					destinationID = strings.ToLower(*peerProperties.RemoteAddressSpace.AddressPrefixes[0])
+				}
+				if properties.AddressSpace != nil && len(properties.AddressSpace.AddressPrefixes) > 0 {
+					sourceID = strings.ToLower(*properties.AddressSpace.AddressPrefixes[0])
+				}
+
 				vpcPeers[accepterID] = append(vpcPeers[accepterID], []string{requesterID, destinationID, sourceID})
 			}
 		}

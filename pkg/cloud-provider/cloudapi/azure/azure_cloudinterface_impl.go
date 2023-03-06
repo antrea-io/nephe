@@ -63,6 +63,7 @@ func (c *azureCloud) ProviderType() cloudcommon.ProviderType {
 //	ComputeInterface Implementation
 //
 // /////////////////////////////////////////////.
+
 // Instances returns VM status for all virtualMachines across all accounts of a cloud provider.
 func (c *azureCloud) Instances() ([]*v1alpha1.VirtualMachine, error) {
 	vmCRDs, err := c.cloudCommon.GetAllCloudAccountsComputeResourceCRDs()
@@ -81,6 +82,7 @@ func (c *azureCloud) InstancesGivenProviderAccount(accountNamespacedName *types.
 //	AccountMgmtInterface Implementation
 //
 // ////////////////////////////////////////////////////////
+
 // AddProviderAccount adds and initializes given account of a cloud provider.
 func (c *azureCloud) AddProviderAccount(client client.Client, account *v1alpha1.CloudProviderAccount) error {
 	return c.cloudCommon.AddCloudAccount(client, account, account.Spec.AzureConfig)
