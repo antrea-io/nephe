@@ -88,8 +88,7 @@ func (computeCfg *computeServiceConfig) processAppliedToMembership(appliedToGrou
 	for _, networkInterface := range networkInterfaces {
 		nwIntfIDLowerCase := strings.ToLower(*networkInterface.ID)
 		// 	for network interfaces not attached to any virtual machines, skip processing
-		vmID := networkInterface.VirtualMachineID
-		if vmID == nil || len(*vmID) == 0 {
+		if emptyString(networkInterface.VirtualMachineID) {
 			continue
 		}
 
@@ -120,7 +119,7 @@ func (computeCfg *computeServiceConfig) processAppliedToMembership(appliedToGrou
 				}
 			}
 		}
-		_, isNicAttachedToMemberVM := memberVirtualMachines[strings.ToLower(*vmID)]
+		_, isNicAttachedToMemberVM := memberVirtualMachines[strings.ToLower(*networkInterface.VirtualMachineID)]
 		_, isNicMemberNetworkInterface := memberNetworkInterfaces[strings.ToLower(*networkInterface.ID)]
 		if isNsgAttached {
 			if !isNicAttachedToMemberVM && !isNicMemberNetworkInterface {
@@ -198,8 +197,7 @@ func (computeCfg *computeServiceConfig) processAddressGroupMembership(addressGro
 	for _, networkInterface := range networkInterfaces {
 		nwIntfIDLowerCase := strings.ToLower(*networkInterface.ID)
 		// 	for network interfaces not attached to any virtual machines, skip processing
-		vmID := networkInterface.VirtualMachineID
-		if vmID == nil || len(*vmID) == 0 {
+		if emptyString(networkInterface.VirtualMachineID) {
 			continue
 		}
 
@@ -218,7 +216,7 @@ func (computeCfg *computeServiceConfig) processAddressGroupMembership(addressGro
 				isAsgAttached = true
 			}
 		}
-		_, isNicAttachedToMemberVM := memberVirtualMachines[strings.ToLower(*vmID)]
+		_, isNicAttachedToMemberVM := memberVirtualMachines[strings.ToLower(*networkInterface.VirtualMachineID)]
 		_, isNicMemberNetworkInterface := memberNetworkInterfaces[strings.ToLower(*networkInterface.ID)]
 		if isAsgAttached {
 			if !isNicAttachedToMemberVM && !isNicMemberNetworkInterface {
@@ -594,10 +592,10 @@ func (computeCfg *computeServiceConfig) processAndBuildATSgView(networkInterface
 	perVnetNsgIDToNepheControllerAppliedToSGNameSet := make(map[string]map[string]struct{})
 	nsgIDToVnetIDMap := make(map[string]string)
 	for _, networkInterface := range networkInterfaces {
-		if networkInterface.VirtualMachineID == nil {
+		if emptyString(networkInterface.VirtualMachineID) {
 			continue
 		}
-		if networkInterface.NetworkSecurityGroupID == nil {
+		if emptyString(networkInterface.NetworkSecurityGroupID) {
 			continue
 		}
 		nsgIDLowerCase := strings.ToLower(*networkInterface.NetworkSecurityGroupID)
@@ -739,7 +737,7 @@ func (computeCfg *computeServiceConfig) processAndBuildAGSgView(
 	nepheControllerAGSgNameToMemberCloudResourcesMap := make(map[string][]securitygroup.CloudResource)
 	asgIDToVnetIDMap := make(map[string]string)
 	for _, networkInterface := range networkInterfaces {
-		if networkInterface.VirtualMachineID == nil {
+		if emptyString(networkInterface.VirtualMachineID) {
 			continue
 		}
 		vnetIDLowerCase := strings.ToLower(*networkInterface.VnetID)
