@@ -23,7 +23,7 @@
 1. Install [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html) v2.3.6+.
 2. Install [Kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) v1.24+.
 3. Install [Terraform](https://learn.hashicorp.com/terraform/getting-started/install.html). Recommend v1.2.2.
-4. Install `jq`, `pv`, and `bzip2`.
+4. Install `jq` and `pv`.
 5. Set the below environment variables.
 
    ```bash
