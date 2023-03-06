@@ -39,7 +39,7 @@ var (
 )
 
 const (
-	AppliedSecurityGroupDeleteError = "Deleting/Detaching %v: %v"
+	AppliedSecurityGroupDeleteError = "Deleting/Detaching appliedTo sg %v: %v"
 )
 
 func vmNPStatusSetter(tracker *cloudResourceNPTracker, r *NetworkPolicyReconciler) (bool, error) {
@@ -247,7 +247,7 @@ func (c *cloudResourceNPTracker) computeNPStatus(r *NetworkPolicyReconciler) map
 			npList[np.Name] = asgName + "=" + status.Error()
 			continue
 		}
-		npList[np.Name] = NetworkPolicyStatusApplied
+		npList[np.Name] = asgName + "=" + NetworkPolicyStatusApplied
 	}
 
 	newPrevSgs := make(map[string]*appliedToSecurityGroup)

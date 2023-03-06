@@ -607,7 +607,7 @@ func (a *addrSecurityGroup) notify(op securityGroupOperation, status error, r *N
 		return nil
 	}
 
-	r.Log.V(1).Info("AddrSecurityGroup operation received response", "Name", a.id.Name, "state", a.state, "status", a.status, "Op", op)
+	r.Log.V(1).Info("AddrSecurityGroup received operation ok", "Name", a.id.Name, "state", a.state, "status", a.status, "Op", op)
 	uName := getGroupUniqueName(a.id.CloudResourceID.String(), true)
 	if r.retryQueue.Has(uName) {
 		_ = r.retryQueue.Update(uName, false, op)

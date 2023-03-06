@@ -28,50 +28,49 @@ import (
 
 // sync synchronizes securityGroup memberships with cloud.
 // Return true if cloud and controller has same membership.
-func (sg *securityGroupImpl) syncImpl(csg cloudSecurityGroup, syncContent *securitygroup.SynchronizationContent,
+func (s *securityGroupImpl) syncImpl(csg cloudSecurityGroup, syncContent *securitygroup.SynchronizationContent,
 	membershipOnly bool, r *NetworkPolicyReconciler) bool {
 	log := r.Log.WithName("CloudSync")
 	if syncContent == nil {
 		// If syncContent is nil, explicitly set internal sg state to init, so that
 		// AddressGroup or AppliedToGroup in cloud can be recreated.
-		sg.state = securityGroupStateInit
+		s.state = securityGroupStateInit
 	} else if syncContent != nil {
-		sg.state = securityGroupStateCreated
+		s.state = securityGroupStateCreated
 		syncMembers := make([]*securitygroup.CloudResource, 0, len(syncContent.Members))
 		for i := range syncContent.Members {
 			syncMembers = append(syncMembers, &syncContent.Members[i])
 		}
 
-		cachedMembers := sg.members
+		cachedMembers := s.members
 		if len(syncMembers) > 0 && syncMembers[0].Type == securitygroup.CloudResourceTypeNIC {
-			cachedMembers, _ = r.getNICsOfCloudResources(sg.members)
+			cachedMembers, _ = r.getNICsOfCloudResources(s.members)
 		}
 		if compareCloudResources(cachedMembers, syncMembers) {
 			return true
 		} else {
-			log.V(1).Info("Members are not in sync with cloud", "Name", sg.id.Name, "State", sg.state,
+			log.V(1).Info("Members are not in sync with cloud", "Name", s.id.Name, "State", s.state,
 				"Sync members", syncMembers, "Cached SG members", cachedMembers)
 		}
-	} else if len(sg.members) == 0 {
-		log.V(1).Info("Empty memberships", "Name", sg.id.Name)
+	} else if len(s.members) == 0 {
+		log.V(1).Info("Empty memberships", "Name", s.id.Name)
 		return true
 	}
 
-	if sg.state == securityGroupStateCreated {
-		log.V(1).Info("Update securityGroup", "Name", sg.id.Name,
+	if s.state == securityGroupStateCreated {
+		log.V(1).Info("Update securityGroup", "Name", s.id.Name,
 			"MembershipOnly", membershipOnly, "CloudSecurityGroup", syncContent)
-		_ = sg.updateImpl(csg, nil, nil, membershipOnly, r)
-	} else if sg.state == securityGroupStateInit {
-		log.V(1).Info("Add securityGroup", "Name", sg.id.Name,
+		_ = s.updateImpl(csg, nil, nil, membershipOnly, r)
+	} else if s.state == securityGroupStateInit {
+		log.V(1).Info("Add securityGroup", "Name", s.id.Name,
 			"MembershipOnly", membershipOnly, "CloudSecurityGroup", syncContent)
-		_ = sg.addImpl(csg, membershipOnly, r)
+		_ = s.addImpl(csg, membershipOnly, r)
 	}
 	return false
 }
 
 // sync synchronizes addressSecurityGroup with cloud.
-func (a *addrSecurityGroup) sync(syncContent *securitygroup.SynchronizationContent,
-	r *NetworkPolicyReconciler) {
+func (a *addrSecurityGroup) sync(syncContent *securitygroup.SynchronizationContent, r *NetworkPolicyReconciler) {
 	log := r.Log.WithName("CloudSync")
 	if a.deletePending {
 		log.V(1).Info("AddressSecurityGroup pending delete", "Name", a.id.Name)
@@ -81,8 +80,7 @@ func (a *addrSecurityGroup) sync(syncContent *securitygroup.SynchronizationConte
 }
 
 // sync synchronizes appliedToSecurityGroup with cloud.
-func (a *appliedToSecurityGroup) sync(syncContent *securitygroup.SynchronizationContent,
-	r *NetworkPolicyReconciler) {
+func (a *appliedToSecurityGroup) sync(syncContent *securitygroup.SynchronizationContent, r *NetworkPolicyReconciler) {
 	log := r.Log.WithName("CloudSync")
 	if a.deletePending {
 		log.V(1).Info("AppliedSecurityGroup pending delete", "Name", a.id.Name)
@@ -91,6 +89,8 @@ func (a *appliedToSecurityGroup) sync(syncContent *securitygroup.Synchronization
 	if a.syncImpl(a, syncContent, false, r) && len(a.members) > 0 {
 		a.hasMembers = true
 	}
+
+	// roughly count rule items in network policies and update rules if any mismatch with syncContent.
 	nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAppliedToGrp, a.id.Name)
 	if err != nil {
 		log.Error(err, "get networkPolicy by indexer", "Index", networkPolicyIndexerByAppliedToGrp, "Key", a.id.Name)
@@ -99,49 +99,16 @@ func (a *appliedToSecurityGroup) sync(syncContent *securitygroup.Synchronization
 	items := make(map[string]int)
 	for _, i := range nps {
 		np := i.(*networkPolicy)
-
-		if !np.computeRules(r) {
-			log.V(1).Info("np not ready", "Name", np.Name, "Namespace", np.Namespace)
+		if !np.rulesReady {
+			if !np.computeRules(r) {
+				log.V(1).Info("np not ready", "Name", np.Name, "Namespace", np.Namespace)
+			}
 		}
 		for _, iRule := range np.ingressRules {
-			proto := 0
-			if iRule.Protocol != nil {
-				proto = *iRule.Protocol
-			}
-			port := 0
-			if iRule.FromPort != nil {
-				port = *iRule.FromPort
-			}
-			if proto > 0 || port > 0 {
-				portStr := fmt.Sprintf("protocol=%v,port=%v", proto, port)
-				items[portStr]++
-			}
-			for _, ip := range iRule.FromSrcIP {
-				items[ip.String()]++
-			}
-			for _, sg := range iRule.FromSecurityGroups {
-				items[sg.String()]++
-			}
+			countIngressRuleItems(iRule, items, false)
 		}
 		for _, eRule := range np.egressRules {
-			proto := 0
-			if eRule.Protocol != nil {
-				proto = *eRule.Protocol
-			}
-			port := 0
-			if eRule.ToPort != nil {
-				port = *eRule.ToPort
-			}
-			if proto > 0 || port > 0 {
-				portStr := fmt.Sprintf("protocol=%v,port=%v", proto, port)
-				items[portStr]++
-			}
-			for _, ip := range eRule.ToDstIP {
-				items[ip.String()]++
-			}
-			for _, sg := range eRule.ToSecurityGroups {
-				items[sg.String()]++
-			}
+			countEgressRuleItems(eRule, items, false)
 		}
 	}
 
@@ -162,69 +129,18 @@ func (a *appliedToSecurityGroup) sync(syncContent *securitygroup.Synchronization
 		cloudRuleMap[rule.Hash] = rule
 	}
 
-	// Rough compare rules
+	// roughly count and compare rules in syncContent against nps.
+	// also updates cloudRuleIndexer in the process.
 	for _, iRule := range syncContent.IngressRules {
-		proto := 0
-		if iRule.Protocol != nil {
-			proto = *iRule.Protocol
-		}
-		port := 0
-		if iRule.FromPort != nil {
-			port = *iRule.FromPort
-		}
-		if proto > 0 || port > 0 {
-			portStr := fmt.Sprintf("protocol=%v,port=%v", proto, port)
-			items[portStr]--
-		}
-		for _, ip := range iRule.FromSrcIP {
-			items[ip.String()]--
-		}
-		for _, sg := range iRule.FromSecurityGroups {
-			items[sg.String()]--
-		}
-		i := deepcopy.Copy(iRule).(securitygroup.IngressRule)
-		rule := &securitygroup.CloudRule{
-			Rule:         &i,
-			AppliedToGrp: a.id.CloudResourceID.String(),
-		}
-		rule.Hash = rule.GetHash()
-		if _, found := cloudRuleMap[rule.Hash]; found {
-			delete(cloudRuleMap, rule.Hash)
-		} else {
+		countIngressRuleItems(&iRule, items, true)
+		if updated := a.checkAndUpdateIndexer(r, &iRule, cloudRuleMap); updated {
 			indexerUpdate = true
-			_ = r.cloudRuleIndexer.Update(rule)
 		}
 	}
 	for _, eRule := range syncContent.EgressRules {
-		proto := 0
-		if eRule.Protocol != nil {
-			proto = *eRule.Protocol
-		}
-		port := 0
-		if eRule.ToPort != nil {
-			port = *eRule.ToPort
-		}
-		if proto > 0 || port > 0 {
-			portStr := fmt.Sprintf("protocol=%v,port=%v", proto, port)
-			items[portStr]--
-		}
-		for _, ip := range eRule.ToDstIP {
-			items[ip.String()]--
-		}
-		for _, sg := range eRule.ToSecurityGroups {
-			items[sg.String()]--
-		}
-		e := deepcopy.Copy(eRule).(securitygroup.EgressRule)
-		rule := &securitygroup.CloudRule{
-			Rule:         &e,
-			AppliedToGrp: a.id.CloudResourceID.String(),
-		}
-		rule.Hash = rule.GetHash()
-		if _, found := cloudRuleMap[rule.Hash]; found {
-			delete(cloudRuleMap, rule.Hash)
-		} else {
+		countEgressRuleItems(&eRule, items, true)
+		if updated := a.checkAndUpdateIndexer(r, &eRule, cloudRuleMap); updated {
 			indexerUpdate = true
-			_ = r.cloudRuleIndexer.Update(rule)
 		}
 	}
 	// remove rules no longer exist in cloud from indexer.
@@ -265,7 +181,6 @@ func (r *NetworkPolicyReconciler) syncWithCloud() {
 	if r.bookmarkCnt < npSyncReadyBookMarkCnt {
 		return
 	}
-	log.V(1).Info("Started synchronizing cloud security groups with controller")
 	ch := securitygroup.CloudSecurityGroup.GetSecurityGroupSyncChan()
 	cloudAddrSGs := make(map[securitygroup.CloudResourceID]*securitygroup.SynchronizationContent)
 	cloudAppliedToSGs := make(map[securitygroup.CloudResourceID]*securitygroup.SynchronizationContent)
@@ -323,7 +238,6 @@ func (r *NetworkPolicyReconciler) syncWithCloud() {
 			break
 		}
 	}
-	log.V(1).Info("Done synchronizing cloud security groups with controller")
 }
 
 // processBookMark process bookmark event and return true.
@@ -364,4 +278,83 @@ func (r *NetworkPolicyReconciler) getNICsOfCloudResources(resources []*securityg
 		}
 	}
 	return nics, nil
+}
+
+// checkAndUpdateIndexer checks if rule is present in indexer and updates the indexer if not present.
+// Returns true if indexer is updated.
+func (a *appliedToSecurityGroup) checkAndUpdateIndexer(r *NetworkPolicyReconciler, rule securitygroup.Rule,
+	existingRuleMap map[string]*securitygroup.CloudRule) bool {
+	indexerUpdate := false
+
+	// deep copy the rule and construct CloudRule object from it.
+	ruleCopy := deepcopy.Copy(rule).(securitygroup.Rule)
+	cr := &securitygroup.CloudRule{
+		Rule:         ruleCopy,
+		AppliedToGrp: a.id.CloudResourceID.String(),
+	}
+	cr.Hash = cr.GetHash()
+
+	// update rule if not found in indexer, otherwise remove from map to indicate a matching rule is found.
+	if _, found := existingRuleMap[cr.Hash]; !found {
+		indexerUpdate = true
+		_ = r.cloudRuleIndexer.Update(cr)
+	} else {
+		delete(existingRuleMap, cr.Hash)
+	}
+
+	// return if indexer is updated or not.
+	return indexerUpdate
+}
+
+// countIngressRuleItems updates the count of corresponding items in the given map based on contents of the specified ingress rule.
+func countIngressRuleItems(iRule *securitygroup.IngressRule, items map[string]int, subtract bool) {
+	proto := 0
+	if iRule.Protocol != nil {
+		proto = *iRule.Protocol
+	}
+	port := 0
+	if iRule.FromPort != nil {
+		port = *iRule.FromPort
+	}
+	if proto > 0 || port > 0 {
+		portStr := fmt.Sprintf("protocol=%v,port=%v", proto, port)
+		updateCountForItem(portStr, items, subtract)
+	}
+	for _, ip := range iRule.FromSrcIP {
+		updateCountForItem(ip.String(), items, subtract)
+	}
+	for _, sg := range iRule.FromSecurityGroups {
+		updateCountForItem(sg.String(), items, subtract)
+	}
+}
+
+// countEgressRuleItems updates the count of corresponding items in the given map based on contents of the specified egress rule.
+func countEgressRuleItems(eRule *securitygroup.EgressRule, items map[string]int, subtract bool) {
+	proto := 0
+	if eRule.Protocol != nil {
+		proto = *eRule.Protocol
+	}
+	port := 0
+	if eRule.ToPort != nil {
+		port = *eRule.ToPort
+	}
+	if proto > 0 || port > 0 {
+		portStr := fmt.Sprintf("protocol=%v,port=%v", proto, port)
+		updateCountForItem(portStr, items, subtract)
+	}
+	for _, ip := range eRule.ToDstIP {
+		updateCountForItem(ip.String(), items, subtract)
+	}
+	for _, sg := range eRule.ToSecurityGroups {
+		updateCountForItem(sg.String(), items, subtract)
+	}
+}
+
+// updateCountForItem adds or subtracts the item count in the items map.
+func updateCountForItem(item string, items map[string]int, subtract bool) {
+	if subtract {
+		items[item]--
+	} else {
+		items[item]++
+	}
 }
