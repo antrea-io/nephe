@@ -38,12 +38,12 @@ func (nwIntf *azureNwIntfWrapperImpl) createOrUpdate(ctx context.Context, resour
 	parameters armnetwork.Interface) (armnetwork.Interface, error) {
 	var nwInterface armnetwork.Interface
 	nwIntfClient := nwIntf.nwIntfAPIClient
-	poller, err := nwIntfClient.BeginCreateOrUpdate(ctx, resourceGroupName, networkIntfName, parameters, nil)
+	op, err := nwIntfClient.BeginCreateOrUpdate(ctx, resourceGroupName, networkIntfName, parameters, nil)
 	if err != nil {
 		return nwInterface, fmt.Errorf("cannot create %v, reason: %v", networkIntfName, err)
 	}
 
-	resp, err := poller.PollUntilDone(ctx, nil)
+	resp, err := op.PollUntilDone(ctx, nil)
 	if err != nil {
 		return nwInterface, fmt.Errorf("cannot get network-interface create or update poll response: %v", err)
 	}
@@ -84,12 +84,12 @@ func (sg *azureNsgWrapperImpl) createOrUpdate(ctx context.Context, resourceGroup
 	parameters armnetwork.SecurityGroup) (armnetwork.SecurityGroup, error) {
 	var nsg armnetwork.SecurityGroup
 	nsgClient := sg.nsgAPIClient
-	poller, err := nsgClient.BeginCreateOrUpdate(ctx, resourceGroupName, networkSecurityGroupName, parameters, nil)
+	op, err := nsgClient.BeginCreateOrUpdate(ctx, resourceGroupName, networkSecurityGroupName, parameters, nil)
 	if err != nil {
 		return nsg, fmt.Errorf("cannot create nsg %v, reason: %v", networkSecurityGroupName, err)
 	}
 
-	res, err := poller.PollUntilDone(ctx, nil)
+	res, err := op.PollUntilDone(ctx, nil)
 	if err != nil {
 		return nsg, fmt.Errorf("cannot get nsg create or update poll response: %v", err)
 	}
@@ -112,7 +112,7 @@ func (sg *azureNsgWrapperImpl) get(ctx context.Context, resourceGroupName string
 func (sg *azureNsgWrapperImpl) delete(ctx context.Context, resourceGroupName string, networkSecurityGroupName string) error {
 	var respErr *azcore.ResponseError
 	nsgClient := sg.nsgAPIClient
-	poller, err := nsgClient.BeginDelete(ctx, resourceGroupName, networkSecurityGroupName, nil)
+	op, err := nsgClient.BeginDelete(ctx, resourceGroupName, networkSecurityGroupName, nil)
 	if err != nil {
 		if errors.As(err, &respErr) {
 			if respErr.StatusCode != http.StatusNotFound {
@@ -121,7 +121,7 @@ func (sg *azureNsgWrapperImpl) delete(ctx context.Context, resourceGroupName str
 		}
 	}
 
-	_, err = poller.PollUntilDone(ctx, nil)
+	_, err = op.PollUntilDone(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("cannot get nsg delete poll response: %v", err)
 	}
@@ -162,12 +162,12 @@ func (asg *azureAsgWrapperImpl) createOrUpdate(ctx context.Context, resourceGrou
 	applicationSecurityGroupName string, parameters armnetwork.ApplicationSecurityGroup) (armnetwork.ApplicationSecurityGroup, error) {
 	var appsg armnetwork.ApplicationSecurityGroup
 	asgClient := asg.asgAPIClient
-	poller, err := asgClient.BeginCreateOrUpdate(ctx, resourceGroupName, applicationSecurityGroupName, parameters, nil)
+	op, err := asgClient.BeginCreateOrUpdate(ctx, resourceGroupName, applicationSecurityGroupName, parameters, nil)
 	if err != nil {
 		return appsg, fmt.Errorf("cannot create asg %v, reason: %v", applicationSecurityGroupName, err)
 	}
 
-	res, err := poller.PollUntilDone(ctx, nil)
+	res, err := op.PollUntilDone(ctx, nil)
 	if err != nil {
 		return appsg, fmt.Errorf("cannot get asg create or update poll response: %v", err)
 	}
@@ -225,7 +225,7 @@ func (asg *azureAsgWrapperImpl) listAllComplete(ctx context.Context) ([]armnetwo
 func (asg *azureAsgWrapperImpl) delete(ctx context.Context, resourceGroupName string, applicationSecurityGroupName string) error {
 	asgClient := asg.asgAPIClient
 	var respErr *azcore.ResponseError
-	poller, err := asgClient.BeginDelete(ctx, resourceGroupName, applicationSecurityGroupName, nil)
+	op, err := asgClient.BeginDelete(ctx, resourceGroupName, applicationSecurityGroupName, nil)
 	if err != nil {
 		if errors.As(err, &respErr) {
 			if respErr.StatusCode != http.StatusNotFound {
@@ -234,7 +234,7 @@ func (asg *azureAsgWrapperImpl) delete(ctx context.Context, resourceGroupName st
 		}
 	}
 
-	_, err = poller.PollUntilDone(ctx, nil)
+	_, err = op.PollUntilDone(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("cannot get asg delete poll response: %v", err)
 	}
