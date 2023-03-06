@@ -36,7 +36,8 @@ type controllerType int
 // When a new constant is added, also update the numElements
 // field of controllerSyncStatus
 const (
-	ControllerTypeCPA controllerType = iota
+	ControllerTypeCM controllerType = iota
+	ControllerTypeCPA
 	ControllerTypeCES
 	ControllerTypeEE
 	ControllerTypeVM
@@ -44,6 +45,8 @@ const (
 
 func (t controllerType) String() string {
 	switch t {
+	case ControllerTypeCM:
+		return "ConfigMap"
 	case ControllerTypeCPA:
 		return "CloudProviderAccount"
 	case ControllerTypeCES:
