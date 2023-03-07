@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	ruleStartPriority             = 100
+	ruleStartPriority             = 1000
 	vnetToVnetDenyRulePriority    = 4096
 	vnetToVnetDenyRuleDescription = "nephe-at-" + appliedToSecurityGroupNamePerVnet
 	emptyPort                     = "*"
@@ -46,6 +46,8 @@ var azureProtoNameToNumMap = map[armnetwork.SecurityRuleProtocol]int{
 	armnetwork.SecurityRuleProtocolUDP:  17,
 }
 
+// updateSecurityRuleNameAndPriority updates rule name and priority from existing
+// and new security rules and returns all the security rules.
 func updateSecurityRuleNameAndPriority(existingRules []armnetwork.SecurityRule,
 	newRules []armnetwork.SecurityRule) []armnetwork.SecurityRule {
 	var rules []armnetwork.SecurityRule
@@ -463,8 +465,9 @@ func convertToInternalRulesByAppliedToSGName(azureSecurityRules []*armnetwork.Se
 		if azureSecurityRule.Properties == nil {
 			continue
 		}
-		// skip any rules not created by nephe.
-		if azureSecurityRule.Properties.Description == nil {
+
+		// Nephe rules will be created from ruleStartPriority and have description.
+		if *azureSecurityRule.Properties.Priority < ruleStartPriority || azureSecurityRule.Properties.Description == nil {
 			continue
 		}
 

@@ -296,10 +296,11 @@ func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(ap
 		if rule.Properties == nil {
 			continue
 		}
-		// skip any rules not created by nephe.
-		if rule.Properties.Description == nil {
+		// Nephe rules will be created from ruleStartPriority and have description.
+		if *rule.Properties.Priority < ruleStartPriority || rule.Properties.Description == nil {
 			continue
 		}
+
 		desc, ok := securitygroup.ExtractCloudDescription(rule.Properties.Description)
 		if !ok {
 			// Ignore rules that don't have a valid description field.
@@ -374,11 +375,11 @@ func (computeCfg *computeServiceConfig) buildEffectivePeerNSGSecurityRulesToAppl
 		if rule.Properties == nil {
 			continue
 		}
-
-		// skip any rules not created by nephe.
-		if rule.Properties.Description == nil {
+		// Nephe rules will be created from ruleStartPriority and have description.
+		if *rule.Properties.Priority < ruleStartPriority || rule.Properties.Description == nil {
 			continue
 		}
+
 		desc, ok := securitygroup.ExtractCloudDescription(rule.Properties.Description)
 		if !ok {
 			// Ignore rules that don't have a valid description field.
