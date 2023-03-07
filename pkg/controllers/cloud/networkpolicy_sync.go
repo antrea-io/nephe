@@ -249,10 +249,10 @@ func (a *appliedToSecurityGroup) sync(syncContent *securitygroup.Synchronization
 
 	// rule machines
 	if len(nps) > 0 {
-		if !a.hasRules {
+		if !a.ruleReady {
 			a.markDirty(r, false)
 		}
-		a.hasRules = true
+		a.ruleReady = true
 	}
 }
 
