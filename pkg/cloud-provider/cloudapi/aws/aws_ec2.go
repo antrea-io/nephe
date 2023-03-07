@@ -326,6 +326,7 @@ func (ec2Cfg *ec2ServiceConfig) ResetCachedState() {
 func (ec2Cfg *ec2ServiceConfig) UpdateServiceConfig(newConfig internal.CloudServiceInterface) {
 	newEc2ServiceConfig := newConfig.(*ec2ServiceConfig)
 	ec2Cfg.apiClient = newEc2ServiceConfig.apiClient
+	ec2Cfg.credentials = newEc2ServiceConfig.credentials
 }
 
 func (ec2Cfg *ec2ServiceConfig) buildMapVpcNameToID(vpcs []*ec2.Vpc) map[string]string {
