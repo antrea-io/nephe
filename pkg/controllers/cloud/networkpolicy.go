@@ -1593,8 +1593,11 @@ func (n *networkPolicy) markDirty(r *NetworkPolicyReconciler) {
 
 // getStatus returns status of networkPolicy.
 func (n *networkPolicy) getStatus(r *NetworkPolicyReconciler) error {
-	if n.ingressRules == nil && n.egressRules == nil {
-		return &InProgress{}
+	if n.rulesReady {
+		return nil
 	}
-	return n.computeRulesReady(true, r)
+	if err := n.computeRulesReady(true, r); err != nil {
+		return err
+	}
+	return &InProgress{}
 }
