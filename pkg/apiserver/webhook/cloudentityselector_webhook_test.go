@@ -129,64 +129,6 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			Expect(err).Should(BeNil())
 		})
 
-		It("Validate controller is not initialized", func() {
-			selector = &v1alpha1.CloudEntitySelector{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
-				},
-				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
-					VMSelector: []v1alpha1.VirtualMachineSelector{
-						{
-							VpcMatch: &v1alpha1.EntityMatch{
-								MatchName: testAbc,
-							},
-							VMMatch: []v1alpha1.EntityMatch{
-								{
-									MatchID: testDef,
-								},
-							},
-						},
-					},
-				},
-			}
-			encodedSelector, _ = json.Marshal(selector)
-			selectorReq = admission.Request{
-				AdmissionRequest: v1.AdmissionRequest{
-					Kind: metav1.GroupVersionKind{
-						Group:   "",
-						Version: "v1alpha1",
-						Kind:    "CloudEntitySelector",
-					},
-					Resource: metav1.GroupVersionResource{
-						Group:    "",
-						Version:  "v1alpha1",
-						Resource: "CloudEntitySelectors",
-					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					Operation: v1.Create,
-					Object: runtime.RawExtension{
-						Raw: encodedSelector,
-					},
-				},
-			}
-
-			cloud.GetControllerSyncStatusInstance().ResetControllerSyncStatus(cloud.ControllerTypeCES)
-			response := validator.Handle(context.Background(), selectorReq)
-			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
-			Expect(response.AdmissionResponse.Allowed).To(BeFalse())
-			Expect(response.String()).Should(ContainSubstring(cloud.ErrorMsgControllerInitializing))
-		})
-
 		It("Validate vpcMatch matchName with vmMatch in AWS", func() {
 			err = fakeClient.Create(context.Background(), account)
 			Expect(err).Should(BeNil())
@@ -1805,6 +1747,121 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 			Expect(response.AdmissionResponse.Allowed).To(BeFalse())
 			Expect(response.AdmissionResponse.String()).Should(ContainSubstring(errorMsgInvalidRequest))
+		})
+		Context("Validate controller is not initialized", func() {
+			BeforeEach(func() {
+				selector = &v1alpha1.CloudEntitySelector{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      testAccountNamespacedName.Name,
+						Namespace: testAccountNamespacedName.Namespace,
+						OwnerReferences: []metav1.OwnerReference{
+							{
+								APIVersion: "crd.cloud.antrea.io/v1alpha1",
+								Kind:       "CloudProviderAccount",
+								Name:       "account01",
+							},
+						},
+					},
+					Spec: v1alpha1.CloudEntitySelectorSpec{
+						AccountName: testAccountNamespacedName.Name,
+						VMSelector: []v1alpha1.VirtualMachineSelector{
+							{
+								VpcMatch: &v1alpha1.EntityMatch{
+									MatchName: testAbc,
+								},
+								VMMatch: []v1alpha1.EntityMatch{
+									{
+										MatchID: testDef,
+									},
+								},
+							},
+						},
+					},
+				}
+				encodedSelector, _ = json.Marshal(selector)
+				selectorReq = admission.Request{
+					AdmissionRequest: v1.AdmissionRequest{
+						Kind: metav1.GroupVersionKind{
+							Group:   "",
+							Version: "v1alpha1",
+							Kind:    "CloudEntitySelector",
+						},
+						Resource: metav1.GroupVersionResource{
+							Group:    "",
+							Version:  "v1alpha1",
+							Resource: "CloudEntitySelectors",
+						},
+						Name:      testAccountNamespacedName.Name,
+						Namespace: testAccountNamespacedName.Namespace,
+						Operation: v1.Create,
+						Object: runtime.RawExtension{
+							Raw: encodedSelector,
+						},
+					},
+				}
+
+			})
+			It("Validate create CES CR failure", func() {
+				cloud.GetControllerSyncStatusInstance().ResetControllerSyncStatus(cloud.ControllerTypeCES)
+				response := validator.Handle(context.Background(), selectorReq)
+				_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
+				Expect(response.AdmissionResponse.Allowed).To(BeFalse())
+				Expect(response.String()).Should(ContainSubstring(cloud.ErrorMsgControllerInitializing))
+			})
+			It("Validate update CES CR failure", func() {
+				oldSelector := &v1alpha1.CloudEntitySelector{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      testAccountNamespacedName.Name,
+						Namespace: testAccountNamespacedName.Namespace,
+						OwnerReferences: []metav1.OwnerReference{
+							{
+								APIVersion: "crd.cloud.antrea.io/v1alpha1",
+								Kind:       "CloudProviderAccount",
+								Name:       "account01",
+							},
+						},
+					},
+					Spec: v1alpha1.CloudEntitySelectorSpec{
+						AccountName: testAccountNamespacedName.Name,
+						VMSelector: []v1alpha1.VirtualMachineSelector{
+							{
+								VpcMatch: &v1alpha1.EntityMatch{
+									MatchName: testAbc,
+								},
+								VMMatch: []v1alpha1.EntityMatch{
+									{
+										MatchID: testDef,
+									},
+								},
+							},
+						},
+					},
+				}
+				oldEncodedSelector, _ := json.Marshal(oldSelector)
+
+				selectorReq.Operation = v1.Update
+				selectorReq.Object = runtime.RawExtension{
+					Raw: encodedSelector,
+				}
+				selectorReq.OldObject = runtime.RawExtension{
+					Raw: oldEncodedSelector,
+				}
+
+				cloud.GetControllerSyncStatusInstance().ResetControllerSyncStatus(cloud.ControllerTypeCES)
+				response := validator.Handle(context.Background(), selectorReq)
+				_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
+				Expect(response.AdmissionResponse.Allowed).To(BeFalse())
+				Expect(response.String()).Should(ContainSubstring(cloud.ErrorMsgControllerInitializing))
+			})
+			It("Validate delete CES CR failure", func() {
+				selectorReq.Operation = v1.Delete
+
+				cloud.GetControllerSyncStatusInstance().ResetControllerSyncStatus(cloud.ControllerTypeCES)
+				response := validator.Handle(context.Background(), selectorReq)
+				_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
+				Expect(response.AdmissionResponse.Allowed).To(BeFalse())
+				Expect(response.String()).Should(ContainSubstring(cloud.ErrorMsgControllerInitializing))
+			})
 		})
 	})
 })
