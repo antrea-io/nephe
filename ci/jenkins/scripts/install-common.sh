@@ -26,7 +26,7 @@ function install_common_packages() {
     curl -LO https://storage.googleapis.com/kubernetes-release/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl
     chmod +x ./kubectl && sudo mv ./kubectl /usr/local/bin/kubectl
 
-    sudo apt-get install -y pv bzip2 jq unzip
+    sudo apt-get install -y pv jq unzip
 
     echo "Installing Terraform ${TERRAFORM_VERSION} version"
     curl -Lo ./terraform.zip https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip

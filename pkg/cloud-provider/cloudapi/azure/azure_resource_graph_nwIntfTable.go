@@ -72,7 +72,7 @@ const (
 )
 
 func getNetworkInterfaceTable(resourceGraphAPIClient azureResourceGraphWrapper, query *string,
-	subscriptions []string) ([]*networkInterfaceTable, int64, error) {
+	subscriptions []*string) ([]*networkInterfaceTable, int64, error) {
 	data, count, err := invokeResourceGraphQuery(resourceGraphAPIClient, query, subscriptions)
 	if err != nil {
 		return nil, 0, err

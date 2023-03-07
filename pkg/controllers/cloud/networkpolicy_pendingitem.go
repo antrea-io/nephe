@@ -245,20 +245,6 @@ func (p *pendingGroup) RunOrDeletePendingItem(id string, context interface{}) (r
 func (p *pendingGroup) ClearPendingState() {}
 
 func (s *securityGroupImpl) runPendingItemImpl(c cloudSecurityGroup, memberOnly bool, r *NetworkPolicyReconciler) bool {
-	if s.retryOp == nil {
-		// retry operation successful. Reconcile current group with
-		// plug-ing
-		if s.state != securityGroupStateGarbageCollectState {
-			if ag, ok := c.(*appliedToSecurityGroup); ok {
-				ag.hasMembers = false
-				_ = ag.updateAllRules(r)
-			} else {
-				_ = s.updateImpl(c, nil, nil, memberOnly, r)
-			}
-		}
-		return true
-	}
-
 	op := *s.retryOp
 	s.retryOp = nil
 	var err error
@@ -285,7 +271,7 @@ func (s *securityGroupImpl) RunOrDeletePendingItem(id string, context interface{
 	r := context.(*NetworkPolicyReconciler)
 	log := r.Log.WithName("RetryingSecurityGroup")
 	if s.retryOp == nil {
-		run = true
+		run = false
 		delete = true
 	} else if s.retryInProgress {
 		run = false

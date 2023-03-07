@@ -23,8 +23,8 @@ import (
 	context "context"
 	reflect "reflect"
 
-	network "github.com/Azure/azure-sdk-for-go/services/network/mgmt/2021-03-01/network"
-	resourcegraph "github.com/Azure/azure-sdk-for-go/services/resourcegraph/mgmt/2021-03-01/resourcegraph"
+	armnetwork "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
+	armresourcegraph "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -52,10 +52,10 @@ func (m *MockazureNwIntfWrapper) EXPECT() *MockazureNwIntfWrapperMockRecorder {
 }
 
 // createOrUpdate mocks base method.
-func (m *MockazureNwIntfWrapper) createOrUpdate(ctx context.Context, resourceGroupName, networkInterfaceName string, parameters network.Interface) (network.Interface, error) {
+func (m *MockazureNwIntfWrapper) createOrUpdate(ctx context.Context, resourceGroupName, networkInterfaceName string, parameters armnetwork.Interface) (armnetwork.Interface, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "createOrUpdate", ctx, resourceGroupName, networkInterfaceName, parameters)
-	ret0, _ := ret[0].(network.Interface)
+	ret0, _ := ret[0].(armnetwork.Interface)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -67,10 +67,10 @@ func (mr *MockazureNwIntfWrapperMockRecorder) createOrUpdate(ctx, resourceGroupN
 }
 
 // listAllComplete mocks base method.
-func (m *MockazureNwIntfWrapper) listAllComplete(ctx context.Context) ([]network.Interface, error) {
+func (m *MockazureNwIntfWrapper) listAllComplete(ctx context.Context) ([]armnetwork.Interface, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "listAllComplete", ctx)
-	ret0, _ := ret[0].([]network.Interface)
+	ret0, _ := ret[0].([]armnetwork.Interface)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -105,10 +105,10 @@ func (m *MockazureNsgWrapper) EXPECT() *MockazureNsgWrapperMockRecorder {
 }
 
 // createOrUpdate mocks base method.
-func (m *MockazureNsgWrapper) createOrUpdate(ctx context.Context, resourceGroupName, networkSecurityGroupName string, parameters network.SecurityGroup) (network.SecurityGroup, error) {
+func (m *MockazureNsgWrapper) createOrUpdate(ctx context.Context, resourceGroupName, networkSecurityGroupName string, parameters armnetwork.SecurityGroup) (armnetwork.SecurityGroup, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "createOrUpdate", ctx, resourceGroupName, networkSecurityGroupName, parameters)
-	ret0, _ := ret[0].(network.SecurityGroup)
+	ret0, _ := ret[0].(armnetwork.SecurityGroup)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -134,10 +134,10 @@ func (mr *MockazureNsgWrapperMockRecorder) delete(ctx, resourceGroupName, networ
 }
 
 // get mocks base method.
-func (m *MockazureNsgWrapper) get(ctx context.Context, resourceGroupName, networkSecurityGroupName, expand string) (network.SecurityGroup, error) {
+func (m *MockazureNsgWrapper) get(ctx context.Context, resourceGroupName, networkSecurityGroupName, expand string) (armnetwork.SecurityGroup, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "get", ctx, resourceGroupName, networkSecurityGroupName, expand)
-	ret0, _ := ret[0].(network.SecurityGroup)
+	ret0, _ := ret[0].(armnetwork.SecurityGroup)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -149,10 +149,10 @@ func (mr *MockazureNsgWrapperMockRecorder) get(ctx, resourceGroupName, networkSe
 }
 
 // listAllComplete mocks base method.
-func (m *MockazureNsgWrapper) listAllComplete(ctx context.Context) ([]network.SecurityGroup, error) {
+func (m *MockazureNsgWrapper) listAllComplete(ctx context.Context) ([]armnetwork.SecurityGroup, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "listAllComplete", ctx)
-	ret0, _ := ret[0].([]network.SecurityGroup)
+	ret0, _ := ret[0].([]armnetwork.SecurityGroup)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -187,10 +187,10 @@ func (m *MockazureAsgWrapper) EXPECT() *MockazureAsgWrapperMockRecorder {
 }
 
 // createOrUpdate mocks base method.
-func (m *MockazureAsgWrapper) createOrUpdate(ctx context.Context, resourceGroupName, applicationSecurityGroupName string, parameters network.ApplicationSecurityGroup) (network.ApplicationSecurityGroup, error) {
+func (m *MockazureAsgWrapper) createOrUpdate(ctx context.Context, resourceGroupName, applicationSecurityGroupName string, parameters armnetwork.ApplicationSecurityGroup) (armnetwork.ApplicationSecurityGroup, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "createOrUpdate", ctx, resourceGroupName, applicationSecurityGroupName, parameters)
-	ret0, _ := ret[0].(network.ApplicationSecurityGroup)
+	ret0, _ := ret[0].(armnetwork.ApplicationSecurityGroup)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -216,10 +216,10 @@ func (mr *MockazureAsgWrapperMockRecorder) delete(ctx, resourceGroupName, applic
 }
 
 // get mocks base method.
-func (m *MockazureAsgWrapper) get(ctx context.Context, resourceGroupName, applicationSecurityGroupName string) (network.ApplicationSecurityGroup, error) {
+func (m *MockazureAsgWrapper) get(ctx context.Context, resourceGroupName, applicationSecurityGroupName string) (armnetwork.ApplicationSecurityGroup, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "get", ctx, resourceGroupName, applicationSecurityGroupName)
-	ret0, _ := ret[0].(network.ApplicationSecurityGroup)
+	ret0, _ := ret[0].(armnetwork.ApplicationSecurityGroup)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -231,10 +231,10 @@ func (mr *MockazureAsgWrapperMockRecorder) get(ctx, resourceGroupName, applicati
 }
 
 // listAllComplete mocks base method.
-func (m *MockazureAsgWrapper) listAllComplete(ctx context.Context) ([]network.ApplicationSecurityGroup, error) {
+func (m *MockazureAsgWrapper) listAllComplete(ctx context.Context) ([]armnetwork.ApplicationSecurityGroup, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "listAllComplete", ctx)
-	ret0, _ := ret[0].([]network.ApplicationSecurityGroup)
+	ret0, _ := ret[0].([]armnetwork.ApplicationSecurityGroup)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -246,10 +246,10 @@ func (mr *MockazureAsgWrapperMockRecorder) listAllComplete(ctx interface{}) *gom
 }
 
 // listComplete mocks base method.
-func (m *MockazureAsgWrapper) listComplete(ctx context.Context, resourceGroupName string) ([]network.ApplicationSecurityGroup, error) {
+func (m *MockazureAsgWrapper) listComplete(ctx context.Context, resourceGroupName string) ([]armnetwork.ApplicationSecurityGroup, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "listComplete", ctx, resourceGroupName)
-	ret0, _ := ret[0].([]network.ApplicationSecurityGroup)
+	ret0, _ := ret[0].([]armnetwork.ApplicationSecurityGroup)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -284,10 +284,10 @@ func (m *MockazureResourceGraphWrapper) EXPECT() *MockazureResourceGraphWrapperM
 }
 
 // resources mocks base method.
-func (m *MockazureResourceGraphWrapper) resources(ctx context.Context, query resourcegraph.QueryRequest) (resourcegraph.QueryResponse, error) {
+func (m *MockazureResourceGraphWrapper) resources(ctx context.Context, query armresourcegraph.QueryRequest) (armresourcegraph.ClientResourcesResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "resources", ctx, query)
-	ret0, _ := ret[0].(resourcegraph.QueryResponse)
+	ret0, _ := ret[0].(armresourcegraph.ClientResourcesResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -322,10 +322,10 @@ func (m *MockazureVirtualNetworksWrapper) EXPECT() *MockazureVirtualNetworksWrap
 }
 
 // listAllComplete mocks base method.
-func (m *MockazureVirtualNetworksWrapper) listAllComplete(ctx context.Context) ([]network.VirtualNetwork, error) {
+func (m *MockazureVirtualNetworksWrapper) listAllComplete(ctx context.Context) ([]armnetwork.VirtualNetwork, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "listAllComplete", ctx)
-	ret0, _ := ret[0].([]network.VirtualNetwork)
+	ret0, _ := ret[0].([]armnetwork.VirtualNetwork)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

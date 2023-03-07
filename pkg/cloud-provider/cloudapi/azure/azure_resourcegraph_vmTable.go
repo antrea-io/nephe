@@ -17,9 +17,11 @@ package azure
 import (
 	"bytes"
 	"fmt"
+	"reflect"
 	"text/template"
+	"time"
 
-	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2021-03-01/compute"
+	compute "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
 	"github.com/mitchellh/mapstructure"
 )
 
@@ -104,8 +106,48 @@ const (
 		"| project id, name, properties, status=properties.extended.instanceView.powerState.code, networkInterfaces, tags, vnetId"
 )
 
+func ToTimeHookFunc() mapstructure.DecodeHookFunc {
+	return func(
+		f reflect.Type,
+		t reflect.Type,
+		data interface{}) (interface{}, error) {
+		if t != reflect.TypeOf(time.Time{}) {
+			return data, nil
+		}
+
+		switch f.Kind() {
+		case reflect.String:
+			return time.Parse(time.RFC3339, data.(string))
+		case reflect.Float64:
+			return time.Unix(0, int64(data.(float64))*int64(time.Millisecond)), nil
+		case reflect.Int64:
+			return time.Unix(0, data.(int64)*int64(time.Millisecond)), nil
+		default:
+			return data, nil
+		}
+	}
+}
+
+// customDecode use a timeHookFunc() to convert *time.time to desired format.
+// Cannot use 'mapstructure.decode' directly, since it does not understand the type *time.time
+// 'Properties.TimeCreated' expected a map, got 'string' 0xc0003ae060
+// Use the fix suggested in the issue: https://github.com/mitchellh/mapstructure/issues/159
+func customDecode(input map[string]interface{}, result interface{}) error {
+	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		Metadata: nil,
+		DecodeHook: mapstructure.ComposeDecodeHookFunc(
+			ToTimeHookFunc()),
+		Result: result,
+	})
+	if err != nil {
+		return err
+	}
+
+	return decoder.Decode(input)
+}
+
 func getVirtualMachineTable(resourceGraphAPIClient azureResourceGraphWrapper, query *string,
-	subscriptions []string) ([]*virtualMachineTable, int64, error) {
+	subscriptions []*string) ([]*virtualMachineTable, int64, error) {
 	data, count, err := invokeResourceGraphQuery(resourceGraphAPIClient, query, subscriptions)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to invoke query: %q", err)
@@ -118,7 +160,7 @@ func getVirtualMachineTable(resourceGraphAPIClient azureResourceGraphWrapper, qu
 	virtualMachineRows := data.([]interface{})
 	for _, virtualMachineRow := range virtualMachineRows {
 		var virtualMachine virtualMachineTable
-		err = mapstructure.Decode(virtualMachineRow, &virtualMachine)
+		err = customDecode(virtualMachineRow.(map[string]interface{}), &virtualMachine)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to decode vm response: %q", err)
 		}

@@ -438,6 +438,9 @@ func (s *securityGroupImpl) deleteImpl(c cloudSecurityGroup, membershipOnly bool
 	ch := securitygroup.CloudSecurityGroup.DeleteSecurityGroup(&s.id, membershipOnly)
 	go func() {
 		err := <-ch
+		if err == nil && !membershipOnly {
+			s.deleteSgRulesFromIndexer(r)
+		}
 		r.cloudResponse <- &securityGroupStatus{sg: c, op: securityGroupOperationDelete, err: err}
 	}()
 	return nil
@@ -492,6 +495,18 @@ func (s *securityGroupImpl) notifyImpl(c PendingItem, membershipOnly bool, op se
 	}
 	if op == securityGroupOperationDelete {
 		_ = r.pendingDeleteGroups.Update(getGroupUniqueName(s.id.Name, membershipOnly), true, -1, !moreOps)
+	}
+}
+
+// deleteSgRulesFromIndexer deletes all rules that are part of the security group from the cloudRule indexer.
+func (s *securityGroupImpl) deleteSgRulesFromIndexer(r *NetworkPolicyReconciler) {
+	rules, err := r.cloudRuleIndexer.ByIndex(cloudRuleIndexerByAppliedToGrp, s.id.CloudResourceID.String())
+	if err != nil {
+		r.Log.Error(err, "get cloudRule indexer", "index", s.id.CloudResourceID.String())
+		return
+	}
+	for _, rule := range rules {
+		_ = r.cloudRuleIndexer.Delete(rule)
 	}
 }
 
@@ -684,7 +699,7 @@ func (a *addrSecurityGroup) removeStaleMembers(stales []*types.NamespacedName, r
 // appliedToSecurityGroup contains information to create a cloud appliedToSecurityGroup.
 type appliedToSecurityGroup struct {
 	securityGroupImpl
-	hasRules      bool
+	ruleReady     bool
 	hasMembers    bool
 	addrGroupRefs map[string]bool
 }
@@ -762,7 +777,12 @@ func (a *appliedToSecurityGroup) updateAllRules(r *NetworkPolicyReconciler) erro
 
 // updateANPRules invokes cloud plug-in to update rules of appliedToSecurityGroup for a given ANP.
 func (a *appliedToSecurityGroup) updateANPRules(r *NetworkPolicyReconciler, np *networkPolicy) {
-	if !a.isReady() || a.deletePending || !np.rulesReady {
+	// skip the rule update if:
+	// - the security group is not created in the cloud;
+	// - the security group is pending deletion;
+	// - the specified network policy has not finished computing rules;
+	// - there is a pending retry operation.
+	if !a.isReady() || a.deletePending || !np.rulesReady || a.retryOp != nil {
 		return
 	}
 
@@ -799,7 +819,14 @@ func (a *appliedToSecurityGroup) updateANPRules(r *NetworkPolicyReconciler, np *
 		return
 	}
 
-	// TODO: do not invoke cloud plugin if no rules to update.
+	if len(addRules) == 0 && len(rmRules) == 0 {
+		go func() {
+			r.updateRuleRealizationStatus(a.id.CloudResourceID.String(), np, nil)
+			r.cloudResponse <- &securityGroupStatus{sg: a, op: securityGroupOperationUpdateRules, err: nil}
+		}()
+		return
+	}
+
 	r.Log.V(1).Info("Updating AppliedToSecurityGroup rules for anp", "anp", np.Name, "name", a.id.Name,
 		"rules", rules)
 	ch := securitygroup.CloudSecurityGroup.UpdateSecurityGroupRules(&a.id, addRules, rmRules, allRules)
@@ -831,7 +858,7 @@ func (a *appliedToSecurityGroup) clearMembers(r *NetworkPolicyReconciler) {
 		return
 	}
 	// No need to update appliedToSecurityGroup with no members.
-	a.hasRules = false
+	a.ruleReady = false
 }
 
 // combineRules converts and combines all rules from given anps to securitygroup.CloudRule.
@@ -1062,7 +1089,7 @@ func (a *appliedToSecurityGroup) getStatus() error {
 	if a.status != nil {
 		return a.status
 	}
-	if a.state == securityGroupStateCreated && a.hasRules {
+	if a.state == securityGroupStateCreated && a.ruleReady {
 		return nil
 	}
 	return &InProgress{}
@@ -1118,15 +1145,14 @@ func (a *appliedToSecurityGroup) notify(op securityGroupOperation, status error,
 		if err := a.updateAddrGroupReference(r); err != nil {
 			return err
 		}
-		a.hasRules = true
+		a.ruleReady = true
 		if !a.hasMembers {
 			return a.update(nil, nil, r)
 		}
 	case securityGroupOperationClearMembers:
-		// AppliedToSecurityGroup has cleared members, clear rules.
+		// AppliedToSecurityGroup has cleared members, clear rules in cloud and indexer.
 		a.hasMembers = false
-		// TODO: check if updateAllRules is required here.
-		if a.hasRules {
+		if a.ruleReady {
 			return a.updateAllRules(r)
 		}
 	case securityGroupOperationDelete:
@@ -1364,8 +1390,6 @@ func (n *networkPolicy) update(anp *antreanetworking.NetworkPolicy, recompute bo
 				r.Log.Error(err, "delete networkPolicy indexer", "Name", n.Name)
 			}
 			_, removedAddr = diffAddressGrp(n.Rules, anp.Rules)
-			r.Log.V(1).Info("AddressGroup changes in NetworkPolicy", "old", n.Rules, "new", anp.Rules,
-				"diff", removedAddr)
 			n.Rules = anp.Rules
 			n.Generation = anp.Generation
 			if err := r.networkPolicyIndexer.Add(n); err != nil {

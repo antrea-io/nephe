@@ -15,12 +15,15 @@
 package azure
 
 import (
-	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2021-03-01/network"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 )
 
 // virtualNetworks returns virtual networks apiClient.
 func (p *azureServiceSdkConfigProvider) virtualNetworks(subscriptionID string) (azureVirtualNetworksWrapper, error) {
-	virtualNetworksClient := network.NewVirtualNetworksClient(subscriptionID)
-	virtualNetworksClient.Authorizer = p.authorizer
-	return &azureVirtualNetworksWrapperImpl{virtualNetworksClient: virtualNetworksClient}, nil
+	virtualNetworkClient, err := armnetwork.NewVirtualNetworksClient(subscriptionID, p.cred, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &azureVirtualNetworksWrapperImpl{virtualNetworksClient: *virtualNetworkClient}, nil
 }

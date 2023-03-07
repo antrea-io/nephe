@@ -1165,7 +1165,7 @@ var _ = Describe("NetworkPolicy", func() {
 				},
 				{
 					sgRuleNoOrder:     true,
-					addrSgMemberTimes: 2,
+					addrSgMemberTimes: 1,
 					appSgMemberTimes:  1,
 					appSgRuleTimes:    2,
 					sgCreateTimes:     1,
@@ -1186,8 +1186,8 @@ var _ = Describe("NetworkPolicy", func() {
 				},
 				{
 					sgRuleNoOrder:     true,
-					addrSgMemberTimes: 2,
-					appSgMemberTimes:  2,
+					addrSgMemberTimes: 1,
+					appSgMemberTimes:  1,
 					appSgRuleTimes:    1,
 					sgDeleteTimes:     1,
 				},
@@ -1336,7 +1336,7 @@ var _ = Describe("NetworkPolicy", func() {
 			cloudReturnSameSG: {
 				addrSgMemberTimes: 0,
 				appSgMemberTimes:  0,
-				appSgRuleTimes:    1,
+				appSgRuleTimes:    0,
 				sgCreateTimes:     0,
 			},
 			cloudReturnNoSG: {
@@ -1348,7 +1348,7 @@ var _ = Describe("NetworkPolicy", func() {
 			cloudReturnDiffMemberSG: {
 				addrSgMemberTimes: 1,
 				appSgMemberTimes:  0,
-				appSgRuleTimes:    1,
+				appSgRuleTimes:    0,
 				sgCreateTimes:     0,
 			},
 			cloudReturnDiffRuleSG: {
@@ -1360,7 +1360,7 @@ var _ = Describe("NetworkPolicy", func() {
 			cloudReturnExtraSG: {
 				addrSgMemberTimes: 0,
 				appSgMemberTimes:  0,
-				appSgRuleTimes:    1,
+				appSgRuleTimes:    0,
 				sgCreateTimes:     0,
 			},
 		}

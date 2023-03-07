@@ -16,37 +16,42 @@ package azure
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"strings"
 
-	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2021-03-01/network"
-	"github.com/Azure/go-autorest/autorest"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 )
 
 // applicationSecurityGroups returns application-security-groups apiClient.
 func (p *azureServiceSdkConfigProvider) applicationSecurityGroups(subscriptionID string) (azureAsgWrapper, error) {
-	applicationSecurityGroupsClient := network.NewApplicationSecurityGroupsClient(subscriptionID)
-	applicationSecurityGroupsClient.Authorizer = p.authorizer
-	return &azureAsgWrapperImpl{asgAPIClient: applicationSecurityGroupsClient}, nil
+	applicationSecurityGroupsClient, err := armnetwork.NewApplicationSecurityGroupsClient(subscriptionID, p.cred, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &azureAsgWrapperImpl{asgAPIClient: *applicationSecurityGroupsClient}, nil
 }
 
 func createOrGetApplicationSecurityGroup(asgAPIClient azureAsgWrapper, location string, rgName string,
 	cloudAsgName string) (string, error) {
+	var respErr *azcore.ResponseError
 	asg, err := asgAPIClient.get(context.Background(), rgName, cloudAsgName)
 	if err != nil {
-		detailError := err.(autorest.DetailedError)
-		if detailError.StatusCode != 404 {
-			return "", err
+		if errors.As(err, &respErr) {
+			if respErr.StatusCode != http.StatusNotFound {
+				return "", err
+			}
 		}
 	}
 
 	if asg.ID == nil {
-		appSecurityGroupParams := network.ApplicationSecurityGroup{
+		appSecurityGroupParams := armnetwork.ApplicationSecurityGroup{
 			Location: &location,
 		}
-		asg, err = asgAPIClient.createOrUpdate(context.Background(), rgName,
-			cloudAsgName, appSecurityGroupParams)
+		asg, err = asgAPIClient.createOrUpdate(context.Background(), rgName, cloudAsgName, appSecurityGroupParams)
 		if err != nil {
 			return "", err
 		}
@@ -57,14 +62,14 @@ func createOrGetApplicationSecurityGroup(asgAPIClient azureAsgWrapper, location 
 
 // getNepheControllerCreatedAsgByNameForResourceGroup returns AT and AG ASGs from a resource group.
 func getNepheControllerCreatedAsgByNameForResourceGroup(asgAPIClient azureAsgWrapper,
-	rgName string) (map[string]network.ApplicationSecurityGroup, map[string]network.ApplicationSecurityGroup, error) {
+	rgName string) (map[string]armnetwork.ApplicationSecurityGroup, map[string]armnetwork.ApplicationSecurityGroup, error) {
 	applicationSecurityGroups, err := asgAPIClient.listComplete(context.Background(), rgName)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	atAsgByNepheControllerName := make(map[string]network.ApplicationSecurityGroup)
-	agAsgByNepheControllerName := make(map[string]network.ApplicationSecurityGroup)
+	atAsgByNepheControllerName := make(map[string]armnetwork.ApplicationSecurityGroup)
+	agAsgByNepheControllerName := make(map[string]armnetwork.ApplicationSecurityGroup)
 	for _, applicationSecurityGroup := range applicationSecurityGroups {
 		asgName := applicationSecurityGroup.Name
 		if asgName == nil {
