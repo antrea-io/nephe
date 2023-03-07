@@ -50,7 +50,7 @@ type CloudCommonInterface interface {
 	RemoveCloudAccount(namespacedName *types.NamespacedName)
 
 	AddSelector(namespacedName *types.NamespacedName, selector *crdv1alpha1.CloudEntitySelector) error
-	RemoveSelector(accNamespacedName *types.NamespacedName, selectorName string)
+	RemoveSelector(accNamespacedName *types.NamespacedName, selectorNameSpacedName string)
 
 	GetStatus(accNamespacedName *types.NamespacedName) (*crdv1alpha1.CloudProviderAccountStatus, error)
 
@@ -175,21 +175,21 @@ func (c *cloudCommon) AddSelector(accountNamespacedName *types.NamespacedName, s
 	}
 
 	for _, serviceCfg := range accCfg.GetServiceConfigs() {
-		serviceCfg.setResourceFilters(selector)
+		serviceCfg.addSelectors(selector)
 	}
 
 	return nil
 }
 
-func (c *cloudCommon) RemoveSelector(accNamespacedName *types.NamespacedName, selectorName string) {
+func (c *cloudCommon) RemoveSelector(accNamespacedName *types.NamespacedName, selectorNameSpacedName string) {
 	accCfg, found := c.GetCloudAccountByName(accNamespacedName)
 	if !found {
-		c.logger().Info("Account not found", "account", *accNamespacedName, "name", selectorName)
+		c.logger().Info("Account not found", "account", *accNamespacedName, "name", selectorNameSpacedName)
 		return
 	}
 
 	for _, serviceCfg := range accCfg.GetServiceConfigs() {
-		serviceCfg.removeResourceFilters(selectorName)
+		serviceCfg.removeSelectors(selectorNameSpacedName)
 	}
 }
 

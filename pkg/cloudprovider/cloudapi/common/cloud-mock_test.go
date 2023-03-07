@@ -212,15 +212,15 @@ func (mr *MockCloudInterfaceMockRecorder) ProviderType() *gomock.Call {
 }
 
 // RemoveAccountResourcesSelector mocks base method.
-func (m *MockCloudInterface) RemoveAccountResourcesSelector(accNamespacedName *types.NamespacedName, selector string) {
+func (m *MockCloudInterface) RemoveAccountResourcesSelector(accNamespacedName *types.NamespacedName, selectorNamespacedName string) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RemoveAccountResourcesSelector", accNamespacedName, selector)
+	m.ctrl.Call(m, "RemoveAccountResourcesSelector", accNamespacedName, selectorNamespacedName)
 }
 
 // RemoveAccountResourcesSelector indicates an expected call of RemoveAccountResourcesSelector.
-func (mr *MockCloudInterfaceMockRecorder) RemoveAccountResourcesSelector(accNamespacedName, selector interface{}) *gomock.Call {
+func (mr *MockCloudInterfaceMockRecorder) RemoveAccountResourcesSelector(accNamespacedName, selectorNamespacedName interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveAccountResourcesSelector", reflect.TypeOf((*MockCloudInterface)(nil).RemoveAccountResourcesSelector), accNamespacedName, selector)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveAccountResourcesSelector", reflect.TypeOf((*MockCloudInterface)(nil).RemoveAccountResourcesSelector), accNamespacedName, selectorNamespacedName)
 }
 
 // RemoveProviderAccount mocks base method.
@@ -373,15 +373,15 @@ func (mr *MockAccountMgmtInterfaceMockRecorder) GetVpcInventory(accountNamespace
 }
 
 // RemoveAccountResourcesSelector mocks base method.
-func (m *MockAccountMgmtInterface) RemoveAccountResourcesSelector(accNamespacedName *types.NamespacedName, selector string) {
+func (m *MockAccountMgmtInterface) RemoveAccountResourcesSelector(accNamespacedName *types.NamespacedName, selectorNamespacedName string) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RemoveAccountResourcesSelector", accNamespacedName, selector)
+	m.ctrl.Call(m, "RemoveAccountResourcesSelector", accNamespacedName, selectorNamespacedName)
 }
 
 // RemoveAccountResourcesSelector indicates an expected call of RemoveAccountResourcesSelector.
-func (mr *MockAccountMgmtInterfaceMockRecorder) RemoveAccountResourcesSelector(accNamespacedName, selector interface{}) *gomock.Call {
+func (mr *MockAccountMgmtInterfaceMockRecorder) RemoveAccountResourcesSelector(accNamespacedName, selectorNamespacedName interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveAccountResourcesSelector", reflect.TypeOf((*MockAccountMgmtInterface)(nil).RemoveAccountResourcesSelector), accNamespacedName, selector)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveAccountResourcesSelector", reflect.TypeOf((*MockAccountMgmtInterface)(nil).RemoveAccountResourcesSelector), accNamespacedName, selectorNamespacedName)
 }
 
 // RemoveProviderAccount mocks base method.

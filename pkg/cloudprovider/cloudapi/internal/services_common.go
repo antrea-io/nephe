@@ -46,9 +46,9 @@ type CloudServiceInterface interface {
 	UpdateServiceConfig(newServiceConfig CloudServiceInterface)
 	// SetResourceFilters will be used by service to get resources from cloud for the service. Each will convert
 	// CloudEntitySelector to service understandable filters.
-	SetResourceFilters(selector *crdv1alpha1.CloudEntitySelector)
+	AddSelectors(selector *crdv1alpha1.CloudEntitySelector)
 	// RemoveResourceFilters will be used by service to remove configured filter.
-	RemoveResourceFilters(selectorName string)
+	RemoveSelectors(selectorNamespacedName string)
 	// DoResourceInventory performs resource inventory for the cloud service based on configured filters. As part
 	// inventory, it is expected to save resources in service cache CloudServiceResourcesCache.
 	DoResourceInventory() error
@@ -73,18 +73,18 @@ func (cfg *CloudServiceCommon) updateServiceConfig(newConfig CloudServiceInterfa
 	cfg.serviceInterface.UpdateServiceConfig(newConfig)
 }
 
-func (cfg *CloudServiceCommon) setResourceFilters(selector *crdv1alpha1.CloudEntitySelector) {
+func (cfg *CloudServiceCommon) addSelectors(selector *crdv1alpha1.CloudEntitySelector) {
 	cfg.mutex.Lock()
 	defer cfg.mutex.Unlock()
 
-	cfg.serviceInterface.SetResourceFilters(selector)
+	cfg.serviceInterface.AddSelectors(selector)
 }
 
-func (cfg *CloudServiceCommon) removeResourceFilters(selectorName string) {
+func (cfg *CloudServiceCommon) removeSelectors(selectorNamespacedName string) {
 	cfg.mutex.Lock()
 	defer cfg.mutex.Unlock()
 
-	cfg.serviceInterface.RemoveResourceFilters(selectorName)
+	cfg.serviceInterface.RemoveSelectors(selectorNamespacedName)
 }
 
 func (cfg *CloudServiceCommon) doResourceInventory() error {

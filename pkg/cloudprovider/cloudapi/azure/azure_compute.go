@@ -42,6 +42,7 @@ type computeServiceConfig struct {
 	inventoryStats         *internal.CloudServiceStats
 	credentials            *azureAccountConfig
 	computeFilters         map[string][]*string
+	selectors              map[string]*crdv1alpha1.CloudEntitySelector
 }
 
 type computeResourcesCacheSnapshot struct {
@@ -91,6 +92,7 @@ func newComputeServiceConfig(account types.NamespacedName, service azureServiceC
 		inventoryStats:         &internal.CloudServiceStats{},
 		credentials:            credentials,
 		computeFilters:         make(map[string][]*string),
+		selectors:              make(map[string]*crdv1alpha1.CloudEntitySelector),
 	}
 	return config, nil
 }
@@ -261,22 +263,34 @@ func (computeCfg *computeServiceConfig) DoResourceInventory() error {
 	return nil
 }
 
-func (computeCfg *computeServiceConfig) SetResourceFilters(selector *crdv1alpha1.CloudEntitySelector) {
+func (computeCfg *computeServiceConfig) AddSelectors(selector *crdv1alpha1.CloudEntitySelector) {
 	subscriptionIDs := []string{computeCfg.credentials.SubscriptionID}
 	tenantIDs := []string{computeCfg.credentials.TenantID}
 	locations := []string{computeCfg.credentials.region}
+
+	var key string
+	if selector != nil {
+		key = selector.GetNamespace() + "/" + selector.GetName()
+		computeCfg.selectors[key] = selector.DeepCopy()
+	}
 	if filters, found := convertSelectorToComputeQuery(selector, subscriptionIDs, tenantIDs, locations); found {
-		computeCfg.computeFilters[selector.GetName()] = filters
+		computeCfg.computeFilters[key] = filters
 	} else {
-		if selector != nil {
-			delete(computeCfg.computeFilters, selector.GetName())
-		}
-		computeCfg.resourcesCache.UpdateSnapshot(nil)
+		azurePluginLogger().Error(fmt.Errorf("creating query filters failed"), "selector", selector)
+		/*
+				if selector != nil {
+					delete(computeCfg.computeFilters, key)
+					delete(computeCfg.selectors, key)
+				}
+
+			computeCfg.resourcesCache.UpdateSnapshot(nil)
+		*/
 	}
 }
 
-func (computeCfg *computeServiceConfig) RemoveResourceFilters(selectorName string) {
-	delete(computeCfg.computeFilters, selectorName)
+func (computeCfg *computeServiceConfig) RemoveSelectors(selectorNamespacedName string) {
+	delete(computeCfg.computeFilters, selectorNamespacedName)
+	delete(computeCfg.selectors, selectorNamespacedName)
 }
 
 func (computeCfg *computeServiceConfig) GetInternalResourceObjects(namespace string,
@@ -310,7 +324,6 @@ func (computeCfg *computeServiceConfig) GetInventoryStats() *internal.CloudServi
 }
 
 func (computeCfg *computeServiceConfig) ResetCachedState() {
-	computeCfg.SetResourceFilters(nil)
 	computeCfg.inventoryStats.ResetInventoryPollStats()
 }
 
@@ -322,6 +335,9 @@ func (computeCfg *computeServiceConfig) UpdateServiceConfig(newConfig internal.C
 	computeCfg.vnetAPIClient = newComputeServiceConfig.vnetAPIClient
 	computeCfg.resourceGraphAPIClient = newComputeServiceConfig.resourceGraphAPIClient
 	computeCfg.credentials = newComputeServiceConfig.credentials
+	for _, value := range computeCfg.selectors {
+		computeCfg.AddSelectors(value)
+	}
 }
 
 // getVpcs invokes cloud API to fetch the list of vnets.

@@ -93,8 +93,8 @@ func (c *azureCloud) AddAccountResourceSelector(accNamespacedName *types.Namespa
 }
 
 // RemoveAccountResourcesSelector removes account specific resource selector.
-func (c *azureCloud) RemoveAccountResourcesSelector(accNamespacedName *types.NamespacedName, selectorName string) {
-	c.cloudCommon.RemoveSelector(accNamespacedName, selectorName)
+func (c *azureCloud) RemoveAccountResourcesSelector(accNamespacedName *types.NamespacedName, selectorNamespacedName string) {
+	c.cloudCommon.RemoveSelector(accNamespacedName, selectorNamespacedName)
 }
 
 func (c *azureCloud) GetAccountStatus(accNamespacedName *types.NamespacedName) (*crdv1alpha1.CloudProviderAccountStatus, error) {

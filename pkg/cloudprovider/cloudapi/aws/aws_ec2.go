@@ -293,19 +293,24 @@ func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
 }
 
 // SetResourceFilters add/updates instances resource filter for the service.
-func (ec2Cfg *ec2ServiceConfig) SetResourceFilters(selector *crdv1alpha1.CloudEntitySelector) {
+func (ec2Cfg *ec2ServiceConfig) AddSelectors(selector *crdv1alpha1.CloudEntitySelector) {
+	var key string
+	if selector != nil {
+		key = selector.GetNamespace() + "/" + selector.GetName()
+	}
+
 	if filters, found := convertSelectorToEC2InstanceFilters(selector); found {
-		ec2Cfg.instanceFilters[selector.GetName()] = filters
+		ec2Cfg.instanceFilters[key] = filters
 	} else {
 		if selector != nil {
-			delete(ec2Cfg.instanceFilters, selector.GetName())
+			delete(ec2Cfg.instanceFilters, key)
 		}
 		ec2Cfg.resourcesCache.UpdateSnapshot(nil)
 	}
 }
 
-func (ec2Cfg *ec2ServiceConfig) RemoveResourceFilters(selectorName string) {
-	delete(ec2Cfg.instanceFilters, selectorName)
+func (ec2Cfg *ec2ServiceConfig) RemoveSelectors(selectorNamespacedName string) {
+	delete(ec2Cfg.instanceFilters, selectorNamespacedName)
 }
 
 func (ec2Cfg *ec2ServiceConfig) GetInternalResourceObjects(namespace string,
@@ -338,14 +343,12 @@ func (ec2Cfg *ec2ServiceConfig) GetInventoryStats() *internal.CloudServiceStats 
 }
 
 func (ec2Cfg *ec2ServiceConfig) ResetCachedState() {
-	ec2Cfg.SetResourceFilters(nil)
 	ec2Cfg.inventoryStats.ResetInventoryPollStats()
 }
 
 func (ec2Cfg *ec2ServiceConfig) UpdateServiceConfig(newConfig internal.CloudServiceInterface) {
 	newEc2ServiceConfig := newConfig.(*ec2ServiceConfig)
 	ec2Cfg.apiClient = newEc2ServiceConfig.apiClient
-	ec2Cfg.credentials = newEc2ServiceConfig.credentials
 }
 
 func (ec2Cfg *ec2ServiceConfig) buildMapVpcNameToID(vpcs []*ec2.Vpc) map[string]string {

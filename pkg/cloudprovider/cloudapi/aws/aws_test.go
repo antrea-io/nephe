@@ -346,15 +346,15 @@ var _ = Describe("AWS cloud", func() {
 			testVMID02 = "vmID-02"
 		)
 		var (
-			account  *v1alpha1.CloudProviderAccount
-			selector *v1alpha1.CloudEntitySelector
-
-			mockCtrl           *gomock.Controller
-			mockawsCloudHelper *MockawsServicesHelper
-			fakeClient         client.Client
-			mockawsEC2         *MockawsEC2Wrapper
-			mockawsService     *MockawsServiceClientCreateInterface
-			secret             *corev1.Secret
+			account                    *v1alpha1.CloudProviderAccount
+			selector                   *v1alpha1.CloudEntitySelector
+			mockCtrl                   *gomock.Controller
+			mockawsCloudHelper         *MockawsServicesHelper
+			fakeClient                 client.Client
+			mockawsEC2                 *MockawsEC2Wrapper
+			mockawsService             *MockawsServiceClientCreateInterface
+			secret                     *corev1.Secret
+			testSelectorNamespacedName = types.NamespacedName{Namespace: "namespace01", Name: "selector-VpcID"}
 		)
 
 		BeforeEach(func() {
@@ -456,7 +456,7 @@ var _ = Describe("AWS cloud", func() {
 
 				accCfg, _ := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
 				serviceConfig, _ := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
-				filters := serviceConfig.(*ec2ServiceConfig).instanceFilters[selector.Name]
+				filters := serviceConfig.(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
 				Expect(filters).To(Equal(expectedFilters))
 			})
 		})
@@ -488,7 +488,7 @@ var _ = Describe("AWS cloud", func() {
 
 			accCfg, _ := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
 			serviceConfig, _ := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
-			filters := serviceConfig.(*ec2ServiceConfig).instanceFilters[selector.Name]
+			filters := serviceConfig.(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
 			Expect(filters).To(Equal(expectedFilters))
 		})
 		It("Should match expected filter - multiple vpcName only match", func() {
@@ -519,7 +519,7 @@ var _ = Describe("AWS cloud", func() {
 
 			accCfg, _ := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
 			serviceConfig, _ := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
-			filters := serviceConfig.(*ec2ServiceConfig).instanceFilters[selector.Name]
+			filters := serviceConfig.(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
 			Expect(filters).To(Equal(expectedFilters))
 		})
 		It("Should match expected filter - multiple vpcID & vmName match", func() {
@@ -574,7 +574,7 @@ var _ = Describe("AWS cloud", func() {
 
 			accCfg, _ := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
 			serviceConfig, _ := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
-			filters := serviceConfig.(*ec2ServiceConfig).instanceFilters[selector.Name]
+			filters := serviceConfig.(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
 			Expect(filters).To(Equal(expectedFilters))
 		})
 		It("Should match expected filter - multiple with one all", func() {
@@ -601,7 +601,7 @@ var _ = Describe("AWS cloud", func() {
 
 			accCfg, _ := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
 			serviceConfig, _ := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
-			filters := serviceConfig.(*ec2ServiceConfig).instanceFilters[selector.Name]
+			filters := serviceConfig.(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
 			Expect(filters).To(Equal(expectedFilters))
 		})
 		It("Should match expected filter - multiple vm names only match", func() {
@@ -638,7 +638,7 @@ var _ = Describe("AWS cloud", func() {
 
 			accCfg, _ := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
 			serviceConfig, _ := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
-			filters := serviceConfig.(*ec2ServiceConfig).instanceFilters[selector.Name]
+			filters := serviceConfig.(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
 			Expect(filters).To(Equal(expectedFilters))
 		})
 		It("Should match expected filter - multiple vm IDs only match", func() {
@@ -675,7 +675,7 @@ var _ = Describe("AWS cloud", func() {
 
 			accCfg, _ := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
 			serviceConfig, _ := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
-			filters := serviceConfig.(*ec2ServiceConfig).instanceFilters[selector.Name]
+			filters := serviceConfig.(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
 			Expect(filters).To(Equal(expectedFilters))
 		})
 	})
