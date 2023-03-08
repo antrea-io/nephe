@@ -26,6 +26,8 @@ data:
   nephe-controller.conf: |
     # Specifies the prefix to be used while creating cloud resources.
     # CloudResourcePrefix: nephe
+    # Specifies the interval (in seconds) to be used for syncing cloud resources with controller.
+    # CloudSyncInterval: 300
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -48,6 +50,7 @@ spec:
       - command:
         - /nephe-controller
         args:
+        - --config=/tmp/nephe/nephe-controller.conf
         - --enable-debug-log
         image: "projects.registry.vmware.com/antrea/nephe:latest"
         imagePullPolicy: IfNotPresent

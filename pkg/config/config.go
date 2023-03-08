@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+//     http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,21 +14,13 @@
 
 package config
 
-import "regexp"
-
 const (
 	DefaultCloudResourcePrefix = "nephe"
-	ConfigMapName              = "nephe-config"
-	ConfigMapNamespace         = "nephe-system"
+	DefaultCloudSyncInterval   = 300
+	MinimumCloudSyncInterval   = 60
 )
 
 type ControllerConfig struct {
 	CloudResourcePrefix string `yaml:"CloudResourcePrefix,omitempty"`
-}
-
-// ValidateName validates the name
-func ValidateName(name string) bool {
-	reg := regexp.MustCompile(`^[a-zA-Z0-9]+([-]?[a-zA-Z0-9])*$`)
-	valid := reg.MatchString(name)
-	return valid
+	CloudSyncInterval   int64  `yaml:"CloudSyncInterval,omitempty"`
 }

@@ -538,14 +538,6 @@ rules:
   - patch
   - update
 - apiGroups:
-  - ""
-  resources:
-  - configmaps
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
   - authorization.k8s.io
   resources:
   - subjectaccessreviews
@@ -594,6 +586,8 @@ data:
   nephe-controller.conf: |
     # Specifies the prefix to be used while creating cloud resources.
     # CloudResourcePrefix: nephe
+    # Specifies the interval (in seconds) to be used for syncing cloud resources with controller.
+    # CloudSyncInterval: 300
 kind: ConfigMap
 metadata:
   name: nephe-config
@@ -643,6 +637,7 @@ spec:
     spec:
       containers:
       - args:
+        - --config=/tmp/nephe/nephe-controller.conf
         - --enable-debug-log
         command:
         - /nephe-controller
@@ -845,27 +840,4 @@ webhooks:
     - DELETE
     resources:
     - secrets
-  sideEffects: None
-- admissionReviewVersions:
-  - v1
-  - v1beta1
-  clientConfig:
-    caBundle: Cg==
-    service:
-      name: nephe-controller-webhook-service
-      namespace: nephe-system
-      path: /validate-v1-configmap
-  failurePolicy: Fail
-  name: vconfigmap.kb.io
-  rules:
-  - apiGroups:
-    - ""
-    apiVersions:
-    - v1
-    operations:
-    - UPDATE
-    - DELETE
-    resources:
-    - configmaps
-    scope: Namespaced
   sideEffects: None

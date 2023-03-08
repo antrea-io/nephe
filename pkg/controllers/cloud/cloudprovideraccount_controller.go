@@ -41,6 +41,7 @@ type CloudProviderAccountReconciler struct {
 	client.Client
 	Log    logr.Logger
 	Scheme *runtime.Scheme
+	Mgr    *ctrl.Manager
 
 	mutex               sync.Mutex
 	accountProviderType map[types.NamespacedName]common.ProviderType
@@ -94,9 +95,11 @@ func (r *CloudProviderAccountReconciler) SetupWithManager(mgr ctrl.Manager) erro
 // A controller is said to be initialized only when the dependent controllers
 // are synced, and controller keeps a count of pending CRs to be reconciled.
 func (r *CloudProviderAccountReconciler) Start(context.Context) error {
-	if err := GetControllerSyncStatusInstance().waitForControllersToSync([]controllerType{ControllerTypeCM}, syncTimeout); err != nil {
-		r.Log.Error(err, "dependent controller sync failed", "controller", ControllerTypeCM.String())
-		return err
+	r.Log.Info("Waiting for shared informer caches to be synced")
+	// Blocking call to wait till the informer caches are synced by controller run-time
+	// or the context is Done.
+	if !(*r.Mgr).GetCache().WaitForCacheSync(context.TODO()) {
+		return fmt.Errorf("failed to sync shared informer cache")
 	}
 
 	cpaList := &cloudv1alpha1.CloudProviderAccountList{}

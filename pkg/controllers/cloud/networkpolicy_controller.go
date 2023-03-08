@@ -52,8 +52,7 @@ const (
 	cloudRuleIndexerByAppliedToGrp              = "AppliedToGrp"
 	virtualMachineIndexerByCloudID              = "metadata.annotations.cloud-assigned-id"
 
-	operationCount    = 15
-	cloudSyncInterval = 0xff // 256 Seconds
+	operationCount = 15
 
 	cloudResponseChBuffer = 50
 
@@ -68,7 +67,6 @@ const (
 
 type NetworkPolicyController interface {
 	LocalEvent(watch.Event)
-	IsCloudResourceCreated() bool
 }
 
 // NetworkPolicyReconciler reconciles a NetworkPolicy object.
@@ -104,6 +102,10 @@ type NetworkPolicyReconciler struct {
 
 	// syncedWithCloud is true if controller has synchronized with cloud at least once.
 	syncedWithCloud bool
+
+	// CloudSyncInterval specifies the interval (in seconds) to be used for syncing cloud resources with controller.
+	CloudSyncInterval int64
+
 	// Bookmark events received prior to sync with the cloud.
 	bookmarkCnt int
 
@@ -543,6 +545,7 @@ func (r *NetworkPolicyReconciler) Start(stop context.Context) error {
 	}
 
 	r.Log.Info("Re-sync finished, listening to new events")
+	lastSyncTime := time.Now().Unix()
 	ticker := time.NewTicker(time.Second)
 	for {
 		var err error
@@ -589,8 +592,9 @@ func (r *NetworkPolicyReconciler) Start(stop context.Context) error {
 		case <-ticker.C:
 			r.backgroupProcess()
 			r.retryQueue.CheckToRun()
-			if time.Now().Unix()&cloudSyncInterval == 0 {
+			if time.Now().Unix()-lastSyncTime >= r.CloudSyncInterval {
 				r.syncWithCloud()
+				lastSyncTime = time.Now().Unix()
 			}
 		case <-stop.Done():
 			r.Log.Info("Is stopped")
@@ -806,11 +810,6 @@ func (r *NetworkPolicyReconciler) resetWatchers() error {
 		break
 	}
 	return err
-}
-
-// IsCloudResourceCreated checks the cloud resource is already created
-func (r *NetworkPolicyReconciler) IsCloudResourceCreated() bool {
-	return len(r.addrSGIndexer.List()) != 0 || len(r.appliedToSGIndexer.List()) != 0
 }
 
 func (r *NetworkPolicyReconciler) GetVirtualMachinePolicyIndexer() cache.Indexer {

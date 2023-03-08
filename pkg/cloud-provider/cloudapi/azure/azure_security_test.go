@@ -34,7 +34,7 @@ import (
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	cloudcommon "antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
-	"antrea.io/nephe/pkg/controllers/config"
+	"antrea.io/nephe/pkg/config"
 )
 
 var _ = Describe("Azure Cloud Security", func() {
@@ -252,8 +252,7 @@ var _ = Describe("Azure Cloud Security", func() {
 				},
 			}
 
-			cloudResourcePrefix := config.DefaultCloudResourcePrefix
-			securitygroup.SetCloudResourcePrefix(&(cloudResourcePrefix))
+			securitygroup.SetCloudResourcePrefix(config.DefaultCloudResourcePrefix)
 
 			var vnetList []network.VirtualNetwork
 			vnet := new(network.VirtualNetwork)

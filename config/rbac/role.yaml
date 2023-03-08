@@ -75,7 +75,6 @@ rules:
     - get
     - patch
     - update
-
 - apiGroups:
   - crd.cloud.antrea.io
   resources:
@@ -136,16 +135,6 @@ rules:
   - get
   - patch
   - update
-
-- apiGroups:
-    - ""
-  resources:
-    - configmaps
-  verbs:
-    - get
-    - list
-    - watch
-
 - apiGroups:
   - authorization.k8s.io
   resources:
