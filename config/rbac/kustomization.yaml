@@ -6,8 +6,8 @@ resources:
 # subjects if changing service account names.
 - role.yaml
 - role_binding.yaml
-- leader_election_role.yaml
-- leader_election_role_binding.yaml
+#- leader_election_role.yaml
+#- leader_election_role_binding.yaml
 - secret_viewer_role.yaml
 - secret_viewer_role_binding.yaml
 # Comment the following 4 lines if you want to disable
@@ -18,4 +18,4 @@ resources:
 #- auth_proxy_role_binding.yaml
 #- auth_proxy_client_clusterrole.yaml
 # Additional resources
-- resource_viewer_role.yaml
+# - resource_viewer_role.yaml
