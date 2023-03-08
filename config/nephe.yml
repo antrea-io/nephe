@@ -289,6 +289,9 @@ spec:
     - jsonPath: .status.provider
       name: Cloud-Provider
       type: string
+    - jsonPath: .status.region
+      name: Region
+      type: string
     - jsonPath: .status.virtualPrivateCloud
       name: Virtual-Private-Cloud
       type: string
@@ -357,6 +360,9 @@ spec:
                 enum:
                 - Azure
                 - AWS
+                type: string
+              region:
+                description: Region indicates the cloud region of the VirtualMachine.
                 type: string
               state:
                 description: State indicates current state of the VirtualMachine.

@@ -268,7 +268,7 @@ func (computeCfg *computeServiceConfig) GetResourceCRDs(namespace string, accoun
 
 	for _, virtualMachine := range virtualMachines {
 		// build VirtualMachine CRD
-		vmCRD := computeInstanceToVirtualMachineCRD(virtualMachine, namespace, accountId)
+		vmCRD := computeInstanceToVirtualMachineCRD(virtualMachine, namespace, accountId, computeCfg.credentials.region)
 		vmCRDs = append(vmCRDs, vmCRD)
 	}
 

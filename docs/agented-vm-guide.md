@@ -71,11 +71,11 @@ kubectl get vm -A
 
 ```text
 # Output
-NAMESPACE   NAME                  CLOUD-PROVIDER   VIRTUAL-PRIVATE-CLOUD   STATE     AGENTED
-vm-ns       i-0033eb4a6c846451d   AWS              vpc-0d6bb6a4a880bd9ad   running   false
-vm-ns       i-019459b33d951b62e   AWS              vpc-0d6bb6a4a880bd9ad   running   true
-vm-ns       i-05e3fb66922d56e0a   AWS              vpc-0d6bb6a4a880bd9ad   running   false
-vm-ns       i-0a20bae92ddcdb60b   AWS              vpc-0d6bb6a4a880bd9ad   running   false
+NAMESPACE   NAME                  CLOUD-PROVIDER   REGION      VIRTUAL-PRIVATE-CLOUD   STATE     AGENTED
+vm-ns       i-0033eb4a6c846451d   AWS              us-west-1   vpc-0d6bb6a4a880bd9ad   running   false
+vm-ns       i-019459b33d951b62e   AWS              us-west-1   vpc-0d6bb6a4a880bd9ad   running   true
+vm-ns       i-05e3fb66922d56e0a   AWS              us-west-1   vpc-0d6bb6a4a880bd9ad   running   false
+vm-ns       i-0a20bae92ddcdb60b   AWS              us-west-1   vpc-0d6bb6a4a880bd9ad   running   false
 ```
 
 ```bash
@@ -148,6 +148,7 @@ Status:
     Mac:             02:96:fc:89:17:ed
     Name:            eni-056b0d6da3f592943
   Provider:          AWS
+  Region:            us-west-1
   State:             running
   Tags:
     Name:                 ubuntu2004

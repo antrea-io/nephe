@@ -242,10 +242,10 @@ kubectl get vm -A
 
 ```text
 # Output
-NAMESPACE        NAME                  CLOUD-PROVIDER   VIRTUAL-PRIVATE-CLOUD   STATE
-sample-ns        i-0033eb4a6c846451d   AWS              vpc-0d6bb6a4a880bd9ad   running
-sample-ns        i-05e3fb66922d56e0a   AWS              vpc-0d6bb6a4a880bd9ad   running
-sample-ns        i-0a20bae92ddcdb60b   AWS              vpc-0d6bb6a4a880bd9ad   running
+NAMESPACE   NAME                  CLOUD-PROVIDER   REGION      VIRTUAL-PRIVATE-CLOUD   STATE     AGENTED
+sample-ns   i-0033eb4a6c846451d   AWS              us-west-1   vpc-0d6bb6a4a880bd9ad   running   false
+sample-ns   i-05e3fb66922d56e0a   AWS              us-west-1   vpc-0d6bb6a4a880bd9ad   running   false
+sample-ns   i-0a20bae92ddcdb60b   AWS              us-west-1   vpc-0d6bb6a4a880bd9ad   running   false
 ```
 
 Currently, the following matching criteria are supported to import VMs.

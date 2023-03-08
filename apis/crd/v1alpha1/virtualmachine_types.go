@@ -86,6 +86,8 @@ type VirtualMachineStatus struct {
 	NetworkInterfaces []NetworkInterface `json:"networkInterfaces,omitempty"`
 	// State indicates current state of the VirtualMachine.
 	State VMState `json:"state,omitempty"`
+	// Region indicates the cloud region of the VirtualMachine.
+	Region string `json:"region,omitempty"`
 	// Agented specifies if VM runs in agented mode, default is false.
 	Agented bool `json:"agented"`
 }
@@ -96,6 +98,7 @@ type VirtualMachineStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:shortName="vm"
 // +kubebuilder:printcolumn:name="Cloud-Provider",type=string,JSONPath=`.status.provider`
+// +kubebuilder:printcolumn:name="Region",type=string,JSONPath=`.status.region`
 // +kubebuilder:printcolumn:name="Virtual-Private-Cloud",type=string,JSONPath=`.status.virtualPrivateCloud`
 // +kubebuilder:printcolumn:name="State",type=string,JSONPath=`.status.state`
 // +kubebuilder:printcolumn:name="Agented",type=string,JSONPath=`.status.agented`
