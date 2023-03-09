@@ -30,6 +30,7 @@ import (
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/apiserver"
 	nephewebhook "antrea.io/nephe/pkg/apiserver/webhook"
+	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 	controllers "antrea.io/nephe/pkg/controllers/cloud"
 	"antrea.io/nephe/pkg/controllers/inventory"
 	"antrea.io/nephe/pkg/logging"
@@ -57,6 +58,8 @@ func main() {
 	var enableLeaderElection bool
 	var enableDebugLog bool
 
+	opts := newOptions()
+	flag.StringVar(&opts.configFile, "config", opts.configFile, "The path to the configuration file.")
 	flag.StringVar(&metricsAddr, "metrics-addr", defaultMetricsAddress, "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", defaultLeaderElectionFlag,
 		"Enable leader election for nephe-controller manager. "+
@@ -67,6 +70,14 @@ func main() {
 
 	logging.SetDebugLog(enableDebugLog)
 	ctrl.SetLogger(logging.GetLogger("setup"))
+
+	if err := opts.complete(); err != nil {
+		setupLog.Error(err, "invalid nephe-controller configuration")
+		os.Exit(1)
+	}
+
+	setupLog.Info("Nephe ConfigMap", "ControllerConfig", opts.config)
+	securitygroup.SetCloudResourcePrefix(opts.config.CloudResourcePrefix)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
@@ -86,16 +97,6 @@ func main() {
 	// Initialize Account poller map.
 	poller := controllers.InitPollers()
 
-	configMapController := &controllers.ConfigMapReconciler{
-		Client: mgr.GetClient(),
-		Log:    logging.GetLogger("controllers").WithName("ConfigMap"),
-		Scheme: mgr.GetScheme(),
-	}
-	if err = configMapController.SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ConfigMap")
-		os.Exit(1)
-	}
-
 	if err = (&controllers.CloudEntitySelectorReconciler{
 		Client: mgr.GetClient(),
 		Log:    logging.GetLogger("controllers").WithName("CloudEntitySelector"),
@@ -112,15 +113,17 @@ func main() {
 		Scheme:    mgr.GetScheme(),
 		Inventory: cloudInventory,
 		Poller:    poller,
+		Mgr:       &mgr,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CloudProviderAccount")
 		os.Exit(1)
 	}
 
 	npController := &controllers.NetworkPolicyReconciler{
-		Client: mgr.GetClient(),
-		Log:    logging.GetLogger("controllers").WithName("NetworkPolicy"),
-		Scheme: mgr.GetScheme(),
+		Client:            mgr.GetClient(),
+		Log:               logging.GetLogger("controllers").WithName("NetworkPolicy"),
+		Scheme:            mgr.GetScheme(),
+		CloudSyncInterval: opts.config.CloudSyncInterval,
 	}
 
 	if err = npController.SetupWithManager(mgr); err != nil {
@@ -142,11 +145,6 @@ func main() {
 	mgr.GetWebhookServer().Register("/validate-v1-secret",
 		&webhook.Admission{Handler: &nephewebhook.SecretValidator{Client: mgr.GetClient(),
 			Log: logging.GetLogger("webhook").WithName("Secret")}})
-
-	// Register webhook for ConfigMap.
-	mgr.GetWebhookServer().Register("/validate-v1-configmap",
-		&webhook.Admission{Handler: &nephewebhook.ConfigMapValidator{Client: mgr.GetClient(),
-			Log: logging.GetLogger("webhook").WithName("ConfigMap"), NpControllerInterface: npController}})
 
 	// Register webhook for CloudProviderAccount Mutator.
 	mgr.GetWebhookServer().Register("/mutate-crd-cloud-antrea-io-v1alpha1-cloudprovideraccount",

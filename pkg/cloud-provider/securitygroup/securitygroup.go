@@ -109,7 +109,7 @@ const (
 )
 
 var (
-	ControllerPrefix             *string
+	ControllerPrefix             string
 	ControllerAddressGroupPrefix string
 	ControllerAppliedToPrefix    string
 )
@@ -135,17 +135,17 @@ var (
 	CloudSecurityGroup CloudSecurityGroupAPI
 )
 
-func SetCloudResourcePrefix(CloudResourcePrefix *string) {
+func SetCloudResourcePrefix(CloudResourcePrefix string) {
 	ControllerPrefix = CloudResourcePrefix
 }
 
 func GetControllerAddressGroupPrefix() string {
-	ControllerAddressGroupPrefix = *ControllerPrefix + "-ag-"
+	ControllerAddressGroupPrefix = ControllerPrefix + "-ag-"
 	return ControllerAddressGroupPrefix
 }
 
 func GetControllerAppliedToPrefix() string {
-	ControllerAppliedToPrefix = *ControllerPrefix + "-at-"
+	ControllerAppliedToPrefix = ControllerPrefix + "-at-"
 	return ControllerAppliedToPrefix
 }
 

@@ -111,24 +111,3 @@ webhooks:
             - secrets
     sideEffects: None
     admissionReviewVersions: ["v1", "v1beta1"]
-  - clientConfig:
-      caBundle: Cg==
-      service:
-        name: nephe-controller-webhook-service
-        namespace: system
-        path: /validate-v1-configmap
-    failurePolicy: Fail
-    name: vconfigmap.kb.io
-    rules:
-      - apiGroups:
-          - ""
-        apiVersions:
-          - v1
-        operations:
-          - UPDATE
-          - DELETE
-        resources:
-          - configmaps
-        scope: "Namespaced"
-    sideEffects: None
-    admissionReviewVersions: [ "v1", "v1beta1" ]
