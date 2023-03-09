@@ -1,0 +1,29 @@
+apiVersion: v2
+name: nephe
+type: application
+displayName: Nephe
+home: https://antrea.io/
+version: 0.0.0
+appVersion: latest
+kubeVersion: ">= 1.16.0-0"
+icon: https://raw.githubusercontent.com/antrea-io/antrea/main/docs/assets/logo/antrea_logo.svg
+description: Antrea managed security policies in the public cloud
+dependencies:
+- name: crds
+  condition: crds.enabled
+  version: 0.0.0
+keywords:
+  - Kubernetes
+  - CNCF
+  - Networking
+  - Antrea
+  - Security
+  - Public Cloud
+  - AWS
+  - Azure
+sources:
+  - https://github.com/antrea-io/nephe
+annotations:
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/operator: "false"
+  artifacthub.io/prerelease: "false"

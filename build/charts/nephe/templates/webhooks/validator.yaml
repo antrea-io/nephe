@@ -1,0 +1,75 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/serving-cert
+  name: nephe-controller-validating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    caBundle: Cg==
+    service:
+      name: nephe-controller-webhook-service
+      namespace: {{ .Release.Namespace }}
+      path: /validate-crd-cloud-antrea-io-v1alpha1-cloudentityselector
+  failurePolicy: Fail
+  name: vcloudentityselector.kb.io
+  rules:
+  - apiGroups:
+    - crd.cloud.antrea.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    - DELETE
+    resources:
+    - cloudentityselectors
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    caBundle: Cg==
+    service:
+      name: nephe-controller-webhook-service
+      namespace: {{ .Release.Namespace }}
+      path: /validate-crd-cloud-antrea-io-v1alpha1-cloudprovideraccount
+  failurePolicy: Fail
+  name: vcloudprovideraccount.kb.io
+  rules:
+  - apiGroups:
+    - crd.cloud.antrea.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    - DELETE
+    resources:
+    - cloudprovideraccounts
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    caBundle: Cg==
+    service:
+      name: nephe-controller-webhook-service
+      namespace: nephe-system
+      path: /validate-v1-secret
+  failurePolicy: Ignore
+  name: vsecret.kb.io
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - v1
+    operations:
+    - UPDATE
+    - DELETE
+    resources:
+    - secrets
+  sideEffects: None

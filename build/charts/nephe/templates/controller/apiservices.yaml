@@ -1,0 +1,14 @@
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/serving-cert
+  name: v1alpha1.runtime.cloud.antrea.io
+spec:
+  group: runtime.cloud.antrea.io
+  groupPriorityMinimum: 100
+  service:
+    name: nephe-controller-service
+    namespace: {{ .Release.Namespace }}
+  version: v1alpha1
+  versionPriority: 100

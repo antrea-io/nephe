@@ -40,8 +40,6 @@ var (
 	apiServerPort = 5443
 	// Match Nephe Controller Service Name
 	nepheControllerSvcName = "nephe-controller-service"
-	// Match Nephe Controller Service Domain Name
-	nepheControllerDomainName = "nephe-controller-service.nephe-system.svc"
 )
 
 // ExtraConfig holds custom apiserver config.
@@ -66,7 +64,7 @@ func NewConfig(codecs serializer.CodecFactory, vmpIndexer cache.Indexer, cloudIn
 	recommend.SecureServing.ServerCert.PairName = "tls"
 	recommend.SecureServing.ServerCert.CertDirectory = "/tmp/k8s-apiserver/serving-certs"
 	if err := recommend.SecureServing.MaybeDefaultWithSelfSignedCerts(nepheControllerSvcName,
-		[]string{nepheControllerDomainName}, []net.IP{net.ParseIP("127.0.0.1")}); err != nil {
+		[]string{}, []net.IP{net.ParseIP("127.0.0.1")}); err != nil {
 		return nil, err
 	}
 
