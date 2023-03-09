@@ -17,6 +17,7 @@ package inventory
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/fields"
@@ -46,35 +47,50 @@ func InitInventory() *Inventory {
 }
 
 // BuildVpcCache using vpc list from cloud, update vpc cache(with vpcs applicable for the current cloud account).
-func (inventory *Inventory) BuildVpcCache(vpcMap map[string]*runtimev1alpha1.Vpc, namespacedName *types.NamespacedName) error {
+func (inventory *Inventory) BuildVpcCache(discoveredVpcMap map[string]*runtimev1alpha1.Vpc, namespacedName *types.NamespacedName) error {
+	var numVpcsToAdd, numVpcsToUpdate, numVpcsToDelete int
 	vpcsInCache, _ := inventory.vpcStore.GetByIndex(common.VpcIndexerByAccountNameSpacedName, namespacedName.String())
 
 	// Remove vpcs in vpc cache which are not found in vpc list fetched from cloud.
 	for _, i := range vpcsInCache {
 		vpc := i.(*runtimev1alpha1.Vpc)
-		if _, found := vpcMap[vpc.Status.Id]; !found {
-			inventory.log.V(1).Info("Deleting vpc from vpc cache", "vpc id", vpc.Status.Id, "account",
-				namespacedName.String())
+		if _, found := discoveredVpcMap[vpc.Status.Id]; !found {
 			if err := inventory.vpcStore.Delete(fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[common.VpcLabelAccountName],
 				vpc.Status.Id)); err != nil {
 				inventory.log.Error(err, "failed to delete vpc from vpc cache", "vpc id", vpc.Status.Id, "account",
 					namespacedName.String())
+			} else {
+				numVpcsToDelete++
 			}
 		}
 	}
 
-	for _, v := range vpcMap {
+	for _, discoveredVpc := range discoveredVpcMap {
 		var err error
-		key := fmt.Sprintf("%v/%v-%v", v.Namespace, v.Labels[common.VpcLabelAccountName], v.Status.Id)
-		if _, found, _ := inventory.vpcStore.Get(key); !found {
-			err = inventory.vpcStore.Create(v)
+		key := fmt.Sprintf("%v/%v-%v", discoveredVpc.Namespace, discoveredVpc.Labels[common.VpcLabelAccountName], discoveredVpc.Status.Id)
+		if cachedObj, found, _ := inventory.vpcStore.Get(key); !found {
+			err = inventory.vpcStore.Create(discoveredVpc)
+			if err == nil {
+				numVpcsToAdd++
+			}
 		} else {
-			err = inventory.vpcStore.Update(v)
+			cachedVpc := cachedObj.(*runtimev1alpha1.Vpc)
+			if !reflect.DeepEqual(cachedVpc.Status, discoveredVpc.Status) {
+				err = inventory.vpcStore.Update(discoveredVpc)
+				if err == nil {
+					numVpcsToUpdate++
+				}
+			}
 		}
 		if err != nil {
 			return fmt.Errorf("failed to add vpc into vpc cache, vpc id: %s, error: %v",
-				v.Status.Id, err)
+				discoveredVpc.Status.Id, err)
 		}
+	}
+
+	if numVpcsToAdd != 0 || numVpcsToUpdate != 0 || numVpcsToDelete != 0 {
+		inventory.log.Info("Vpc poll statistics", "account", namespacedName, "added", numVpcsToAdd,
+			"update", numVpcsToUpdate, "delete", numVpcsToDelete)
 	}
 
 	return nil
