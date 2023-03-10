@@ -21,6 +21,6 @@ const (
 )
 
 type ControllerConfig struct {
-	CloudResourcePrefix string `yaml:"CloudResourcePrefix,omitempty"`
-	CloudSyncInterval   int64  `yaml:"CloudSyncInterval,omitempty"`
+	CloudResourcePrefix string `yaml:"cloudResourcePrefix,omitempty"`
+	CloudSyncInterval   int64  `yaml:"cloudSyncInterval,omitempty"`
 }
