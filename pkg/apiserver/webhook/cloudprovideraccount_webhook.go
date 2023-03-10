@@ -94,7 +94,7 @@ func (m *CPAMutator) InjectDecoder(d *admission.Decoder) error {
 
 // TODO(user): change verbs to :"verbs=create;update;delete" if you want to enable deletion validation.
 // nolint:lll
-// +kubebuilder:webhook:verbs=create;update,path=/validate-crd-cloud-antrea-io-v1alpha1-cloudprovideraccount,mutating=false,failurePolicy=fail,groups=crd.cloud.antrea.io,resources=cloudprovideraccounts,versions=v1alpha1,name=vcloudprovideraccount.kb.io,sideEffects=None,admissionReviewVersions=v1;v1beta1
+// +kubebuilder:webhook:verbs=create;update;delete,path=/validate-crd-cloud-antrea-io-v1alpha1-cloudprovideraccount,mutating=false,failurePolicy=fail,groups=crd.cloud.antrea.io,resources=cloudprovideraccounts,versions=v1alpha1,name=vcloudprovideraccount.kb.io,sideEffects=None,admissionReviewVersions=v1;v1beta1
 
 // CPAValidator is used to validate CPA object.
 type CPAValidator struct {
@@ -116,6 +116,12 @@ func (v *CPAValidator) Handle(ctx context.Context, req admission.Request) admiss
 	case admissionv1.Update:
 		return v.validateUpdate(req)
 	case admissionv1.Delete:
+		// Since CPA CR is parent of CES CR, deletion of CPA CR would invoke delete of CES CR,
+		// which is not allowed, until CES sync is done.
+		if !cloud.GetControllerSyncStatusInstance().IsControllerSynced(cloud.ControllerTypeCES) {
+			return admission.Errored(http.StatusBadRequest, fmt.Errorf("%v %v, retry after sometime",
+				cloud.ControllerTypeCES.String(), cloud.ErrorMsgControllerInitializing))
+		}
 		return v.validateDelete(req)
 	default:
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf(errorMsgInvalidRequest))

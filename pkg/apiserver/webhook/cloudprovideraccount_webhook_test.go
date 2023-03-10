@@ -59,6 +59,7 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 			credentials               = "credentials"
 			awsAccount                *v1alpha1.CloudProviderAccount
 			azureAccount              *v1alpha1.CloudProviderAccount
+			account                   *v1alpha1.CloudProviderAccount
 			s1                        *corev1.Secret
 			validator                 *CPAValidator
 			mutator                   *CPAMutator
@@ -207,41 +208,6 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 			response := mutator.Handle(context.Background(), accountReq)
 			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 			Expect(response.AdmissionResponse.Allowed).To(BeFalse())
-		})
-		It("Validate controller is not initialized", func() {
-			account := &v1alpha1.CloudProviderAccount{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-				},
-				Spec: v1alpha1.CloudProviderAccountSpec{},
-			}
-			encodedAccount, _ = json.Marshal(account)
-			accountReq = admission.Request{
-				AdmissionRequest: v1.AdmissionRequest{
-					Kind: metav1.GroupVersionKind{
-						Group:   "",
-						Version: "v1alpha1",
-						Kind:    "CloudProviderAccount",
-					},
-					Resource: metav1.GroupVersionResource{
-						Group:    "",
-						Version:  "v1alpha1",
-						Resource: "CloudProviderAccounts",
-					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					Operation: v1.Create,
-					Object: runtime.RawExtension{
-						Raw: encodedAccount,
-					},
-				},
-			}
-			cloud.GetControllerSyncStatusInstance().ResetControllerSyncStatus(cloud.ControllerTypeCPA)
-			response := validator.Handle(context.Background(), accountReq)
-			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
-			Expect(response.AdmissionResponse.Allowed).To(BeFalse())
-			Expect(response.String()).Should(ContainSubstring(cloud.ErrorMsgControllerInitializing))
 		})
 		It("Validate unknown cloud provider", func() {
 			account := &v1alpha1.CloudProviderAccount{
@@ -1218,6 +1184,97 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 			Expect(response.AdmissionResponse.Allowed).To(BeFalse())
 			Expect(response.AdmissionResponse.String()).Should(ContainSubstring(errorMsgInvalidRequest))
+		})
+
+		Context("Validate controller is not initialized", func() {
+			BeforeEach(func() {
+				account = &v1alpha1.CloudProviderAccount{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      testAccountNamespacedName.Name,
+						Namespace: testAccountNamespacedName.Namespace,
+					},
+					Spec: v1alpha1.CloudProviderAccountSpec{},
+				}
+				encodedAccount, _ = json.Marshal(account)
+				accountReq = admission.Request{
+					AdmissionRequest: v1.AdmissionRequest{
+						Kind: metav1.GroupVersionKind{
+							Group:   "",
+							Version: "v1alpha1",
+							Kind:    "CloudProviderAccount",
+						},
+						Resource: metav1.GroupVersionResource{
+							Group:    "",
+							Version:  "v1alpha1",
+							Resource: "CloudProviderAccounts",
+						},
+						Name:      testAccountNamespacedName.Name,
+						Namespace: testAccountNamespacedName.Namespace,
+						Operation: v1.Create,
+						Object: runtime.RawExtension{
+							Raw: encodedAccount,
+						},
+					},
+				}
+				cloud.GetControllerSyncStatusInstance().ResetControllerSyncStatus(cloud.ControllerTypeCPA)
+			})
+
+			It("Validate create CPA CR failure", func() {
+				response := validator.Handle(context.Background(), accountReq)
+				_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
+				Expect(response.AdmissionResponse.Allowed).To(BeFalse())
+				Expect(response.String()).Should(ContainSubstring(cloud.ErrorMsgControllerInitializing))
+			})
+			It("Validate update CPA CR failure", func() {
+				err = fakeClient.Create(context.Background(), s1)
+				Expect(err).Should(BeNil())
+				oldAccount := &v1alpha1.CloudProviderAccount{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      testAccountNamespacedName.Name,
+						Namespace: testAccountNamespacedName.Namespace,
+					},
+					Spec: v1alpha1.CloudProviderAccountSpec{
+						PollIntervalInSeconds: &pollIntv,
+						AWSConfig: &v1alpha1.CloudProviderAccountAWSConfig{
+							Region: "us-east-2",
+							SecretRef: &v1alpha1.SecretReference{
+								Name:      testSecretNamespacedName.Name,
+								Namespace: testSecretNamespacedName.Namespace,
+								Key:       credentials,
+							},
+						},
+					},
+				}
+				encodedOldAccount, _ := json.Marshal(oldAccount)
+				accountReq.Operation = v1.Update
+				accountReq.Object = runtime.RawExtension{
+					Raw: encodedAccount,
+				}
+				accountReq.OldObject = runtime.RawExtension{
+					Raw: encodedOldAccount,
+				}
+
+				response := validator.Handle(context.Background(), accountReq)
+				_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
+				Expect(response.AdmissionResponse.Allowed).To(BeFalse())
+				Expect(response.String()).Should(ContainSubstring(cloud.ErrorMsgControllerInitializing))
+			})
+			It("Validate delete CPA CR failure", func() {
+				accountReq.Operation = v1.Delete
+				response := validator.Handle(context.Background(), accountReq)
+				_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
+				Expect(response.AdmissionResponse.Allowed).To(BeFalse())
+				Expect(response.String()).Should(ContainSubstring(fmt.Sprintf("%s %s",
+					cloud.ControllerTypeCPA.String(), cloud.ErrorMsgControllerInitializing)))
+				// CPA sync done, CES is not synced.
+				cloud.GetControllerSyncStatusInstance().SetControllerSyncStatus(cloud.ControllerTypeCPA)
+				cloud.GetControllerSyncStatusInstance().ResetControllerSyncStatus(cloud.ControllerTypeCES)
+				response = validator.Handle(context.Background(), accountReq)
+				_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
+				Expect(response.AdmissionResponse.Allowed).To(BeFalse())
+				Expect(response.String()).Should(ContainSubstring(fmt.Sprintf("%s %s",
+					cloud.ControllerTypeCES.String(), cloud.ErrorMsgControllerInitializing)))
+			})
 		})
 	})
 })

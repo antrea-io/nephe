@@ -71,6 +71,7 @@ webhooks:
     operations:
     - CREATE
     - UPDATE
+    - DELETE
     resources:
     - cloudentityselectors
   sideEffects: None
@@ -92,6 +93,7 @@ webhooks:
     operations:
     - CREATE
     - UPDATE
+    - DELETE
     resources:
     - cloudprovideraccounts
   sideEffects: None
