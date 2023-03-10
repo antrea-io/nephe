@@ -179,10 +179,10 @@ kubectl get vm -A
 
 ```text
 # Output
-NAMESPACE   NAME                  CLOUD-PROVIDER   VIRTUAL-PRIVATE-CLOUD   STATE
-aws-ns      i-0033eb4a6c846451d   AWS              vpc-0d6bb6a4a880bd9ad   running
-aws-ns      i-05e3fb66922d56e0a   AWS              vpc-0d6bb6a4a880bd9ad   running
-aws-ns      i-0a20bae92ddcdb60b   AWS              vpc-0d6bb6a4a880bd9ad   running
+NAMESPACE   NAME                  CLOUD-PROVIDER   REGION      VIRTUAL-PRIVATE-CLOUD   STATE     AGENTED
+aws-ns      i-0033eb4a6c846451d   AWS              us-west-1   vpc-0d6bb6a4a880bd9ad   running   false
+aws-ns      i-05e3fb66922d56e0a   AWS              us-west-1   vpc-0d6bb6a4a880bd9ad   running   false
+aws-ns      i-0a20bae92ddcdb60b   AWS              us-west-1   vpc-0d6bb6a4a880bd9ad   running   false
 ```
 
 ### List External Entities
@@ -358,10 +358,10 @@ kubectl get vm -A
 
 ```text
 # Output
-NAMESPACE   NAME                          CLOUD-PROVIDER   VIRTUAL-PRIVATE-CLOUD        STATE
-azure-ns    centos-host-vmlinux-0-16117   Azure            nephe-vnet-e4d5cd72369467d9  running
-azure-ns    rhel-host-vmlinux-0-15892     Azure            nephe-vnet-e4d5cd72369467d9  running
-azure-ns    ubuntu-host-vmlinux-0-16140   Azure            nephe-vnet-e4d5cd72369467d9  running
+NAMESPACE   NAME                          CLOUD-PROVIDER   REGION    VIRTUAL-PRIVATE-CLOUD        STATE     AGENTED
+azure-ns    centos-host-vmlinux-0-16117   Azure            westus2   nephe-vnet-e4d5cd72369467d9  running   false
+azure-ns    rhel-host-vmlinux-0-15892     Azure            westus2   nephe-vnet-e4d5cd72369467d9  running   false
+azure-ns    ubuntu-host-vmlinux-0-16140   Azure            westus2   nephe-vnet-e4d5cd72369467d9  running   false
 ```
 
 ### List External Entities

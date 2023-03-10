@@ -296,7 +296,7 @@ func (ec2Cfg *ec2ServiceConfig) GetResourceCRDs(namespace string, accountId stri
 	vmCRDs := make([]*v1alpha1.VirtualMachine, 0, len(instances))
 	for _, instance := range instances {
 		// build VirtualMachine CRD
-		vmCRD := ec2InstanceToVirtualMachineCRD(instance, namespace, accountId)
+		vmCRD := ec2InstanceToVirtualMachineCRD(instance, namespace, accountId, ec2Cfg.credentials.region)
 		vmCRDs = append(vmCRDs, vmCRD)
 	}
 

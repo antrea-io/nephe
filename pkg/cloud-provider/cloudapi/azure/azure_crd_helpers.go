@@ -36,7 +36,8 @@ var azureStateMap = map[string]v1alpha1.VMState{
 	"PowerState/unknown":      v1alpha1.Unknown,
 }
 
-func computeInstanceToVirtualMachineCRD(instance *virtualMachineTable, namespace string, accountId string) *v1alpha1.VirtualMachine {
+func computeInstanceToVirtualMachineCRD(instance *virtualMachineTable, namespace string, accountId string,
+	region string) *v1alpha1.VirtualMachine {
 	tags := make(map[string]string)
 
 	vmTags := instance.Tags
@@ -102,9 +103,8 @@ func computeInstanceToVirtualMachineCRD(instance *virtualMachineTable, namespace
 	} else {
 		state = v1alpha1.Unknown
 	}
-	return utils.GenerateVirtualMachineCRD(crdName, strings.ToLower(cloudName), strings.ToLower(cloudID), namespace,
-		strings.ToLower(cloudNetworkID), cloudNetworkShortID,
-		state, tags, networkInterfaces, providerType, accountId)
+	return utils.GenerateVirtualMachineCRD(crdName, strings.ToLower(cloudName), strings.ToLower(cloudID), strings.ToLower(region),
+		namespace, strings.ToLower(cloudNetworkID), cloudNetworkShortID, state, tags, networkInterfaces, providerType, accountId)
 }
 
 // ComputeVpcToInternalVpcObject converts vnet object from cloud format(network.VirtualNetwork) to vpc runtime object.

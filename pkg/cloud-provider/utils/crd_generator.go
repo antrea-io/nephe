@@ -26,8 +26,9 @@ import (
 	cloudcommon "antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 )
 
-func GenerateVirtualMachineCRD(crdName string, cloudName string, cloudID string, namespace string, cloudNetwork string,
-	shortNetworkID string, state cloudv1alpha1.VMState, tags map[string]string, networkInterfaces []cloudv1alpha1.NetworkInterface,
+// GenerateVirtualMachineCRD constructs a VirtualMachine CR based on parameters.
+func GenerateVirtualMachineCRD(crdName, cloudName, cloudID, region, namespace, cloudNetwork, shortNetworkID string,
+	state cloudv1alpha1.VMState, tags map[string]string, networkInterfaces []cloudv1alpha1.NetworkInterface,
 	provider cloudcommon.ProviderType, accountId string) *cloudv1alpha1.VirtualMachine {
 	vmStatus := &cloudv1alpha1.VirtualMachineStatus{
 		Provider:            cloudv1alpha1.CloudProvider(provider),
@@ -35,6 +36,7 @@ func GenerateVirtualMachineCRD(crdName string, cloudName string, cloudID string,
 		Tags:                tags,
 		State:               state,
 		NetworkInterfaces:   networkInterfaces,
+		Region:              region,
 		Agented:             false,
 	}
 	annotationsMap := map[string]string{
