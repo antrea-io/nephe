@@ -134,7 +134,7 @@ func (r *REST) convertToVMP(internal *cloud.NetworkPolicyStatus) *runtimev1alpha
 	inProgress := false
 	npStatusList := make(map[string]*runtimev1alpha1.NetworkPolicyStatus)
 	for anp, status := range internal.NPStatus {
-		if status == cloud.NetworkPolicyStatusApplied {
+		if strings.Contains(status, cloud.NetworkPolicyStatusApplied) {
 			npStatusList[anp] = &runtimev1alpha1.NetworkPolicyStatus{Realization: runtimev1alpha1.Success, Reason: NoneString}
 		} else if strings.Contains(status, i.String()) {
 			npStatusList[anp] = &runtimev1alpha1.NetworkPolicyStatus{Realization: runtimev1alpha1.InProgress, Reason: NoneString}

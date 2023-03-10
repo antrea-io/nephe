@@ -895,7 +895,7 @@ var _ = Describe("NetworkPolicy", func() {
 				npStatus := obj.(*NetworkPolicyStatus)
 				status, ok := npStatus.NPStatus[anp.Name]
 				Expect(ok).To(BeTrue())
-				Expect(status).To(Equal(NetworkPolicyStatusApplied))
+				Expect(status).To(ContainSubstring(NetworkPolicyStatusApplied))
 			} else if !hasPolicy && hasError {
 				Expect(found).To(BeTrue())
 				npStatus := obj.(*NetworkPolicyStatus)
