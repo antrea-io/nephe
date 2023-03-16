@@ -156,7 +156,7 @@ func (a *AccountManager) RemoveAccount(namespacedName *types.NamespacedName) err
 	if err != nil {
 		return err
 	}
-	_ = cloudInterface.DeleteInventoryPollCache(namespacedName)
+	_ = cloudInterface.ResetInventoryCache(namespacedName)
 	cloudInterface.RemoveProviderAccount(namespacedName)
 	return nil
 }
@@ -197,7 +197,7 @@ func (a *AccountManager) RemoveResourceFiltersFromAccount(accNamespacedName *typ
 	}
 	cloudInterface, _ := cloudprovider.GetCloudInterface(cloudProviderType)
 	a.Log.V(1).Info("Removing selectors for account", "name", accNamespacedName)
-	cloudInterface.RemoveAccountResourcesSelector(accNamespacedName, selectorNamespacedName.Name)
+	cloudInterface.RemoveAccountResourcesSelector(accNamespacedName, selectorNamespacedName)
 
 	// Restart account poller after removing the selector.
 	accPoller, exists := a.getAccountPoller(accNamespacedName)

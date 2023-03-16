@@ -49,14 +49,14 @@ type CloudCommonInterface interface {
 	AddCloudAccount(client client.Client, account *crdv1alpha1.CloudProviderAccount, credentials interface{}) error
 	RemoveCloudAccount(namespacedName *types.NamespacedName)
 
-	AddSelector(namespacedName *types.NamespacedName, selector *crdv1alpha1.CloudEntitySelector) error
-	RemoveSelector(accNamespacedName *types.NamespacedName, selectorNameSpacedName string)
+	AddResourceFilters(namespacedName *types.NamespacedName, selector *crdv1alpha1.CloudEntitySelector) error
+	RemoveResourceFilters(accNamespacedName, selectorNamespacedName *types.NamespacedName)
 
 	GetStatus(accNamespacedName *types.NamespacedName) (*crdv1alpha1.CloudProviderAccountStatus, error)
 
 	DoInventoryPoll(accountNamespacedName *types.NamespacedName) error
 
-	DeleteInventoryPollCache(accountNamespacedName *types.NamespacedName) error
+	ResetInventoryCache(accountNamespacedName *types.NamespacedName) error
 
 	GetVpcInventory(accountNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.Vpc, error)
 }
@@ -168,28 +168,30 @@ func (c *cloudCommon) GetCloudAccountComputeInternalResourceObjects(accountNames
 	return computeCRs, nil
 }
 
-func (c *cloudCommon) AddSelector(accountNamespacedName *types.NamespacedName, selector *crdv1alpha1.CloudEntitySelector) error {
+func (c *cloudCommon) AddResourceFilters(accountNamespacedName *types.NamespacedName, selector *crdv1alpha1.CloudEntitySelector) error {
 	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
 	if !found {
 		return fmt.Errorf("unable to find cloud account: %v", *accountNamespacedName)
 	}
 
 	for _, serviceCfg := range accCfg.GetServiceConfigs() {
-		serviceCfg.addSelectors(selector)
+		if err := serviceCfg.addResourceFilters(selector); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func (c *cloudCommon) RemoveSelector(accNamespacedName *types.NamespacedName, selectorNameSpacedName string) {
+func (c *cloudCommon) RemoveResourceFilters(accNamespacedName, selectorNamespacedName *types.NamespacedName) {
 	accCfg, found := c.GetCloudAccountByName(accNamespacedName)
 	if !found {
-		c.logger().Info("Account not found", "account", *accNamespacedName, "name", selectorNameSpacedName)
+		c.logger().Info("Account not found", "account", *accNamespacedName, "selector", selectorNamespacedName)
 		return
 	}
 
 	for _, serviceCfg := range accCfg.GetServiceConfigs() {
-		serviceCfg.removeSelectors(selectorNameSpacedName)
+		serviceCfg.removeResourceFilters(selectorNamespacedName)
 	}
 }
 
@@ -217,14 +219,14 @@ func (c *cloudCommon) DoInventoryPoll(accountNamespacedName *types.NamespacedNam
 	return nil
 }
 
-// DeleteInventoryPollCache resets cloud snapshot to nil.
-func (c *cloudCommon) DeleteInventoryPollCache(accountNamespacedName *types.NamespacedName) error {
+// ResetInventoryCache resets cloud snapshot and poll stats to nil.
+func (c *cloudCommon) ResetInventoryCache(accountNamespacedName *types.NamespacedName) error {
 	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
 	if !found {
 		return fmt.Errorf("unable to find cloud account %v", *accountNamespacedName)
 	}
 
-	accCfg.resetInventorySyncCache()
+	accCfg.resetInventoryCache()
 	return nil
 }
 

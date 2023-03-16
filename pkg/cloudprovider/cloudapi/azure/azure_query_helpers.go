@@ -61,6 +61,7 @@ func buildQueries(vmSelector []crdv1alpha1.VirtualMachineSelector, subscriptionI
 	// vpcMatch contains nil and vmMatch contains only vmName:
 	// vmNameOnlyMatches slice contains the specific vmMatch section(EntityMatch).
 	// Azure query is created to match only vms matching the matchName.
+
 	for _, match := range vmSelector {
 		isVpcIDPresent := false
 

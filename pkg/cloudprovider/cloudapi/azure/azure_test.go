@@ -216,7 +216,7 @@ var _ = Describe("Azure", func() {
 
 				errPolAdd := c.DoInventoryPoll(testAccountNamespacedName)
 				Expect(errPolAdd).Should(BeNil())
-				errPolDel := c.DeleteInventoryPollCache(testAccountNamespacedName)
+				errPolDel := c.ResetInventoryCache(testAccountNamespacedName)
 				Expect(errPolDel).Should(BeNil())
 				mockazureVirtualNetworksWrapper.EXPECT().listAllComplete(gomock.Any()).Return(createVnetObject(vnetIDs), nil).MinTimes(0)
 			})
@@ -250,7 +250,7 @@ var _ = Describe("Azure", func() {
 				filters := getFilters(c, testSelectorNamespacedName.String())
 				Expect(filters).To(Equal(expectedQueryStrs))
 
-				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName.String())
+				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName)
 				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
 				filters = getFilters(c, testSelectorNamespacedName.String())
 				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
@@ -287,7 +287,7 @@ var _ = Describe("Azure", func() {
 				filters := getFilters(c, testSelectorNamespacedName.String())
 				Expect(filters).To(Equal(expectedQueryStrs))
 
-				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName.String())
+				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName)
 				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
 				filters = getFilters(c, testSelectorNamespacedName.String())
 				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
@@ -335,7 +335,7 @@ var _ = Describe("Azure", func() {
 				filters := getFilters(c, testSelectorNamespacedName.String())
 				Expect(filters).To(Equal(expectedQueryStrs))
 
-				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName.String())
+				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName)
 				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
 				filters = getFilters(c, testSelectorNamespacedName.String())
 				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
@@ -363,7 +363,7 @@ var _ = Describe("Azure", func() {
 				filters := getFilters(c, testSelectorNamespacedName.String())
 				Expect(filters).To(Equal(expectedQueryStrs))
 
-				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName.String())
+				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName)
 				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
 				filters = getFilters(c, testSelectorNamespacedName.String())
 				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
@@ -393,7 +393,7 @@ var _ = Describe("Azure", func() {
 				filters := getFilters(c, testSelectorNamespacedName.String())
 				Expect(filters).To(Equal(expectedQueryStrs))
 
-				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName.String())
+				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName)
 				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
 				filters = getFilters(c, testSelectorNamespacedName.String())
 				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
@@ -424,7 +424,7 @@ var _ = Describe("Azure", func() {
 				filters := getFilters(c, testSelectorNamespacedName.String())
 				Expect(filters).To(Equal(expectedQueryStrs))
 
-				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName.String())
+				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName)
 				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
 				filters = getFilters(c, testSelectorNamespacedName.String())
 				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))

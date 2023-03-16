@@ -43,12 +43,12 @@ type CloudServiceCommon struct {
 type CloudServiceInterface interface {
 	// UpdateServiceConfig updates existing service config with new values. Each service can decide to update one or
 	// more fields of the service.
-	UpdateServiceConfig(newServiceConfig CloudServiceInterface)
-	// SetResourceFilters will be used by service to get resources from cloud for the service. Each will convert
+	UpdateServiceConfig(newServiceConfig CloudServiceInterface) error
+	// AddResourceFilters will be used by service to get resources from cloud for the service. Each will convert
 	// CloudEntitySelector to service understandable filters.
-	AddSelectors(selector *crdv1alpha1.CloudEntitySelector)
+	AddResourceFilters(selector *crdv1alpha1.CloudEntitySelector) error
 	// RemoveResourceFilters will be used by service to remove configured filter.
-	RemoveSelectors(selectorNamespacedName string)
+	RemoveResourceFilters(selectorNamespacedName *types.NamespacedName)
 	// DoResourceInventory performs resource inventory for the cloud service based on configured filters. As part
 	// inventory, it is expected to save resources in service cache CloudServiceResourcesCache.
 	DoResourceInventory() error
@@ -60,31 +60,31 @@ type CloudServiceInterface interface {
 	GetName() CloudServiceName
 	// GetType returns service type (compute, any other type etc.)
 	GetType() CloudServiceType
-	// ResetCachedState clears any internal state build by the service as part of cloud resource discovery.
-	ResetCachedState()
-	// GetVpcInventory returns VPCs stored in internal snapshot(in cloud specific format) in runtimev1alpha1.Vpc format.
+	// ResetInventoryCache clears any internal state built by the service as part of cloud resource discovery.
+	ResetInventoryCache()
+	// GetVpcInventory copies VPCs stored in internal snapshot(in cloud specific format) to runtimev1alpha1.Vpc format.
 	GetVpcInventory() map[string]*runtimev1alpha1.Vpc
 }
 
-func (cfg *CloudServiceCommon) updateServiceConfig(newConfig CloudServiceInterface) {
+func (cfg *CloudServiceCommon) updateServiceConfig(newConfig CloudServiceInterface) error {
 	cfg.mutex.Lock()
 	defer cfg.mutex.Unlock()
 
-	cfg.serviceInterface.UpdateServiceConfig(newConfig)
+	return cfg.serviceInterface.UpdateServiceConfig(newConfig)
 }
 
-func (cfg *CloudServiceCommon) addSelectors(selector *crdv1alpha1.CloudEntitySelector) {
+func (cfg *CloudServiceCommon) addResourceFilters(selector *crdv1alpha1.CloudEntitySelector) error {
 	cfg.mutex.Lock()
 	defer cfg.mutex.Unlock()
 
-	cfg.serviceInterface.AddSelectors(selector)
+	return cfg.serviceInterface.AddResourceFilters(selector)
 }
 
-func (cfg *CloudServiceCommon) removeSelectors(selectorNamespacedName string) {
+func (cfg *CloudServiceCommon) removeResourceFilters(selectorNamespacedName *types.NamespacedName) {
 	cfg.mutex.Lock()
 	defer cfg.mutex.Unlock()
 
-	cfg.serviceInterface.RemoveSelectors(selectorNamespacedName)
+	cfg.serviceInterface.RemoveResourceFilters(selectorNamespacedName)
 }
 
 func (cfg *CloudServiceCommon) doResourceInventory() error {
@@ -113,11 +113,11 @@ func (cfg *CloudServiceCommon) getType() CloudServiceType {
 	return cfg.serviceInterface.GetType()
 }
 
-func (cfg *CloudServiceCommon) resetCachedState() {
+func (cfg *CloudServiceCommon) resetInventoryCache() {
 	cfg.mutex.Lock()
 	defer cfg.mutex.Unlock()
 
-	cfg.serviceInterface.ResetCachedState()
+	cfg.serviceInterface.ResetInventoryCache()
 }
 
 func (cfg *CloudServiceCommon) getVpcInventory() map[string]*runtimev1alpha1.Vpc {

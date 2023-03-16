@@ -89,12 +89,12 @@ func (c *azureCloud) RemoveProviderAccount(namespacedName *types.NamespacedName)
 
 // AddAccountResourceSelector adds account specific resource selector.
 func (c *azureCloud) AddAccountResourceSelector(accNamespacedName *types.NamespacedName, selector *crdv1alpha1.CloudEntitySelector) error {
-	return c.cloudCommon.AddSelector(accNamespacedName, selector)
+	return c.cloudCommon.AddResourceFilters(accNamespacedName, selector)
 }
 
 // RemoveAccountResourcesSelector removes account specific resource selector.
-func (c *azureCloud) RemoveAccountResourcesSelector(accNamespacedName *types.NamespacedName, selectorNamespacedName string) {
-	c.cloudCommon.RemoveSelector(accNamespacedName, selectorNamespacedName)
+func (c *azureCloud) RemoveAccountResourcesSelector(accNamespacedName, selectorNamespacedName *types.NamespacedName) {
+	c.cloudCommon.RemoveResourceFilters(accNamespacedName, selectorNamespacedName)
 }
 
 func (c *azureCloud) GetAccountStatus(accNamespacedName *types.NamespacedName) (*crdv1alpha1.CloudProviderAccountStatus, error) {
@@ -106,9 +106,9 @@ func (c *azureCloud) DoInventoryPoll(accountNamespacedName *types.NamespacedName
 	return c.cloudCommon.DoInventoryPoll(accountNamespacedName)
 }
 
-// DeleteInventoryPollCache resets cloud snapshot to nil.
-func (c *azureCloud) DeleteInventoryPollCache(accountNamespacedName *types.NamespacedName) error {
-	return c.cloudCommon.DeleteInventoryPollCache(accountNamespacedName)
+// ResetInventoryCache resets cloud snapshot and poll stats to nil.
+func (c *azureCloud) ResetInventoryCache(accountNamespacedName *types.NamespacedName) error {
+	return c.cloudCommon.ResetInventoryCache(accountNamespacedName)
 }
 
 // GetVpcInventory pulls cloud vpc inventory from internal snapshot.

@@ -292,25 +292,19 @@ func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
 	return nil
 }
 
-// SetResourceFilters add/updates instances resource filter for the service.
-func (ec2Cfg *ec2ServiceConfig) AddSelectors(selector *crdv1alpha1.CloudEntitySelector) {
-	var key string
-	if selector != nil {
-		key = selector.GetNamespace() + "/" + selector.GetName()
-	}
-
-	if filters, found := convertSelectorToEC2InstanceFilters(selector); found {
+// AddResourceFilters add/updates instances resource filter for the service.
+func (ec2Cfg *ec2ServiceConfig) AddResourceFilters(selector *crdv1alpha1.CloudEntitySelector) error {
+	if filters, ok := convertSelectorToEC2InstanceFilters(selector); ok {
+		key := selector.GetNamespace() + "/" + selector.GetName()
 		ec2Cfg.instanceFilters[key] = filters
 	} else {
-		if selector != nil {
-			delete(ec2Cfg.instanceFilters, key)
-		}
-		ec2Cfg.resourcesCache.UpdateSnapshot(nil)
+		return fmt.Errorf("error creating resource query filters for selector: %v", selector)
 	}
+	return nil
 }
 
-func (ec2Cfg *ec2ServiceConfig) RemoveSelectors(selectorNamespacedName string) {
-	delete(ec2Cfg.instanceFilters, selectorNamespacedName)
+func (ec2Cfg *ec2ServiceConfig) RemoveResourceFilters(selectorNamespacedName *types.NamespacedName) {
+	delete(ec2Cfg.instanceFilters, selectorNamespacedName.String())
 }
 
 func (ec2Cfg *ec2ServiceConfig) GetInternalResourceObjects(namespace string,
@@ -342,13 +336,17 @@ func (ec2Cfg *ec2ServiceConfig) GetInventoryStats() *internal.CloudServiceStats 
 	return ec2Cfg.inventoryStats
 }
 
-func (ec2Cfg *ec2ServiceConfig) ResetCachedState() {
+func (ec2Cfg *ec2ServiceConfig) ResetInventoryCache() {
+	ec2Cfg.resourcesCache.UpdateSnapshot(nil)
 	ec2Cfg.inventoryStats.ResetInventoryPollStats()
 }
 
-func (ec2Cfg *ec2ServiceConfig) UpdateServiceConfig(newConfig internal.CloudServiceInterface) {
+func (ec2Cfg *ec2ServiceConfig) UpdateServiceConfig(newConfig internal.CloudServiceInterface) error {
 	newEc2ServiceConfig := newConfig.(*ec2ServiceConfig)
 	ec2Cfg.apiClient = newEc2ServiceConfig.apiClient
+	ec2Cfg.credentials = newEc2ServiceConfig.credentials
+
+	return nil
 }
 
 func (ec2Cfg *ec2ServiceConfig) buildMapVpcNameToID(vpcs []*ec2.Vpc) map[string]string {
