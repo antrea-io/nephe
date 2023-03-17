@@ -20,30 +20,9 @@ jobs:
       run: |
         mkdir assets
         VERSION="${TAG:10}" ./hack/release/prepare-assets.sh ./assets
-    - name: Upload nephe.yml
-      uses: actions/upload-release-asset@v1
+    - name: Upload all assets
+      uses: alexellis/upload-assets@0.4.0
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./assets/nephe.yml
-        asset_name: nephe.yml
-        asset_content_type: application/octet-stream
-    - name: Upload install-vm-agent-wrapper.sh
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./assets/install-vm-agent-wrapper.sh
-        asset_name: install-vm-agent-wrapper.sh
-        asset_content_type: application/octet-stream
-    - name: Upload install-vm-agent-wrapper.ps1
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ./assets/install-vm-agent-wrapper.ps1
-        asset_name: install-vm-agent-wrapper.ps1
-        asset_content_type: application/octet-stream
+        asset_paths: '["./assets/*"]'
