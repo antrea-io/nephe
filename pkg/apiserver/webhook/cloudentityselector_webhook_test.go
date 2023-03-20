@@ -118,6 +118,7 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			Expect(err).Should(BeNil())
 
 			// set CES sync status.
+			cloud.GetControllerSyncStatusInstance().Configure()
 			cloud.GetControllerSyncStatusInstance().SetControllerSyncStatus(cloud.ControllerTypeCES)
 
 			mutator = &CESMutator{

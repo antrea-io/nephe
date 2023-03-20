@@ -333,7 +333,7 @@ var _ = Describe("VPC", func() {
 		vpcMap[cacheTest1.Status.Id] = cacheTest5
 		_ = cloudInventory1.BuildVpcCache(vpcMap, &namespacedName)
 		Expect(err).Should(BeNil())
-		err = cloudInventory1.DeleteVpcCache(&namespacedName)
+		err = cloudInventory1.DeleteVpcsFromCache(&namespacedName)
 		Expect(err).Should(BeNil())
 		for _, expectedEvent := range expectedEvents {
 			ev := <-watcher.ResultChan()

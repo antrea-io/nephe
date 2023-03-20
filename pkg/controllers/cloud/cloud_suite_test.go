@@ -36,7 +36,7 @@ import (
 var (
 	mockCtrl             *mock.Controller
 	mockClient           *controllerruntimeclient.MockClient
-	mockInveotory        *inventory.MockInventory
+	mockInventory        *inventory.MockInventory
 	mockCloudSecurityAPI *cloudtest.MockCloudSecurityGroupAPI
 	scheme               = runtime.NewScheme()
 )

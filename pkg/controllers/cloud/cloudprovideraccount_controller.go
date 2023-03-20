@@ -175,11 +175,11 @@ func (r *CloudProviderAccountReconciler) processDelete(namespacedName *types.Nam
 		return err
 	}
 
-	if err = r.Inventory.DeleteVpcCache(namespacedName); err != nil {
+	if err = r.Inventory.DeleteVpcsFromCache(namespacedName); err != nil {
 		return err
 	}
 
-	if err = r.Inventory.DeleteVmCache(namespacedName); err != nil {
+	if err = r.Inventory.DeleteVmsFromCache(namespacedName); err != nil {
 		return err
 	}
 

@@ -80,32 +80,32 @@ func (mr *MockInventoryMockRecorder) BuildVpcCache(arg0, arg1 interface{}) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildVpcCache", reflect.TypeOf((*MockInventory)(nil).BuildVpcCache), arg0, arg1)
 }
 
-// DeleteVmCache mocks base method.
-func (m *MockInventory) DeleteVmCache(arg0 *types.NamespacedName) error {
+// DeleteVmsFromCache mocks base method.
+func (m *MockInventory) DeleteVmsFromCache(arg0 *types.NamespacedName) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteVmCache", arg0)
+	ret := m.ctrl.Call(m, "DeleteVmsFromCache", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DeleteVmCache indicates an expected call of DeleteVmCache.
-func (mr *MockInventoryMockRecorder) DeleteVmCache(arg0 interface{}) *gomock.Call {
+// DeleteVmsFromCache indicates an expected call of DeleteVmsFromCache.
+func (mr *MockInventoryMockRecorder) DeleteVmsFromCache(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteVmCache", reflect.TypeOf((*MockInventory)(nil).DeleteVmCache), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteVmsFromCache", reflect.TypeOf((*MockInventory)(nil).DeleteVmsFromCache), arg0)
 }
 
-// DeleteVpcCache mocks base method.
-func (m *MockInventory) DeleteVpcCache(arg0 *types.NamespacedName) error {
+// DeleteVpcsFromCache mocks base method.
+func (m *MockInventory) DeleteVpcsFromCache(arg0 *types.NamespacedName) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteVpcCache", arg0)
+	ret := m.ctrl.Call(m, "DeleteVpcsFromCache", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DeleteVpcCache indicates an expected call of DeleteVpcCache.
-func (mr *MockInventoryMockRecorder) DeleteVpcCache(arg0 interface{}) *gomock.Call {
+// DeleteVpcsFromCache indicates an expected call of DeleteVpcsFromCache.
+func (mr *MockInventoryMockRecorder) DeleteVpcsFromCache(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteVpcCache", reflect.TypeOf((*MockInventory)(nil).DeleteVpcCache), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteVpcsFromCache", reflect.TypeOf((*MockInventory)(nil).DeleteVpcsFromCache), arg0)
 }
 
 // GetAllVms mocks base method.

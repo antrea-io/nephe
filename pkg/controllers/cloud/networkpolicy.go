@@ -15,7 +15,6 @@
 package cloud
 
 import (
-	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"context"
 	"fmt"
 	"net"
@@ -30,6 +29,7 @@ import (
 
 	antreanetworking "antrea.io/antrea/pkg/apis/controlplane/v1beta2"
 	antreanetcore "antrea.io/antrea/pkg/apis/crd/v1alpha2"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 	"antrea.io/nephe/pkg/cloud-provider/utils"
 	"antrea.io/nephe/pkg/controllers/config"

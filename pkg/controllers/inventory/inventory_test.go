@@ -114,7 +114,7 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Delete vpc cache.
-			err = cloudInventory.DeleteVpcCache(&namespacedName)
+			err = cloudInventory.DeleteVpcsFromCache(&namespacedName)
 			Expect(err).ShouldNot(HaveOccurred())
 			_, exist, err := cloudInventory.vpcStore.Get(vpcCacheKey1)
 			Expect(err).ShouldNot(HaveOccurred())
@@ -270,7 +270,7 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			Expect(vmListByIndex).Should(HaveLen(len(vmList)))
 
 			// Delete vm cache.
-			err = cloudInventory.DeleteVmCache(&namespacedName)
+			err = cloudInventory.DeleteVmsFromCache(&namespacedName)
 			Expect(err).ShouldNot(HaveOccurred())
 			_, exist := cloudInventory.GetVmBykey(vmCacheKey1)
 			Expect(exist).Should(BeFalse())

@@ -249,11 +249,12 @@ var _ = Describe("Virtual Machine", func() {
 		cloudInventory1.BuildVmCache(vmMap, &namespacedName)
 		rest := NewREST(cloudInventory1, l)
 		watcher, err := rest.Watch(request.NewDefaultContext(), &internalversion.ListOptions{})
+		Expect(err).Should(BeNil())
 		vmMap[cacheTest1.Name] = cacheTest1
 		cloudInventory1.BuildVmCache(vmMap, &namespacedName)
 		vmMap[cacheTest1.Name] = cacheTest5
 		cloudInventory1.BuildVmCache(vmMap, &namespacedName)
-		err = cloudInventory1.DeleteVmCache(&namespacedName)
+		err = cloudInventory1.DeleteVmsFromCache(&namespacedName)
 		Expect(err).Should(BeNil())
 		for _, expectedEvent := range expectedEvents {
 			ev := <-watcher.ResultChan()

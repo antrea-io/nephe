@@ -15,7 +15,6 @@
 package azure
 
 import (
-	"antrea.io/nephe/apis/runtime/v1alpha1"
 	"context"
 	"fmt"
 	"net"
@@ -33,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	"antrea.io/nephe/apis/runtime/v1alpha1"
 	cloudcommon "antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 	"antrea.io/nephe/pkg/config"

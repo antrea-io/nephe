@@ -38,6 +38,7 @@ var _ = Describe("Controller sync status", func() {
 	var ctrlStatus *controllerSyncStatus
 	BeforeEach(func() {
 		ctrlStatus = GetControllerSyncStatusInstance()
+		ctrlStatus.Configure()
 	})
 
 	AfterEach(func() {
@@ -73,7 +74,7 @@ var _ = Describe("Controller sync status", func() {
 
 		_, _ = GinkgoWriter.Write([]byte("Set sync status of CPA controller and verify\n"))
 		ctrlStatus.SetControllerSyncStatus(ControllerTypeCPA)
-		err = ctrlStatus.waitForControllersToSync([]controllerType{ControllerTypeCPA}, timeout)
+		err = GetControllerSyncStatusInstance().waitForControllersToSync([]controllerType{ControllerTypeCPA}, timeout)
 		Expect(err).Should(BeNil())
 
 		_, _ = GinkgoWriter.Write([]byte("Wait for CPA and CES controller sync and verify\n"))
@@ -87,13 +88,13 @@ var _ = Describe("Controller sync status", func() {
 	})
 	It("Wait for controller initialization", func() {
 		_, _ = GinkgoWriter.Write([]byte("Wait for CPA controller initialization and verify\n"))
-		intialized := false
-		err := ctrlStatus.waitTillControllerIsInitialized(&intialized, 5*time.Second, ControllerTypeCPA)
+		initialized := false
+		err := ctrlStatus.waitTillControllerIsInitialized(&initialized, 5*time.Second, ControllerTypeCPA)
 		Expect(err).ShouldNot(BeNil())
 
 		_, _ = GinkgoWriter.Write([]byte("Set CPA controller as initialized and verify\n"))
-		intialized = true
-		err = ctrlStatus.waitTillControllerIsInitialized(&intialized, 5*time.Second, ControllerTypeCPA)
+		initialized = true
+		err = ctrlStatus.waitTillControllerIsInitialized(&initialized, 5*time.Second, ControllerTypeCPA)
 		Expect(err).Should(BeNil())
 	})
 
@@ -187,7 +188,7 @@ var _ = Describe("Controller sync status", func() {
 		// TODO: Enable the tests only VM start is implemented completely.
 		/*
 			It("VirtualMachine Start with no CRs", func() {
-				vmReconciler := &VirtualMachineReconciler{
+				vmReconciler := &VirtualMachineManager{
 					Log:    logf.Log,
 					Client: fakeClient,
 				}
@@ -203,7 +204,7 @@ var _ = Describe("Controller sync status", func() {
 			})
 			It("VirtualMachine Start with one CR", func() {
 				testVMNamespacedName := types.NamespacedName{Namespace: "namespace01", Name: "vm01"}
-				vmReconciler := &VirtualMachineReconciler{
+				vmReconciler := &VirtualMachineManager{
 					Log:    logf.Log,
 					Client: fakeClient,
 				}
@@ -249,7 +250,7 @@ var _ = Describe("Controller sync status", func() {
 				val = ctrlStatus.IsControllerSynced(ControllerTypeEE)
 				Expect(val).Should(BeTrue())
 
-				vmReconciler := &VirtualMachineReconciler{
+				vmReconciler := &VirtualMachineManager{
 					Log:    logf.Log,
 					Client: fakeClient,
 				}

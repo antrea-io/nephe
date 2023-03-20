@@ -96,7 +96,7 @@ var _ = Describe("NetworkPolicy", func() {
 	BeforeEach(func() {
 		mockCtrl = mock.NewController(GinkgoT())
 		mockClient = controllerruntimeclient.NewMockClient(mockCtrl)
-		mockInveotory = inventory.NewMockInventory(mockCtrl)
+		mockInventory = inventory.NewMockInventory(mockCtrl)
 		mockCloudSecurityAPI = cloudtest.NewMockCloudSecurityGroupAPI(mockCtrl)
 		securitygroup.CloudSecurityGroup = mockCloudSecurityAPI
 		reconciler = &NetworkPolicyReconciler{
@@ -104,7 +104,7 @@ var _ = Describe("NetworkPolicy", func() {
 			Client:          mockClient,
 			syncedWithCloud: true,
 			antreaClient:    antreafakeclientset.NewSimpleClientset().ControlplaneV1beta2(),
-			Inventory:       mockInveotory,
+			Inventory:       mockInventory,
 		}
 
 		err := reconciler.SetupWithManager(nil)
@@ -359,7 +359,7 @@ var _ = Describe("NetworkPolicy", func() {
 				vm, found := vmNameToVirtualMachine[owner.Name]
 				out := &runtimev1alpha1.VirtualMachine{}
 				vm.DeepCopyInto(out)
-				mockInveotory.EXPECT().GetVmBykey(key).Return(out, found).AnyTimes()
+				mockInventory.EXPECT().GetVmBykey(key).Return(out, found).AnyTimes()
 			}
 		}
 		for vpc := range getGrpVPCs(ag.GroupMembers) {
@@ -433,7 +433,7 @@ var _ = Describe("NetworkPolicy", func() {
 				vm, found := vmNameToVirtualMachine[owner.Name]
 				out := &runtimev1alpha1.VirtualMachine{}
 				vm.DeepCopyInto(out)
-				mockInveotory.EXPECT().GetVmBykey(key).Return(out, found).AnyTimes()
+				mockInventory.EXPECT().GetVmBykey(key).Return(out, found).AnyTimes()
 			}
 
 		}
@@ -611,7 +611,7 @@ var _ = Describe("NetworkPolicy", func() {
 				vm, found := vmNameToVirtualMachine[owner.Name]
 				out := &runtimev1alpha1.VirtualMachine{}
 				vm.DeepCopyInto(out)
-				mockInveotory.EXPECT().GetVmBykey(key).Return(out, found).AnyTimes()
+				mockInventory.EXPECT().GetVmBykey(key).Return(out, found).AnyTimes()
 			}
 
 		}
@@ -854,7 +854,7 @@ var _ = Describe("NetworkPolicy", func() {
 	}
 
 	verifyNPTracker := func(trackedVMs map[string]*runtimev1alpha1.VirtualMachine, hasTracker, hasError bool) {
-		mockInveotory.EXPECT().GetVmFromIndexer(mock.Any(), mock.Any()).DoAndReturn(func(_, key string) ([]interface{}, error) {
+		mockInventory.EXPECT().GetVmFromIndexer(mock.Any(), mock.Any()).DoAndReturn(func(_, key string) ([]interface{}, error) {
 			var vmList []interface{}
 			if hasTracker {
 				vm := &runtimev1alpha1.VirtualMachine{

@@ -1,4 +1,4 @@
-// Copyright 2022 Antrea Authors.
+// Copyright 2023 Antrea Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ import (
 	"antrea.io/nephe/pkg/controllers/inventory/store"
 )
 
-// REST implements rest.Storage for VPC Inventory.
+// REST implements rest.Storage for VirtualMachine Inventory.
 type REST struct {
 	cloudInventory inventory.Inventory
 	logger         logger.Logger

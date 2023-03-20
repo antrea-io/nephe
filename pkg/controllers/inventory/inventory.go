@@ -40,7 +40,7 @@ type Inventory interface {
 
 type VMStore interface {
 	BuildVmCache(discoveredVmMap map[string]*runtimev1alpha1.VirtualMachine, namespacedName *types.NamespacedName)
-	DeleteVmCache(namespacedName *types.NamespacedName) error
+	DeleteVmsFromCache(namespacedName *types.NamespacedName) error
 	GetAllVms() []interface{}
 	GetVmFromIndexer(indexName string, indexedValue string) ([]interface{}, error)
 	GetVmBykey(key string) (*runtimev1alpha1.VirtualMachine, bool)
@@ -49,7 +49,7 @@ type VMStore interface {
 
 type VPCStore interface {
 	BuildVpcCache(discoveredVpcMap map[string]*runtimev1alpha1.Vpc, namespacedName *types.NamespacedName) error
-	DeleteVpcCache(namespacedName *types.NamespacedName) error
+	DeleteVpcsFromCache(namespacedName *types.NamespacedName) error
 	GetVpcsFromIndexer(indexName string, indexedValue string) ([]interface{}, error)
 	GetAllVpcs() []interface{}
 	WatchVpcs(ctx context.Context, key string, labelSelector labels.Selector, fieldSelector fields.Selector) (watch.Interface, error)
@@ -122,8 +122,8 @@ func (inventory *InventoryImpl) BuildVpcCache(discoveredVpcMap map[string]*runti
 	return nil
 }
 
-// DeleteVpcCache deletes all entries from vpc cache for a given account.
-func (inventory *InventoryImpl) DeleteVpcCache(namespacedName *types.NamespacedName) error {
+// DeleteVpcsFromCache deletes all entries from vpc cache for a given account.
+func (inventory *InventoryImpl) DeleteVpcsFromCache(namespacedName *types.NamespacedName) error {
 	vpcsInCache, err := inventory.vpcStore.GetByIndex(common.VpcIndexerByNameSpacedAccountName, namespacedName.String())
 	if err != nil {
 		return err
@@ -184,7 +184,7 @@ func (inventory *InventoryImpl) BuildVmCache(discoveredVmMap map[string]*runtime
 			err = inventory.vmStore.Create(discoveredVm)
 		} else {
 			cachedVm := cachedObject.(*runtimev1alpha1.VirtualMachine)
-			if utils.AreDiscoveredFieldsSameVirtualMachineStatus(cachedVm.Status, discoveredVm.Status) == false {
+			if !utils.AreDiscoveredFieldsSameVirtualMachineStatus(cachedVm.Status, discoveredVm.Status) {
 				if cachedVm.Status.Agented != discoveredVm.Status.Agented {
 					key := fmt.Sprintf("%v/%v", cachedVm.Namespace, cachedVm.Name)
 					err = inventory.vmStore.Delete(key)
@@ -201,11 +201,10 @@ func (inventory *InventoryImpl) BuildVmCache(discoveredVmMap map[string]*runtime
 				"account", namespacedName.String())
 		}
 	}
-	return
 }
 
-// DeleteVmCache deletes all entries from vm cache for a given account.
-func (inventory *InventoryImpl) DeleteVmCache(namespacedName *types.NamespacedName) error {
+// DeleteVmsFromCache deletes all entries from vm cache for a given account.
+func (inventory *InventoryImpl) DeleteVmsFromCache(namespacedName *types.NamespacedName) error {
 	vmsInCache, err := inventory.vmStore.GetByIndex(common.VirtualMachineIndexerByAccountID, namespacedName.String())
 	if err != nil {
 		return err
