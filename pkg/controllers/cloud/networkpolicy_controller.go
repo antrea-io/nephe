@@ -91,7 +91,7 @@ type NetworkPolicyReconciler struct {
 	virtualMachinePolicyIndexer   cache.Indexer
 	cloudRuleIndexer              cache.Indexer
 
-	Inventory inventory.Inventory
+	Inventory inventory.InventoryInterface
 
 	// pendingDeleteGroups keep tracks of deleting AddressGroup or AppliedToGroup.
 	pendingDeleteGroups *PendingItemQueue
@@ -629,7 +629,7 @@ func (r *NetworkPolicyReconciler) externalEntityStart(_ context.Context) error {
 }
 
 // Reconcile exists to cache ExternalEntities in shared informer.
-func (r *NetworkPolicyReconciler) Reconcile(_ context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *NetworkPolicyReconciler) Reconcile(_ context.Context, _ ctrl.Request) (ctrl.Result, error) {
 	if !r.initialized {
 		if err := GetControllerSyncStatusInstance().waitTillControllerIsInitialized(&r.initialized, initTimeout, ControllerTypeEE); err != nil {
 			return ctrl.Result{}, err

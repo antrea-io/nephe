@@ -33,7 +33,7 @@ import (
 	"antrea.io/nephe/pkg/logging"
 )
 
-type Inventory interface {
+type InventoryInterface interface {
 	VPCStore
 	VMStore
 }
@@ -43,7 +43,7 @@ type VMStore interface {
 	DeleteVmsFromCache(namespacedName *types.NamespacedName) error
 	GetAllVms() []interface{}
 	GetVmFromIndexer(indexName string, indexedValue string) ([]interface{}, error)
-	GetVmBykey(key string) (*runtimev1alpha1.VirtualMachine, bool)
+	GetVmByKey(key string) (*runtimev1alpha1.VirtualMachine, bool)
 	WatchVms(ctx context.Context, key string, labelSelector labels.Selector, fieldSelector fields.Selector) (watch.Interface, error)
 }
 
@@ -55,15 +55,15 @@ type VPCStore interface {
 	WatchVpcs(ctx context.Context, key string, labelSelector labels.Selector, fieldSelector fields.Selector) (watch.Interface, error)
 }
 
-type InventoryImpl struct {
+type Inventory struct {
 	log      logr.Logger
 	vpcStore antreastorage.Interface
 	vmStore  antreastorage.Interface
 }
 
-// InitInventory creates an instance of InventoryImpl struct and initializes inventory with cache indexers.
-func InitInventory() *InventoryImpl {
-	inventory := &InventoryImpl{
+// InitInventory creates an instance of Inventory struct and initializes inventory with cache indexers.
+func InitInventory() *Inventory {
+	inventory := &Inventory{
 		log: logging.GetLogger("inventory").WithName("Cloud"),
 	}
 	inventory.vpcStore = store.NewVPCInventoryStore()
@@ -72,7 +72,7 @@ func InitInventory() *InventoryImpl {
 }
 
 // BuildVpcCache builds vpc cache for given account using vpc list fetched from cloud.
-func (inventory *InventoryImpl) BuildVpcCache(discoveredVpcMap map[string]*runtimev1alpha1.Vpc,
+func (inventory *Inventory) BuildVpcCache(discoveredVpcMap map[string]*runtimev1alpha1.Vpc,
 	namespacedName *types.NamespacedName) error {
 	var numVpcsToAdd, numVpcsToUpdate, numVpcsToDelete int
 	// Fetch all vpcs for a given account from the cache and check if it exists in the discovered vpc list.
@@ -123,7 +123,7 @@ func (inventory *InventoryImpl) BuildVpcCache(discoveredVpcMap map[string]*runti
 }
 
 // DeleteVpcsFromCache deletes all entries from vpc cache for a given account.
-func (inventory *InventoryImpl) DeleteVpcsFromCache(namespacedName *types.NamespacedName) error {
+func (inventory *Inventory) DeleteVpcsFromCache(namespacedName *types.NamespacedName) error {
 	vpcsInCache, err := inventory.vpcStore.GetByIndex(common.VpcIndexerByNameSpacedAccountName, namespacedName.String())
 	if err != nil {
 		return err
@@ -140,23 +140,23 @@ func (inventory *InventoryImpl) DeleteVpcsFromCache(namespacedName *types.Namesp
 }
 
 // GetVpcsFromIndexer returns vpcs matching the indexedValue for the requested indexName.
-func (inventory *InventoryImpl) GetVpcsFromIndexer(indexName string, indexedValue string) ([]interface{}, error) {
+func (inventory *Inventory) GetVpcsFromIndexer(indexName string, indexedValue string) ([]interface{}, error) {
 	return inventory.vpcStore.GetByIndex(indexName, indexedValue)
 }
 
 // GetAllVpcs returns all the vpcs from the vpc cache.
-func (inventory *InventoryImpl) GetAllVpcs() []interface{} {
+func (inventory *Inventory) GetAllVpcs() []interface{} {
 	return inventory.vpcStore.List()
 }
 
 // WatchVpcs returns a Watch interface of VPC.
-func (inventory *InventoryImpl) WatchVpcs(ctx context.Context, key string, labelSelector labels.Selector,
+func (inventory *Inventory) WatchVpcs(ctx context.Context, key string, labelSelector labels.Selector,
 	fieldSelector fields.Selector) (watch.Interface, error) {
 	return inventory.vpcStore.Watch(ctx, key, labelSelector, fieldSelector)
 }
 
 // BuildVmCache builds vm cache for given account using vm list fetched from cloud.
-func (inventory *InventoryImpl) BuildVmCache(discoveredVmMap map[string]*runtimev1alpha1.VirtualMachine,
+func (inventory *Inventory) BuildVmCache(discoveredVmMap map[string]*runtimev1alpha1.VirtualMachine,
 	namespacedName *types.NamespacedName) {
 	// Fetch all vms for a given account from the cache and check if it exists in the discovered vm list.
 	vmsInCache, _ := inventory.vmStore.GetByIndex(common.IndexerByNamespace, namespacedName.Namespace)
@@ -204,7 +204,7 @@ func (inventory *InventoryImpl) BuildVmCache(discoveredVmMap map[string]*runtime
 }
 
 // DeleteVmsFromCache deletes all entries from vm cache for a given account.
-func (inventory *InventoryImpl) DeleteVmsFromCache(namespacedName *types.NamespacedName) error {
+func (inventory *Inventory) DeleteVmsFromCache(namespacedName *types.NamespacedName) error {
 	vmsInCache, err := inventory.vmStore.GetByIndex(common.VirtualMachineIndexerByAccountID, namespacedName.String())
 	if err != nil {
 		return err
@@ -221,17 +221,17 @@ func (inventory *InventoryImpl) DeleteVmsFromCache(namespacedName *types.Namespa
 }
 
 // GetAllVms returns all the vms from the vm cache.
-func (inventory *InventoryImpl) GetAllVms() []interface{} {
+func (inventory *Inventory) GetAllVms() []interface{} {
 	return inventory.vmStore.List()
 }
 
 // GetVmFromIndexer returns vms matching the indexedValue for the requested indexName.
-func (inventory *InventoryImpl) GetVmFromIndexer(indexName string, indexedValue string) ([]interface{}, error) {
+func (inventory *Inventory) GetVmFromIndexer(indexName string, indexedValue string) ([]interface{}, error) {
 	return inventory.vmStore.GetByIndex(indexName, indexedValue)
 }
 
 // GetVmBykey returns vm from vm cache for a given key (namespace/name).
-func (inventory *InventoryImpl) GetVmBykey(key string) (*runtimev1alpha1.VirtualMachine, bool) {
+func (inventory *Inventory) GetVmByKey(key string) (*runtimev1alpha1.VirtualMachine, bool) {
 	cachedObject, found, err := inventory.vmStore.Get(key)
 	if err != nil {
 		// Shouldn't happen. Logging it.
@@ -245,7 +245,7 @@ func (inventory *InventoryImpl) GetVmBykey(key string) (*runtimev1alpha1.Virtual
 }
 
 // WatchVms returns a Watch interface of vm cache.
-func (inventory *InventoryImpl) WatchVms(ctx context.Context, key string, labelSelector labels.Selector,
+func (inventory *Inventory) WatchVms(ctx context.Context, key string, labelSelector labels.Selector,
 	fieldSelector fields.Selector) (watch.Interface, error) {
 	return inventory.vmStore.Watch(ctx, key, labelSelector, fieldSelector)
 }

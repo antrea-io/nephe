@@ -36,7 +36,7 @@ import (
 
 // REST implements rest.Storage for VirtualMachine Inventory.
 type REST struct {
-	cloudInventory inventory.Inventory
+	cloudInventory inventory.InventoryInterface
 	logger         logger.Logger
 }
 
@@ -48,7 +48,7 @@ var (
 )
 
 // NewREST returns a REST object that will work against API services.
-func NewREST(cloudInventory inventory.Inventory, l logger.Logger) *REST {
+func NewREST(cloudInventory inventory.InventoryInterface, l logger.Logger) *REST {
 	return &REST{
 		cloudInventory: cloudInventory,
 		logger:         l,
@@ -74,14 +74,14 @@ func (r *REST) Get(ctx context.Context, name string, _ *metav1.GetOptions) (runt
 	}
 
 	namespacedName := ns + "/" + name
-	vm, ok := r.cloudInventory.GetVmBykey(namespacedName)
+	vm, ok := r.cloudInventory.GetVmByKey(namespacedName)
 	if !ok {
 		return nil, errors.NewNotFound(runtimev1alpha1.Resource("virtualmachine"), name)
 	}
 	return vm, nil
 }
 
-func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (runtime.Object, error) {
+func (r *REST) List(ctx context.Context, _ *internalversion.ListOptions) (runtime.Object, error) {
 	// List only supports two types of input options
 	// 1. All namespaces
 	// 2. Specific Namespace
@@ -105,7 +105,7 @@ func (r *REST) NamespaceScoped() bool {
 	return true
 }
 
-func (r *REST) ConvertToTable(ctx context.Context, obj runtime.Object, tableOptions runtime.Object) (*metav1.Table, error) {
+func (r *REST) ConvertToTable(_ context.Context, obj runtime.Object, _ runtime.Object) (*metav1.Table, error) {
 	table := &metav1.Table{
 		ColumnDefinitions: []metav1.TableColumnDefinition{
 			{Name: "NAME", Type: "string", Description: "Name"},

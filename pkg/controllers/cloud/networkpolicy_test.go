@@ -96,7 +96,7 @@ var _ = Describe("NetworkPolicy", func() {
 	BeforeEach(func() {
 		mockCtrl = mock.NewController(GinkgoT())
 		mockClient = controllerruntimeclient.NewMockClient(mockCtrl)
-		mockInventory = inventory.NewMockInventory(mockCtrl)
+		mockInventory = inventory.NewMockInventoryInterface(mockCtrl)
 		mockCloudSecurityAPI = cloudtest.NewMockCloudSecurityGroupAPI(mockCtrl)
 		securitygroup.CloudSecurityGroup = mockCloudSecurityAPI
 		reconciler = &NetworkPolicyReconciler{
@@ -354,12 +354,11 @@ var _ = Describe("NetworkPolicy", func() {
 				})
 			if len(ee.OwnerReferences) != 0 {
 				owner := ee.OwnerReferences[0]
-				// TODO: utility func for this.
-				key := ee.Namespace + "/" + owner.Name
+				key := types.NamespacedName{Namespace: ee.Namespace, Name: owner.Name}
 				vm, found := vmNameToVirtualMachine[owner.Name]
 				out := &runtimev1alpha1.VirtualMachine{}
 				vm.DeepCopyInto(out)
-				mockInventory.EXPECT().GetVmBykey(key).Return(out, found).AnyTimes()
+				mockInventory.EXPECT().GetVmByKey(key.String()).Return(out, found).AnyTimes()
 			}
 		}
 		for vpc := range getGrpVPCs(ag.GroupMembers) {
@@ -429,13 +428,12 @@ var _ = Describe("NetworkPolicy", func() {
 				})
 			if len(ee.OwnerReferences) != 0 {
 				owner := ee.OwnerReferences[0]
-				key := ee.Namespace + "/" + owner.Name
+				key := types.NamespacedName{Namespace: ee.Namespace, Name: owner.Name}
 				vm, found := vmNameToVirtualMachine[owner.Name]
 				out := &runtimev1alpha1.VirtualMachine{}
 				vm.DeepCopyInto(out)
-				mockInventory.EXPECT().GetVmBykey(key).Return(out, found).AnyTimes()
+				mockInventory.EXPECT().GetVmByKey(key.String()).Return(out, found).AnyTimes()
 			}
-
 		}
 		for vpc := range getGrpVPCs(ag.GroupMembers) {
 			ch := make(chan error)
@@ -607,13 +605,12 @@ var _ = Describe("NetworkPolicy", func() {
 				})
 			if len(ee.OwnerReferences) != 0 {
 				owner := ee.OwnerReferences[0]
-				key := ee.Namespace + "/" + owner.Name
+				key := types.NamespacedName{Namespace: ee.Namespace, Name: owner.Name}
 				vm, found := vmNameToVirtualMachine[owner.Name]
 				out := &runtimev1alpha1.VirtualMachine{}
 				vm.DeepCopyInto(out)
-				mockInventory.EXPECT().GetVmBykey(key).Return(out, found).AnyTimes()
+				mockInventory.EXPECT().GetVmByKey(key.String()).Return(out, found).AnyTimes()
 			}
-
 		}
 		if !staleMember {
 			for vpc := range getGrpVPCs(members) {

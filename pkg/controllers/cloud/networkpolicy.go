@@ -305,8 +305,8 @@ func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPoli
 func getOwnerProperties(e *antreanetcore.ExternalEntity, r *NetworkPolicyReconciler) (map[string]string, string, error) {
 	namespace := e.Namespace
 	ownerVm := e.Labels[config.ExternalEntityLabelKeyName]
-	namespacedName := namespace + "/" + ownerVm
-	vm, found := r.Inventory.GetVmBykey(namespacedName)
+	namespacedName := types.NamespacedName{Namespace: namespace, Name: ownerVm}
+	vm, found := r.Inventory.GetVmByKey(namespacedName.String())
 	if !found {
 		return nil, "", fmt.Errorf("failed to get vm from vm cache (%v/%v)", e.Namespace, e.Name)
 	}

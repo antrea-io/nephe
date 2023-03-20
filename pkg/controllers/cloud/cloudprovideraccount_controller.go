@@ -46,7 +46,7 @@ type CloudProviderAccountReconciler struct {
 
 	mutex               sync.Mutex
 	accountProviderType map[types.NamespacedName]common.ProviderType
-	Inventory           inventory.Inventory
+	Inventory           inventory.InventoryInterface
 	Poller              *Poller
 	pendingSyncCount    int
 	initialized         bool

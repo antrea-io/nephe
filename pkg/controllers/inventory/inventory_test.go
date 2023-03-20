@@ -45,7 +45,7 @@ var (
 	macAddress         = "00-01-02-03-04-05"
 	ipAddress          = "10.10.10.10"
 	ipAddressCRDs      []runtimev1alpha1.IPAddress
-	cloudInventory     *InventoryImpl
+	cloudInventory     *Inventory
 )
 
 var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
@@ -196,16 +196,16 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			vmList2[testVmID02] = vmObj
 			cloudInventory.BuildVmCache(vmList2, &namespacedName)
 
-			_, exist := cloudInventory.GetVmBykey(vmCacheKey2)
+			_, exist := cloudInventory.GetVmByKey(vmCacheKey2)
 			Expect(exist).Should(BeTrue())
 
-			_, exist = cloudInventory.GetVmBykey(vmCacheKey1)
+			_, exist = cloudInventory.GetVmByKey(vmCacheKey1)
 			Expect(exist).Should(BeFalse())
 		})
 		It("Update Agented field in Status and add to VM inventory", func() {
 			cloudInventory.BuildVmCache(vmList, &namespacedName)
 
-			vm, exist := cloudInventory.GetVmBykey(vmCacheKey1)
+			vm, exist := cloudInventory.GetVmByKey(vmCacheKey1)
 			Expect(exist).Should(BeTrue())
 			Expect(vm.Status.Agented).To(BeFalse())
 
@@ -228,14 +228,14 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			cloudInventory.BuildVmCache(vmListUpdate, &namespacedName)
 
 			// Vm object should be updated the latest Status field.
-			vm, exist = cloudInventory.GetVmBykey(vmCacheKey1)
+			vm, exist = cloudInventory.GetVmByKey(vmCacheKey1)
 			Expect(exist).Should(BeTrue())
 			Expect(vm.Status.Agented).To(BeTrue())
 		})
 		It("Update State field in Status and add to VM inventory", func() {
 			cloudInventory.BuildVmCache(vmList, &namespacedName)
 
-			vm, exist := cloudInventory.GetVmBykey(vmCacheKey1)
+			vm, exist := cloudInventory.GetVmByKey(vmCacheKey1)
 			Expect(exist).Should(BeTrue())
 			Expect(vm.Status.State).To(Equal(runtimev1alpha1.Running))
 
@@ -258,7 +258,7 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			cloudInventory.BuildVmCache(vmListUpdate, &namespacedName)
 
 			// Vm object should be updated with the latest Status field.
-			vm, exist = cloudInventory.GetVmBykey(vmCacheKey1)
+			vm, exist = cloudInventory.GetVmByKey(vmCacheKey1)
 			Expect(exist).Should(BeTrue())
 			Expect(vm.Status.State).To(Equal(runtimev1alpha1.Stopped))
 		})
@@ -272,7 +272,7 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			// Delete vm cache.
 			err = cloudInventory.DeleteVmsFromCache(&namespacedName)
 			Expect(err).ShouldNot(HaveOccurred())
-			_, exist := cloudInventory.GetVmBykey(vmCacheKey1)
+			_, exist := cloudInventory.GetVmByKey(vmCacheKey1)
 			Expect(exist).Should(BeFalse())
 		})
 	})

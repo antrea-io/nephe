@@ -38,7 +38,7 @@ import (
 
 // REST implements rest.Storage for VPC Inventory.
 type REST struct {
-	cloudInventory inventory.Inventory
+	cloudInventory inventory.InventoryInterface
 	logger         logger.Logger
 }
 
@@ -50,7 +50,7 @@ var (
 )
 
 // NewREST returns a REST object that will work against API services.
-func NewREST(cloudInventory inventory.Inventory, l logger.Logger) *REST {
+func NewREST(cloudInventory inventory.InventoryInterface, l logger.Logger) *REST {
 	return &REST{
 		cloudInventory: cloudInventory,
 		logger:         l,
@@ -171,7 +171,7 @@ func (r *REST) NamespaceScoped() bool {
 	return true
 }
 
-func (r *REST) ConvertToTable(ctx context.Context, obj runtime.Object, tableOptions runtime.Object) (*metav1.Table, error) {
+func (r *REST) ConvertToTable(_ context.Context, obj runtime.Object, _ runtime.Object) (*metav1.Table, error) {
 	table := &metav1.Table{
 		ColumnDefinitions: []metav1.TableColumnDefinition{
 			{Name: "NAME", Type: "string", Description: "Name"},
