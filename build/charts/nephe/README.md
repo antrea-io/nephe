@@ -1,6 +1,6 @@
 # nephe
 
-![Version: 0.4.0-dev](https://img.shields.io/badge/Version-0.4.0--dev-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: latest](https://img.shields.io/badge/AppVersion-latest-informational?style=flat-square)
+![Version: 0.4.0](https://img.shields.io/badge/Version-0.4.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: latest](https://img.shields.io/badge/AppVersion-latest-informational?style=flat-square)
 
 Antrea managed security policies in the public cloud
 
@@ -16,7 +16,7 @@ Kubernetes: `>= 1.16.0-0`
 
 | Repository | Name | Version |
 |------------|------|---------|
-|  | crds | 0.4.0-dev |
+|  | crds | 0.4.0 |
 
 ## Values
 
