@@ -1,0 +1,15 @@
+# -- Container image to use for Nephe Controller.
+image:
+  repository: "projects.registry.vmware.com/antrea/nephe"
+  pullPolicy: "IfNotPresent"
+  tag: ""
+
+# -- Specifies the prefix to be used while creating cloud resources.
+cloudResourcePrefix: "nephe"
+
+# -- Specifies the interval (in seconds) to be used for syncing cloud resources with controller.
+cloudSyncInterval: 300
+
+# -- Enable/Disable Nephe CRDs dependent chart.
+crds:
+  enabled: true

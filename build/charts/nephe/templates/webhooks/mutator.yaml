@@ -1,0 +1,51 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/serving-cert
+  name: nephe-controller-mutating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    caBundle: Cg==
+    service:
+      name: nephe-controller-webhook-service
+      namespace: {{ .Release.Namespace }}
+      path: /mutate-crd-cloud-antrea-io-v1alpha1-cloudentityselector
+  failurePolicy: Fail
+  name: mcloudentityselector.kb.io
+  rules:
+  - apiGroups:
+    - crd.cloud.antrea.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - cloudentityselectors
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    caBundle: Cg==
+    service:
+      name: nephe-controller-webhook-service
+      namespace: {{ .Release.Namespace }}
+      path: /mutate-crd-cloud-antrea-io-v1alpha1-cloudprovideraccount
+  failurePolicy: Fail
+  name: mcloudprovideraccount.kb.io
+  rules:
+  - apiGroups:
+    - crd.cloud.antrea.io
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    resources:
+    - cloudprovideraccounts
+  sideEffects: None
+

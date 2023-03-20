@@ -1,0 +1,3 @@
+Nephe has been successfully installed
+
+You are using version {{ .Chart.Version }}

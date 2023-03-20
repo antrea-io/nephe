@@ -56,3 +56,8 @@ export IMG_NAME=projects.registry.vmware.com/antrea/nephe
 
 cp ./hack/install-vm-agent-wrapper.sh "$OUTPUT_DIR/"
 cp ./hack/install-vm-agent-wrapper.ps1 "$OUTPUT_DIR/"
+
+# Package the nephe chart
+# We need to strip the leading "v" from the version string to ensure that we use
+# a valid SemVer 2 version.
+VERSION=${VERSION:1} ./hack/generate-helm-release.sh --out "$OUTPUT_DIR"

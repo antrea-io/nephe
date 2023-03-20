@@ -1,0 +1,16 @@
+apiVersion: v2
+name: crds
+type: application
+displayName: Nephe CRDs
+home: https://antrea.io/
+version: 0.0.0
+appVersion: latest
+kubeVersion: ">= 1.16.0-0"
+icon: https://raw.githubusercontent.com/antrea-io/antrea/main/docs/assets/logo/antrea_logo.svg
+description: Nephe CRDs
+sources:
+  - https://github.com/antrea-io/nephe
+annotations:
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/operator: "false"
+  artifacthub.io/prerelease: "false"
