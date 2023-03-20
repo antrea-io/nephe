@@ -24,18 +24,18 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
+	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 )
 
 type awsAccountConfig struct {
-	v1alpha1.AwsAccountCredential
+	crdv1alpha1.AwsAccountCredential
 	region   string
 	endpoint string
 }
 
 // setAccountCredentials sets account credentials.
 func setAccountCredentials(client client.Client, credentials interface{}) (interface{}, error) {
-	awsProviderConfig := credentials.(*v1alpha1.CloudProviderAccountAWSConfig)
+	awsProviderConfig := credentials.(*crdv1alpha1.CloudProviderAccountAWSConfig)
 	accCred, err := extractSecret(client, awsProviderConfig.SecretRef)
 	if err != nil {
 		return nil, err
@@ -87,7 +87,7 @@ func compareAccountCredentials(accountName string, existing interface{}, new int
 }
 
 // extractSecret extracts credentials from a Kubernetes secret.
-func extractSecret(c client.Client, s *v1alpha1.SecretReference) (*v1alpha1.AwsAccountCredential, error) {
+func extractSecret(c client.Client, s *crdv1alpha1.SecretReference) (*crdv1alpha1.AwsAccountCredential, error) {
 	u := &unstructured.Unstructured{}
 	u.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   "",
@@ -104,7 +104,7 @@ func extractSecret(c client.Client, s *v1alpha1.SecretReference) (*v1alpha1.AwsA
 		return nil, err
 	}
 
-	cred := &v1alpha1.AwsAccountCredential{}
+	cred := &crdv1alpha1.AwsAccountCredential{}
 	if err = json.Unmarshal(decode, cred); err != nil {
 		return nil, err
 	}

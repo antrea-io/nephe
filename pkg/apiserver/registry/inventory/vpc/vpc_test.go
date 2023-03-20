@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package inventory
+package vpc
 
 import (
 	"sort"
@@ -29,7 +29,6 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/endpoints/request"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/controllers/inventory"
 	"antrea.io/nephe/pkg/controllers/inventory/common"
@@ -271,7 +270,7 @@ var _ = Describe("VPC", func() {
 		Status: runtimev1alpha1.VpcStatus{
 			Id:       "targetId4",
 			Name:     "targetName",
-			Provider: v1alpha1.AWSCloudProvider,
+			Provider: runtimev1alpha1.AWSCloudProvider,
 			Region:   "us-west-2",
 		},
 	}
@@ -284,7 +283,7 @@ var _ = Describe("VPC", func() {
 		},
 		Rows: []metav1.TableRow{
 			{
-				Cells: []interface{}{"targetId4", v1alpha1.AWSCloudProvider, "us-west-2", false},
+				Cells: []interface{}{"targetId4", runtimev1alpha1.AWSCloudProvider, "us-west-2", false},
 			},
 		},
 	}

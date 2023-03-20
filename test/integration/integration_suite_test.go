@@ -38,7 +38,7 @@ import (
 
 	antreav1alpha1 "antrea.io/antrea/pkg/apis/crd/v1alpha1"
 	antreav1alpha2 "antrea.io/antrea/pkg/apis/crd/v1alpha2"
-	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/logging"
 	"antrea.io/nephe/test/utils"
@@ -81,7 +81,7 @@ func init() {
 	flag.StringVar(&supportBundleDir, "support-bundle-dir", "", "Support bundles are saved in this dir when specified.")
 	flag.BoolVar(&withAgent, "with-agent", false, "Using antrea-agent on Linux VM.")
 	flag.BoolVar(&withWindows, "with-windows", false, "Using antrea-agent on Windows VM")
-	flag.StringVar(&cloudProviders, "cloud-provider", string(cloudv1alpha1.AzureCloudProvider),
+	flag.StringVar(&cloudProviders, "cloud-provider", string(runtimev1alpha1.AzureCloudProvider),
 		"Cloud Providers to use, separated by comma. Default is Azure.")
 	flag.StringVar(&clusterContext, "cluster-context", "", "cluster context to use. Default is empty.")
 	rand.Seed(time.Now().Unix())
@@ -101,7 +101,7 @@ var _ = BeforeSuite(func(done Done) {
 	err = clientgoscheme.AddToScheme(scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = cloudv1alpha1.AddToScheme(scheme)
+	err = crdv1alpha1.AddToScheme(scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = antreav1alpha1.AddToScheme(scheme)
@@ -148,7 +148,7 @@ var _ = BeforeSuite(func(done Done) {
 	wgChan := make(chan error)
 	cloudVPCs = make(map[string]utils.CloudVPC)
 	for _, provider := range strings.Split(cloudProviders, ",") {
-		vpc, err := utils.NewCloudVPC(cloudv1alpha1.CloudProvider(provider))
+		vpc, err := utils.NewCloudVPC(runtimev1alpha1.CloudProvider(provider))
 		Expect(err).ToNot(HaveOccurred())
 		cloudVPCs[provider] = vpc
 		wg.Add(1)

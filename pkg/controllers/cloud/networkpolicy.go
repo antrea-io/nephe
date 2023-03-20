@@ -15,6 +15,7 @@
 package cloud
 
 import (
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"context"
 	"fmt"
 	"net"
@@ -29,8 +30,6 @@ import (
 
 	antreanetworking "antrea.io/antrea/pkg/apis/controlplane/v1beta2"
 	antreanetcore "antrea.io/antrea/pkg/apis/crd/v1alpha2"
-	cloud "antrea.io/nephe/apis/crd/v1alpha1"
-	cloudcommon "antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 	"antrea.io/nephe/pkg/cloud-provider/utils"
 	"antrea.io/nephe/pkg/controllers/config"
@@ -254,35 +253,35 @@ func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPoli
 			continue
 		}
 		var cloudRsc securitygroup.CloudResource
-		readAnnotations := false
-		if kind == converter.GetExternalEntityLabelKind(&cloud.VirtualMachine{}) {
+		readOwnerLabels := false
+		if kind == converter.GetExternalEntityLabelKind(&runtimev1alpha1.VirtualMachine{}) {
 			cloudRsc.Type = securitygroup.CloudResourceTypeVM
-			readAnnotations = true
+			readOwnerLabels = true
 		} else {
 			r.Log.Error(fmt.Errorf(""), "invalid cloud resource type received", "kind", kind)
 		}
-		if readAnnotations {
-			ownerAnnotations, ownerCloudProvider, err := getOwnerProperties(e, r)
+		if readOwnerLabels {
+			ownerLabels, ownerCloudProvider, err := getOwnerProperties(e, r)
 			if err != nil {
 				r.Log.Error(err, "externalEntity owner not found", "key", key, "kind", kind)
 				namespacedName := &types.NamespacedName{Namespace: m.ExternalEntity.Namespace, Name: m.ExternalEntity.Name}
 				notFoundMember = append(notFoundMember, namespacedName)
 				continue
 			}
-			vpc, ok := ownerAnnotations[cloudcommon.AnnotationCloudAssignedVPCIDKey]
+			vpc, ok := ownerLabels[config.LabelCloudAssignedVPCID]
 			if !ok {
 				r.Log.Error(fmt.Errorf(""), "vpc annotation not found in ExternalEntity owner", "key", key, "kind", kind)
 				continue
 			}
 			cloudRsc.Vpc = vpc
 			vpcs[vpc] = append(vpcs[vpc], &cloudRsc)
-			cloudAssignedID, ok := ownerAnnotations[cloudcommon.AnnotationCloudAssignedIDKey]
+			cloudAssignedID, ok := ownerLabels[config.LabelCloudAssignedID]
 			if !ok {
 				r.Log.Error(fmt.Errorf(""), "cloud assigned ID annotation not found in ExternalEntity owner", "key", key, "kind", kind)
 				continue
 			}
 			cloudRsc.Name = cloudAssignedID
-			cloudAccountID, ok := ownerAnnotations[cloudcommon.AnnotationCloudAccountIDKey]
+			cloudAccountID, ok := ownerLabels[config.LabelCloudAccountID]
 			if !ok {
 				r.Log.Error(fmt.Errorf(""), "cloud account ID annotation not found in ExternalEntity owner", "key", key, "kind", kind)
 				continue
@@ -302,23 +301,16 @@ func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPoli
 	return vpcs, ipBlocks, notFoundMember, nil
 }
 
-// getOwnerProperties gets VM object from etcd and returns annotations and cloud provider type from it.
+// getOwnerProperties gets VM object from vm inventory and returns labels and cloud provider type from it.
 func getOwnerProperties(e *antreanetcore.ExternalEntity, r *NetworkPolicyReconciler) (map[string]string, string, error) {
-	if len(e.OwnerReferences) == 0 {
-		return nil, "", fmt.Errorf("externalEntiry owner not found (%v/%v)", e.Namespace, e.Name)
-	}
 	namespace := e.Namespace
-	owner := e.OwnerReferences[0]
-	key := client.ObjectKey{Name: owner.Name, Namespace: namespace}
-	if owner.Kind == cloudcommon.VirtualMachineCRDKind {
-		vm := &cloud.VirtualMachine{}
-		if err := r.Get(context.TODO(), key, vm); err != nil {
-			r.Log.Error(err, "client get VirtualMachine", "key", key)
-			return nil, "", err
-		}
-		return vm.Annotations, string(vm.Status.Provider), nil
+	ownerVm := e.Labels[config.ExternalEntityLabelKeyName]
+	namespacedName := namespace + "/" + ownerVm
+	vm, found := r.Inventory.GetVmBykey(namespacedName)
+	if !found {
+		return nil, "", fmt.Errorf("failed to get vm from vm cache (%v/%v)", e.Namespace, e.Name)
 	}
-	return nil, "", fmt.Errorf("unsupported cloud owner kind")
+	return vm.Labels, string(vm.Status.Provider), nil
 }
 
 // securityGroupImpl supplies common implementations for addrSecurityGroup and appliedToSecurityGroup.

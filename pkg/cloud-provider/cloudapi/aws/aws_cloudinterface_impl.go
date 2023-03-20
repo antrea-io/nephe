@@ -18,8 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
-	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	cloudcommon "antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 	"antrea.io/nephe/pkg/cloud-provider/cloudapi/internal"
@@ -31,7 +30,7 @@ var awsPluginLogger = func() logging.Logger {
 }
 
 const (
-	providerType = cloudcommon.ProviderType(v1alpha1.AWSCloudProvider)
+	providerType = cloudcommon.ProviderType(runtimev1alpha1.AWSCloudProvider)
 )
 
 // awsCloud implements CloudInterface for AWS.
@@ -63,14 +62,9 @@ func (c *awsCloud) ProviderType() cloudcommon.ProviderType {
 //	ComputeInterface Implementation
 //
 // /////////////////////////////////////////////.
-// Instances returns VM status for all instances across all accounts of a cloud provider.
-func (c *awsCloud) Instances() ([]*v1alpha1.VirtualMachine, error) {
-	vmCRDs, err := c.cloudCommon.GetAllCloudAccountsComputeResourceCRDs()
-	return vmCRDs, err
-}
 
 // InstancesGivenProviderAccount returns VM CRD for all instances of a given cloud provider account.
-func (c *awsCloud) InstancesGivenProviderAccount(accountNamespacedName *types.NamespacedName) ([]*v1alpha1.VirtualMachine,
+func (c *awsCloud) InstancesGivenProviderAccount(accountNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.VirtualMachine,
 	error) {
 	vmCRDs, err := c.cloudCommon.GetCloudAccountComputeResourceCRDs(accountNamespacedName)
 	return vmCRDs, err
@@ -81,8 +75,9 @@ func (c *awsCloud) InstancesGivenProviderAccount(accountNamespacedName *types.Na
 //	AccountMgmtInterface Implementation
 //
 // ////////////////////////////////////////////////////////
+
 // AddProviderAccount adds and initializes given account of a cloud provider.
-func (c *awsCloud) AddProviderAccount(client client.Client, account *v1alpha1.CloudProviderAccount) error {
+func (c *awsCloud) AddProviderAccount(client client.Client, account *crdv1alpha1.CloudProviderAccount) error {
 	return c.cloudCommon.AddCloudAccount(client, account, account.Spec.AWSConfig)
 }
 
@@ -92,7 +87,7 @@ func (c *awsCloud) RemoveProviderAccount(namespacedName *types.NamespacedName) {
 }
 
 // AddAccountResourceSelector adds account specific resource selector.
-func (c *awsCloud) AddAccountResourceSelector(accNamespacedName *types.NamespacedName, selector *v1alpha1.CloudEntitySelector) error {
+func (c *awsCloud) AddAccountResourceSelector(accNamespacedName *types.NamespacedName, selector *crdv1alpha1.CloudEntitySelector) error {
 	return c.cloudCommon.AddSelector(accNamespacedName, selector)
 }
 
@@ -101,7 +96,7 @@ func (c *awsCloud) RemoveAccountResourcesSelector(accNamespacedName *types.Names
 	c.cloudCommon.RemoveSelector(accNamespacedName, selectorName)
 }
 
-func (c *awsCloud) GetAccountStatus(accNamespacedName *types.NamespacedName) (*cloudv1alpha1.CloudProviderAccountStatus, error) {
+func (c *awsCloud) GetAccountStatus(accNamespacedName *types.NamespacedName) (*crdv1alpha1.CloudProviderAccountStatus, error) {
 	return c.cloudCommon.GetStatus(accNamespacedName)
 }
 

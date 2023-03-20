@@ -14,11 +14,17 @@
 
 package common
 
+// TODO: Move to this pkg/config ?
 const (
-	VpcIndexerByAccountNameSpacedName = "namespace.accountname"
-	VpcIndexerByVpcNamespacedName     = "namespace.vpcname"
-	VpcIndexerByNamespace             = "vpc.namespace"
+	// Common indexers.
+	IndexerByNamespace      = "namespace"
+	IndexerByNamespacedName = "namespace.name"
+
+	VpcIndexerByNameSpacedAccountName = "namespace.accountname"
 	VpcIndexerByNamespacedRegion      = "namespace.region"
+
+	VirtualMachineIndexerByCloudID   = "metadata.annotations.cloud-assigned-id"
+	VirtualMachineIndexerByAccountID = "metadata.annotations.cloud-account-id"
 
 	VpcLabelAccountName = "account-name"
 	VpcLabelRegion      = "region"

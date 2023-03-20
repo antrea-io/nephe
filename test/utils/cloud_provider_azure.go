@@ -25,7 +25,8 @@ import (
 	k8stemplates "antrea.io/nephe/test/templates"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
+	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/utils"
 )
 
@@ -221,7 +222,7 @@ func (p *azureVPC) GetCloudAccountParameters(name, namespace string) k8stemplate
 	out := k8stemplates.CloudAccountParameters{
 		Name:      name,
 		Namespace: namespace,
-		Provider:  string(v1alpha1.AzureCloudProvider),
+		Provider:  string(runtimev1alpha1.AzureCloudProvider),
 		SecretRef: k8stemplates.AccountSecretParameters{
 			Name:      name + "-azure-cred",
 			Namespace: "nephe-system",
@@ -230,7 +231,7 @@ func (p *azureVPC) GetCloudAccountParameters(name, namespace string) k8stemplate
 	}
 	out.Azure.Location = strings.ReplaceAll(p.output["location"].(map[string]interface{})["value"].(string), " ", "")
 
-	cred := v1alpha1.AzureAccountCredential{
+	cred := crdv1alpha1.AzureAccountCredential{
 		SubscriptionID: os.Getenv("TF_VAR_azure_client_subscription_id"),
 		ClientID:       os.Getenv("TF_VAR_azure_client_id"),
 		TenantID:       os.Getenv("TF_VAR_azure_client_tenant_id"),

@@ -1,4 +1,4 @@
-// Copyright 2022 Antrea Authors.
+// Copyright 2023 Antrea Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,6 +30,15 @@ const (
 )
 
 type VMState string
+
+type CloudProvider string
+
+const (
+	// AzureCloudProvider specifies Azure.
+	AzureCloudProvider CloudProvider = "Azure"
+	// AWSCloudProvider specifies AWS.
+	AWSCloudProvider CloudProvider = "AWS"
+)
 
 const (
 	Running      VMState = "running"
@@ -92,16 +101,9 @@ type VirtualMachineStatus struct {
 	Agented bool `json:"agented"`
 }
 
-// +genclient
 // +kubebuilder:object:root=true
-
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:shortName="vm"
-// +kubebuilder:printcolumn:name="Cloud-Provider",type=string,JSONPath=`.status.provider`
-// +kubebuilder:printcolumn:name="Region",type=string,JSONPath=`.status.region`
-// +kubebuilder:printcolumn:name="Virtual-Private-Cloud",type=string,JSONPath=`.status.virtualPrivateCloud`
-// +kubebuilder:printcolumn:name="State",type=string,JSONPath=`.status.state`
-// +kubebuilder:printcolumn:name="Agented",type=string,JSONPath=`.status.agented`
+
 // VirtualMachine is the Schema for the virtualmachines API
 // A virtualMachine object is created automatically based on
 // matching criteria specification of CloudEntitySelector.

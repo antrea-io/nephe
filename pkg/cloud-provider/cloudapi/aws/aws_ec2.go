@@ -24,7 +24,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/mohae/deepcopy"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
+	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	cloudcommon "antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 	"antrea.io/nephe/pkg/cloud-provider/cloudapi/internal"
@@ -276,7 +276,7 @@ func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
 }
 
 // SetResourceFilters add/updates instances resource filter for the service.
-func (ec2Cfg *ec2ServiceConfig) SetResourceFilters(selector *v1alpha1.CloudEntitySelector) {
+func (ec2Cfg *ec2ServiceConfig) SetResourceFilters(selector *crdv1alpha1.CloudEntitySelector) {
 	if filters, found := convertSelectorToEC2InstanceFilters(selector); found {
 		ec2Cfg.instanceFilters[selector.GetName()] = filters
 	} else {
@@ -293,7 +293,7 @@ func (ec2Cfg *ec2ServiceConfig) RemoveResourceFilters(selectorName string) {
 
 func (ec2Cfg *ec2ServiceConfig) GetResourceCRDs(namespace string, accountId string) *internal.CloudServiceResourceCRDs {
 	instances := ec2Cfg.getCachedInstances()
-	vmCRDs := make([]*v1alpha1.VirtualMachine, 0, len(instances))
+	vmCRDs := make([]*runtimev1alpha1.VirtualMachine, 0, len(instances))
 	for _, instance := range instances {
 		// build VirtualMachine CRD
 		vmCRD := ec2InstanceToVirtualMachineCRD(instance, namespace, accountId, ec2Cfg.credentials.region)

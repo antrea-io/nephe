@@ -15,16 +15,14 @@
 package cloud
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"sync/atomic"
 
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	cloud "antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
+	"antrea.io/nephe/pkg/controllers/inventory/common"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 const (
@@ -47,12 +45,13 @@ func vmNPStatusSetter(tracker *cloudResourceNPTracker, r *NetworkPolicyReconcile
 	status := tracker.computeNPStatus(r)
 	updated := false
 
-	vmList := &cloud.VirtualMachineList{}
-	if err := r.List(context.TODO(), vmList,
-		client.MatchingFields{virtualMachineIndexerByCloudID: tracker.cloudResource.Name}); err != nil {
+	vmItems, err := r.Inventory.GetVmFromIndexer(common.VirtualMachineIndexerByCloudID, tracker.cloudResource.Name)
+	if err != nil {
+		log.Error(err, "failed to get VM from VM cache")
 		return false, err
 	}
-	for _, vm := range vmList.Items {
+	for _, item := range vmItems {
+		vm := item.(*runtimev1alpha1.VirtualMachine)
 		npStatus, ok := status[vm.Namespace]
 		if len(status[""]) > 0 {
 			if npStatus == nil {

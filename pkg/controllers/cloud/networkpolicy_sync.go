@@ -15,18 +15,16 @@
 package cloud
 
 import (
-	"context"
 	"fmt"
-
 	"github.com/mohae/deepcopy"
 	"k8s.io/apimachinery/pkg/watch"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
+	"antrea.io/nephe/pkg/controllers/inventory/common"
 )
 
-// sync synchronizes securityGroup memberships with cloud.
+// syncImpl synchronizes securityGroup memberships with cloud.
 // Return true if cloud and controller has same membership.
 func (s *securityGroupImpl) syncImpl(csg cloudSecurityGroup, syncContent *securitygroup.SynchronizationContent,
 	membershipOnly bool, r *NetworkPolicyReconciler) bool {
@@ -266,11 +264,14 @@ func (r *NetworkPolicyReconciler) getNICsOfCloudResources(resources []*securityg
 	nics := make([]*securitygroup.CloudResource, 0, len(resources))
 	for _, rsc := range resources {
 		id := rsc.Name
-		vmList := &v1alpha1.VirtualMachineList{}
-		if err := r.List(context.TODO(), vmList, client.MatchingFields{virtualMachineIndexerByCloudID: id}); err != nil {
+		vmItems, err := r.Inventory.GetVmFromIndexer(common.VirtualMachineIndexerByCloudID, id)
+		if err != nil {
+			r.Log.Error(err, "failed to get VMs from VM cache")
 			return resources, err
 		}
-		for _, vm := range vmList.Items {
+
+		for _, item := range vmItems {
+			vm := item.(*runtimev1alpha1.VirtualMachine)
 			for _, nic := range vm.Status.NetworkInterfaces {
 				nics = append(nics, &securitygroup.CloudResource{Type: securitygroup.CloudResourceTypeNIC,
 					CloudResourceID: securitygroup.CloudResourceID{Name: nic.Name, Vpc: rsc.Vpc}})

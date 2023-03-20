@@ -19,25 +19,24 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 	"antrea.io/nephe/pkg/cloud-provider/utils"
 	"antrea.io/nephe/pkg/controllers/inventory/common"
 )
 
-var azureStateMap = map[string]v1alpha1.VMState{
-	"PowerState/running":      v1alpha1.Running,
-	"PowerState/deallocated":  v1alpha1.Stopped,
-	"PowerState/deallocating": v1alpha1.ShuttingDown,
-	"PowerState/stopping":     v1alpha1.Stopping,
-	"PowerState/stopped":      v1alpha1.Stopped,
-	"PowerState/starting":     v1alpha1.Starting,
-	"PowerState/unknown":      v1alpha1.Unknown,
+var azureStateMap = map[string]runtimev1alpha1.VMState{
+	"PowerState/running":      runtimev1alpha1.Running,
+	"PowerState/deallocated":  runtimev1alpha1.Stopped,
+	"PowerState/deallocating": runtimev1alpha1.ShuttingDown,
+	"PowerState/stopping":     runtimev1alpha1.Stopping,
+	"PowerState/stopped":      runtimev1alpha1.Stopped,
+	"PowerState/starting":     runtimev1alpha1.Starting,
+	"PowerState/unknown":      runtimev1alpha1.Unknown,
 }
 
 func computeInstanceToVirtualMachineCRD(instance *virtualMachineTable, namespace string, accountId string,
-	region string) *v1alpha1.VirtualMachine {
+	region string) *runtimev1alpha1.VirtualMachine {
 	tags := make(map[string]string)
 
 	vmTags := instance.Tags
@@ -52,13 +51,13 @@ func computeInstanceToVirtualMachineCRD(instance *virtualMachineTable, namespace
 
 	// Network interfaces associated with Virtual machine
 	instNetworkInterfaces := instance.NetworkInterfaces
-	networkInterfaces := make([]v1alpha1.NetworkInterface, 0, len(instNetworkInterfaces))
+	networkInterfaces := make([]runtimev1alpha1.NetworkInterface, 0, len(instNetworkInterfaces))
 	for _, nwInf := range instNetworkInterfaces {
-		var ipAddressCRDs []v1alpha1.IPAddress
+		var ipAddressCRDs []runtimev1alpha1.IPAddress
 		if len(nwInf.PrivateIps) > 0 {
 			for _, ipAddress := range nwInf.PrivateIps {
-				ipAddressCRD := v1alpha1.IPAddress{
-					AddressType: v1alpha1.AddressTypeInternalIP,
+				ipAddressCRD := runtimev1alpha1.IPAddress{
+					AddressType: runtimev1alpha1.AddressTypeInternalIP,
 					Address:     *ipAddress,
 				}
 				ipAddressCRDs = append(ipAddressCRDs, ipAddressCRD)
@@ -66,8 +65,8 @@ func computeInstanceToVirtualMachineCRD(instance *virtualMachineTable, namespace
 		}
 		if len(nwInf.PublicIps) > 0 {
 			for _, publicIP := range nwInf.PublicIps {
-				ipAddressCRD := v1alpha1.IPAddress{
-					AddressType: v1alpha1.AddressTypeExternalIP,
+				ipAddressCRD := runtimev1alpha1.IPAddress{
+					AddressType: runtimev1alpha1.AddressTypeInternalIP,
 					Address:     *publicIP,
 				}
 				ipAddressCRDs = append(ipAddressCRDs, ipAddressCRD)
@@ -78,7 +77,7 @@ func computeInstanceToVirtualMachineCRD(instance *virtualMachineTable, namespace
 			macAddress = *nwInf.MacAddress
 		}
 
-		networkInterface := v1alpha1.NetworkInterface{
+		networkInterface := runtimev1alpha1.NetworkInterface{
 			Name: *nwInf.ID,
 			MAC:  macAddress,
 			IPs:  ipAddressCRDs,
@@ -97,11 +96,11 @@ func computeInstanceToVirtualMachineCRD(instance *virtualMachineTable, namespace
 		return nil
 	}
 	cloudNetworkShortID := utils.GenerateShortResourceIdentifier(cloudNetworkID, nwResName)
-	var state v1alpha1.VMState
+	var state runtimev1alpha1.VMState
 	if instance.Status != nil {
 		state = azureStateMap[*instance.Status]
 	} else {
-		state = v1alpha1.Unknown
+		state = runtimev1alpha1.Unknown
 	}
 	return utils.GenerateVirtualMachineCRD(crdName, strings.ToLower(cloudName), strings.ToLower(cloudID), strings.ToLower(region),
 		namespace, strings.ToLower(cloudNetworkID), cloudNetworkShortID, state, tags, networkInterfaces, providerType, accountId)
@@ -129,5 +128,5 @@ func ComputeVpcToInternalVpcObject(vnet *armnetwork.VirtualNetwork, namespace st
 		common.VpcLabelRegion:      region,
 	}
 	return utils.GenerateInternalVpcObject(crdName, namespace, labelsMap, strings.ToLower(*vnet.Name),
-		strings.ToLower(*vnet.ID), tags, v1alpha1.AzureCloudProvider, region, cidrs, managed)
+		strings.ToLower(*vnet.ID), tags, runtimev1alpha1.AzureCloudProvider, region, cidrs, managed)
 }

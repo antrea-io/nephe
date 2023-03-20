@@ -253,7 +253,7 @@ var _ = Describe("Azure", func() {
 				filters = getFilters(c, selector.Name)
 				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
 
-				_, err = c.Instances()
+				_, err = c.InstancesGivenProviderAccount(testAccountNamespacedName)
 				Expect(err).Should(BeNil())
 
 				_ = c.GetEnforcedSecurity()

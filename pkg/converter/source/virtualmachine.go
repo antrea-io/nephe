@@ -15,10 +15,11 @@
 package source
 
 import (
+	"k8s.io/apimachinery/pkg/watch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
-	"antrea.io/nephe/apis/crd/v1alpha1"
+	"antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/controllers/config"
 	"antrea.io/nephe/pkg/controllers/utils"
 	"antrea.io/nephe/pkg/converter/target"
@@ -27,6 +28,7 @@ import (
 // VirtualMachineSource says VirtualMachine is a source of converter targets.
 type VirtualMachineSource struct {
 	v1alpha1.VirtualMachine
+	watch.EventType
 }
 
 // GetEndPointAddresses returns VirtualMachine's IP addresses.

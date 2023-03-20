@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/controllers/cloud"
 	"antrea.io/nephe/pkg/controllers/utils"
 )
@@ -67,7 +68,7 @@ type CESMutator struct {
 }
 
 // Handle handles mutator admission requests for CES.
-func (v *CESMutator) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (v *CESMutator) Handle(_ context.Context, req admission.Request) admission.Response {
 	selector := &v1alpha1.CloudEntitySelector{}
 	err := v.decoder.Decode(req, selector)
 	if err != nil {
@@ -93,7 +94,7 @@ func (v *CESMutator) Handle(ctx context.Context, req admission.Request) admissio
 		v.Log.Error(err, errorMsgInvalidCloudType)
 		return admission.Errored(http.StatusBadRequest, err)
 	}
-	if cloudProviderType == v1alpha1.AzureCloudProvider {
+	if cloudProviderType == runtimev1alpha1.AzureCloudProvider {
 		for _, m := range selector.Spec.VMSelector {
 			// Convert azure ID to lower case, because Azure API do not preserve case info.
 			// Tags are required to be lower case when used in nephe.
@@ -140,7 +141,7 @@ type CESValidator struct {
 }
 
 // Handle handles validator admission requests for CES.
-func (v *CESValidator) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (v *CESValidator) Handle(_ context.Context, req admission.Request) admission.Response {
 	v.Log.V(1).Info("Received CES admission webhook request", "Name", req.Name, "Operation", req.Operation)
 	if !cloud.GetControllerSyncStatusInstance().IsControllerSynced(cloud.ControllerTypeCES) {
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("%v %v, retry after sometime",
@@ -244,7 +245,7 @@ func (v *CESValidator) validateUpdate(req admission.Request) admission.Response 
 }
 
 // ValidateDelete implements webhook validations for CES delete operation.
-func (v *CESValidator) validateDelete(req admission.Request) admission.Response { //nolint:unparam
+func (v *CESValidator) validateDelete(_ admission.Request) admission.Response { //nolint:unparam
 	// TODO(user): fill in your validation logic upon object deletion.
 	return admission.Allowed("")
 }
@@ -295,7 +296,7 @@ func (v *CESValidator) validateMatchSections(selector *v1alpha1.CloudEntitySelec
 
 	// In Azure, Vpc Name is not supported in vpcMatch.
 	// In AWS, Vpc name(in vpcMatch section) with either vm id or vm name(in vmMatch section) is not supported.
-	if cloudProviderType == v1alpha1.AzureCloudProvider {
+	if cloudProviderType == runtimev1alpha1.AzureCloudProvider {
 		for _, m := range selector.Spec.VMSelector {
 			if m.VpcMatch != nil && len(strings.TrimSpace(m.VpcMatch.MatchName)) != 0 {
 				return fmt.Errorf(errorMsgUnsupportedVPCMatchName01)

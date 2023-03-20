@@ -182,26 +182,11 @@ func (mr *MockCloudInterfaceMockRecorder) GetVpcInventory(accountNamespacedName 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVpcInventory", reflect.TypeOf((*MockCloudInterface)(nil).GetVpcInventory), accountNamespacedName)
 }
 
-// Instances mocks base method.
-func (m *MockCloudInterface) Instances() ([]*v1alpha1.VirtualMachine, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Instances")
-	ret0, _ := ret[0].([]*v1alpha1.VirtualMachine)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Instances indicates an expected call of Instances.
-func (mr *MockCloudInterfaceMockRecorder) Instances() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Instances", reflect.TypeOf((*MockCloudInterface)(nil).Instances))
-}
-
 // InstancesGivenProviderAccount mocks base method.
-func (m *MockCloudInterface) InstancesGivenProviderAccount(namespacedName *types.NamespacedName) ([]*v1alpha1.VirtualMachine, error) {
+func (m *MockCloudInterface) InstancesGivenProviderAccount(namespacedName *types.NamespacedName) (map[string]*v1alpha10.VirtualMachine, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InstancesGivenProviderAccount", namespacedName)
-	ret0, _ := ret[0].([]*v1alpha1.VirtualMachine)
+	ret0, _ := ret[0].(map[string]*v1alpha10.VirtualMachine)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -434,26 +419,11 @@ func (m *MockComputeInterface) EXPECT() *MockComputeInterfaceMockRecorder {
 	return m.recorder
 }
 
-// Instances mocks base method.
-func (m *MockComputeInterface) Instances() ([]*v1alpha1.VirtualMachine, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Instances")
-	ret0, _ := ret[0].([]*v1alpha1.VirtualMachine)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Instances indicates an expected call of Instances.
-func (mr *MockComputeInterfaceMockRecorder) Instances() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Instances", reflect.TypeOf((*MockComputeInterface)(nil).Instances))
-}
-
 // InstancesGivenProviderAccount mocks base method.
-func (m *MockComputeInterface) InstancesGivenProviderAccount(namespacedName *types.NamespacedName) ([]*v1alpha1.VirtualMachine, error) {
+func (m *MockComputeInterface) InstancesGivenProviderAccount(namespacedName *types.NamespacedName) (map[string]*v1alpha10.VirtualMachine, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InstancesGivenProviderAccount", namespacedName)
-	ret0, _ := ret[0].([]*v1alpha1.VirtualMachine)
+	ret0, _ := ret[0].(map[string]*v1alpha10.VirtualMachine)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

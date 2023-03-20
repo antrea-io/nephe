@@ -19,9 +19,7 @@ import (
 	"sort"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
@@ -60,11 +58,6 @@ func NewExternalEntityFrom(
 	_ = populateExternalEntityFrom(source, externalEntity, cl)
 	externalEntity.SetName(name)
 	externalEntity.SetNamespace(namespace)
-	accessor, _ := meta.Accessor(source.EmbedType())
-	if err := ctrl.SetControllerReference(accessor, externalEntity, scheme); err != nil {
-		externalEntity.SetName(name)
-		externalEntity.SetNamespace(namespace)
-	}
 	return externalEntity
 }
 

@@ -18,14 +18,14 @@ import (
 	"fmt"
 	"sync"
 
-	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/cloudapi/aws"
 	"antrea.io/nephe/pkg/cloud-provider/cloudapi/azure"
 	cloudcommon "antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 	"antrea.io/nephe/pkg/logging"
 )
 
-// All registered cloudv1alpha1 providers.
+// All registered crdv1alpha1 providers.
 var (
 	providersMutex   sync.Mutex
 	providers        = make(map[cloudcommon.ProviderType]cloudcommon.CloudInterface)
@@ -36,11 +36,11 @@ var (
 
 // init registers provider object. Each newly added provider should register itself here.
 func init() {
-	registerCloudProvider(cloudcommon.ProviderType(cloudv1alpha1.AWSCloudProvider), aws.Register())
-	registerCloudProvider(cloudcommon.ProviderType(cloudv1alpha1.AzureCloudProvider), azure.Register())
+	registerCloudProvider(cloudcommon.ProviderType(runtimev1alpha1.AWSCloudProvider), aws.Register())
+	registerCloudProvider(cloudcommon.ProviderType(runtimev1alpha1.AzureCloudProvider), azure.Register())
 }
 
-// registerCloudProvider registers a cloudv1alpha1 provider factory by type. This
+// registerCloudProvider registers a crdv1alpha1 provider factory by type. This
 // is expected to happen during controller startup.
 func registerCloudProvider(providerType cloudcommon.ProviderType, cloud cloudcommon.CloudInterface) {
 	providersMutex.Lock()

@@ -23,3 +23,11 @@ const (
 	ExternalEntityLabelKeyTagPostfix = ".tag." + ExternalEntityLabelKeyPostfix
 	ExternalEntityLabelCloudVPCKey   = "vpc." + ExternalEntityLabelKeyPostfix
 )
+
+const (
+	// TODO: Prefix with VirtualMachine? or move to inventory package?
+	LabelCloudAssignedID    = "cloud-assigned-id"
+	LabelCloudAssignedName  = "cloud-assigned-name"
+	LabelCloudAssignedVPCID = "cloud-assigned-vpc-id"
+	LabelCloudAccountID     = "cloud-account-id"
+)

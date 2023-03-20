@@ -24,7 +24,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/mohae/deepcopy"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
+	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	cloudcommon "antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 	"antrea.io/nephe/pkg/cloud-provider/cloudapi/internal"
@@ -244,7 +244,7 @@ func (computeCfg *computeServiceConfig) DoResourceInventory() error {
 	return nil
 }
 
-func (computeCfg *computeServiceConfig) SetResourceFilters(selector *v1alpha1.CloudEntitySelector) {
+func (computeCfg *computeServiceConfig) SetResourceFilters(selector *crdv1alpha1.CloudEntitySelector) {
 	subscriptionIDs := []string{computeCfg.credentials.SubscriptionID}
 	tenantIDs := []string{computeCfg.credentials.TenantID}
 	locations := []string{computeCfg.credentials.region}
@@ -264,7 +264,7 @@ func (computeCfg *computeServiceConfig) RemoveResourceFilters(selectorName strin
 
 func (computeCfg *computeServiceConfig) GetResourceCRDs(namespace string, accountId string) *internal.CloudServiceResourceCRDs {
 	virtualMachines := computeCfg.getCachedVirtualMachines()
-	vmCRDs := make([]*v1alpha1.VirtualMachine, 0, len(virtualMachines))
+	vmCRDs := make([]*runtimev1alpha1.VirtualMachine, 0, len(virtualMachines))
 
 	for _, virtualMachine := range virtualMachines {
 		// build VirtualMachine CRD

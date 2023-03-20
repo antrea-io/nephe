@@ -53,8 +53,8 @@ type CloudEntitySelectorSpec struct {
 }
 
 // +kubebuilder:object:root=true
-
 // +kubebuilder:resource:shortName="ces"
+
 // CloudEntitySelector is the Schema for the cloudentityselectors API.
 type CloudEntitySelector struct {
 	metav1.TypeMeta   `json:",inline"`

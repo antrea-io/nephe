@@ -18,10 +18,10 @@ import (
 	"sort"
 	"strings"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
+	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 )
 
-func convertSelectorToComputeQuery(selector *v1alpha1.CloudEntitySelector, subscriptionIDs []string,
+func convertSelectorToComputeQuery(selector *crdv1alpha1.CloudEntitySelector, subscriptionIDs []string,
 	tenantIDs []string, locations []string) ([]*string, bool) {
 	if selector == nil {
 		return nil, false
@@ -40,13 +40,13 @@ func convertSelectorToComputeQuery(selector *v1alpha1.CloudEntitySelector, subsc
 	return allQueryStrings, true
 }
 
-func buildQueries(vmSelector []v1alpha1.VirtualMachineSelector, subscriptionIDs []string, tenantIDs []string,
+func buildQueries(vmSelector []crdv1alpha1.VirtualMachineSelector, subscriptionIDs []string, tenantIDs []string,
 	locations []string) ([]*string, error) {
 	vpcIDsWithVpcIDOnlyMatches := make(map[string]struct{})
-	var vpcIDWithOtherMatches []v1alpha1.VirtualMachineSelector
-	var vmIDOnlyMatches []v1alpha1.EntityMatch
-	var vmIDAndVMNameMatches []v1alpha1.EntityMatch
-	var vmNameOnlyMatches []v1alpha1.EntityMatch
+	var vpcIDWithOtherMatches []crdv1alpha1.VirtualMachineSelector
+	var vmIDOnlyMatches []crdv1alpha1.EntityMatch
+	var vmIDAndVMNameMatches []crdv1alpha1.EntityMatch
+	var vmNameOnlyMatches []crdv1alpha1.EntityMatch
 
 	// vpcMatch contains VpcID and vmMatch contains nil:
 	// vpcIDsWithVpcIDOnlyMatches map contains the corresponding vmSelector section.
@@ -178,7 +178,7 @@ func buildQueryForVpcIDOnlyMatches(vpcIDsWithVpcIDOnlyMatches map[string]struct{
 	return getVMsByVnetIDsMatchQuery(vpcIDs, subscriptionIDs, tenantIDs, locations)
 }
 
-func buildQueryForVMNameOnlyMatches(vmNameOnlyMatches []v1alpha1.EntityMatch, subscriptionIDs []string, tenantIDs []string,
+func buildQueryForVMNameOnlyMatches(vmNameOnlyMatches []crdv1alpha1.EntityMatch, subscriptionIDs []string, tenantIDs []string,
 	locations []string) (*string, error) {
 	if len(vmNameOnlyMatches) == 0 {
 		return nil, nil
@@ -197,7 +197,7 @@ func buildQueryForVMNameOnlyMatches(vmNameOnlyMatches []v1alpha1.EntityMatch, su
 	return getVMsByVMNamesMatchQuery(vmNames, subscriptionIDs, tenantIDs, locations)
 }
 
-func buildQueryForVMIDOnlyMatches(vmIDOnlyMatches []v1alpha1.EntityMatch, subscriptionIDs []string, tenantIDs []string,
+func buildQueryForVMIDOnlyMatches(vmIDOnlyMatches []crdv1alpha1.EntityMatch, subscriptionIDs []string, tenantIDs []string,
 	locations []string) (*string, error) {
 	if len(vmIDOnlyMatches) == 0 {
 		return nil, nil
@@ -216,7 +216,7 @@ func buildQueryForVMIDOnlyMatches(vmIDOnlyMatches []v1alpha1.EntityMatch, subscr
 	return getVMsByVMIDsMatchQuery(vmIDs, subscriptionIDs, tenantIDs, locations)
 }
 
-func buildFilterForVpcIDWithOtherMatches(vpcIDWithOtherMatches []v1alpha1.VirtualMachineSelector,
+func buildFilterForVpcIDWithOtherMatches(vpcIDWithOtherMatches []crdv1alpha1.VirtualMachineSelector,
 	vpcIDsWithVpcIDOnlyMatches map[string]struct{}, subscriptionIDs []string, tenantIDs []string,
 	locations []string) ([]*string, error) {
 	if len(vpcIDWithOtherMatches) == 0 {

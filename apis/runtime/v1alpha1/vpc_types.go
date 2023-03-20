@@ -16,18 +16,16 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"antrea.io/nephe/apis/crd/v1alpha1"
 )
 
 type VpcStatus struct {
-	Name     string                 `json:"name,omitempty"`
-	Id       string                 `json:"id,omitempty"`
-	Provider v1alpha1.CloudProvider `json:"provider,omitempty"`
-	Region   string                 `json:"region,omitempty"`
-	Tags     map[string]string      `json:"tags,omitempty"`
-	Cidrs    []string               `json:"cidrs,omitempty"`
-	Managed  bool                   `json:"managed,omitempty"`
+	Name     string            `json:"name,omitempty"`
+	Id       string            `json:"id,omitempty"`
+	Provider CloudProvider     `json:"provider,omitempty"`
+	Region   string            `json:"region,omitempty"`
+	Tags     map[string]string `json:"tags,omitempty"`
+	Cidrs    []string          `json:"cidrs,omitempty"`
+	Managed  bool              `json:"managed,omitempty"`
 }
 
 // +kubebuilder:object:root=true

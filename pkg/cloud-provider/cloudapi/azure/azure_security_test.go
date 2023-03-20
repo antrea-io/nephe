@@ -15,6 +15,7 @@
 package azure
 
 import (
+	"antrea.io/nephe/apis/runtime/v1alpha1"
 	"context"
 	"fmt"
 	"net"
@@ -31,7 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
+	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	cloudcommon "antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 	"antrea.io/nephe/pkg/config"
@@ -91,8 +92,8 @@ var _ = Describe("Azure Cloud Security", func() {
 	Context("SecurityGroup", func() {
 		var (
 			c          *azureCloud
-			account    *v1alpha1.CloudProviderAccount
-			selector   *v1alpha1.CloudEntitySelector
+			account    *crdv1alpha1.CloudProviderAccount
+			selector   *crdv1alpha1.CloudEntitySelector
 			secret     *corev1.Secret
 			fakeClient client.WithWatch
 
@@ -108,16 +109,16 @@ var _ = Describe("Azure Cloud Security", func() {
 
 		BeforeEach(func() {
 			var pollIntv uint = 1
-			account = &v1alpha1.CloudProviderAccount{
+			account = &crdv1alpha1.CloudProviderAccount{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      testAccountNamespacedName.Name,
 					Namespace: testAccountNamespacedName.Namespace,
 				},
-				Spec: v1alpha1.CloudProviderAccountSpec{
+				Spec: crdv1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
-					AzureConfig: &v1alpha1.CloudProviderAccountAzureConfig{
+					AzureConfig: &crdv1alpha1.CloudProviderAccountAzureConfig{
 						Region: testRegion,
-						SecretRef: &v1alpha1.SecretReference{
+						SecretRef: &crdv1alpha1.SecretReference{
 							Name:      testAccountNamespacedName.Name,
 							Namespace: testAccountNamespacedName.Namespace,
 							Key:       credentials,
@@ -142,19 +143,19 @@ var _ = Describe("Azure Cloud Security", func() {
 				},
 			}
 
-			selector = &v1alpha1.CloudEntitySelector{
+			selector = &crdv1alpha1.CloudEntitySelector{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "selector-VnetID",
 					Namespace: testAccountNamespacedName.Namespace,
 				},
-				Spec: v1alpha1.CloudEntitySelectorSpec{
+				Spec: crdv1alpha1.CloudEntitySelectorSpec{
 					AccountName: testAccountNamespacedName.Name,
-					VMSelector: []v1alpha1.VirtualMachineSelector{
+					VMSelector: []crdv1alpha1.VirtualMachineSelector{
 						{
-							VpcMatch: &v1alpha1.EntityMatch{
+							VpcMatch: &crdv1alpha1.EntityMatch{
 								MatchID: testVnet01,
 							},
-							VMMatch: []v1alpha1.EntityMatch{},
+							VMMatch: []crdv1alpha1.EntityMatch{},
 						},
 					},
 				},
@@ -213,10 +214,10 @@ var _ = Describe("Azure Cloud Security", func() {
 			fakeClient = fake.NewClientBuilder().Build()
 			c = newAzureCloud(mockAzureServiceHelper)
 
-			vmSelector := []v1alpha1.VirtualMachineSelector{
+			vmSelector := []crdv1alpha1.VirtualMachineSelector{
 				{
-					VpcMatch: &v1alpha1.EntityMatch{MatchID: testVnetID01},
-					VMMatch:  []v1alpha1.EntityMatch{},
+					VpcMatch: &crdv1alpha1.EntityMatch{MatchID: testVnetID01},
+					VMMatch:  []crdv1alpha1.EntityMatch{},
 				},
 			}
 

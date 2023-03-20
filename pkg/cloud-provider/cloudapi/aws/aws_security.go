@@ -26,7 +26,7 @@ import (
 	"go.uber.org/multierr"
 	"k8s.io/apimachinery/pkg/types"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 )
@@ -115,6 +115,11 @@ func (ec2Cfg *ec2ServiceConfig) createOrGetSecurityGroups(vpcID string, cloudSgN
 		}
 	}
 
+	// return the up-to-date cloud objects for SGs
+	if len(cloudSgNamesToCreate) == 0 {
+		awsPluginLogger().Info("No new security group to be created")
+		return cloudSgNameToCloudSGObj, nil
+	}
 	return ec2Cfg.getCloudSecurityGroupsWithNameFromCloud(vpcIDs, cloudSgNames)
 }
 
@@ -430,7 +435,7 @@ func (ec2Cfg *ec2ServiceConfig) updateSecurityGroupMembers(groupCloudSgID *strin
 				if !membershipOnly && numAppliedToGroupSgsAttached == 1 {
 					networkInterfaceCloudSgsSetToAttach[vpcDefaultSgID] = struct{}{}
 				}
-				// if network interface is not attached to AT sg and we processing detach from AG sg, keep all sgs. Also, if member-only
+				// if network interface is not attached to AT sg, and we're processing detach from AG sg, keep all sgs. Also, if member-only
 				// address group will be the only sg attached to network interface, attach default sg along with AG security group.
 				if membershipOnly && numAppliedToGroupSgsAttached == 0 {
 					networkInterfaceCloudSgsSetToAttach = buildEc2SgsToAttachForCaseMemberOnlySgWithNoATSgAttached(
@@ -445,7 +450,7 @@ func (ec2Cfg *ec2ServiceConfig) updateSecurityGroupMembers(groupCloudSgID *strin
 
 				networkInterfaceCloudSgsSetToAttach := networkInterfaceNepheControllerCreatedCloudSgsSet
 
-				// if network interface is not attached to AT sg and we processing attach of AG sg, keep all existing sgs. Also,
+				// if network interface is not attached to AT sg, and we're processing attach of AG sg, keep all existing sgs. Also,
 				// if AG sg will be the only sg attached to network interface, attach default sg along with AG sg.
 				if membershipOnly && numAppliedToGroupSgsAttached == 0 {
 					networkInterfaceCloudSgsSetToAttach = buildEc2SgsToAttachForCaseMemberOnlySgWithNoATSgAttached(
@@ -495,7 +500,7 @@ func buildEc2SgsToAttachForCaseMemberOnlySgWithNoATSgAttached(networkInterfaceNe
 	for key, value := range networkInterfaceNepheControllerCreatedCloudSgsSet {
 		networkInterfaceCloudSgsSet[key] = value
 	}
-	// add all other sgs
+	// add all others sgs
 	for key, value := range networkInterfaceOtherCloudSgsSet {
 		networkInterfaceCloudSgsSet[key] = value
 	}
@@ -555,7 +560,7 @@ func (ec2Cfg *ec2ServiceConfig) getNepheControllerManagedSecurityGroupsCloudView
 					Vpc:  *networkInterface.VpcId,
 				},
 				AccountID:     ec2Cfg.accountName,
-				CloudProvider: string(v1alpha1.AWSCloudProvider),
+				CloudProvider: string(runtimev1alpha1.AWSCloudProvider),
 			}
 			cloudResources := managedSgIDToMemberCloudResourcesMap[sgID]
 			cloudResources = append(cloudResources, cloudResource)
@@ -601,7 +606,7 @@ func (ec2Cfg *ec2ServiceConfig) getNepheControllerManagedSecurityGroupsCloudView
 					Vpc:  vpcID,
 				},
 				AccountID:     ec2Cfg.accountName,
-				CloudProvider: string(v1alpha1.AWSCloudProvider),
+				CloudProvider: string(runtimev1alpha1.AWSCloudProvider),
 			},
 			MembershipOnly:             isMembershipOnly,
 			Members:                    members,

@@ -36,6 +36,7 @@ import (
 	antreav1alpha1 "antrea.io/antrea/pkg/apis/crd/v1alpha1"
 	antreav1alpha2 "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	"antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/controllers/config"
 	"antrea.io/nephe/test/utils"
 )
@@ -399,7 +400,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: ExternalNode", focusAws, focusAzure), func(
 		accountParameters := cloudVPC.GetCloudAccountParameters(testAccountName, namespace.Name)
 		cloudProvider = strings.Split(cloudProviders, ",")[0]
 		switch cloudProvider {
-		case string(v1alpha1.AWSCloudProvider):
+		case string(runtimev1alpha1.AWSCloudProvider):
 			account = &v1alpha1.CloudProviderAccount{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testAccountName,
@@ -417,7 +418,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: ExternalNode", focusAws, focusAzure), func(
 					},
 				},
 			}
-		case string(v1alpha1.AzureCloudProvider):
+		case string(runtimev1alpha1.AzureCloudProvider):
 			account = &v1alpha1.CloudProviderAccount{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testAccountName,

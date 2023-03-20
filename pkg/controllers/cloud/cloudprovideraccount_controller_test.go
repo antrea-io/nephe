@@ -105,7 +105,7 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 			_ = fakeClient.Create(context.Background(), secret)
 			_ = fakeClient.Create(context.Background(), account)
 
-			err := reconciler.processCreate(&testAccountNamespacedName, account)
+			err := reconciler.processCreateOrUpdate(&testAccountNamespacedName, account)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			provider, err := reconciler.Poller.getCloudType(&testAccountNamespacedName)
@@ -127,17 +127,17 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 			}
 			_ = fakeClient.Create(context.Background(), secret)
 
-			err := reconciler.processCreate(&testAccountNamespacedName, account)
+			err := reconciler.processCreateOrUpdate(&testAccountNamespacedName, account)
 			Expect(err.Error()).Should(ContainSubstring(utils.ErrorMsgUnknownCloudProvider))
 		})
 		It("Account create error due to no Secret", func() {
-			err := reconciler.processCreate(&testAccountNamespacedName, account)
+			err := reconciler.processCreateOrUpdate(&testAccountNamespacedName, account)
 			Expect(err).Should(HaveOccurred())
 		})
 		It("Account delete error due to no account config entry", func() {
 			_ = fakeClient.Create(context.Background(), secret)
 
-			err := reconciler.processCreate(&testAccountNamespacedName, account)
+			err := reconciler.processCreateOrUpdate(&testAccountNamespacedName, account)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			cloudType := reconciler.getAccountProviderType(&testAccountNamespacedName)

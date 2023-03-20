@@ -25,15 +25,15 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/runtime"
+	runtime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/watch"
 	controllerruntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	antreav1alpha1 "antrea.io/antrea/pkg/apis/crd/v1alpha1"
 	antreav1alpha2 "antrea.io/antrea/pkg/apis/crd/v1alpha2"
-	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/pkg/controllers/config"
 	"antrea.io/nephe/pkg/converter/source"
 	"antrea.io/nephe/pkg/converter/target"
@@ -68,7 +68,7 @@ var _ = Describe("VirtualMachineConverter", func() {
 		converter = source.VMConverter{
 			Client: mockClient,
 			Log:    logf.Log,
-			Ch:     make(chan cloudv1alpha1.VirtualMachine),
+			Ch:     make(chan watch.Event),
 			Scheme: scheme,
 		}
 		useInternalMethod = true
@@ -219,6 +219,7 @@ var _ = Describe("VirtualMachineConverter", func() {
 		)
 
 		tester := func(name string, op string) {
+			eventType := watch.Added
 			finished := make(chan struct{}, 1)
 			outstandingExpects := 0
 			var externalEntitySource target.ExternalEntitySource
@@ -292,8 +293,8 @@ var _ = Describe("VirtualMachineConverter", func() {
 									finished <- struct{}{}
 								}
 							}))
-
 				} else if op == "delete" {
+					eventType = watch.Deleted
 					orderedCalls = append(orderedCalls,
 						mockClient.EXPECT().Delete(mock.Any(), mock.Any()).
 							Return(externalEntityOpError).
@@ -304,7 +305,6 @@ var _ = Describe("VirtualMachineConverter", func() {
 									finished <- struct{}{}
 								}
 							}))
-
 				}
 			}
 			mock.InOrder(orderedCalls...)
@@ -314,7 +314,11 @@ var _ = Describe("VirtualMachineConverter", func() {
 				if useInternalMethod {
 					source.ProcessEvent(converter, externalEntitySource.(*source.VirtualMachineSource), failedUpdates, isRetry, false)
 				} else {
-					converter.Ch <- externalEntitySource.(*source.VirtualMachineSource).VirtualMachine
+					watchObj := watch.Event{
+						Type:   eventType,
+						Object: &externalEntitySource.(*source.VirtualMachineSource).VirtualMachine,
+					}
+					converter.Ch <- watchObj
 				}
 			}
 
@@ -453,9 +457,11 @@ var _ = Describe("VirtualMachineConverter", func() {
 			externalNodeGetErr error
 			failedUpdates      map[string]source.RetryRecord
 			isRetry            bool
+			eventType          watch.EventType
 		)
 
 		tester := func(name string, op string) {
+			eventType = watch.Added
 			finished := make(chan struct{}, 1)
 			outstandingExpects := 0
 			var externalNodeSource target.ExternalNodeSource
@@ -532,6 +538,7 @@ var _ = Describe("VirtualMachineConverter", func() {
 							}))
 
 				} else if op == "delete" {
+					eventType = watch.Deleted
 					orderedCalls = append(orderedCalls,
 						mockClient.EXPECT().Delete(mock.Any(), mock.Any()).
 							Return(externalNodeOpError).
@@ -552,7 +559,11 @@ var _ = Describe("VirtualMachineConverter", func() {
 				if useInternalMethod {
 					source.ProcessEvent(converter, externalNodeSource.(*source.VirtualMachineSource), failedUpdates, isRetry, true)
 				} else {
-					converter.Ch <- externalNodeSource.(*source.VirtualMachineSource).VirtualMachine
+					watchObj := watch.Event{
+						Type:   eventType,
+						Object: &externalNodeSource.(*source.VirtualMachineSource).VirtualMachine,
+					}
+					converter.Ch <- watchObj
 				}
 			}
 

@@ -18,8 +18,9 @@ import (
 	"fmt"
 	"time"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
 	k8stemplates "antrea.io/nephe/test/templates"
+
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 )
 
 type CloudVPC interface {
@@ -43,12 +44,12 @@ type CloudVPC interface {
 	GetEntitySelectorParameters(name, namespace, kind string, vms []string) k8stemplates.CloudEntitySelectorParameters
 }
 
-func NewCloudVPC(provider v1alpha1.CloudProvider) (CloudVPC, error) {
+func NewCloudVPC(provider runtimev1alpha1.CloudProvider) (CloudVPC, error) {
 	var vpc CloudVPC
 	switch provider {
-	case v1alpha1.AWSCloudProvider:
+	case runtimev1alpha1.AWSCloudProvider:
 		vpc = newAWSVPC()
-	case v1alpha1.AzureCloudProvider:
+	case runtimev1alpha1.AzureCloudProvider:
 		vpc = newAzureVPC()
 	default:
 		return nil, fmt.Errorf("unsupported cloud provider: %v", provider)

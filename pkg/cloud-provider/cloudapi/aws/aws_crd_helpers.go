@@ -19,7 +19,6 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/ec2"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/utils"
 	"antrea.io/nephe/pkg/controllers/inventory/common"
@@ -28,7 +27,7 @@ import (
 const ResourceNameTagKey = "Name"
 
 // ec2InstanceToVirtualMachineCRD converts ec2 instance to VirtualMachine CRD.
-func ec2InstanceToVirtualMachineCRD(instance *ec2.Instance, namespace string, accountId string, region string) *v1alpha1.VirtualMachine {
+func ec2InstanceToVirtualMachineCRD(instance *ec2.Instance, namespace string, accountId string, region string) *runtimev1alpha1.VirtualMachine {
 	tags := make(map[string]string)
 	vmTags := instance.Tags
 	if len(vmTags) > 0 {
@@ -39,30 +38,30 @@ func ec2InstanceToVirtualMachineCRD(instance *ec2.Instance, namespace string, ac
 
 	// Network interfaces associated with Virtual machine
 	instNetworkInterfaces := instance.NetworkInterfaces
-	networkInterfaces := make([]v1alpha1.NetworkInterface, 0, len(instNetworkInterfaces))
+	networkInterfaces := make([]runtimev1alpha1.NetworkInterface, 0, len(instNetworkInterfaces))
 
 	for _, nwInf := range instNetworkInterfaces {
-		var ipAddressCRDs []v1alpha1.IPAddress
+		var ipAddressCRDs []runtimev1alpha1.IPAddress
 		privateIPAddresses := nwInf.PrivateIpAddresses
 		if len(privateIPAddresses) > 0 {
 			for _, ipAddress := range privateIPAddresses {
-				ipAddressCRD := v1alpha1.IPAddress{
-					AddressType: v1alpha1.AddressTypeInternalIP,
+				ipAddressCRD := runtimev1alpha1.IPAddress{
+					AddressType: runtimev1alpha1.AddressTypeInternalIP,
 					Address:     *ipAddress.PrivateIpAddress,
 				}
 				ipAddressCRDs = append(ipAddressCRDs, ipAddressCRD)
 
 				association := ipAddress.Association
 				if association != nil {
-					ipAddressCRD := v1alpha1.IPAddress{
-						AddressType: v1alpha1.AddressTypeExternalIP,
+					ipAddressCRD := runtimev1alpha1.IPAddress{
+						AddressType: runtimev1alpha1.AddressTypeExternalIP,
 						Address:     *association.PublicIp,
 					}
 					ipAddressCRDs = append(ipAddressCRDs, ipAddressCRD)
 				}
 			}
 		}
-		networkInterface := v1alpha1.NetworkInterface{
+		networkInterface := runtimev1alpha1.NetworkInterface{
 			Name: *nwInf.NetworkInterfaceId,
 			MAC:  *nwInf.MacAddress,
 			IPs:  ipAddressCRDs,
@@ -75,7 +74,7 @@ func ec2InstanceToVirtualMachineCRD(instance *ec2.Instance, namespace string, ac
 	cloudNetwork := *instance.VpcId
 
 	return utils.GenerateVirtualMachineCRD(cloudID, strings.ToLower(cloudName), strings.ToLower(cloudID), strings.ToLower(region),
-		namespace, strings.ToLower(cloudNetwork), cloudNetwork, v1alpha1.VMState(*instance.State.Name), tags, networkInterfaces,
+		namespace, strings.ToLower(cloudNetwork), cloudNetwork, runtimev1alpha1.VMState(*instance.State.Name), tags, networkInterfaces,
 		providerType, accountId)
 }
 
@@ -103,5 +102,5 @@ func ec2VpcToInternalVpcObject(vpc *ec2.Vpc, namespace string, accountName strin
 	}
 
 	return utils.GenerateInternalVpcObject(*vpc.VpcId, namespace, labelsMap, strings.ToLower(cloudName),
-		strings.ToLower(*vpc.VpcId), tags, v1alpha1.AWSCloudProvider, region, cidrs, managed)
+		strings.ToLower(*vpc.VpcId), tags, runtimev1alpha1.AWSCloudProvider, region, cidrs, managed)
 }

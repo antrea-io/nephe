@@ -21,6 +21,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/watch"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -43,10 +44,14 @@ var (
 	networkInterfaceNames      = []string{"nic0"}
 	testNamespace              = "test-namespace"
 	emptyExternalEntitySources = map[string]target.ExternalEntitySource{
-		"VirtualMachine": &source.VirtualMachineSource{},
+		"VirtualMachine": &source.VirtualMachineSource{
+			EventType: watch.Deleted,
+		},
 	}
 	emptyExternalNodeSources = map[string]target.ExternalNodeSource{
-		"VirtualMachine": &source.VirtualMachineSource{},
+		"VirtualMachine": &source.VirtualMachineSource{
+			EventType: watch.Deleted,
+		},
 	}
 
 	externalEntitySources      map[string]target.ExternalEntitySource

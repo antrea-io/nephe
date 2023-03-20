@@ -21,17 +21,17 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
 
-	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	cloudcommon "antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
+	"antrea.io/nephe/pkg/controllers/config"
 )
 
 // GenerateVirtualMachineCRD constructs a VirtualMachine CR based on parameters.
 func GenerateVirtualMachineCRD(crdName, cloudName, cloudID, region, namespace, cloudNetwork, shortNetworkID string,
-	state cloudv1alpha1.VMState, tags map[string]string, networkInterfaces []cloudv1alpha1.NetworkInterface,
-	provider cloudcommon.ProviderType, accountId string) *cloudv1alpha1.VirtualMachine {
-	vmStatus := &cloudv1alpha1.VirtualMachineStatus{
-		Provider:            cloudv1alpha1.CloudProvider(provider),
+	state runtimev1alpha1.VMState, tags map[string]string, networkInterfaces []runtimev1alpha1.NetworkInterface,
+	provider cloudcommon.ProviderType, accountId string) *runtimev1alpha1.VirtualMachine {
+	vmStatus := &runtimev1alpha1.VirtualMachineStatus{
+		Provider:            runtimev1alpha1.CloudProvider(provider),
 		VirtualPrivateCloud: shortNetworkID,
 		Tags:                tags,
 		State:               state,
@@ -39,23 +39,23 @@ func GenerateVirtualMachineCRD(crdName, cloudName, cloudID, region, namespace, c
 		Region:              region,
 		Agented:             false,
 	}
-	annotationsMap := map[string]string{
-		cloudcommon.AnnotationCloudAssignedIDKey:    cloudID,
-		cloudcommon.AnnotationCloudAssignedNameKey:  cloudName,
-		cloudcommon.AnnotationCloudAssignedVPCIDKey: cloudNetwork,
-		cloudcommon.AnnotationCloudAccountIDKey:     accountId,
+	labelsMap := map[string]string{
+		config.LabelCloudAssignedID:    cloudID,
+		config.LabelCloudAssignedName:  cloudName,
+		config.LabelCloudAssignedVPCID: cloudNetwork,
+		config.LabelCloudAccountID:     accountId,
 	}
 
-	vmCrd := &cloudv1alpha1.VirtualMachine{
+	vmCrd := &runtimev1alpha1.VirtualMachine{
 		TypeMeta: v1.TypeMeta{
 			Kind:       cloudcommon.VirtualMachineCRDKind,
-			APIVersion: cloudcommon.APIVersion,
+			APIVersion: cloudcommon.RuntimeAPIVersion,
 		},
 		ObjectMeta: v1.ObjectMeta{
-			UID:         uuid.NewUUID(),
-			Name:        crdName,
-			Namespace:   namespace,
-			Annotations: annotationsMap,
+			UID:       uuid.NewUUID(),
+			Name:      crdName,
+			Namespace: namespace,
+			Labels:    labelsMap,
 		},
 		Status: *vmStatus,
 	}
@@ -81,7 +81,7 @@ func GenerateShortResourceIdentifier(id string, prefixToAdd string) string {
 
 // GenerateInternalVpcObject generates runtimev1alpha1 vpc object using the input parameters.
 func GenerateInternalVpcObject(name string, namespace string, labels map[string]string, cloudName string,
-	cloudId string, tags map[string]string, cloudProvider cloudv1alpha1.CloudProvider,
+	cloudId string, tags map[string]string, cloudProvider runtimev1alpha1.CloudProvider,
 	region string, cidrs []string, managed bool) *runtimev1alpha1.Vpc {
 	status := &runtimev1alpha1.VpcStatus{
 		Name:     cloudName,
@@ -108,9 +108,9 @@ func GenerateInternalVpcObject(name string, namespace string, labels map[string]
 // GetCloudResourceCRName gets corresponding cr name from cloud resource id based on cloud type.
 func GetCloudResourceCRName(providerType, name string) string {
 	switch providerType {
-	case string(cloudv1alpha1.AWSCloudProvider):
+	case string(runtimev1alpha1.AWSCloudProvider):
 		return name
-	case string(cloudv1alpha1.AzureCloudProvider):
+	case string(runtimev1alpha1.AzureCloudProvider):
 		tokens := strings.Split(name, "/")
 		return GenerateShortResourceIdentifier(name, tokens[len(tokens)-1])
 	default:

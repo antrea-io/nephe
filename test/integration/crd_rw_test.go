@@ -32,8 +32,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
-
 	"antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/test/utils"
 )
 
@@ -82,7 +82,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: Basic CRD Read-Write", focusAws, focusAzure
 		accountParameters := cloudVPC.GetCloudAccountParameters(testAccountName, nameSpaceName)
 		cloudProvider = strings.Split(cloudProviders, ",")[0]
 		switch cloudProvider {
-		case string(v1alpha1.AWSCloudProvider):
+		case string(runtimev1alpha1.AWSCloudProvider):
 			account = &v1alpha1.CloudProviderAccount{
 				ObjectMeta: v12.ObjectMeta{
 					Name:      testAccountName,
@@ -99,7 +99,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: Basic CRD Read-Write", focusAws, focusAzure
 					},
 				},
 			}
-		case string(v1alpha1.AzureCloudProvider):
+		case string(runtimev1alpha1.AzureCloudProvider):
 			account = &v1alpha1.CloudProviderAccount{
 				ObjectMeta: v12.ObjectMeta{
 					Name:      testAccountName,
@@ -133,6 +133,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: Basic CRD Read-Write", focusAws, focusAzure
 		err := k8sClient.Create(context.TODO(), &namespace)
 		Expect(err).ToNot(HaveOccurred())
 	}
+
 	deleteNS := func() {
 		logf.Log.Info("Delete", "namespace", namespace.Name)
 		err := k8sClient.Delete(context.TODO(), &namespace)
@@ -140,10 +141,10 @@ var _ = Describe(fmt.Sprintf("%s,%s: Basic CRD Read-Write", focusAws, focusAzure
 	}
 	createAccount := func() {
 		setCloudAccount()
-		logf.Log.Info("Create", "secret", secret.Name)
+		logf.Log.Info("Create", "secret", secret)
 		err := k8sClient.Create(context.TODO(), secret)
 		Expect(err).ToNot(HaveOccurred())
-		logf.Log.Info("Create", "account", account.Name)
+		logf.Log.Info("Create", "account", account)
 		err = k8sClient.Create(context.TODO(), account)
 		Expect(err).ToNot(HaveOccurred())
 		time.Sleep(5 * time.Second)
@@ -196,8 +197,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: Basic CRD Read-Write", focusAws, focusAzure
 				deleteNS()
 			}
 		},
-		table.Entry("VirtualMachine", &v1alpha1.VirtualMachine{}, createNS, nil, nil, nil),
-		table.Entry("CloudEntitySelector", selector, nil, nil, createAccount, deleteAccount),
+		table.Entry("CloudEntitySelector", selector, createNS, nil, createAccount, deleteAccount),
 		table.Entry("ExternalEntity", &antreatypes.ExternalEntity{}, nil, deleteNS, nil, nil),
 	)
 })

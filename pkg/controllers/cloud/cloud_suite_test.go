@@ -30,12 +30,13 @@ import (
 	cloud "antrea.io/nephe/apis/crd/v1alpha1"
 	cloudtest "antrea.io/nephe/pkg/testing/cloudsecurity"
 	"antrea.io/nephe/pkg/testing/controllerruntimeclient"
+	"antrea.io/nephe/pkg/testing/inventory"
 )
 
 var (
 	mockCtrl             *mock.Controller
 	mockClient           *controllerruntimeclient.MockClient
-	mockStatusWriter     *controllerruntimeclient.MockStatusWriter
+	mockInveotory        *inventory.MockInventory
 	mockCloudSecurityAPI *cloudtest.MockCloudSecurityGroupAPI
 	scheme               = runtime.NewScheme()
 )

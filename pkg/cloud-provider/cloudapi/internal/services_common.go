@@ -125,11 +125,11 @@ func (cfg *CloudServiceCommon) getVpcInventory() map[string]*runtimev1alpha1.Vpc
 }
 
 type CloudServiceResourceCRDs struct {
-	virtualMachines []*cloudv1alpha1.VirtualMachine
+	virtualMachines []*runtimev1alpha1.VirtualMachine
 }
 
 // SetComputeResourceCRDs sets Service resource CRDs for accessing it from cloudCommon interface.
-func (s *CloudServiceResourceCRDs) SetComputeResourceCRDs(vms []*cloudv1alpha1.VirtualMachine) {
+func (s *CloudServiceResourceCRDs) SetComputeResourceCRDs(vms []*runtimev1alpha1.VirtualMachine) {
 	s.virtualMachines = vms
 }
 

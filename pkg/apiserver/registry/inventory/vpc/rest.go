@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package inventory
+package vpc
 
 import (
 	"context"
@@ -38,7 +38,7 @@ import (
 
 // REST implements rest.Storage for VPC Inventory.
 type REST struct {
-	cloudInventory *inventory.Inventory
+	cloudInventory inventory.Inventory
 	logger         logger.Logger
 }
 
@@ -50,7 +50,7 @@ var (
 )
 
 // NewREST returns a REST object that will work against API services.
-func NewREST(cloudInventory *inventory.Inventory, l logger.Logger) *REST {
+func NewREST(cloudInventory inventory.Inventory, l logger.Logger) *REST {
 	return &REST{
 		cloudInventory: cloudInventory,
 		logger:         l,
@@ -72,7 +72,7 @@ func (r *REST) Get(ctx context.Context, name string, _ *metav1.GetOptions) (runt
 	}
 	namespacedName := ns + "/" + name
 
-	objs, err := r.cloudInventory.GetVpcsFromIndexer(common.VpcIndexerByVpcNamespacedName, namespacedName)
+	objs, err := r.cloudInventory.GetVpcsFromIndexer(common.IndexerByNamespacedName, namespacedName)
 	if err != nil {
 		return nil, err
 	}
@@ -96,9 +96,9 @@ func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (
 		labelSelectorStrings := strings.Split(options.LabelSelector.String(), ",")
 		for _, labelSelectorString := range labelSelectorStrings {
 			labelKeyAndValue := strings.Split(labelSelectorString, "=")
-			if labelKeyAndValue[0] == "account-name" {
+			if labelKeyAndValue[0] == common.VpcLabelAccountName {
 				accountName = labelKeyAndValue[1]
-			} else if labelKeyAndValue[0] == "region" {
+			} else if labelKeyAndValue[0] == common.VpcLabelRegion {
 				region = strings.ToLower(labelKeyAndValue[1])
 			} else {
 				return nil, errors.NewBadRequest("unsupported label selector, supported labels are: account-name and region")
@@ -139,24 +139,24 @@ func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (
 		objs = r.cloudInventory.GetAllVpcs()
 	} else if accountName != "" {
 		accountNameSpace := types.NamespacedName{
-			Name:      accountName,
 			Namespace: namespace,
+			Name:      accountName,
 		}
-		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.VpcIndexerByAccountNameSpacedName, accountNameSpace.String())
+		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.VpcIndexerByNameSpacedAccountName, accountNameSpace.String())
 	} else if name != "" {
 		namespacedName := types.NamespacedName{
-			Name:      name,
 			Namespace: namespace,
+			Name:      name,
 		}
-		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.VpcIndexerByVpcNamespacedName, namespacedName.String())
+		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.IndexerByNamespacedName, namespacedName.String())
 	} else if region != "" {
 		namespacedRegion := types.NamespacedName{
-			Name:      region,
 			Namespace: namespace,
+			Name:      region,
 		}
 		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.VpcIndexerByNamespacedRegion, namespacedRegion.String())
 	} else {
-		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.VpcIndexerByNamespace, namespace)
+		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.IndexerByNamespace, namespace)
 	}
 	vpcList := &runtimev1alpha1.VpcList{}
 	for _, obj := range objs {
@@ -193,6 +193,9 @@ func (r *REST) ConvertToTable(ctx context.Context, obj runtime.Object, tableOpti
 	table.Rows, err = metatable.MetaToTableRow(obj,
 		func(obj runtime.Object, _ metav1.Object, _, _ string) ([]interface{}, error) {
 			vpc := obj.(*runtimev1alpha1.Vpc)
+			if vpc.Name == "" {
+				return nil, nil
+			}
 			return []interface{}{vpc.Name, vpc.Status.Provider, vpc.Status.Region, vpc.Status.Managed}, nil
 		})
 	return table, err
@@ -200,5 +203,5 @@ func (r *REST) ConvertToTable(ctx context.Context, obj runtime.Object, tableOpti
 
 func (r *REST) Watch(ctx context.Context, options *internalversion.ListOptions) (watch.Interface, error) {
 	key, label, field := store.GetSelectors(options)
-	return r.cloudInventory.Watch(ctx, key, label, field)
+	return r.cloudInventory.WatchVpcs(ctx, key, label, field)
 }

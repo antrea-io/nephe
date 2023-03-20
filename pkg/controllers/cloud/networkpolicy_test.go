@@ -41,13 +41,13 @@ import (
 	"antrea.io/antrea/pkg/apis/crd/v1alpha1"
 	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	antreafakeclientset "antrea.io/antrea/pkg/client/clientset/versioned/fake"
-	cloud "antrea.io/nephe/apis/crd/v1alpha1"
-	cloudcommon "antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 	"antrea.io/nephe/pkg/controllers/config"
 	"antrea.io/nephe/pkg/converter/target"
 	cloudtest "antrea.io/nephe/pkg/testing/cloudsecurity"
 	"antrea.io/nephe/pkg/testing/controllerruntimeclient"
+	"antrea.io/nephe/pkg/testing/inventory"
 )
 
 var _ = Describe("NetworkPolicy", func() {
@@ -82,7 +82,7 @@ var _ = Describe("NetworkPolicy", func() {
 		vmNamePrefix           = "id-"
 		vmNameToIDMap          map[string]string
 		vmExternalEntities     map[string]*antreatypes.ExternalEntity
-		vmNameToVirtualMachine map[string]*cloud.VirtualMachine
+		vmNameToVirtualMachine map[string]*runtimev1alpha1.VirtualMachine
 		vmMembers              map[string]*securitygroup.CloudResource
 		ingressRule            []securitygroup.IngressRule
 		egressRule             []securitygroup.EgressRule
@@ -96,7 +96,7 @@ var _ = Describe("NetworkPolicy", func() {
 	BeforeEach(func() {
 		mockCtrl = mock.NewController(GinkgoT())
 		mockClient = controllerruntimeclient.NewMockClient(mockCtrl)
-		mockStatusWriter = controllerruntimeclient.NewMockStatusWriter(mockCtrl)
+		mockInveotory = inventory.NewMockInventory(mockCtrl)
 		mockCloudSecurityAPI = cloudtest.NewMockCloudSecurityGroupAPI(mockCtrl)
 		securitygroup.CloudSecurityGroup = mockCloudSecurityAPI
 		reconciler = &NetworkPolicyReconciler{
@@ -104,13 +104,14 @@ var _ = Describe("NetworkPolicy", func() {
 			Client:          mockClient,
 			syncedWithCloud: true,
 			antreaClient:    antreafakeclientset.NewSimpleClientset().ControlplaneV1beta2(),
+			Inventory:       mockInveotory,
 		}
 
 		err := reconciler.SetupWithManager(nil)
 		Expect(err).ToNot(HaveOccurred())
 		vmMembers = make(map[string]*securitygroup.CloudResource)
 		vmExternalEntities = make(map[string]*antreatypes.ExternalEntity)
-		vmNameToVirtualMachine = make(map[string]*cloud.VirtualMachine)
+		vmNameToVirtualMachine = make(map[string]*runtimev1alpha1.VirtualMachine)
 		vmNameToIDMap = make(map[string]string)
 		// ExternalEntity
 		for _, vmName := range vmNames {
@@ -119,14 +120,14 @@ var _ = Describe("NetworkPolicy", func() {
 			ee.Name = "virtualmachine-" + vmID
 			ee.Namespace = namespace
 			eeOwner := v1.OwnerReference{
-				Kind: reflect.TypeOf(cloud.VirtualMachine{}).Name(),
+				Kind: reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name(),
 				Name: vmName,
 			}
 			ee.OwnerReferences = append(ee.OwnerReferences, eeOwner)
 
 			labels := make(map[string]string)
 			// TODO: cleanup dead code
-			labels[config.ExternalEntityLabelKeyKind] = target.GetExternalEntityLabelKind(&cloud.VirtualMachine{})
+			labels[config.ExternalEntityLabelKeyKind] = target.GetExternalEntityLabelKind(&runtimev1alpha1.VirtualMachine{})
 			labels[config.ExternalEntityLabelKeyName] = vmName
 			labels[config.ExternalEntityLabelKeyNamespace] = namespace
 			labels[config.ExternalEntityLabelCloudVPCKey] = vpc
@@ -140,14 +141,14 @@ var _ = Describe("NetworkPolicy", func() {
 				},
 			}
 
-			vm := cloud.VirtualMachine{}
+			vm := runtimev1alpha1.VirtualMachine{}
 			vm.Name = vmName
 			vm.Namespace = namespace
-			vmAnnotations := make(map[string]string)
-			vmAnnotations[cloudcommon.AnnotationCloudAssignedIDKey] = vmID
-			vmAnnotations[cloudcommon.AnnotationCloudAssignedVPCIDKey] = vpc
-			vmAnnotations[cloudcommon.AnnotationCloudAccountIDKey] = accountID
-			vm.Annotations = vmAnnotations
+			vmLabels := make(map[string]string)
+			vmLabels[config.LabelCloudAssignedID] = vmID
+			vmLabels[config.LabelCloudAssignedVPCID] = vpc
+			vmLabels[config.LabelCloudAccountID] = accountID
+			vm.SetLabels(vmLabels)
 			vmNameToVirtualMachine[vmName] = &vm
 			vmNameToIDMap[vmName] = vmID
 		}
@@ -353,13 +354,12 @@ var _ = Describe("NetworkPolicy", func() {
 				})
 			if len(ee.OwnerReferences) != 0 {
 				owner := ee.OwnerReferences[0]
-				key := client.ObjectKey{Name: owner.Name, Namespace: ee.Namespace}
-				mockClient.EXPECT().Get(mock.Any(), key, mock.Any()).
-					Return(nil).AnyTimes().
-					Do(func(_ context.Context, key client.ObjectKey, out *cloud.VirtualMachine) {
-						vm := vmNameToVirtualMachine[owner.Name]
-						vm.DeepCopyInto(out)
-					})
+				// TODO: utility func for this.
+				key := ee.Namespace + "/" + owner.Name
+				vm, found := vmNameToVirtualMachine[owner.Name]
+				out := &runtimev1alpha1.VirtualMachine{}
+				vm.DeepCopyInto(out)
+				mockInveotory.EXPECT().GetVmBykey(key).Return(out, found).AnyTimes()
 			}
 		}
 		for vpc := range getGrpVPCs(ag.GroupMembers) {
@@ -429,13 +429,11 @@ var _ = Describe("NetworkPolicy", func() {
 				})
 			if len(ee.OwnerReferences) != 0 {
 				owner := ee.OwnerReferences[0]
-				key := client.ObjectKey{Name: owner.Name, Namespace: ee.Namespace}
-				mockClient.EXPECT().Get(mock.Any(), key, mock.Any()).
-					Return(nil).AnyTimes().
-					Do(func(_ context.Context, key client.ObjectKey, out *cloud.VirtualMachine) {
-						vm := vmNameToVirtualMachine[owner.Name]
-						vm.DeepCopyInto(out)
-					})
+				key := ee.Namespace + "/" + owner.Name
+				vm, found := vmNameToVirtualMachine[owner.Name]
+				out := &runtimev1alpha1.VirtualMachine{}
+				vm.DeepCopyInto(out)
+				mockInveotory.EXPECT().GetVmBykey(key).Return(out, found).AnyTimes()
 			}
 
 		}
@@ -609,13 +607,11 @@ var _ = Describe("NetworkPolicy", func() {
 				})
 			if len(ee.OwnerReferences) != 0 {
 				owner := ee.OwnerReferences[0]
-				key := client.ObjectKey{Name: owner.Name, Namespace: ee.Namespace}
-				mockClient.EXPECT().Get(mock.Any(), key, mock.Any()).
-					Return(nil).AnyTimes().
-					Do(func(_ context.Context, key client.ObjectKey, out *cloud.VirtualMachine) {
-						vm := vmNameToVirtualMachine[owner.Name]
-						vm.DeepCopyInto(out)
-					})
+				key := ee.Namespace + "/" + owner.Name
+				vm, found := vmNameToVirtualMachine[owner.Name]
+				out := &runtimev1alpha1.VirtualMachine{}
+				vm.DeepCopyInto(out)
+				mockInveotory.EXPECT().GetVmBykey(key).Return(out, found).AnyTimes()
 			}
 
 		}
@@ -857,21 +853,23 @@ var _ = Describe("NetworkPolicy", func() {
 		return chans
 	}
 
-	verifyNPTracker := func(trackedVMs map[string]*cloud.VirtualMachine, hasTracker, hasError bool) {
-		mockClient.EXPECT().List(mock.Any(), mock.Any(), mock.Any()).
-			Do(func(_ context.Context, vmList *cloud.VirtualMachineList, opt client.MatchingFields) {
-				if hasTracker {
-					vmList.Items = append(vmList.Items, cloud.VirtualMachine{
-						ObjectMeta: v1.ObjectMeta{
-							Name:      opt[virtualMachineIndexerByCloudID],
-							Namespace: namespace,
-						},
-					})
-					trackedVMs[vmList.Items[0].Name] = &vmList.Items[0]
-				} else {
-					vmList.Items = append(vmList.Items, *trackedVMs[opt[virtualMachineIndexerByCloudID]])
+	verifyNPTracker := func(trackedVMs map[string]*runtimev1alpha1.VirtualMachine, hasTracker, hasError bool) {
+		mockInveotory.EXPECT().GetVmFromIndexer(mock.Any(), mock.Any()).DoAndReturn(func(_, key string) ([]interface{}, error) {
+			var vmList []interface{}
+			if hasTracker {
+				vm := &runtimev1alpha1.VirtualMachine{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      key,
+						Namespace: namespace,
+					},
 				}
-			}).Times(len(appliedToGrps))
+				vmList = append(vmList, vm)
+				trackedVMs[vm.Name] = vm
+			} else {
+				vmList = append(vmList, trackedVMs[key])
+			}
+			return vmList, nil
+		}).Times(len(appliedToGrps))
 		reconciler.processCloudResourceNPTrackers()
 		wait()
 		if hasTracker || hasError {
@@ -886,7 +884,7 @@ var _ = Describe("NetworkPolicy", func() {
 		Expect(len(vmpList)).To(Equal(vmpNum))
 	}
 
-	verifyNPStatus := func(trackedVMs map[string]*cloud.VirtualMachine, hasPolicy, hasError bool) {
+	verifyNPStatus := func(trackedVMs map[string]*runtimev1alpha1.VirtualMachine, hasPolicy, hasError bool) {
 		for idx := len(addrGrpNames); idx < len(addrGrpNames)+len(appliedToGrpsNames); idx++ {
 			vm := trackedVMs[vmNamePrefix+vmNames[idx]]
 			obj, found, _ := reconciler.virtualMachinePolicyIndexer.GetByKey(types.NamespacedName{Namespace: vm.Namespace, Name: vm.Name}.String())
@@ -1005,7 +1003,7 @@ var _ = Describe("NetworkPolicy", func() {
 
 	It("Modify appliedToGroup remove stale member", func() {
 		createAndVerifyNP(false)
-		trackedVMs := make(map[string]*cloud.VirtualMachine)
+		trackedVMs := make(map[string]*runtimev1alpha1.VirtualMachine)
 		verifyNPTracker(trackedVMs, true, false)
 		verifyVmp(len(trackedVMs))
 
@@ -1072,7 +1070,7 @@ var _ = Describe("NetworkPolicy", func() {
 	})
 
 	It("Tracking networkPolicy", func() {
-		trackedVMs := make(map[string]*cloud.VirtualMachine)
+		trackedVMs := make(map[string]*runtimev1alpha1.VirtualMachine)
 		createAndVerifyNP(false)
 		verifyNPTracker(trackedVMs, true, false)
 		verifyNPStatus(trackedVMs, true, false)
