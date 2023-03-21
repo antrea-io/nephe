@@ -391,7 +391,7 @@ func (ec2Cfg *ec2ServiceConfig) GetVpcInventory() map[string]*runtimev1alpha1.Vp
 		if _, ok := vpcIDs[*vpc.VpcId]; ok {
 			managed = true
 		}
-		vpcObj := ec2VpcToInternalVpcObject(vpc, tokens[0], tokens[1], strings.ToLower(ec2Cfg.credentials.region), managed)
+		vpcObj := ec2VpcToInternalVpcObject(vpc, tokens[0], ec2Cfg.accountName, strings.ToLower(ec2Cfg.credentials.region), managed)
 		vpcMap[strings.ToLower(*vpc.VpcId)] = vpcObj
 	}
 

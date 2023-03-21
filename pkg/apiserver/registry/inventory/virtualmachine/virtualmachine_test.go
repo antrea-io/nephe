@@ -31,7 +31,6 @@ import (
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/controllers/config"
 	"antrea.io/nephe/pkg/controllers/inventory"
-	"antrea.io/nephe/pkg/controllers/inventory/common"
 	"antrea.io/nephe/pkg/logging"
 )
 
@@ -44,8 +43,7 @@ var _ = Describe("Virtual Machine", func() {
 			Namespace: "default",
 			Name:      "targetId",
 			Labels: map[string]string{
-				config.LabelCloudAccountID:  "default/accountid1",
-				config.LabelCloudAssignedID: "i-0a2fa4c17ee786ad4",
+				config.LabelCloudNamespacedAccountName: "default/accountid1",
 			},
 		},
 		Status: runtimev1alpha1.VirtualMachineStatus{
@@ -64,7 +62,7 @@ var _ = Describe("Virtual Machine", func() {
 			Namespace: "non-default",
 			Name:      "targetId-nondefault",
 			Labels: map[string]string{
-				config.LabelCloudAccountID: "default/accountid",
+				config.LabelCloudNamespacedAccountName: "default/accountid",
 			},
 		},
 		Status: runtimev1alpha1.VirtualMachineStatus{
@@ -79,7 +77,7 @@ var _ = Describe("Virtual Machine", func() {
 			Namespace: "default",
 			Name:      "targetId2",
 			Labels: map[string]string{
-				config.LabelCloudAccountID: "default/accountid",
+				config.LabelCloudNamespacedAccountName: "default/accountid",
 			},
 		},
 		Status: runtimev1alpha1.VirtualMachineStatus{
@@ -208,7 +206,7 @@ var _ = Describe("Virtual Machine", func() {
 		}
 		vmMap := make(map[string]*runtimev1alpha1.VirtualMachine)
 		vmMap[cacheTest4.Name] = cacheTest4
-		namespacedName := types.NamespacedName{Namespace: cacheTest4.Namespace, Name: cacheTest4.Labels[common.VpcLabelAccountName]}
+		namespacedName := types.NamespacedName{Namespace: cacheTest4.Namespace, Name: cacheTest4.Labels[config.LabelCloudNamespacedAccountName]}
 		cloudInventory.BuildVmCache(vmMap, &namespacedName)
 
 		rest := NewREST(cloudInventory, l)
@@ -223,7 +221,7 @@ var _ = Describe("Virtual Machine", func() {
 			Namespace: "default",
 			Name:      "targetId",
 			Labels: map[string]string{
-				config.LabelCloudAccountID: "default/accountID",
+				config.LabelCloudNamespacedAccountName: "default/accountID",
 			},
 		},
 		Status: runtimev1alpha1.VirtualMachineStatus{

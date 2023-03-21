@@ -29,6 +29,11 @@ type VpcStatus struct {
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+
+// Vpc is the Schema for the vpc API
+// A vpc object is created automatically based on
+// matching criteria specification of CloudProviderAccount.
 type Vpc struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -37,6 +42,7 @@ type Vpc struct {
 }
 
 // +kubebuilder:object:root=true
+
 // VpcList is a list of Vpc objects.
 type VpcList struct {
 	metav1.TypeMeta `json:",inline"`

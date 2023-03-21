@@ -33,7 +33,6 @@ import (
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	cloudprovider "antrea.io/nephe/pkg/cloud-provider"
 	"antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
-	"antrea.io/nephe/pkg/controllers/config"
 	"antrea.io/nephe/pkg/controllers/inventory"
 )
 
@@ -349,7 +348,7 @@ func (p *accountPoller) getComputeResources(cloudInterface common.CloudInterface
 
 // getVMSelectorMatch returns a VMSelector for a VirtualMachine only if it is agented.
 func (p *accountPoller) getVMSelectorMatch(vm *runtimev1alpha1.VirtualMachine) *crdv1alpha1.VirtualMachineSelector {
-	vmSelectors, _ := p.vmSelector.ByIndex(virtualMachineSelectorMatchIndexerByID, vm.Labels[config.LabelCloudAssignedID])
+	vmSelectors, _ := p.vmSelector.ByIndex(virtualMachineSelectorMatchIndexerByID, vm.Status.CloudAssignedId)
 	for _, i := range vmSelectors {
 		vmSelector := i.(*crdv1alpha1.VirtualMachineSelector)
 		return vmSelector
@@ -359,11 +358,11 @@ func (p *accountPoller) getVMSelectorMatch(vm *runtimev1alpha1.VirtualMachine) *
 	// VM intended to match a selector with vpcMatch and vmMatch selector, falls under exact Match.
 	// VM intended to match a selector with only vmMatch selector, falls under partial match.
 	var partialMatchSelector *crdv1alpha1.VirtualMachineSelector = nil
-	vmSelectors, _ = p.vmSelector.ByIndex(virtualMachineSelectorMatchIndexerByName, vm.Labels[config.LabelCloudAssignedName])
+	vmSelectors, _ = p.vmSelector.ByIndex(virtualMachineSelectorMatchIndexerByName, vm.Status.CloudAssignedName)
 	for _, i := range vmSelectors {
 		vmSelector := i.(*crdv1alpha1.VirtualMachineSelector)
 		if vmSelector.VpcMatch != nil {
-			if vmSelector.VpcMatch.MatchID == vm.Labels[config.LabelCloudAssignedVPCID] {
+			if vmSelector.VpcMatch.MatchID == vm.Status.CloudAssignedVPCId {
 				// Prioritize exact match(along with vpcMatch) over VM name only match.
 				return vmSelector
 			}
@@ -375,7 +374,7 @@ func (p *accountPoller) getVMSelectorMatch(vm *runtimev1alpha1.VirtualMachine) *
 		return partialMatchSelector
 	}
 
-	vmSelectors, _ = p.vmSelector.ByIndex(virtualMachineSelectorMatchIndexerByVPC, vm.Labels[config.LabelCloudAssignedVPCID])
+	vmSelectors, _ = p.vmSelector.ByIndex(virtualMachineSelectorMatchIndexerByVPC, vm.Status.CloudAssignedVPCId)
 	for _, i := range vmSelectors {
 		vmSelector := i.(*crdv1alpha1.VirtualMachineSelector)
 		return vmSelector

@@ -144,10 +144,10 @@ var _ = Describe("NetworkPolicy", func() {
 			vm := runtimev1alpha1.VirtualMachine{}
 			vm.Name = vmName
 			vm.Namespace = namespace
+			vm.Status.CloudAssignedId = vmID
+			vm.Status.CloudAssignedVPCId = vpc
 			vmLabels := make(map[string]string)
-			vmLabels[config.LabelCloudAssignedID] = vmID
-			vmLabels[config.LabelCloudAssignedVPCID] = vpc
-			vmLabels[config.LabelCloudAccountID] = accountID
+			vmLabels[config.LabelCloudNamespacedAccountName] = accountID
 			vm.SetLabels(vmLabels)
 			vmNameToVirtualMachine[vmName] = &vm
 			vmNameToIDMap[vmName] = vmID

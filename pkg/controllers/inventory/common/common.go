@@ -20,12 +20,11 @@ const (
 	IndexerByNamespace      = "namespace"
 	IndexerByNamespacedName = "namespace.name"
 
-	VpcIndexerByNameSpacedAccountName = "namespace.accountname"
+	VpcIndexerByNameSpacedAccountName = "namespace.cloud-account-name"
 	VpcIndexerByNamespacedRegion      = "namespace.region"
 
-	VirtualMachineIndexerByCloudID   = "metadata.annotations.cloud-assigned-id"
-	VirtualMachineIndexerByAccountID = "metadata.annotations.cloud-account-id"
-
-	VpcLabelAccountName = "account-name"
-	VpcLabelRegion      = "region"
+	VirtualMachineIndexerByCloudID               = "cloud-assigned-id"
+	VirtualMachineIndexerByCloudName             = "cloud-assigned-name"
+	VirtualMachineIndexerByCloudVPCID            = "cloud-assigned-vpc-id"
+	VirtualMachineIndexerByNameSpacedAccountName = "namespaced.cloud-account-name"
 )

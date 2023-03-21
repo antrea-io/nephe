@@ -99,6 +99,12 @@ type VirtualMachineStatus struct {
 	Region string `json:"region,omitempty"`
 	// Agented specifies if VM runs in agented mode, default is false.
 	Agented bool `json:"agented"`
+	// CloudAssignedId is the ID of the VM.
+	CloudAssignedId string `json:"cloudAssignedId,omitempty"`
+	// CloudAssignedName is the name of the VM.
+	CloudAssignedName string `json:"cloudAssignedName,omitempty"`
+	// CloudAssignedVPCId is the VPC ID of the VM.
+	CloudAssignedVPCId string `json:"cloudAssignedVPCId,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -115,6 +121,7 @@ type VirtualMachine struct {
 }
 
 // +kubebuilder:object:root=true
+
 // VirtualMachineList contains a list of VirtualMachine.
 type VirtualMachineList struct {
 	metav1.TypeMeta `json:",inline"`

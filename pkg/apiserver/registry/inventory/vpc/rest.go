@@ -31,6 +31,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/controllers/config"
 	"antrea.io/nephe/pkg/controllers/inventory"
 	"antrea.io/nephe/pkg/controllers/inventory/common"
 	"antrea.io/nephe/pkg/controllers/inventory/store"
@@ -87,21 +88,19 @@ func (r *REST) Get(ctx context.Context, name string, _ *metav1.GetOptions) (runt
 func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (runtime.Object, error) {
 	// List only supports four types of input options
 	// 1. All namespace
-	// 2. Labelselector with only the specific namespace, the only valid labelselectors are "account-name=<accountname>" and "region=<region>"
+	// 2. Labelselector with only the specific namespace, the only valid labelselectors is "region=<region>"
 	// 3. Fieldselector with only the specific namespace, the only valid fieldselectors is "metadata.name=<metadata.name>"
 	// 4. Specific Namespace
-	accountName := ""
 	region := ""
+
 	if options != nil && options.LabelSelector != nil && options.LabelSelector.String() != "" {
 		labelSelectorStrings := strings.Split(options.LabelSelector.String(), ",")
 		for _, labelSelectorString := range labelSelectorStrings {
 			labelKeyAndValue := strings.Split(labelSelectorString, "=")
-			if labelKeyAndValue[0] == common.VpcLabelAccountName {
-				accountName = labelKeyAndValue[1]
-			} else if labelKeyAndValue[0] == common.VpcLabelRegion {
+			if labelKeyAndValue[0] == config.LabelCloudRegion {
 				region = strings.ToLower(labelKeyAndValue[1])
 			} else {
-				return nil, errors.NewBadRequest("unsupported label selector, supported labels are: account-name and region")
+				return nil, errors.NewBadRequest("unsupported label selector, only region label selector is supported")
 			}
 		}
 	}
@@ -131,18 +130,12 @@ func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (
 	}
 
 	var objs []interface{}
-	if namespace == "" && (accountName != "" || region != "" || name != "") {
+	if namespace == "" && (region != "" || name != "") {
 		return nil, errors.NewBadRequest("cannot query with all namespaces. Namespace should be specified")
 	}
 
 	if namespace == "" {
 		objs = r.cloudInventory.GetAllVpcs()
-	} else if accountName != "" {
-		accountNameSpace := types.NamespacedName{
-			Namespace: namespace,
-			Name:      accountName,
-		}
-		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.VpcIndexerByNameSpacedAccountName, accountNameSpace.String())
 	} else if name != "" {
 		namespacedName := types.NamespacedName{
 			Namespace: namespace,

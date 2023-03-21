@@ -22,7 +22,7 @@ import (
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 	"antrea.io/nephe/pkg/cloud-provider/utils"
-	"antrea.io/nephe/pkg/controllers/inventory/common"
+	"antrea.io/nephe/pkg/controllers/config"
 )
 
 var azureStateMap = map[string]runtimev1alpha1.VMState{
@@ -66,7 +66,7 @@ func computeInstanceToVirtualMachineCRD(instance *virtualMachineTable, namespace
 		if len(nwInf.PublicIps) > 0 {
 			for _, publicIP := range nwInf.PublicIps {
 				ipAddressCRD := runtimev1alpha1.IPAddress{
-					AddressType: runtimev1alpha1.AddressTypeInternalIP,
+					AddressType: runtimev1alpha1.AddressTypeExternalIP,
 					Address:     *publicIP,
 				}
 				ipAddressCRDs = append(ipAddressCRDs, ipAddressCRD)
@@ -107,7 +107,7 @@ func computeInstanceToVirtualMachineCRD(instance *virtualMachineTable, namespace
 }
 
 // ComputeVpcToInternalVpcObject converts vnet object from cloud format(network.VirtualNetwork) to vpc runtime object.
-func ComputeVpcToInternalVpcObject(vnet *armnetwork.VirtualNetwork, namespace string, accountName string,
+func ComputeVpcToInternalVpcObject(vnet *armnetwork.VirtualNetwork, namespace, nameSpacedAccountName,
 	region string, managed bool) *runtimev1alpha1.Vpc {
 	crdName := utils.GenerateShortResourceIdentifier(*vnet.ID, *vnet.Name)
 	tags := make(map[string]string, 0)
@@ -124,8 +124,8 @@ func ComputeVpcToInternalVpcObject(vnet *armnetwork.VirtualNetwork, namespace st
 		}
 	}
 	labelsMap := map[string]string{
-		common.VpcLabelAccountName: accountName,
-		common.VpcLabelRegion:      region,
+		config.LabelCloudNamespacedAccountName: nameSpacedAccountName,
+		config.LabelCloudRegion:                region,
 	}
 	return utils.GenerateInternalVpcObject(crdName, namespace, labelsMap, strings.ToLower(*vnet.Name),
 		strings.ToLower(*vnet.ID), tags, runtimev1alpha1.AzureCloudProvider, region, cidrs, managed)

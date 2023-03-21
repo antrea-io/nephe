@@ -28,6 +28,7 @@ import (
 	antreastorage "antrea.io/antrea/pkg/apiserver/storage"
 	"antrea.io/antrea/pkg/apiserver/storage/ram"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/controllers/config"
 	"antrea.io/nephe/pkg/controllers/inventory/common"
 )
 
@@ -127,7 +128,7 @@ func vpcKeyFunc(obj interface{}) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("object is not of type runtime/v1alpha1/Vpc: %v", obj)
 	}
-	return fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[common.VpcLabelAccountName], vpc.Status.Id), nil
+	return fmt.Sprintf("%v-%v", vpc.Labels[config.LabelCloudNamespacedAccountName], vpc.Status.Id), nil
 }
 
 // NewVPCInventoryStore creates a store of VPC.
@@ -135,7 +136,7 @@ func NewVPCInventoryStore() antreastorage.Interface {
 	indexers := cache.Indexers{
 		common.VpcIndexerByNameSpacedAccountName: func(obj interface{}) ([]string, error) {
 			vpc := obj.(*runtimev1alpha1.Vpc)
-			return []string{vpc.Namespace + "/" + vpc.Labels[common.VpcLabelAccountName]}, nil
+			return []string{vpc.Labels[config.LabelCloudNamespacedAccountName]}, nil
 		},
 		common.IndexerByNamespacedName: func(obj interface{}) ([]string, error) {
 			vpc := obj.(*runtimev1alpha1.Vpc)

@@ -372,7 +372,7 @@ func (computeCfg *computeServiceConfig) GetVpcInventory() map[string]*runtimev1a
 			if _, ok := vnetIDs[strings.ToLower(*vpc.ID)]; ok {
 				managed = true
 			}
-			vpcObj := ComputeVpcToInternalVpcObject(&vpc, tokens[0], tokens[1], strings.ToLower(computeCfg.credentials.region), managed)
+			vpcObj := ComputeVpcToInternalVpcObject(&vpc, tokens[0], computeCfg.accountName, strings.ToLower(computeCfg.credentials.region), managed)
 			vpcMap[strings.ToLower(*vpc.ID)] = vpcObj
 		}
 	}

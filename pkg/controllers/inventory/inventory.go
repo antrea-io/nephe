@@ -27,6 +27,7 @@ import (
 
 	antreastorage "antrea.io/antrea/pkg/apiserver/storage"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/controllers/config"
 	"antrea.io/nephe/pkg/controllers/inventory/common"
 	"antrea.io/nephe/pkg/controllers/inventory/store"
 	"antrea.io/nephe/pkg/controllers/utils"
@@ -82,7 +83,7 @@ func (inventory *Inventory) BuildVpcCache(discoveredVpcMap map[string]*runtimev1
 	for _, i := range vpcsInCache {
 		vpc := i.(*runtimev1alpha1.Vpc)
 		if _, found := discoveredVpcMap[vpc.Status.Id]; !found {
-			if err := inventory.vpcStore.Delete(fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[common.VpcLabelAccountName],
+			if err := inventory.vpcStore.Delete(fmt.Sprintf("%v-%v", vpc.Labels[config.LabelCloudNamespacedAccountName],
 				vpc.Status.Id)); err != nil {
 				inventory.log.Error(err, "failed to delete vpc from vpc cache", "vpc id", vpc.Status.Id, "account",
 					namespacedName.String())
@@ -94,7 +95,8 @@ func (inventory *Inventory) BuildVpcCache(discoveredVpcMap map[string]*runtimev1
 
 	for _, discoveredVpc := range discoveredVpcMap {
 		var err error
-		key := fmt.Sprintf("%v/%v-%v", discoveredVpc.Namespace, discoveredVpc.Labels[common.VpcLabelAccountName], discoveredVpc.Status.Id)
+		key := fmt.Sprintf("%v-%v",
+			discoveredVpc.Labels[config.LabelCloudNamespacedAccountName], discoveredVpc.Status.Id)
 		if cachedObj, found, _ := inventory.vpcStore.Get(key); !found {
 			err = inventory.vpcStore.Create(discoveredVpc)
 			if err == nil {
@@ -130,7 +132,7 @@ func (inventory *Inventory) DeleteVpcsFromCache(namespacedName *types.Namespaced
 	}
 	for _, i := range vpcsInCache {
 		vpc := i.(*runtimev1alpha1.Vpc)
-		key := fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[common.VpcLabelAccountName], vpc.Status.Id)
+		key := fmt.Sprintf("%v-%v", vpc.Labels[config.LabelCloudNamespacedAccountName], vpc.Status.Id)
 		if err := inventory.vpcStore.Delete(key); err != nil {
 			return fmt.Errorf("failed to delete vpc from vpc cache %s:%s, error %v",
 				*namespacedName, vpc.Status.Id, err)
@@ -205,7 +207,7 @@ func (inventory *Inventory) BuildVmCache(discoveredVmMap map[string]*runtimev1al
 
 // DeleteVmsFromCache deletes all entries from vm cache for a given account.
 func (inventory *Inventory) DeleteVmsFromCache(namespacedName *types.NamespacedName) error {
-	vmsInCache, err := inventory.vmStore.GetByIndex(common.VirtualMachineIndexerByAccountID, namespacedName.String())
+	vmsInCache, err := inventory.vmStore.GetByIndex(common.VirtualMachineIndexerByNameSpacedAccountName, namespacedName.String())
 	if err != nil {
 		return err
 	}
@@ -230,7 +232,7 @@ func (inventory *Inventory) GetVmFromIndexer(indexName string, indexedValue stri
 	return inventory.vmStore.GetByIndex(indexName, indexedValue)
 }
 
-// GetVmBykey returns vm from vm cache for a given key (namespace/name).
+// GetVmByKey returns vm from vm cache for a given key (namespace/name).
 func (inventory *Inventory) GetVmByKey(key string) (*runtimev1alpha1.VirtualMachine, bool) {
 	cachedObject, found, err := inventory.vmStore.Get(key)
 	if err != nil {

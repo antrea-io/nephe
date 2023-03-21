@@ -38,12 +38,12 @@ func GenerateVirtualMachineCRD(crdName, cloudName, cloudID, region, namespace, c
 		NetworkInterfaces:   networkInterfaces,
 		Region:              region,
 		Agented:             false,
+		CloudAssignedId:     cloudID,
+		CloudAssignedName:   cloudName,
+		CloudAssignedVPCId:  cloudNetwork,
 	}
 	labelsMap := map[string]string{
-		config.LabelCloudAssignedID:    cloudID,
-		config.LabelCloudAssignedName:  cloudName,
-		config.LabelCloudAssignedVPCID: cloudNetwork,
-		config.LabelCloudAccountID:     accountId,
+		config.LabelCloudNamespacedAccountName: accountId,
 	}
 
 	vmCrd := &runtimev1alpha1.VirtualMachine{
