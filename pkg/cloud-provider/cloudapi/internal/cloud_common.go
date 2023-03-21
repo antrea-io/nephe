@@ -162,10 +162,7 @@ func (c *cloudCommon) GetCloudAccountComputeResourceCRDs(accountNamespacedName *
 	serviceConfigs := accCfg.GetServiceConfigs()
 	for _, serviceConfig := range serviceConfigs {
 		if serviceConfig.getType() == CloudServiceTypeCompute {
-			resourceCRDs := serviceConfig.getResourceCRDs(namespace, accCfg.GetNamespacedName().String())
-			for _, vm := range resourceCRDs.virtualMachines {
-				computeCRs[vm.Name] = vm
-			}
+			return serviceConfig.getResourceCRDs(namespace, accCfg.GetNamespacedName().String()), nil
 		}
 	}
 

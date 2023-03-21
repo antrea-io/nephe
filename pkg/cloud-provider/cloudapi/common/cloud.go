@@ -26,9 +26,8 @@ import (
 )
 
 var (
-	CrdAPIVersion         = "crd.cloud.antrea.io/v1alpha1"
-	RuntimeAPIVersion     = "runtime.cloud.antrea.io/v1alpha1"
-	VirtualMachineCRDKind = reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()
+	RuntimeAPIVersion               = "runtime.cloud.antrea.io/v1alpha1"
+	VirtualMachineRuntimeObjectKind = reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()
 
 	MaxCloudResourceResponse int64 = 100
 )

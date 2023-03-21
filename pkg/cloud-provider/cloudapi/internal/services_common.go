@@ -52,15 +52,15 @@ type CloudServiceInterface interface {
 	DoResourceInventory() error
 	// GetInventoryStats returns Inventory statistics for the service.
 	GetInventoryStats() *CloudServiceStats
-	// GetResourceCRDs returns Service resource saved in CloudServiceResourcesCache in terms of CRD.
-	GetResourceCRDs(namespace string, accountId string) *CloudServiceResourceCRDs
+	// GetResourceCRDs returns VM instances saved in CloudServiceResourcesCache in terms of runtimev1alpha1.VirtualMachine.
+	GetResourceCRDs(namespace string, accountId string) map[string]*runtimev1alpha1.VirtualMachine
 	// GetName returns cloud name of the service.
 	GetName() CloudServiceName
 	// GetType returns service type (compute, any other type etc.)
 	GetType() CloudServiceType
 	// ResetCachedState clears any internal state build by the service as part of cloud resource discovery.
 	ResetCachedState()
-	// GetVpcInventory copies VPCs stored in internal snapshot(in cloud specific format) to runtimev1alpha1.Vpc format.
+	// GetVpcInventory returns VPCs stored in internal snapshot(in cloud specific format) in runtimev1alpha1.Vpc format.
 	GetVpcInventory() map[string]*runtimev1alpha1.Vpc
 }
 
@@ -99,7 +99,7 @@ func (cfg *CloudServiceCommon) getInventoryStats() *CloudServiceStats {
 	return cfg.serviceInterface.GetInventoryStats()
 }
 
-func (cfg *CloudServiceCommon) getResourceCRDs(namespace string, accountId string) *CloudServiceResourceCRDs {
+func (cfg *CloudServiceCommon) getResourceCRDs(namespace string, accountId string) map[string]*runtimev1alpha1.VirtualMachine {
 	cfg.mutex.Lock()
 	defer cfg.mutex.Unlock()
 
@@ -122,15 +122,6 @@ func (cfg *CloudServiceCommon) getVpcInventory() map[string]*runtimev1alpha1.Vpc
 	defer cfg.mutex.Unlock()
 
 	return cfg.serviceInterface.GetVpcInventory()
-}
-
-type CloudServiceResourceCRDs struct {
-	virtualMachines []*runtimev1alpha1.VirtualMachine
-}
-
-// SetComputeResourceCRDs sets Service resource CRDs for accessing it from cloudCommon interface.
-func (s *CloudServiceResourceCRDs) SetComputeResourceCRDs(vms []*runtimev1alpha1.VirtualMachine) {
-	s.virtualMachines = vms
 }
 
 // CloudServiceResourcesCache is cache used by all services. Each service can maintain its resources specific cache by

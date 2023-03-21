@@ -262,23 +262,20 @@ func (computeCfg *computeServiceConfig) RemoveResourceFilters(selectorName strin
 	delete(computeCfg.computeFilters, selectorName)
 }
 
-func (computeCfg *computeServiceConfig) GetResourceCRDs(namespace string, accountId string) *internal.CloudServiceResourceCRDs {
+func (computeCfg *computeServiceConfig) GetResourceCRDs(namespace string, accountId string) map[string]*runtimev1alpha1.VirtualMachine {
 	virtualMachines := computeCfg.getCachedVirtualMachines()
-	vmCRDs := make([]*runtimev1alpha1.VirtualMachine, 0, len(virtualMachines))
+	vmObjects := map[string]*runtimev1alpha1.VirtualMachine{}
 
 	for _, virtualMachine := range virtualMachines {
-		// build VirtualMachine CRD
-		vmCRD := computeInstanceToVirtualMachineCRD(virtualMachine, namespace, accountId, computeCfg.credentials.region)
-		vmCRDs = append(vmCRDs, vmCRD)
+		// build runtimev1alpha1 VirtualMachine object.
+		vmObject := computeInstanceToInternalVirtualMachineObject(virtualMachine, namespace, accountId, computeCfg.credentials.region)
+		vmObjects[vmObject.Name] = vmObject
 	}
 
 	azurePluginLogger().V(1).Info("CRDs", "service", azureComputeServiceNameCompute, "account", computeCfg.accountName,
-		"virtual-machine CRDs", len(vmCRDs))
+		"virtual-machine CRDs", len(vmObjects))
 
-	serviceResourceCRDs := &internal.CloudServiceResourceCRDs{}
-	serviceResourceCRDs.SetComputeResourceCRDs(vmCRDs)
-
-	return serviceResourceCRDs
+	return vmObjects
 }
 
 func (computeCfg *computeServiceConfig) GetName() internal.CloudServiceName {

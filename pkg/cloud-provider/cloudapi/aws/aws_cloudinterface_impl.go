@@ -63,7 +63,7 @@ func (c *awsCloud) ProviderType() cloudcommon.ProviderType {
 //
 // /////////////////////////////////////////////.
 
-// InstancesGivenProviderAccount returns VM CRD for all instances of a given cloud provider account.
+// InstancesGivenProviderAccount returns runtime VM objects for all instances of a given cloud provider account.
 func (c *awsCloud) InstancesGivenProviderAccount(accountNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.VirtualMachine,
 	error) {
 	vmCRDs, err := c.cloudCommon.GetCloudAccountComputeResourceCRDs(accountNamespacedName)

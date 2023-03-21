@@ -26,8 +26,8 @@ import (
 	"antrea.io/nephe/pkg/controllers/config"
 )
 
-// GenerateVirtualMachineCRD constructs a VirtualMachine CR based on parameters.
-func GenerateVirtualMachineCRD(crdName, cloudName, cloudID, region, namespace, cloudNetwork, shortNetworkID string,
+// GenerateInternalVirtualMachineObject constructs a VirtualMachine runtime object based on parameters.
+func GenerateInternalVirtualMachineObject(crdName, cloudName, cloudID, region, namespace, cloudNetwork, shortNetworkID string,
 	state runtimev1alpha1.VMState, tags map[string]string, networkInterfaces []runtimev1alpha1.NetworkInterface,
 	provider cloudcommon.ProviderType, accountId string) *runtimev1alpha1.VirtualMachine {
 	vmStatus := &runtimev1alpha1.VirtualMachineStatus{
@@ -48,7 +48,7 @@ func GenerateVirtualMachineCRD(crdName, cloudName, cloudID, region, namespace, c
 
 	vmCrd := &runtimev1alpha1.VirtualMachine{
 		TypeMeta: v1.TypeMeta{
-			Kind:       cloudcommon.VirtualMachineCRDKind,
+			Kind:       cloudcommon.VirtualMachineRuntimeObjectKind,
 			APIVersion: cloudcommon.RuntimeAPIVersion,
 		},
 		ObjectMeta: v1.ObjectMeta{

@@ -291,19 +291,19 @@ func (ec2Cfg *ec2ServiceConfig) RemoveResourceFilters(selectorName string) {
 	delete(ec2Cfg.instanceFilters, selectorName)
 }
 
-func (ec2Cfg *ec2ServiceConfig) GetResourceCRDs(namespace string, accountId string) *internal.CloudServiceResourceCRDs {
+func (ec2Cfg *ec2ServiceConfig) GetResourceCRDs(namespace string, accountId string) map[string]*runtimev1alpha1.VirtualMachine {
 	instances := ec2Cfg.getCachedInstances()
-	vmCRDs := make([]*runtimev1alpha1.VirtualMachine, 0, len(instances))
+	vmObjects := map[string]*runtimev1alpha1.VirtualMachine{}
 	for _, instance := range instances {
-		// build VirtualMachine CRD
-		vmCRD := ec2InstanceToVirtualMachineCRD(instance, namespace, accountId, ec2Cfg.credentials.region)
-		vmCRDs = append(vmCRDs, vmCRD)
+		// build runtimev1alpha1 VirtualMachine object.
+		vmObject := ec2InstanceToInternalVirtualMachineObject(instance, namespace, accountId, ec2Cfg.credentials.region)
+		vmObjects[vmObject.Name] = vmObject
 	}
 
-	serviceResourceCRDs := &internal.CloudServiceResourceCRDs{}
-	serviceResourceCRDs.SetComputeResourceCRDs(vmCRDs)
+	awsPluginLogger().V(1).Info("CRDs", "service", awsComputeServiceNameEC2, "account", ec2Cfg.accountName,
+		"virtual-machine CRDs", len(vmObjects))
 
-	return serviceResourceCRDs
+	return vmObjects
 }
 
 func (ec2Cfg *ec2ServiceConfig) GetName() internal.CloudServiceName {

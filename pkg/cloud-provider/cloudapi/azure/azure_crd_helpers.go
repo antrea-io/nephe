@@ -35,7 +35,8 @@ var azureStateMap = map[string]runtimev1alpha1.VMState{
 	"PowerState/unknown":      runtimev1alpha1.Unknown,
 }
 
-func computeInstanceToVirtualMachineCRD(instance *virtualMachineTable, namespace string, accountId string,
+// computeInstanceToInternalVirtualMachineObject converts compute instance to VirtualMachine runtime object.
+func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable, namespace string, accountId string,
 	region string) *runtimev1alpha1.VirtualMachine {
 	tags := make(map[string]string)
 
@@ -53,23 +54,23 @@ func computeInstanceToVirtualMachineCRD(instance *virtualMachineTable, namespace
 	instNetworkInterfaces := instance.NetworkInterfaces
 	networkInterfaces := make([]runtimev1alpha1.NetworkInterface, 0, len(instNetworkInterfaces))
 	for _, nwInf := range instNetworkInterfaces {
-		var ipAddressCRDs []runtimev1alpha1.IPAddress
+		var ipAddressObjs []runtimev1alpha1.IPAddress
 		if len(nwInf.PrivateIps) > 0 {
 			for _, ipAddress := range nwInf.PrivateIps {
-				ipAddressCRD := runtimev1alpha1.IPAddress{
+				ipAddresObj := runtimev1alpha1.IPAddress{
 					AddressType: runtimev1alpha1.AddressTypeInternalIP,
 					Address:     *ipAddress,
 				}
-				ipAddressCRDs = append(ipAddressCRDs, ipAddressCRD)
+				ipAddressObjs = append(ipAddressObjs, ipAddresObj)
 			}
 		}
 		if len(nwInf.PublicIps) > 0 {
 			for _, publicIP := range nwInf.PublicIps {
-				ipAddressCRD := runtimev1alpha1.IPAddress{
+				ipAddressObj := runtimev1alpha1.IPAddress{
 					AddressType: runtimev1alpha1.AddressTypeExternalIP,
 					Address:     *publicIP,
 				}
-				ipAddressCRDs = append(ipAddressCRDs, ipAddressCRD)
+				ipAddressObjs = append(ipAddressObjs, ipAddressObj)
 			}
 		}
 		macAddress := ""
@@ -80,7 +81,7 @@ func computeInstanceToVirtualMachineCRD(instance *virtualMachineTable, namespace
 		networkInterface := runtimev1alpha1.NetworkInterface{
 			Name: *nwInf.ID,
 			MAC:  macAddress,
-			IPs:  ipAddressCRDs,
+			IPs:  ipAddressObjs,
 		}
 		networkInterfaces = append(networkInterfaces, networkInterface)
 	}
@@ -102,7 +103,7 @@ func computeInstanceToVirtualMachineCRD(instance *virtualMachineTable, namespace
 	} else {
 		state = runtimev1alpha1.Unknown
 	}
-	return utils.GenerateVirtualMachineCRD(crdName, strings.ToLower(cloudName), strings.ToLower(cloudID), strings.ToLower(region),
+	return utils.GenerateInternalVirtualMachineObject(crdName, strings.ToLower(cloudName), strings.ToLower(cloudID), strings.ToLower(region),
 		namespace, strings.ToLower(cloudNetworkID), cloudNetworkShortID, state, tags, networkInterfaces, providerType, accountId)
 }
 
