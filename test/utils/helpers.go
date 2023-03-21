@@ -93,6 +93,16 @@ func StartOrWaitDeployment(k8sClient client.Client, name, namespace string, repl
 	return nil
 }
 
+// CheckDeploymentConfigured checks if the deployment is configured or not. Return nil if configured.
+func CheckDeploymentConfigured(k8sClient client.Client, name, namespace string) error {
+	dep := &v1.Deployment{}
+	key := client.ObjectKey{Name: name, Namespace: namespace}
+	if err := k8sClient.Get(context.TODO(), key, dep); err != nil {
+		return err
+	}
+	return nil
+}
+
 // StopDeployment stops an deployment..
 func StopDeployment(k8sClient client.Client, name, namespace string, timeout time.Duration) (int32, error) {
 	dep := &v1.Deployment{}
@@ -648,5 +658,73 @@ func WaitApiServer(k8sClient client.Client, timeout time.Duration) error {
 	}); err != nil {
 		return err
 	}
+	return nil
+}
+
+// ExecuteCmd helper for command execution.
+func ExecuteCmd(timeout time.Duration, cmds []string) (string, error) {
+	args := []string{
+		"-s", "SIGKILL",
+		fmt.Sprint(timeout.Seconds()),
+	}
+	args = append(args, cmds...)
+	cmd := exec.Command("timeout", args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("execute cmd [%s] failed: err %w, output %s", cmd.String(), err, output)
+	}
+	return string(output), nil
+}
+
+// InstallHelmChart install helm chart in nephe-system namespace.
+func InstallHelmChart(k8sClient client.Client, version string) error {
+	cmds := [][]string{
+		{"helm", "repo", "add", "antrea", "https://charts.antrea.io"},
+		{"helm", "repo", "update"},
+		{"helm", "install", "nephe", "antrea/nephe", "-n", "nephe-system", "--version", version, "--create-namespace"},
+	}
+	for _, cmd := range cmds {
+		if _, err := ExecuteCmd(time.Second*300, cmd); err != nil {
+			return err
+		}
+	}
+	if err := RestartOrWaitDeployment(k8sClient, "nephe-controller", "nephe-system", time.Second*120, false); err != nil {
+		return err
+	}
+	time.Sleep(60 * time.Second)
+	return nil
+}
+
+// DeleteHelmChart uninstall helm chart from nephe-system namespace.
+func DeleteHelmChart() error {
+	cmd := []string{
+		"helm", "delete", "nephe", "-n", "nephe-system",
+	}
+	if _, err := ExecuteCmd(time.Second*300, cmd); err != nil {
+		return err
+	}
+	return nil
+}
+
+// UpgradeHelmChart upgrade helm chart in nephe-system namespace.
+func UpgradeHelmChart(k8sClient client.Client, toVersion string, chartDir string) error {
+	var cmds []string
+	if toVersion == "latest" {
+		cmds = []string{
+			"helm", "upgrade", "nephe", chartDir, "-n", "nephe-system",
+		}
+	} else {
+		cmds = []string{
+			"helm", "upgrade", "nephe", "antrea/nephe", "-n", "nephe-system", "--version", toVersion,
+		}
+	}
+	if _, err := ExecuteCmd(time.Second*300, cmds); err != nil {
+		return err
+	}
+	if err := RestartOrWaitDeployment(k8sClient, "nephe-controller", "nephe-system", time.Second*120, false); err != nil {
+		return err
+	}
+	// TODO: Wait for 60 sec for all controllers to come up. Need a deterministic way.
+	time.Sleep(60 * time.Second)
 	return nil
 }

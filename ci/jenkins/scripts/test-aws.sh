@@ -28,7 +28,8 @@ Setup and run integration tests on Kind cluster with AWS VMs.
         [--aws-service-user <ServiceUserName>]               AWS Service User Name.
         [--aws-service-user-role-arn <ServiceUserRoleARN>]   AWS Service User Role ARN.
         [--aws-region <Region>]                              AWS region where the setup will be deployed. Defaults to us-east-2.
-        [--owner <OwnerName>]                                Setup will be prefixed with owner name."
+        [--owner <OwnerName>]                                Setup will be prefixed with owner name.
+        [--upgrade]                                          Run upgrade test."
 
 function print_usage {
     echoerr "$_usage"
@@ -41,6 +42,7 @@ function print_help {
 # Defaults
 export TF_VAR_owner="ci"
 export AWS_DEFAULT_REGION="us-east-2"
+export UPGRADE=false 
 
 while [[ $# -gt 0 ]]
 do
@@ -70,6 +72,10 @@ case $key in
     --owner)
     export TF_VAR_owner="$2"
     shift 2
+    ;;
+    --upgrade)
+    export UPGRADE=true
+    shift 1
     ;;
     -h|--help)
     print_usage
@@ -140,15 +146,22 @@ ci/kind/kind-setup.sh create kind
 
 # Create a key pair
 KEY_PAIR="nephe-$$"
-aws ec2 import-key-pair --key-name ${KEY_PAIR} --public-key-material fileb://~/.ssh/id_rsa.pub --region ${AWS_DEFAULT_REGION}
+aws ec2 import-key-pair --key-name ${KEY_PAIR} --public-key-material fileb://~/.ssh/id_rsa.pub --region "${AWS_DEFAULT_REGION}"
 
 export TF_VAR_aws_key_pair_name=${KEY_PAIR}
 
 function cleanup() {
     # Delete key pair
-    aws ec2 delete-key-pair  --key-name ${KEY_PAIR}  --region ${AWS_DEFAULT_REGION}
+    aws ec2 delete-key-pair  --key-name ${KEY_PAIR}  --region "${AWS_DEFAULT_REGION}"
 }
 trap cleanup EXIT
 
-mkdir -p $HOME/logs
-ci/bin/integration.test -ginkgo.v -ginkgo.timeout 90m -ginkgo.focus=".*test-aws.*" -kubeconfig=$HOME/.kube/config -cloud-provider=AWS -support-bundle-dir=$HOME/logs
+mkdir -p "$HOME"/logs
+
+if [ "$UPGRADE" = true ] ; then
+    ci/bin/upgrade.test -ginkgo.v -ginkgo.timeout 90m -ginkgo.focus=".*test-aws.*" -kubeconfig="$HOME"/.kube/config \
+    -from-version=0.5.0 -to-version="latest" -chart-dir="build/charts/nephe" -cloud-provider=AWS -support-bundle-dir="$HOME"/logs
+else
+    ci/bin/integration.test -ginkgo.v -ginkgo.timeout 90m -ginkgo.focus=".*test-aws.*" -kubeconfig="$HOME"/.kube/config \
+    -cloud-provider=AWS -support-bundle-dir="$HOME"/logs
+fi

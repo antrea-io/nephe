@@ -235,4 +235,15 @@ case $testType in
                                                    --azure-tenant-id ${AZURE_TENANT_ID} --azure-secret ${AZURE_PASSWORD} --owner ${owner} --with-agent \
                                                    --with-agent-windows"
     ;;
+    aws-upgrade)
+    echo "Run upgrade tests on Kind cluster with AWS VMs"
+    ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/scripts/test-aws.sh --aws-access-key-id ${AWS_ACCESS_KEY_ID} --aws-secret-key ${AWS_ACCESS_KEY_SECRET} \
+                                                   --aws-service-user-role-arn ${AWS_SERVICE_USER_ROLE_ARN} --aws-service-user ${AWS_SERVICE_USER_NAME} --owner ${owner} \
+                                                   --upgrade"
+    ;;
+    azure-upgrade)
+    echo "Run upgrade tests on Kind cluster with Azure VMs"
+    ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/scripts/test-azure.sh --azure-subscription-id ${AZURE_SUBSCRIPTION_ID} --azure-app-id ${AZURE_APP_ID} \
+                                                   --azure-tenant-id ${AZURE_TENANT_ID} --azure-secret ${AZURE_PASSWORD} --owner ${owner} --upgrade"
+    ;;
  esac
