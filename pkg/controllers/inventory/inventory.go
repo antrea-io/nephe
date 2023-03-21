@@ -34,28 +34,6 @@ import (
 	"antrea.io/nephe/pkg/logging"
 )
 
-type InventoryInterface interface {
-	VPCStore
-	VMStore
-}
-
-type VMStore interface {
-	BuildVmCache(discoveredVmMap map[string]*runtimev1alpha1.VirtualMachine, namespacedName *types.NamespacedName)
-	DeleteVmsFromCache(namespacedName *types.NamespacedName) error
-	GetAllVms() []interface{}
-	GetVmFromIndexer(indexName string, indexedValue string) ([]interface{}, error)
-	GetVmByKey(key string) (*runtimev1alpha1.VirtualMachine, bool)
-	WatchVms(ctx context.Context, key string, labelSelector labels.Selector, fieldSelector fields.Selector) (watch.Interface, error)
-}
-
-type VPCStore interface {
-	BuildVpcCache(discoveredVpcMap map[string]*runtimev1alpha1.Vpc, namespacedName *types.NamespacedName) error
-	DeleteVpcsFromCache(namespacedName *types.NamespacedName) error
-	GetVpcsFromIndexer(indexName string, indexedValue string) ([]interface{}, error)
-	GetAllVpcs() []interface{}
-	WatchVpcs(ctx context.Context, key string, labelSelector labels.Selector, fieldSelector fields.Selector) (watch.Interface, error)
-}
-
 type Inventory struct {
 	log      logr.Logger
 	vpcStore antreastorage.Interface
@@ -151,7 +129,7 @@ func (inventory *Inventory) GetAllVpcs() []interface{} {
 	return inventory.vpcStore.List()
 }
 
-// WatchVpcs returns a Watch interface of VPC.
+// WatchVpcs returns a Watch interface of vpc.
 func (inventory *Inventory) WatchVpcs(ctx context.Context, key string, labelSelector labels.Selector,
 	fieldSelector fields.Selector) (watch.Interface, error) {
 	return inventory.vpcStore.Watch(ctx, key, labelSelector, fieldSelector)

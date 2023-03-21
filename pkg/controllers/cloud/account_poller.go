@@ -49,7 +49,7 @@ type accountPoller struct {
 	vmSelector        cache.Indexer
 	ch                chan struct{}
 	mutex             sync.RWMutex
-	inventory         inventory.InventoryInterface
+	inventory         inventory.Interface
 }
 
 type Poller struct {

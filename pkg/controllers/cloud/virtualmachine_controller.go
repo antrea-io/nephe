@@ -46,7 +46,7 @@ type VirtualMachineManager struct {
 	scheme *runtime.Scheme
 
 	// TODO: pass pointer of Inventory.
-	Inventory inventory.InventoryInterface
+	Inventory inventory.Interface
 	converter converter.VMConverter
 	vmWatcher watch.Interface
 }
@@ -64,7 +64,7 @@ func GetVirtualMachineManagerInstance() *VirtualMachineManager {
 
 // Configure configures the client, scheme, log and converter.
 func (r *VirtualMachineManager) Configure(client client.Client, scheme *runtime.Scheme,
-	inventory inventory.InventoryInterface) *VirtualMachineManager {
+	inventory inventory.Interface) *VirtualMachineManager {
 	r.Client = client
 	r.scheme = scheme
 	r.Inventory = inventory

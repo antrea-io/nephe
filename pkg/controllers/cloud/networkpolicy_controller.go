@@ -91,7 +91,7 @@ type NetworkPolicyReconciler struct {
 	virtualMachinePolicyIndexer   cache.Indexer
 	cloudRuleIndexer              cache.Indexer
 
-	Inventory inventory.InventoryInterface
+	Inventory inventory.Interface
 
 	// pendingDeleteGroups keep tracks of deleting AddressGroup or AppliedToGroup.
 	pendingDeleteGroups *PendingItemQueue

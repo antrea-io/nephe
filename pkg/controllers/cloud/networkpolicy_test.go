@@ -96,7 +96,7 @@ var _ = Describe("NetworkPolicy", func() {
 	BeforeEach(func() {
 		mockCtrl = mock.NewController(GinkgoT())
 		mockClient = controllerruntimeclient.NewMockClient(mockCtrl)
-		mockInventory = inventory.NewMockInventoryInterface(mockCtrl)
+		mockInventory = inventory.NewMockInterface(mockCtrl)
 		mockCloudSecurityAPI = cloudtest.NewMockCloudSecurityGroupAPI(mockCtrl)
 		securitygroup.CloudSecurityGroup = mockCloudSecurityAPI
 		reconciler = &NetworkPolicyReconciler{

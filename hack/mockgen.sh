@@ -31,7 +31,7 @@ MOCKGEN_TARGETS=(
   "sigs.k8s.io/controller-runtime/pkg/client Client,StatusWriter controllerruntimeclient"
   "antrea.io/nephe/pkg/cloud-provider/securitygroup CloudSecurityGroupAPI cloudsecurity"
   "antrea.io/nephe/pkg/controllers/cloud NetworkPolicyController networkpolicy"
-  "antrea.io/nephe/pkg/controllers/inventory InventoryInterface inventory"
+  "antrea.io/nephe/pkg/controllers/inventory Interface inventory"
 )
 
 for target in "${MOCKGEN_TARGETS[@]}"; do

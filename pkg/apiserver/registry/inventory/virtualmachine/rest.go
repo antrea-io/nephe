@@ -36,7 +36,7 @@ import (
 
 // REST implements rest.Storage for VirtualMachine Inventory.
 type REST struct {
-	cloudInventory inventory.InventoryInterface
+	cloudInventory inventory.Interface
 	logger         logger.Logger
 }
 
@@ -48,7 +48,7 @@ var (
 )
 
 // NewREST returns a REST object that will work against API services.
-func NewREST(cloudInventory inventory.InventoryInterface, l logger.Logger) *REST {
+func NewREST(cloudInventory inventory.Interface, l logger.Logger) *REST {
 	return &REST{
 		cloudInventory: cloudInventory,
 		logger:         l,

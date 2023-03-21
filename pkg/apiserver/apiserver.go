@@ -47,7 +47,7 @@ var (
 type ExtraConfig struct {
 	// virtual machine policy indexer.
 	vmpIndexer     cache.Indexer
-	cloudInventory inventory.InventoryInterface
+	cloudInventory inventory.Interface
 }
 
 // Config defines the config for the apiserver.
@@ -56,7 +56,7 @@ type Config struct {
 	ExtraConfig   ExtraConfig
 }
 
-func NewConfig(codecs serializer.CodecFactory, vmpIndexer cache.Indexer, cloudInventory inventory.InventoryInterface) (*Config, error) {
+func NewConfig(codecs serializer.CodecFactory, vmpIndexer cache.Indexer, cloudInventory inventory.Interface) (*Config, error) {
 	recommend := genericoptions.NewRecommendedOptions("", nil)
 	serverConfig := genericapiserver.NewRecommendedConfig(codecs)
 	recommend.SecureServing.BindPort = apiServerPort
@@ -107,7 +107,7 @@ func (s *NepheControllerAPIServer) Start(stop context.Context) error {
 func (s *NepheControllerAPIServer) SetupWithManager(
 	mgr controllerruntime.Manager,
 	vmpIndexer cache.Indexer,
-	cloudInventory inventory.InventoryInterface,
+	cloudInventory inventory.Interface,
 	logger logger.Logger) error {
 	s.logger = logger
 	codecs := serializer.NewCodecFactory(mgr.GetScheme())
