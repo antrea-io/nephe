@@ -70,6 +70,7 @@ var _ = Describe("NetworkPolicy", func() {
 		reconciler             *NetworkPolicyReconciler
 		anp                    *antreanetworking.NetworkPolicy
 		namespace              = "anp-ns"
+		accountName            = "test"
 		accountID              = "anp-ns/test"
 		vpc                    = "test-vpc"
 		addrGrpNames           = []string{"addr-grp-1", "addr-grp-2"}
@@ -144,10 +145,11 @@ var _ = Describe("NetworkPolicy", func() {
 			vm := runtimev1alpha1.VirtualMachine{}
 			vm.Name = vmName
 			vm.Namespace = namespace
-			vm.Status.CloudAssignedId = vmID
-			vm.Status.CloudAssignedVPCId = vpc
+			vm.Status.CloudId = vmID
+			vm.Status.CloudVpcId = vpc
 			vmLabels := make(map[string]string)
-			vmLabels[config.LabelCloudNamespacedAccountName] = accountID
+			vmLabels[config.LabelCloudAccountName] = accountName
+			vmLabels[config.LabelCloudAccountNamespace] = namespace
 			vm.SetLabels(vmLabels)
 			vmNameToVirtualMachine[vmName] = &vm
 			vmNameToIDMap[vmName] = vmID

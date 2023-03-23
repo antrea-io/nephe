@@ -26,6 +26,8 @@ const (
 
 const (
 	// TODO: Prefix with VirtualMachine? or move to inventory package?
-	LabelCloudNamespacedAccountName = "cloud-account-name"
-	LabelCloudRegion                = "region"
+	LabelCloudAccountName      = "cpa.name"
+	LabelCloudAccountNamespace = "cpa.namespace"
+	LabelCloudRegion           = "region"
+	LabelCloudVPCName          = "vpc.name"
 )

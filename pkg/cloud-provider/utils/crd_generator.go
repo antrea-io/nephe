@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
@@ -27,23 +28,25 @@ import (
 )
 
 // GenerateInternalVirtualMachineObject constructs a VirtualMachine runtime object based on parameters.
-func GenerateInternalVirtualMachineObject(crdName, cloudName, cloudID, region, namespace, cloudNetwork, shortNetworkID string,
+func GenerateInternalVirtualMachineObject(crdName, CloudName, cloudID, region, namespace, cloudNetwork, shortNetworkID string,
 	state runtimev1alpha1.VMState, tags map[string]string, networkInterfaces []runtimev1alpha1.NetworkInterface,
-	provider cloudcommon.ProviderType, accountId string) *runtimev1alpha1.VirtualMachine {
+	provider cloudcommon.ProviderType, account *types.NamespacedName) *runtimev1alpha1.VirtualMachine {
 	vmStatus := &runtimev1alpha1.VirtualMachineStatus{
-		Provider:            runtimev1alpha1.CloudProvider(provider),
-		VirtualPrivateCloud: shortNetworkID,
-		Tags:                tags,
-		State:               state,
-		NetworkInterfaces:   networkInterfaces,
-		Region:              region,
-		Agented:             false,
-		CloudAssignedId:     cloudID,
-		CloudAssignedName:   cloudName,
-		CloudAssignedVPCId:  cloudNetwork,
+		Provider:          runtimev1alpha1.CloudProvider(provider),
+		Tags:              tags,
+		State:             state,
+		NetworkInterfaces: networkInterfaces,
+		Region:            region,
+		Agented:           false,
+		CloudId:           cloudID,
+		CloudName:         CloudName,
+		CloudVpcId:        cloudNetwork,
 	}
 	labelsMap := map[string]string{
-		config.LabelCloudNamespacedAccountName: accountId,
+		//config.LabelCloudNamespacedAccountName: account.String(),
+		config.LabelCloudAccountName:      account.Name,
+		config.LabelCloudAccountNamespace: account.Namespace,
+		config.LabelCloudVPCName:          shortNetworkID,
 	}
 
 	vmCrd := &runtimev1alpha1.VirtualMachine{
@@ -80,17 +83,24 @@ func GenerateShortResourceIdentifier(id string, prefixToAdd string) string {
 }
 
 // GenerateInternalVpcObject generates runtimev1alpha1 vpc object using the input parameters.
-func GenerateInternalVpcObject(name string, namespace string, labels map[string]string, cloudName string,
-	cloudId string, tags map[string]string, cloudProvider runtimev1alpha1.CloudProvider,
+func GenerateInternalVpcObject(name, namespace, accountName, CloudName,
+	CloudId string, tags map[string]string, cloudProvider runtimev1alpha1.CloudProvider,
 	region string, cidrs []string, managed bool) *runtimev1alpha1.Vpc {
 	status := &runtimev1alpha1.VpcStatus{
-		Name:     cloudName,
-		Id:       cloudId,
+		Name:     CloudName,
+		Id:       CloudId,
 		Provider: cloudProvider,
 		Region:   region,
 		Tags:     tags,
 		Cidrs:    cidrs,
 		Managed:  managed,
+	}
+
+	labels := map[string]string{
+		//config.LabelCloudNamespacedAccountName: namespacedAccountName,
+		config.LabelCloudAccountNamespace: namespace,
+		config.LabelCloudAccountName:      accountName,
+		config.LabelCloudRegion:           region,
 	}
 
 	vpc := &runtimev1alpha1.Vpc{

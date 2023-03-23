@@ -55,8 +55,9 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 
 	Context("VPC Inventory Test", func() {
 		vpcLabelsMap := map[string]string{
-			config.LabelCloudNamespacedAccountName: namespacedAccountName.String(),
-			config.LabelCloudRegion:                region,
+			config.LabelCloudAccountName:      namespacedAccountName.Name,
+			config.LabelCloudAccountNamespace: namespacedAccountName.Namespace,
+			config.LabelCloudRegion:           region,
 		}
 		vpcList1 := make(map[string]*runtimev1alpha1.Vpc)
 		vpcObj1 := new(runtimev1alpha1.Vpc)
@@ -125,7 +126,9 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 	})
 	Context("VM Inventory Test", func() {
 		vmLabelsMap := map[string]string{
-			config.LabelCloudNamespacedAccountName: namespacedAccountName.String(),
+			config.LabelCloudAccountName:      namespacedAccountName.Name,
+			config.LabelCloudAccountNamespace: namespacedAccountName.Namespace,
+			config.LabelCloudVPCName:          testVpcID01,
 		}
 
 		ipAddressCRD := runtimev1alpha1.IPAddress{
@@ -145,15 +148,14 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 		tags["name"] = testVmID01
 
 		vmStatus := &runtimev1alpha1.VirtualMachineStatus{
-			Provider:            runtimev1alpha1.AWSCloudProvider,
-			VirtualPrivateCloud: testVpcID01,
-			Tags:                tags,
-			State:               runtimev1alpha1.Running,
-			NetworkInterfaces:   networkInterfaces,
-			Agented:             false,
-			CloudAssignedId:     testVmID01,
-			CloudAssignedName:   testVmName01,
-			CloudAssignedVPCId:  testVpcID01,
+			Provider:          runtimev1alpha1.AWSCloudProvider,
+			Tags:              tags,
+			State:             runtimev1alpha1.Running,
+			NetworkInterfaces: networkInterfaces,
+			Agented:           false,
+			CloudId:           testVmID01,
+			CloudName:         testVmName01,
+			CloudVpcId:        testVpcID01,
 		}
 
 		vmList := make(map[string]*runtimev1alpha1.VirtualMachine)
@@ -215,12 +217,11 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 
 			// Update Agented field in Status from false to true.
 			vmStatusUpdate := &runtimev1alpha1.VirtualMachineStatus{
-				Provider:            runtimev1alpha1.AWSCloudProvider,
-				VirtualPrivateCloud: testVpcID01,
-				Tags:                tags,
-				State:               runtimev1alpha1.Running,
-				NetworkInterfaces:   networkInterfaces,
-				Agented:             true,
+				Provider:          runtimev1alpha1.AWSCloudProvider,
+				Tags:              tags,
+				State:             runtimev1alpha1.Running,
+				NetworkInterfaces: networkInterfaces,
+				Agented:           true,
 			}
 			vmListUpdate := make(map[string]*runtimev1alpha1.VirtualMachine)
 			vmObjUpdate := new(runtimev1alpha1.VirtualMachine)
@@ -245,12 +246,11 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 
 			// Update State field in Status from running to stopped.
 			vmStatusUpdate := &runtimev1alpha1.VirtualMachineStatus{
-				Provider:            runtimev1alpha1.AWSCloudProvider,
-				VirtualPrivateCloud: testVpcID01,
-				Tags:                tags,
-				State:               runtimev1alpha1.Stopped,
-				NetworkInterfaces:   networkInterfaces,
-				Agented:             false,
+				Provider:          runtimev1alpha1.AWSCloudProvider,
+				Tags:              tags,
+				State:             runtimev1alpha1.Stopped,
+				NetworkInterfaces: networkInterfaces,
+				Agented:           false,
 			}
 			vmListUpdate := make(map[string]*runtimev1alpha1.VirtualMachine)
 			vmObjUpdate := new(runtimev1alpha1.VirtualMachine)

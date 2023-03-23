@@ -146,7 +146,7 @@ func (r *CloudProviderAccountReconciler) processCreateOrUpdate(namespacedName *t
 	accPoller, exists := r.Poller.addAccountPoller(accountCloudType, namespacedName, account, r)
 
 	if !exists {
-		if r.startPollingThread(namespacedName.Namespace) {
+		if r.startPollingThread(namespacedName) {
 			r.Log.Info("Creating account poller thread", "account", namespacedName)
 			go wait.Until(accPoller.doAccountPolling, time.Duration(accPoller.pollIntvInSeconds)*time.Second, accPoller.ch)
 		}
@@ -163,7 +163,7 @@ func (r *CloudProviderAccountReconciler) processDelete(namespacedName *types.Nam
 	if err := r.Poller.removeAccountPoller(namespacedName); err != nil {
 		return err
 	}
-	r.Log.V(1).Info("removed account poller", "account", namespacedName.String())
+	r.Log.V(1).Info("Removed account poller", "account", namespacedName)
 
 	cloudType := r.getAccountProviderType(namespacedName)
 	cloudInterface, err := cloudprovider.GetCloudInterface(cloudType)
@@ -190,26 +190,27 @@ func (r *CloudProviderAccountReconciler) processDelete(namespacedName *types.Nam
 }
 
 // startPollingThread returns whether a polling thread needs to be started or not.
-func (r *CloudProviderAccountReconciler) startPollingThread(ns string) bool {
+func (r *CloudProviderAccountReconciler) startPollingThread(namespacedName *types.NamespacedName) bool {
 	// Check if a CES CR exits in the same namespace. If it exits, then do not start the polling thread
 	// in CPA and let CES controller create the polling thread. This is an optimization done to avoid polling
 	// twice for a given account, once for CPA and once for CES. Polling cloud is an expensive operation, so
 	// try to avoid calling cloud multiple times for same operation.
 	cesList := &crdv1alpha1.CloudEntitySelectorList{}
 	listOptions := &client.ListOptions{
-		Namespace: ns,
+		Namespace: namespacedName.Namespace,
 	}
 	if err := r.Client.List(context.TODO(), cesList, listOptions); err != nil {
-		r.Log.V(1).Info("Failed to get CES objects", "namespace", ns, "err", err)
-		return true
-	}
-	if len(cesList.Items) == 0 {
-		r.Log.V(1).Info("No CES objects found", "namespace", ns)
+		r.Log.V(1).Info("Failed to get CES objects", "namespace", namespacedName.Namespace, "err", err)
 		return true
 	}
 
-	r.Log.V(1).Info("Ignoring start of account poller thread", "namespace", ns)
-	return false
+	for _, ces := range cesList.Items {
+		if ces.Spec.AccountName == namespacedName.Name {
+			r.Log.V(1).Info("Ignoring start of account poller thread", "account", namespacedName)
+			return false
+		}
+	}
+	return true
 }
 
 func (r *CloudProviderAccountReconciler) addAccountProviderType(namespacedName *types.NamespacedName,

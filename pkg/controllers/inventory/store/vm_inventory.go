@@ -43,7 +43,6 @@ type vmInventoryEvent struct {
 	ResourceVersion uint64
 }
 
-// TODO: check the use of it when we add selectors on label for vms
 // keyAndSpanSelectFuncVm returns whether the provided selectors matches the key and/or the nodeNames.
 func keyAndSpanSelectFuncVm(selectors *antreastorage.Selectors, key string, obj interface{}) bool {
 	// If Key is present in selectors, the provided key must match it.
@@ -138,20 +137,21 @@ func NewVmInventoryStore() antreastorage.Interface {
 		},
 		common.VirtualMachineIndexerByCloudID: func(obj interface{}) ([]string, error) {
 			vm := obj.(*runtimev1alpha1.VirtualMachine)
-			return []string{vm.Status.CloudAssignedId}, nil
+			return []string{vm.Status.CloudId}, nil
 		},
 		common.VirtualMachineIndexerByCloudName: func(obj interface{}) ([]string, error) {
 			vm := obj.(*runtimev1alpha1.VirtualMachine)
-			return []string{vm.Status.CloudAssignedName}, nil
+			return []string{vm.Status.CloudName}, nil
 		},
 		common.VirtualMachineIndexerByCloudVPCID: func(obj interface{}) ([]string, error) {
 			vm := obj.(*runtimev1alpha1.VirtualMachine)
-			return []string{vm.Status.CloudAssignedVPCId}, nil
+			return []string{vm.Status.CloudVpcId}, nil
 		},
 		common.VirtualMachineIndexerByNameSpacedAccountName: func(obj interface{}) ([]string, error) {
 			vm := obj.(*runtimev1alpha1.VirtualMachine)
-			cloudID := vm.Labels[config.LabelCloudNamespacedAccountName]
-			return []string{cloudID}, nil
+			//cloudID := vm.Labels[config.LabelCloudNamespacedAccountName]
+			return []string{vm.Labels[config.LabelCloudAccountNamespace] + "/" +
+				vm.Labels[config.LabelCloudAccountName]}, nil
 		},
 	}
 	return ram.NewStore(vmKeyFunc, indexers, genVmEvent, keyAndSpanSelectFuncVm,

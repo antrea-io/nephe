@@ -268,16 +268,27 @@ func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPoli
 				notFoundMember = append(notFoundMember, namespacedName)
 				continue
 			}
-			cloudAccountID, ok := ownerVM.Labels[config.LabelCloudNamespacedAccountName]
+			//cloudAccountID, ok := ownerVM.Labels[config.LabelCloudNamespacedAccountName]
+			cloudAccountName, ok := ownerVM.Labels[config.LabelCloudAccountName]
 			if !ok {
 				r.Log.Error(fmt.Errorf(""), "cloud account ID annotation not found in ExternalEntity owner", "key", key, "kind", kind)
 				continue
 			}
-			cloudRsc.Name = ownerVM.Status.CloudAssignedId
-			cloudRsc.AccountID = cloudAccountID
+			cloudAccountNamespace, ok := ownerVM.Labels[config.LabelCloudAccountNamespace]
+			if !ok {
+				r.Log.Error(fmt.Errorf(""), "cloud account ID annotation not found in ExternalEntity owner", "key", key, "kind", kind)
+				continue
+			}
+			accountNamespacedNamed := types.NamespacedName{
+				Name:      cloudAccountName,
+				Namespace: cloudAccountNamespace,
+			}
+
+			cloudRsc.Name = ownerVM.Status.CloudId
+			cloudRsc.AccountID = accountNamespacedNamed.String()
 			cloudRsc.CloudProvider = string(ownerVM.Status.Provider)
-			cloudRsc.Vpc = ownerVM.Status.CloudAssignedVPCId
-			vpcs[ownerVM.Status.CloudAssignedVPCId] = append(vpcs[ownerVM.Status.CloudAssignedVPCId], &cloudRsc)
+			cloudRsc.Vpc = ownerVM.Status.CloudVpcId
+			vpcs[ownerVM.Status.CloudVpcId] = append(vpcs[ownerVM.Status.CloudVpcId], &cloudRsc)
 		} else {
 			for _, ep := range e.Spec.Endpoints {
 				var ipnet *net.IPNet

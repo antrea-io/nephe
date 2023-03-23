@@ -559,7 +559,7 @@ func (ec2Cfg *ec2ServiceConfig) getNepheControllerManagedSecurityGroupsCloudView
 					Name: networkInterfaceID,
 					Vpc:  *networkInterface.VpcId,
 				},
-				AccountID:     ec2Cfg.accountName,
+				AccountID:     ec2Cfg.account.String(),
 				CloudProvider: string(runtimev1alpha1.AWSCloudProvider),
 			}
 			cloudResources := managedSgIDToMemberCloudResourcesMap[sgID]
@@ -605,7 +605,7 @@ func (ec2Cfg *ec2ServiceConfig) getNepheControllerManagedSecurityGroupsCloudView
 					Name: SgName,
 					Vpc:  vpcID,
 				},
-				AccountID:     ec2Cfg.accountName,
+				AccountID:     ec2Cfg.account.String(),
 				CloudProvider: string(runtimev1alpha1.AWSCloudProvider),
 			},
 			MembershipOnly:             isMembershipOnly,

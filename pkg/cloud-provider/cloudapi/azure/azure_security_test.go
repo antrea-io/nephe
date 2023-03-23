@@ -593,7 +593,7 @@ var _ = Describe("Azure Cloud Security", func() {
 				serviceConfig, _ := accCfg.GetServiceConfigByName(azureComputeServiceNameCompute)
 				serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{vmToUpdateMap, nil, nil, nil})
 
-				serviceConfig.(*computeServiceConfig).GetResourceCRDs(testAccountNamespacedName.Namespace, testAccountNamespacedName.String())
+				serviceConfig.(*computeServiceConfig).GetResourceCRDs(testAccountNamespacedName.Namespace, testAccountNamespacedName)
 			})
 		})
 

@@ -16,6 +16,7 @@ package virtualmachine
 
 import (
 	"context"
+	"strings"
 
 	logger "github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -24,11 +25,13 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/internalversion"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/controllers/config"
 	"antrea.io/nephe/pkg/controllers/inventory"
 	"antrea.io/nephe/pkg/controllers/inventory/common"
 	"antrea.io/nephe/pkg/controllers/inventory/store"
@@ -81,14 +84,42 @@ func (r *REST) Get(ctx context.Context, name string, _ *metav1.GetOptions) (runt
 	return vm, nil
 }
 
-func (r *REST) List(ctx context.Context, _ *internalversion.ListOptions) (runtime.Object, error) {
+func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (runtime.Object, error) {
 	// List only supports two types of input options
 	// 1. All namespaces
-	// 2. Specific Namespace
+	// 2. Labelselector with only the specific namespace, the only valid labelselectors are "cpa.name=<accountname>"
+	//    and "cpa.namespace=<accountNamespace>"
+	// 3. Specific Namespace
+	accountName := ""
+	accountNamespace := ""
+	if options != nil && options.LabelSelector != nil && options.LabelSelector.String() != "" {
+		labelSelectorStrings := strings.Split(options.LabelSelector.String(), ",")
+		for _, labelSelectorString := range labelSelectorStrings {
+			labelKeyAndValue := strings.Split(labelSelectorString, "=")
+			if labelKeyAndValue[0] == config.LabelCloudAccountName {
+				accountName = labelKeyAndValue[1]
+			} else if labelKeyAndValue[0] == config.LabelCloudAccountNamespace {
+				accountNamespace = labelKeyAndValue[1]
+			} else {
+				return nil, errors.NewBadRequest("unsupported label selector, only region label selector is supported")
+			}
+		}
+	}
+
 	var objs []interface{}
 	namespace, _ := request.NamespaceFrom(ctx)
 	if namespace == "" {
 		objs = r.cloudInventory.GetAllVms()
+	} else if accountName != "" {
+		accountNameSpacedName := types.NamespacedName{
+			Name:      accountName,
+			Namespace: accountNamespace,
+		}
+		// If account namespace is not specified in the label selector, then use the namespace specified.
+		if accountNamespace == "" {
+			accountNameSpacedName.Namespace = namespace
+		}
+		objs, _ = r.cloudInventory.GetVmFromIndexer(common.VirtualMachineIndexerByNameSpacedAccountName, accountNameSpacedName.String())
 	} else {
 		objs, _ = r.cloudInventory.GetVmFromIndexer(common.IndexerByNamespace, namespace)
 	}
@@ -135,7 +166,7 @@ func (r *REST) ConvertToTable(_ context.Context, obj runtime.Object, _ runtime.O
 				return nil, nil
 			}
 			return []interface{}{vm.Name, vm.Status.Provider, vm.Status.Region,
-				vm.Status.VirtualPrivateCloud, vm.Status.State, vm.Status.Agented}, nil
+				vm.Labels[config.LabelCloudVPCName], vm.Status.State, vm.Status.Agented}, nil
 		})
 	return table, err
 }

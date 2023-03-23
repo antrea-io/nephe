@@ -263,7 +263,7 @@ func (p *accountPoller) doAccountPolling() {
 	p.pollDone = false
 	cloudInterface, e := cloudprovider.GetCloudInterface(common.ProviderType(p.cloudType))
 	if e != nil {
-		p.log.Error(e, "failed to get cloud interface", "account", p.namespacedName)
+		p.log.V(1).Info("Failed to get cloud interface", "account", p.namespacedName, "err", e)
 		return
 	}
 
@@ -348,7 +348,7 @@ func (p *accountPoller) getComputeResources(cloudInterface common.CloudInterface
 
 // getVMSelectorMatch returns a VMSelector for a VirtualMachine only if it is agented.
 func (p *accountPoller) getVMSelectorMatch(vm *runtimev1alpha1.VirtualMachine) *crdv1alpha1.VirtualMachineSelector {
-	vmSelectors, _ := p.vmSelector.ByIndex(virtualMachineSelectorMatchIndexerByID, vm.Status.CloudAssignedId)
+	vmSelectors, _ := p.vmSelector.ByIndex(virtualMachineSelectorMatchIndexerByID, vm.Status.CloudId)
 	for _, i := range vmSelectors {
 		vmSelector := i.(*crdv1alpha1.VirtualMachineSelector)
 		return vmSelector
@@ -358,11 +358,11 @@ func (p *accountPoller) getVMSelectorMatch(vm *runtimev1alpha1.VirtualMachine) *
 	// VM intended to match a selector with vpcMatch and vmMatch selector, falls under exact Match.
 	// VM intended to match a selector with only vmMatch selector, falls under partial match.
 	var partialMatchSelector *crdv1alpha1.VirtualMachineSelector = nil
-	vmSelectors, _ = p.vmSelector.ByIndex(virtualMachineSelectorMatchIndexerByName, vm.Status.CloudAssignedName)
+	vmSelectors, _ = p.vmSelector.ByIndex(virtualMachineSelectorMatchIndexerByName, vm.Status.CloudName)
 	for _, i := range vmSelectors {
 		vmSelector := i.(*crdv1alpha1.VirtualMachineSelector)
 		if vmSelector.VpcMatch != nil {
-			if vmSelector.VpcMatch.MatchID == vm.Status.CloudAssignedVPCId {
+			if vmSelector.VpcMatch.MatchID == vm.Status.CloudVpcId {
 				// Prioritize exact match(along with vpcMatch) over VM name only match.
 				return vmSelector
 			}
@@ -374,7 +374,7 @@ func (p *accountPoller) getVMSelectorMatch(vm *runtimev1alpha1.VirtualMachine) *
 		return partialMatchSelector
 	}
 
-	vmSelectors, _ = p.vmSelector.ByIndex(virtualMachineSelectorMatchIndexerByVPC, vm.Status.CloudAssignedVPCId)
+	vmSelectors, _ = p.vmSelector.ByIndex(virtualMachineSelectorMatchIndexerByVPC, vm.Status.CloudVpcId)
 	for _, i := range vmSelectors {
 		vmSelector := i.(*crdv1alpha1.VirtualMachineSelector)
 		return vmSelector

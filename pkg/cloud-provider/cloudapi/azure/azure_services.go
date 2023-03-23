@@ -79,7 +79,7 @@ func newAzureServiceConfigs(accountNamespacedName *types.NamespacedName, accCred
 		return nil, err
 	}
 
-	computeService, err := newComputeServiceConfig(accountNamespacedName.String(), azureServiceClientCreator, azureAccountCredentials)
+	computeService, err := newComputeServiceConfig(*accountNamespacedName, azureServiceClientCreator, azureAccountCredentials)
 	if err != nil {
 		return nil, err
 	}

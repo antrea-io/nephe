@@ -68,7 +68,6 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 	var fetchKey client.ObjectKey
 	var resource string
 
-	// TODO: Clean this up later
 	if isExternalNode {
 		resource = "ExternalNode"
 		fetchKey = target.GetExternalNodeKeyFromSource(vm)
@@ -155,7 +154,6 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 		return
 	}
 
-	// TODO: This should be fixed with BanQzi change
 	if !isNotFound {
 		if isExternalNode {
 			base := client.MergeFrom(externNode.DeepCopy())

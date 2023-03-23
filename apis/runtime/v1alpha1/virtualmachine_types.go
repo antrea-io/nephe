@@ -21,11 +21,9 @@ import (
 type AddressType string
 
 const (
-	// Address type is host name.
-	AddressTypeHostName AddressType = "HostName"
-	// Address type is internal IP.
+	// AddressTypeInternalIP is internal IP.
 	AddressTypeInternalIP AddressType = "InternalIP"
-	// Address type is external IP.
+	// AddressTypeExternalIP external IP.
 	AddressTypeExternalIP AddressType = "ExternalIP"
 )
 
@@ -87,8 +85,6 @@ type NetworkInterface struct {
 type VirtualMachineStatus struct {
 	// Provider specifies cloud provider of this VirtualMachine.
 	Provider CloudProvider `json:"provider,omitempty"`
-	// VirtualPrivateCloud is the virtual private cloud this VirtualMachine belongs to.
-	VirtualPrivateCloud string `json:"virtualPrivateCloud,omitempty"`
 	// Tags of this VirtualMachine. A corresponding label is also generated for each tag.
 	Tags map[string]string `json:"tags,omitempty"`
 	// NetworkInterfaces is array of NetworkInterfaces attached to this VirtualMachine.
@@ -99,12 +95,12 @@ type VirtualMachineStatus struct {
 	Region string `json:"region,omitempty"`
 	// Agented specifies if VM runs in agented mode, default is false.
 	Agented bool `json:"agented"`
-	// CloudAssignedId is the ID of the VM.
-	CloudAssignedId string `json:"cloudAssignedId,omitempty"`
-	// CloudAssignedName is the name of the VM.
-	CloudAssignedName string `json:"cloudAssignedName,omitempty"`
-	// CloudAssignedVPCId is the VPC ID of the VM.
-	CloudAssignedVPCId string `json:"cloudAssignedVPCId,omitempty"`
+	// CloudId is the cloud assigned ID of the VM.
+	CloudId string `json:"cloudId,omitempty"`
+	// CloudName is the cloud assigned name of the VM.
+	CloudName string `json:"cloudName,omitempty"`
+	// CloudVpcId is the VPC ID this VirtualMachine belongs to.
+	CloudVpcId string `json:"cloudVpcId,omitempty"`
 }
 
 // +kubebuilder:object:root=true

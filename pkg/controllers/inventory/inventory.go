@@ -60,8 +60,8 @@ func (inventory *Inventory) BuildVpcCache(discoveredVpcMap map[string]*runtimev1
 	for _, i := range vpcsInCache {
 		vpc := i.(*runtimev1alpha1.Vpc)
 		if _, found := discoveredVpcMap[vpc.Status.Id]; !found {
-			if err := inventory.vpcStore.Delete(fmt.Sprintf("%v-%v", vpc.Labels[config.LabelCloudNamespacedAccountName],
-				vpc.Status.Id)); err != nil {
+			if err := inventory.vpcStore.Delete(fmt.Sprintf("%v/%v-%v", vpc.Namespace,
+				vpc.Labels[config.LabelCloudAccountName], vpc.Status.Id)); err != nil {
 				inventory.log.Error(err, "failed to delete vpc from vpc cache", "vpc id", vpc.Status.Id, "account",
 					namespacedName.String())
 			} else {
@@ -72,8 +72,9 @@ func (inventory *Inventory) BuildVpcCache(discoveredVpcMap map[string]*runtimev1
 
 	for _, discoveredVpc := range discoveredVpcMap {
 		var err error
-		key := fmt.Sprintf("%v-%v",
-			discoveredVpc.Labels[config.LabelCloudNamespacedAccountName], discoveredVpc.Status.Id)
+		key := fmt.Sprintf("%v/%v-%v", discoveredVpc.Namespace,
+			discoveredVpc.Labels[config.LabelCloudAccountName],
+			discoveredVpc.Status.Id)
 		if cachedObj, found, _ := inventory.vpcStore.Get(key); !found {
 			err = inventory.vpcStore.Create(discoveredVpc)
 			if err == nil {
@@ -107,9 +108,10 @@ func (inventory *Inventory) DeleteVpcsFromCache(namespacedName *types.Namespaced
 	if err != nil {
 		return err
 	}
+	// TODO: Add a counter to indicate numbers of vpcs that were deleted.
 	for _, i := range vpcsInCache {
 		vpc := i.(*runtimev1alpha1.Vpc)
-		key := fmt.Sprintf("%v-%v", vpc.Labels[config.LabelCloudNamespacedAccountName], vpc.Status.Id)
+		key := fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[config.LabelCloudAccountName], vpc.Status.Id)
 		if err := inventory.vpcStore.Delete(key); err != nil {
 			return fmt.Errorf("failed to delete vpc from vpc cache %s:%s, error %v",
 				*namespacedName, vpc.Status.Id, err)
@@ -140,7 +142,7 @@ func (inventory *Inventory) BuildVmCache(discoveredVmMap map[string]*runtimev1al
 	var numVmsToAdd, numVmsToUpdate, numVmsToDelete int
 
 	// Fetch all vms for a given account from the cache and check if it exists in the discovered vm list.
-	vmsInCache, _ := inventory.vmStore.GetByIndex(common.IndexerByNamespace, namespacedName.Namespace)
+	vmsInCache, _ := inventory.vmStore.GetByIndex(common.VirtualMachineIndexerByNameSpacedAccountName, namespacedName.String())
 	// Remove vm from vm cache which are not found in vm map fetched from cloud.
 	for _, cachedObject := range vmsInCache {
 		cachedVm := cachedObject.(*runtimev1alpha1.VirtualMachine)
@@ -199,6 +201,7 @@ func (inventory *Inventory) DeleteVmsFromCache(namespacedName *types.NamespacedN
 	if err != nil {
 		return err
 	}
+	// TODO: Add a counter to indicate numbers of vms that were deleted.
 	for _, cachedObject := range vmsInCache {
 		cachedVm := cachedObject.(*runtimev1alpha1.VirtualMachine)
 		key := fmt.Sprintf("%v/%v", cachedVm.Namespace, cachedVm.Name)

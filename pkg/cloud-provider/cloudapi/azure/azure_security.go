@@ -628,7 +628,7 @@ func (computeCfg *computeServiceConfig) processAndBuildATSgView(networkInterface
 						Name: strings.ToLower(*networkInterface.ID),
 						Vpc:  vnetIDLowerCase,
 					},
-					AccountID:     computeCfg.accountName,
+					AccountID:     computeCfg.account.String(),
 					CloudProvider: string(runtimev1alpha1.AzureCloudProvider),
 				}
 				cloudResources := nepheControllerATSgNameToMemberCloudResourcesMap[asgName]
@@ -682,7 +682,7 @@ func (computeCfg *computeServiceConfig) getATGroupView(nepheControllerATSGNameTo
 					Name: atSgName,
 					Vpc:  vnetIDLowercase,
 				},
-				AccountID:     computeCfg.accountName,
+				AccountID:     computeCfg.account.String(),
 				CloudProvider: string(runtimev1alpha1.AzureCloudProvider),
 			}
 			groupSyncObj := securitygroup.SynchronizationContent{
@@ -761,7 +761,7 @@ func (computeCfg *computeServiceConfig) processAndBuildAGSgView(
 					Name: strings.ToLower(*networkInterface.ID),
 					Vpc:  vnetIDLowerCase,
 				},
-				AccountID:     computeCfg.accountName,
+				AccountID:     computeCfg.account.String(),
 				CloudProvider: string(runtimev1alpha1.AzureCloudProvider),
 			}
 			cloudResources := nepheControllerAGSgNameToMemberCloudResourcesMap[sgName]
@@ -797,7 +797,7 @@ func (computeCfg *computeServiceConfig) getAGGroupView(nepheControllerAGSgNameTo
 				Name: asgName,
 				Vpc:  vnetID,
 			},
-			AccountID:     computeCfg.accountName,
+			AccountID:     computeCfg.account.String(),
 			CloudProvider: string(runtimev1alpha1.AzureCloudProvider),
 		}
 		groupSyncObj := securitygroup.SynchronizationContent{

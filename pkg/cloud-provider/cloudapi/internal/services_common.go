@@ -18,6 +18,8 @@ import (
 	"sync"
 	"time"
 
+	"k8s.io/apimachinery/pkg/types"
+
 	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 )
@@ -53,7 +55,7 @@ type CloudServiceInterface interface {
 	// GetInventoryStats returns Inventory statistics for the service.
 	GetInventoryStats() *CloudServiceStats
 	// GetResourceCRDs returns VM instances saved in CloudServiceResourcesCache in terms of runtimev1alpha1.VirtualMachine.
-	GetResourceCRDs(namespace string, accountId string) map[string]*runtimev1alpha1.VirtualMachine
+	GetResourceCRDs(namespace string, accountId *types.NamespacedName) map[string]*runtimev1alpha1.VirtualMachine
 	// GetName returns cloud name of the service.
 	GetName() CloudServiceName
 	// GetType returns service type (compute, any other type etc.)
@@ -99,11 +101,11 @@ func (cfg *CloudServiceCommon) getInventoryStats() *CloudServiceStats {
 	return cfg.serviceInterface.GetInventoryStats()
 }
 
-func (cfg *CloudServiceCommon) getResourceCRDs(namespace string, accountId string) map[string]*runtimev1alpha1.VirtualMachine {
+func (cfg *CloudServiceCommon) getResourceCRDs(namespace string, account *types.NamespacedName) map[string]*runtimev1alpha1.VirtualMachine {
 	cfg.mutex.Lock()
 	defer cfg.mutex.Unlock()
 
-	return cfg.serviceInterface.GetResourceCRDs(namespace, accountId)
+	return cfg.serviceInterface.GetResourceCRDs(namespace, account)
 }
 
 func (cfg *CloudServiceCommon) getType() CloudServiceType {

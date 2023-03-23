@@ -18,16 +18,16 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"k8s.io/apimachinery/pkg/types"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/utils"
-	"antrea.io/nephe/pkg/controllers/config"
 )
 
 const ResourceNameTagKey = "Name"
 
 // ec2InstanceToInternalVirtualMachineObject converts ec2 instance to VirtualMachine runtime object.
-func ec2InstanceToInternalVirtualMachineObject(instance *ec2.Instance, namespace, accountId,
+func ec2InstanceToInternalVirtualMachineObject(instance *ec2.Instance, namespace string, account *types.NamespacedName,
 	region string) *runtimev1alpha1.VirtualMachine {
 	tags := make(map[string]string)
 	vmTags := instance.Tags
@@ -70,25 +70,25 @@ func ec2InstanceToInternalVirtualMachineObject(instance *ec2.Instance, namespace
 		networkInterfaces = append(networkInterfaces, networkInterface)
 	}
 
-	cloudName := tags[ResourceNameTagKey]
+	CloudName := tags[ResourceNameTagKey]
 	cloudID := *instance.InstanceId
 	cloudNetwork := *instance.VpcId
 
-	return utils.GenerateInternalVirtualMachineObject(cloudID, strings.ToLower(cloudName), strings.ToLower(cloudID), strings.ToLower(region),
+	return utils.GenerateInternalVirtualMachineObject(cloudID, strings.ToLower(CloudName), strings.ToLower(cloudID), strings.ToLower(region),
 		namespace, strings.ToLower(cloudNetwork), cloudNetwork, runtimev1alpha1.VMState(*instance.State.Name), tags, networkInterfaces,
-		providerType, accountId)
+		providerType, account)
 }
 
 // ec2VpcToInternalVpcObject converts ec2 vpc object to vpc runtime object.
-func ec2VpcToInternalVpcObject(vpc *ec2.Vpc, namespace, namespacedAccountName, region string, managed bool) *runtimev1alpha1.Vpc {
-	cloudName := ""
+func ec2VpcToInternalVpcObject(vpc *ec2.Vpc, accountNamespace, accountName, region string, managed bool) *runtimev1alpha1.Vpc {
+	CloudName := ""
 	tags := make(map[string]string, 0)
 	if len(vpc.Tags) != 0 {
 		for _, tag := range vpc.Tags {
 			tags[*(tag.Key)] = *(tag.Value)
 		}
 		if value, found := tags[ResourceNameTagKey]; found {
-			cloudName = value
+			CloudName = value
 		}
 	}
 	cidrs := make([]string, 0)
@@ -97,11 +97,7 @@ func ec2VpcToInternalVpcObject(vpc *ec2.Vpc, namespace, namespacedAccountName, r
 			cidrs = append(cidrs, *cidr.CidrBlock)
 		}
 	}
-	labelsMap := map[string]string{
-		config.LabelCloudNamespacedAccountName: namespacedAccountName,
-		config.LabelCloudRegion:                region,
-	}
 
-	return utils.GenerateInternalVpcObject(*vpc.VpcId, namespace, labelsMap, strings.ToLower(cloudName),
+	return utils.GenerateInternalVpcObject(*vpc.VpcId, accountNamespace, accountName, strings.ToLower(CloudName),
 		strings.ToLower(*vpc.VpcId), tags, runtimev1alpha1.AWSCloudProvider, region, cidrs, managed)
 }

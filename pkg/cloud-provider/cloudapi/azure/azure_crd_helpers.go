@@ -18,11 +18,11 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
+	"k8s.io/apimachinery/pkg/types"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 	"antrea.io/nephe/pkg/cloud-provider/utils"
-	"antrea.io/nephe/pkg/controllers/config"
 )
 
 var azureStateMap = map[string]runtimev1alpha1.VMState{
@@ -36,7 +36,7 @@ var azureStateMap = map[string]runtimev1alpha1.VMState{
 }
 
 // computeInstanceToInternalVirtualMachineObject converts compute instance to VirtualMachine runtime object.
-func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable, namespace string, accountId string,
+func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable, namespace string, account *types.NamespacedName,
 	region string) *runtimev1alpha1.VirtualMachine {
 	tags := make(map[string]string)
 
@@ -88,8 +88,8 @@ func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable
 
 	cloudNetworkID := strings.ToLower(*instance.VnetID)
 	cloudID := strings.ToLower(*instance.ID)
-	cloudName := strings.ToLower(*instance.Name)
-	crdName := utils.GenerateShortResourceIdentifier(cloudID, cloudName)
+	CloudName := strings.ToLower(*instance.Name)
+	crdName := utils.GenerateShortResourceIdentifier(cloudID, CloudName)
 
 	_, _, nwResName, err := extractFieldsFromAzureResourceID(cloudNetworkID)
 	if err != nil {
@@ -103,12 +103,12 @@ func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable
 	} else {
 		state = runtimev1alpha1.Unknown
 	}
-	return utils.GenerateInternalVirtualMachineObject(crdName, strings.ToLower(cloudName), strings.ToLower(cloudID), strings.ToLower(region),
-		namespace, strings.ToLower(cloudNetworkID), cloudNetworkShortID, state, tags, networkInterfaces, providerType, accountId)
+	return utils.GenerateInternalVirtualMachineObject(crdName, strings.ToLower(CloudName), strings.ToLower(cloudID), strings.ToLower(region),
+		namespace, strings.ToLower(cloudNetworkID), cloudNetworkShortID, state, tags, networkInterfaces, providerType, account)
 }
 
 // ComputeVpcToInternalVpcObject converts vnet object from cloud format(network.VirtualNetwork) to vpc runtime object.
-func ComputeVpcToInternalVpcObject(vnet *armnetwork.VirtualNetwork, namespace, nameSpacedAccountName,
+func ComputeVpcToInternalVpcObject(vnet *armnetwork.VirtualNetwork, accountNamespace, accountName,
 	region string, managed bool) *runtimev1alpha1.Vpc {
 	crdName := utils.GenerateShortResourceIdentifier(*vnet.ID, *vnet.Name)
 	tags := make(map[string]string, 0)
@@ -124,10 +124,7 @@ func ComputeVpcToInternalVpcObject(vnet *armnetwork.VirtualNetwork, namespace, n
 			cidrs = append(cidrs, *cidr)
 		}
 	}
-	labelsMap := map[string]string{
-		config.LabelCloudNamespacedAccountName: nameSpacedAccountName,
-		config.LabelCloudRegion:                region,
-	}
-	return utils.GenerateInternalVpcObject(crdName, namespace, labelsMap, strings.ToLower(*vnet.Name),
+
+	return utils.GenerateInternalVpcObject(crdName, accountNamespace, accountName, strings.ToLower(*vnet.Name),
 		strings.ToLower(*vnet.ID), tags, runtimev1alpha1.AzureCloudProvider, region, cidrs, managed)
 }

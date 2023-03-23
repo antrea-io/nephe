@@ -156,13 +156,12 @@ func (c *cloudCommon) GetCloudAccountComputeResourceCRDs(accountNamespacedName *
 	if !found {
 		return nil, fmt.Errorf("unable to find cloud account: %v", *accountNamespacedName)
 	}
-	namespace := accCfg.GetNamespacedName().Namespace
 
 	computeCRs := map[string]*runtimev1alpha1.VirtualMachine{}
 	serviceConfigs := accCfg.GetServiceConfigs()
 	for _, serviceConfig := range serviceConfigs {
 		if serviceConfig.getType() == CloudServiceTypeCompute {
-			return serviceConfig.getResourceCRDs(namespace, accCfg.GetNamespacedName().String()), nil
+			return serviceConfig.getResourceCRDs(accCfg.GetNamespacedName().Namespace, accCfg.GetNamespacedName()), nil
 		}
 	}
 

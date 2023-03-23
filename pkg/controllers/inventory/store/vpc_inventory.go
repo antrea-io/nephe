@@ -128,7 +128,7 @@ func vpcKeyFunc(obj interface{}) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("object is not of type runtime/v1alpha1/Vpc: %v", obj)
 	}
-	return fmt.Sprintf("%v-%v", vpc.Labels[config.LabelCloudNamespacedAccountName], vpc.Status.Id), nil
+	return fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[config.LabelCloudAccountName], vpc.Status.Id), nil
 }
 
 // NewVPCInventoryStore creates a store of VPC.
@@ -136,7 +136,7 @@ func NewVPCInventoryStore() antreastorage.Interface {
 	indexers := cache.Indexers{
 		common.VpcIndexerByNameSpacedAccountName: func(obj interface{}) ([]string, error) {
 			vpc := obj.(*runtimev1alpha1.Vpc)
-			return []string{vpc.Labels[config.LabelCloudNamespacedAccountName]}, nil
+			return []string{vpc.Namespace + "/" + vpc.Labels[config.LabelCloudAccountName]}, nil
 		},
 		common.IndexerByNamespacedName: func(obj interface{}) ([]string, error) {
 			vpc := obj.(*runtimev1alpha1.Vpc)

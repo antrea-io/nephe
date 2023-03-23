@@ -37,23 +37,27 @@ import (
 var _ = Describe("Virtual Machine", func() {
 	cloudInventory := inventory.InitInventory()
 
+	var accountNamespacedName = types.NamespacedName{
+		Name:      "accountid1",
+		Namespace: "default",
+	}
 	l := logging.GetLogger("Virtual Machine test")
 	cacheTest1 := &runtimev1alpha1.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "default",
 			Name:      "targetId",
 			Labels: map[string]string{
-				config.LabelCloudNamespacedAccountName: "default/accountid1",
+				config.LabelCloudAccountNamespace: accountNamespacedName.Namespace,
+				config.LabelCloudAccountName:      "accountid1",
 			},
 		},
 		Status: runtimev1alpha1.VirtualMachineStatus{
 			Tags: map[string]string{
 				"Name": "test",
 			},
-			VirtualPrivateCloud: "testNetworkID",
-			Provider:            runtimev1alpha1.AWSCloudProvider,
-			Agented:             false,
-			State:               runtimev1alpha1.Starting,
+			Provider: runtimev1alpha1.AWSCloudProvider,
+			Agented:  false,
+			State:    runtimev1alpha1.Starting,
 		},
 	}
 
@@ -62,7 +66,8 @@ var _ = Describe("Virtual Machine", func() {
 			Namespace: "non-default",
 			Name:      "targetId-nondefault",
 			Labels: map[string]string{
-				config.LabelCloudNamespacedAccountName: "default/accountid",
+				config.LabelCloudAccountNamespace: accountNamespacedName.Namespace,
+				config.LabelCloudAccountName:      accountNamespacedName.Name,
 			},
 		},
 		Status: runtimev1alpha1.VirtualMachineStatus{
@@ -77,7 +82,8 @@ var _ = Describe("Virtual Machine", func() {
 			Namespace: "default",
 			Name:      "targetId2",
 			Labels: map[string]string{
-				config.LabelCloudNamespacedAccountName: "default/accountid",
+				config.LabelCloudAccountNamespace: accountNamespacedName.Namespace,
+				config.LabelCloudAccountName:      accountNamespacedName.Name,
 			},
 		},
 		Status: runtimev1alpha1.VirtualMachineStatus{
@@ -100,6 +106,7 @@ var _ = Describe("Virtual Machine", func() {
 	}
 
 	Describe("Test Get function of Rest", func() {
+		By("Test Get function of Rest")
 		for i, cachedVM := range cachedVMs {
 			vmMap := make(map[string]*runtimev1alpha1.VirtualMachine)
 			vmMap[cachedVM.Name] = cachedVM
@@ -118,7 +125,7 @@ var _ = Describe("Virtual Machine", func() {
 	})
 
 	Describe("Test List function of Rest", func() {
-
+		By("Test List function of Rest")
 		expectedVMList1 := &runtimev1alpha1.VirtualMachineList{
 			Items: []runtimev1alpha1.VirtualMachine{
 				*cacheTest1,
@@ -173,20 +180,25 @@ var _ = Describe("Virtual Machine", func() {
 	})
 
 	Describe("Test Convert table function of Rest", func() {
+		By("Test Convert table function of Rest")
 		cacheTest4 := &runtimev1alpha1.VirtualMachine{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "non-default1",
 				Name:      "targetId4",
+				Labels: map[string]string{
+					config.LabelCloudAccountNamespace: accountNamespacedName.Namespace,
+					config.LabelCloudAccountName:      accountNamespacedName.Name,
+					config.LabelCloudVPCName:          "testNetworkID",
+				},
 			},
 			Status: runtimev1alpha1.VirtualMachineStatus{
 				Tags: map[string]string{
 					"Name": "test",
 				},
-				VirtualPrivateCloud: "testNetworkID",
-				Provider:            runtimev1alpha1.AWSCloudProvider,
-				Agented:             false,
-				State:               runtimev1alpha1.Starting,
-				Region:              "test-region",
+				Provider: runtimev1alpha1.AWSCloudProvider,
+				Agented:  false,
+				State:    runtimev1alpha1.Starting,
+				Region:   "test-region",
 			},
 		}
 		expectedTables := &metav1.Table{
@@ -206,7 +218,7 @@ var _ = Describe("Virtual Machine", func() {
 		}
 		vmMap := make(map[string]*runtimev1alpha1.VirtualMachine)
 		vmMap[cacheTest4.Name] = cacheTest4
-		namespacedName := types.NamespacedName{Namespace: cacheTest4.Namespace, Name: cacheTest4.Labels[config.LabelCloudNamespacedAccountName]}
+		namespacedName := types.NamespacedName{Namespace: cacheTest4.Namespace, Name: cacheTest4.Labels[config.LabelCloudAccountName]}
 		cloudInventory.BuildVmCache(vmMap, &namespacedName)
 
 		rest := NewREST(cloudInventory, l)
@@ -221,17 +233,17 @@ var _ = Describe("Virtual Machine", func() {
 			Namespace: "default",
 			Name:      "targetId",
 			Labels: map[string]string{
-				config.LabelCloudNamespacedAccountName: "default/accountID",
+				config.LabelCloudAccountNamespace: accountNamespacedName.Namespace,
+				config.LabelCloudAccountName:      accountNamespacedName.Name,
 			},
 		},
 		Status: runtimev1alpha1.VirtualMachineStatus{
 			Tags: map[string]string{
 				"Name": "test1",
 			},
-			VirtualPrivateCloud: "testNetworkID",
-			Provider:            runtimev1alpha1.AWSCloudProvider,
-			Agented:             false,
-			State:               runtimev1alpha1.Starting,
+			Provider: runtimev1alpha1.AWSCloudProvider,
+			Agented:  false,
+			State:    runtimev1alpha1.Starting,
 		},
 	}
 	expectedEvents := []watch.Event{
@@ -241,9 +253,10 @@ var _ = Describe("Virtual Machine", func() {
 		{Type: watch.Deleted, Object: cacheTest5},
 	}
 	Describe("Test Watch function of Rest", func() {
+		By("Test Watch function of Rest")
 		cloudInventory1 := inventory.InitInventory()
 		vmMap := make(map[string]*runtimev1alpha1.VirtualMachine)
-		namespacedName := types.NamespacedName{Namespace: cacheTest1.Namespace, Name: "accountID"}
+		namespacedName := types.NamespacedName{Namespace: accountNamespacedName.Namespace, Name: accountNamespacedName.Name}
 		cloudInventory1.BuildVmCache(vmMap, &namespacedName)
 		rest := NewREST(cloudInventory1, l)
 		watcher, err := rest.Watch(request.NewDefaultContext(), &internalversion.ListOptions{})

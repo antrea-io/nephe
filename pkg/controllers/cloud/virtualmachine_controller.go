@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	antreav1alpha1 "antrea.io/antrea/pkg/apis/crd/v1alpha1"
 	antreav1alpha2 "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/controllers/config"
@@ -45,7 +46,6 @@ type VirtualMachineManager struct {
 	log    logr.Logger
 	scheme *runtime.Scheme
 
-	// TODO: pass pointer of Inventory.
 	Inventory inventory.Interface
 	converter converter.VMConverter
 	vmWatcher watch.Interface
@@ -90,6 +90,9 @@ func (r *VirtualMachineManager) Start() error {
 
 	vmMap := r.getAllVMs()
 	if err := r.syncExternalEntities(vmMap); err != nil {
+		return err
+	}
+	if err := r.syncExternalNodes(vmMap); err != nil {
 		return err
 	}
 
@@ -144,6 +147,33 @@ func (r *VirtualMachineManager) syncExternalEntities(vmMap map[types.NamespacedN
 			r.log.Info("Could not find matching VM object, deleting ExternalEntity", "namespacedName", eeNn)
 			// Delete the external entity, since no matching VM found.
 			_ = r.Client.Delete(context.TODO(), &ee)
+			continue
+		}
+	}
+	return nil
+}
+
+// syncExternalNodes validates that each EN has corresponding VM. If it does not exist then
+// the EN will be deleted.
+func (r *VirtualMachineManager) syncExternalNodes(vmMap map[types.NamespacedName]struct{}) error {
+	enList := &antreav1alpha1.ExternalNodeList{}
+	if err := r.Client.List(context.TODO(), enList, &client.ListOptions{}); err != nil {
+		return err
+	}
+	for _, en := range enList.Items {
+		enLabelKeyName, exists := en.Labels[config.ExternalEntityLabelKeyName]
+		if !exists {
+			// Ignore EN objects not created by converter module.
+			continue
+		}
+		eeNn := types.NamespacedName{
+			Name:      enLabelKeyName,
+			Namespace: en.Namespace,
+		}
+		if _, ok := vmMap[eeNn]; !ok {
+			r.log.Info("Could not find matching VM object, deleting ExternalNode", "namespacedName", eeNn)
+			// Delete the external entity, since no matching VM found.
+			_ = r.Client.Delete(context.TODO(), &en)
 			continue
 		}
 	}

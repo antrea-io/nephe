@@ -35,7 +35,6 @@ func SetupVirtualMachine(vm *runtimev1alpha1.VirtualMachine, name, namespace str
 	vm.Name = name
 	vm.Namespace = namespace
 	vm.Status.Tags = map[string]string{"test-vm-tag": "test-vm-key"}
-	vm.Status.VirtualPrivateCloud = "test-vm-vpc"
 	vm.Status.Agented = agented
 }
 

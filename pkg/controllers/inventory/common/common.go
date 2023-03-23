@@ -14,7 +14,7 @@
 
 package common
 
-// TODO: Move to this pkg/config ?
+// TODO: Move to this pkg/config
 const (
 	// Common indexers.
 	IndexerByNamespace      = "namespace"

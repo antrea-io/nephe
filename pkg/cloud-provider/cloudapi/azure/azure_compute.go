@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/mohae/deepcopy"
+	"k8s.io/apimachinery/pkg/types"
 
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
@@ -31,7 +32,7 @@ import (
 )
 
 type computeServiceConfig struct {
-	accountName            string
+	account                types.NamespacedName
 	nwIntfAPIClient        azureNwIntfWrapper
 	nsgAPIClient           azureNsgWrapper
 	asgAPIClient           azureAsgWrapper
@@ -50,37 +51,37 @@ type computeResourcesCacheSnapshot struct {
 	vnetPeers       map[string][][]string
 }
 
-func newComputeServiceConfig(name string, service azureServiceClientCreateInterface,
+func newComputeServiceConfig(account types.NamespacedName, service azureServiceClientCreateInterface,
 	credentials *azureAccountConfig) (internal.CloudServiceInterface, error) {
 	// create compute sdk api client
 	nwIntfAPIClient, err := service.networkInterfaces(credentials.SubscriptionID)
 	if err != nil {
-		return nil, fmt.Errorf("error creating compute sdk api client for account : %v, err: %v", name, err)
+		return nil, fmt.Errorf("error creating compute sdk api client for account : %v, err: %v", account, err)
 	}
 	// create security-groups sdk api client
 	securityGroupsAPIClient, err := service.securityGroups(credentials.SubscriptionID)
 	if err != nil {
-		return nil, fmt.Errorf("error creating security-groups sdk api client for account : %v, err: %v", name, err)
+		return nil, fmt.Errorf("error creating security-groups sdk api client for account : %v, err: %v", account, err)
 	}
 	// create application-security-groups sdk api client
 	applicationSecurityGroupsAPIClient, err := service.applicationSecurityGroups(credentials.SubscriptionID)
 	if err != nil {
-		return nil, fmt.Errorf("error creating application-security-groups sdk api client for account : %v, err: %v", name, err)
+		return nil, fmt.Errorf("error creating application-security-groups sdk api client for account : %v, err: %v", account, err)
 	}
 	// create resource-graph sdk api client
 	resourceGraphAPIClient, err := service.resourceGraph()
 	if err != nil {
-		return nil, fmt.Errorf("error creating resource-graph sdk api client for account : %v, err: %v", name, err)
+		return nil, fmt.Errorf("error creating resource-graph sdk api client for account : %v, err: %v", account, err)
 	}
 
 	// create virtual networks sdk api client
 	vnetAPIClient, err := service.virtualNetworks(credentials.SubscriptionID)
 	if err != nil {
-		return nil, fmt.Errorf("error creating virtual networks sdk api client for account : %v, err: %v", name, err)
+		return nil, fmt.Errorf("error creating virtual networks sdk api client for account : %v, err: %v", account, err)
 	}
 
 	config := &computeServiceConfig{
-		accountName:            name,
+		account:                account,
 		nwIntfAPIClient:        nwIntfAPIClient,
 		nsgAPIClient:           securityGroupsAPIClient,
 		asgAPIClient:           applicationSecurityGroupsAPIClient,
@@ -98,7 +99,7 @@ func (computeCfg *computeServiceConfig) waitForInventoryInit(duration time.Durat
 	operation := func() error {
 		done := computeCfg.inventoryStats.IsInventoryInitialized()
 		if !done {
-			return fmt.Errorf("inventory for account %v not initialized (waited %v duration)", computeCfg.accountName, duration)
+			return fmt.Errorf("inventory for account %v not initialized (waited %v duration)", computeCfg.account, duration)
 		}
 		return nil
 	}
@@ -113,7 +114,7 @@ func (computeCfg *computeServiceConfig) waitForInventoryInit(duration time.Durat
 func (computeCfg *computeServiceConfig) getCachedVirtualMachines() []*virtualMachineTable {
 	snapshot := computeCfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
-		azurePluginLogger().V(4).Info("compute service cache snapshot nil", "type", providerType, "account", computeCfg.accountName)
+		azurePluginLogger().V(4).Info("compute service cache snapshot nil", "type", providerType, "account", computeCfg.account)
 		return []*virtualMachineTable{}
 	}
 	virtualMachines := snapshot.(*computeResourcesCacheSnapshot).virtualMachines
@@ -122,7 +123,7 @@ func (computeCfg *computeServiceConfig) getCachedVirtualMachines() []*virtualMac
 		instancesToReturn = append(instancesToReturn, virtualMachine)
 	}
 
-	azurePluginLogger().V(1).Info("cached vm instances", "service", azureComputeServiceNameCompute, "account", computeCfg.accountName,
+	azurePluginLogger().V(1).Info("cached vm instances", "service", azureComputeServiceNameCompute, "account", computeCfg.account,
 		"instances", len(instancesToReturn))
 	return instancesToReturn
 }
@@ -132,7 +133,7 @@ func (computeCfg *computeServiceConfig) getManagedVnetIDs() map[string]struct{} 
 	vnetIDsCopy := make(map[string]struct{})
 	snapshot := computeCfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
-		azurePluginLogger().Info("compute service cache snapshot nil", "type", providerType, "account", computeCfg.accountName)
+		azurePluginLogger().Info("compute service cache snapshot nil", "type", providerType, "account", computeCfg.account)
 		return vnetIDsCopy
 	}
 	vnetIDsSet := snapshot.(*computeResourcesCacheSnapshot).vnetIDs
@@ -147,7 +148,7 @@ func (computeCfg *computeServiceConfig) getManagedVnetIDs() map[string]struct{} 
 func (computeCfg *computeServiceConfig) getVnetPeers(vnetID string) [][]string {
 	snapshot := computeCfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
-		azurePluginLogger().V(4).Info("compute service cache snapshot nil", "type", providerType, "account", computeCfg.accountName)
+		azurePluginLogger().V(4).Info("compute service cache snapshot nil", "type", providerType, "account", computeCfg.account)
 		return nil
 	}
 	vnetPeersCopy := make([][]string, 0)
@@ -161,16 +162,16 @@ func (computeCfg *computeServiceConfig) getVirtualMachines() ([]*virtualMachineT
 	filters, hasFilters := computeCfg.getComputeResourceFilters()
 	if !hasFilters {
 		azurePluginLogger().V(1).Info("fetching vm resources from cloud skipped",
-			"account", computeCfg.accountName, "resource-filters", "not-configured")
+			"account", computeCfg.account, "resource-filters", "not-configured")
 		return nil, nil
 	}
 
 	if filters == nil {
 		azurePluginLogger().V(1).Info("fetching vm resources from cloud",
-			"account", computeCfg.accountName, "resource-filters", "all(nil)")
+			"account", computeCfg.account, "resource-filters", "all(nil)")
 	} else {
 		azurePluginLogger().V(1).Info("fetching vm resources from cloud",
-			"account", computeCfg.accountName, "resource-filters", "configured")
+			"account", computeCfg.account, "resource-filters", "configured")
 	}
 	var subscriptions []*string
 	subscriptions = append(subscriptions, &computeCfg.credentials.SubscriptionID)
@@ -185,7 +186,7 @@ func (computeCfg *computeServiceConfig) getVirtualMachines() ([]*virtualMachineT
 	}
 
 	azurePluginLogger().V(1).Info("vm instances from cloud",
-		"service", azureComputeServiceNameCompute, "account", computeCfg.accountName, "instances", len(virtualMachines))
+		"service", azureComputeServiceNameCompute, "account", computeCfg.account, "instances", len(virtualMachines))
 
 	return virtualMachines, nil
 }
@@ -207,7 +208,7 @@ func (computeCfg *computeServiceConfig) getComputeResourceFilters() ([]*string, 
 			locations := []string{computeCfg.credentials.region}
 			queryStr, err := getVMsBySubscriptionIDsAndTenantIDsAndLocationsMatchQuery(subscriptionIDs, tenantIDs, locations)
 			if err != nil {
-				azurePluginLogger().Error(err, "query string creation failed", "account", computeCfg.accountName)
+				azurePluginLogger().Error(err, "query string creation failed", "account", computeCfg.account)
 				return nil, false
 			}
 			queries = append(queries, queryStr)
@@ -221,13 +222,13 @@ func (computeCfg *computeServiceConfig) getComputeResourceFilters() ([]*string, 
 func (computeCfg *computeServiceConfig) DoResourceInventory() error {
 	vnets, err := computeCfg.getVpcs()
 	if err != nil {
-		azurePluginLogger().Error(err, "failed to fetch cloud resources", "account", computeCfg.accountName)
+		azurePluginLogger().Error(err, "failed to fetch cloud resources", "account", computeCfg.account)
 		return err
 	}
 
 	virtualMachines, err := computeCfg.getVirtualMachines()
 	if err != nil {
-		azurePluginLogger().Error(err, "failed to fetch cloud resources", "account", computeCfg.accountName)
+		azurePluginLogger().Error(err, "failed to fetch cloud resources", "account", computeCfg.account)
 		return err
 	} else {
 		exists := struct{}{}
@@ -262,17 +263,18 @@ func (computeCfg *computeServiceConfig) RemoveResourceFilters(selectorName strin
 	delete(computeCfg.computeFilters, selectorName)
 }
 
-func (computeCfg *computeServiceConfig) GetResourceCRDs(namespace string, accountId string) map[string]*runtimev1alpha1.VirtualMachine {
+func (computeCfg *computeServiceConfig) GetResourceCRDs(namespace string,
+	account *types.NamespacedName) map[string]*runtimev1alpha1.VirtualMachine {
 	virtualMachines := computeCfg.getCachedVirtualMachines()
 	vmObjects := map[string]*runtimev1alpha1.VirtualMachine{}
 
 	for _, virtualMachine := range virtualMachines {
 		// build runtimev1alpha1 VirtualMachine object.
-		vmObject := computeInstanceToInternalVirtualMachineObject(virtualMachine, namespace, accountId, computeCfg.credentials.region)
+		vmObject := computeInstanceToInternalVirtualMachineObject(virtualMachine, namespace, account, computeCfg.credentials.region)
 		vmObjects[vmObject.Name] = vmObject
 	}
 
-	azurePluginLogger().V(1).Info("CRDs", "service", azureComputeServiceNameCompute, "account", computeCfg.accountName,
+	azurePluginLogger().V(1).Info("CRDs", "service", azureComputeServiceNameCompute, "account", computeCfg.account,
 		"virtual-machine CRDs", len(vmObjects))
 
 	return vmObjects
@@ -347,15 +349,7 @@ func (computeCfg *computeServiceConfig) GetVpcInventory() map[string]*runtimev1a
 	snapshot := computeCfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
 		azurePluginLogger().Info("compute service cache snapshot nil",
-			"type", providerType, "account", computeCfg.accountName)
-		return nil
-	}
-
-	// Extract namespace from account namespaced name.
-	tokens := strings.Split(computeCfg.accountName, "/")
-	if len(tokens) != 2 {
-		azurePluginLogger().V(0).Error(fmt.Errorf("failed to parse account namespaced name"),
-			"for", "account", computeCfg.accountName)
+			"type", providerType, "account", computeCfg.account)
 		return nil
 	}
 
@@ -369,12 +363,13 @@ func (computeCfg *computeServiceConfig) GetVpcInventory() map[string]*runtimev1a
 			if _, ok := vnetIDs[strings.ToLower(*vpc.ID)]; ok {
 				managed = true
 			}
-			vpcObj := ComputeVpcToInternalVpcObject(&vpc, tokens[0], computeCfg.accountName, strings.ToLower(computeCfg.credentials.region), managed)
+			vpcObj := ComputeVpcToInternalVpcObject(&vpc, computeCfg.account.Namespace, computeCfg.account.Name,
+				strings.ToLower(computeCfg.credentials.region), managed)
 			vpcMap[strings.ToLower(*vpc.ID)] = vpcObj
 		}
 	}
 	azurePluginLogger().V(1).Info("cached vpcs", "service", azureComputeServiceNameCompute,
-		"account", computeCfg.accountName, "vpc objects", len(vpcMap))
+		"account", computeCfg.account, "vpc objects", len(vpcMap))
 
 	return vpcMap
 }

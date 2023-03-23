@@ -88,16 +88,23 @@ func (r *REST) Get(ctx context.Context, name string, _ *metav1.GetOptions) (runt
 func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (runtime.Object, error) {
 	// List only supports four types of input options
 	// 1. All namespace
-	// 2. Labelselector with only the specific namespace, the only valid labelselectors is "region=<region>"
+	// 2. Labelselector with only the specific namespace, the only valid labelselectors are "cpa.name=<accountname>",
+	//    "cpa.namespace=<accountNamespace> and "region=<region>"
 	// 3. Fieldselector with only the specific namespace, the only valid fieldselectors is "metadata.name=<metadata.name>"
 	// 4. Specific Namespace
+	accountName := ""
+	accountNamespace := ""
 	region := ""
 
 	if options != nil && options.LabelSelector != nil && options.LabelSelector.String() != "" {
 		labelSelectorStrings := strings.Split(options.LabelSelector.String(), ",")
 		for _, labelSelectorString := range labelSelectorStrings {
 			labelKeyAndValue := strings.Split(labelSelectorString, "=")
-			if labelKeyAndValue[0] == config.LabelCloudRegion {
+			if labelKeyAndValue[0] == config.LabelCloudAccountName {
+				accountName = labelKeyAndValue[1]
+			} else if labelKeyAndValue[0] == config.LabelCloudAccountNamespace {
+				accountNamespace = labelKeyAndValue[1]
+			} else if labelKeyAndValue[0] == config.LabelCloudRegion {
 				region = strings.ToLower(labelKeyAndValue[1])
 			} else {
 				return nil, errors.NewBadRequest("unsupported label selector, only region label selector is supported")
@@ -136,6 +143,16 @@ func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (
 
 	if namespace == "" {
 		objs = r.cloudInventory.GetAllVpcs()
+	} else if accountName != "" {
+		accountNameSpacedName := types.NamespacedName{
+			Name:      accountName,
+			Namespace: accountNamespace,
+		}
+		// If account namespace is not specified in the label selector, then use the namespace specified.
+		if accountNamespace == "" {
+			accountNameSpacedName.Namespace = namespace
+		}
+		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.VpcIndexerByNameSpacedAccountName, accountNameSpacedName.String())
 	} else if name != "" {
 		namespacedName := types.NamespacedName{
 			Namespace: namespace,
