@@ -212,21 +212,25 @@ kubectl describe vpc vpc-0d6bb6a4a880bd9ad -n sample-ns
 # Output
 Name:         vpc-0d6bb6a4a880bd9ad
 Namespace:    sample-ns
-Labels:       account-name=cloudprovideraccount-aws-sample
-              region=us-west-1
+Labels:       nephe.io/cloud-region=us-west-1
+              nephe.io/cloud-vpc-uid=vpc-0d6bb6a4a880bd9ad
+              nephe.io/cpa-name=cloudprovideraccount-aws-sample
+              nephe.io/cpa-namespace=sample-ns
 Annotations:  <none>
 API Version:  runtime.cloud.antrea.io/v1alpha1
 Kind:         Vpc
 Metadata:
   Creation Timestamp:  <nil>
-Spec:
+Status:
   Cidrs:
     10.0.0.0/16
-  Cloud Provider:  AWS
-  Id:              vpc-0d6bb6a4a880bd9ad
-  Name:            test-us-west1-vpc
-  Region:          us-west-1
+  Cloud Id:        vpc-0d6bb6a4a880bd9ad
+  Cloud Name:      test-us-west1-vpc
+  Managed:   true
+  Provider:  AWS
+  Region:    us-west-1
   Tags:
+    Environment:  nephe
     Name:         test-us-west1-vpc
     Terraform:    true
 Events:           <none>
@@ -286,19 +290,24 @@ kubectl describe ee virtualmachine-i-0033eb4a6c846451d -n sample-ns
 # Output
 Name:         virtualmachine-i-0033eb4a6c846451d
 Namespace:    sample-ns
-Labels:       environment.tag.nephe=nephe
-              kind.nephe=virtualmachine
-              login.tag.nephe=ubuntu
-              name.nephe=i-0033eb4a6c846451d
-              name.tag.nephe=vpc-0d6bb6a4a880bd9ad-ubuntu1
-              namespace.nephe=sample-ns
-              terraform.tag.nephe=true
-              vpc.nephe=vpc-0d6bb6a4a880bd9ad
+Labels:       nephe.io/cloud-region=us-west-1
+              nephe.io/cloud-vm-name=vpc-0d6bb6a4a880bd9ad-ubuntu1
+              nephe.io/cloud-vm-uid=i-0033eb4a6c846451d
+              nephe.io/cloud-vpc-name=test-us-west1-vpc
+              nephe.io/cloud-vpc-uid=vpc-0d6bb6a4a880bd9ad
+              nephe.io/kind=virtualmachine
+              nephe.io/namespace=sample-ns
+              nephe.io/owner-vm=i-0033eb4a6c846451d
+              nephe.io/owner-vm-vpc=vpc-0d6bb6a4a880bd9ad
+              nephe.io/tag-environment=nephe
+              nephe.io/tag-login=ec2-user
+              nephe.io/tag-name=vpc-0d6bb6a4a880bd9ad-ubuntu1
+              nephe.io/tag-terraform=true
 Annotations:  <none>
 API Version:  crd.antrea.io/v1alpha2
 Kind:         ExternalEntity
 Metadata:
-  Creation Timestamp:  2022-08-21T12:27:16Z
+  Creation Timestamp:  2023-03-29T20:25:07Z
   Generation:          1
   Managed Fields:
     API Version:  crd.antrea.io/v1alpha2
@@ -307,37 +316,32 @@ Metadata:
       f:metadata:
         f:labels:
           .:
-          f:environment.tag.nephe:
-          f:kind.nephe:
-          f:login.tag.nephe:
-          f:name.nephe:
-          f:name.tag.nephe:
-          f:namespace.nephe:
-          f:terraform.tag.nephe:
-          f:vpc.nephe:
-        f:ownerReferences:
-          .:
-          k:{"uid":"aff897e4-5e4d-4f88-8a7c-d48f18d41bf7"}:
+          f:nephe.io/cloud-region:
+          f:nephe.io/cloud-vm-name:
+          f:nephe.io/cloud-vm-uid:
+          f:nephe.io/cloud-vpc-name:
+          f:nephe.io/cloud-vpc-uid:
+          f:nephe.io/kind:
+          f:nephe.io/namespace:
+          f:nephe.io/owner-vm:
+          f:nephe.io/owner-vm-vpc:
+          f:nephe.io/tag-environment:
+          f:nephe.io/tag-login:
+          f:nephe.io/tag-name:
+          f:nephe.io/tag-terraform:
       f:spec:
         .:
         f:endpoints:
         f:externalNode:
-    Manager:    nephe-controller
-    Operation:  Update
-    Time:       2022-08-21T12:27:16Z
-  Owner References:
-    API Version:           crd.cloud.antrea.io/v1alpha1
-    Block Owner Deletion:  true
-    Controller:            true
-    Kind:                  VirtualMachine
-    Name:                  i-0033eb4a6c846451d
-    UID:                   aff897e4-5e4d-4f88-8a7c-d48f18d41bf7
-  Resource Version:        478254
-  UID:                     bf01e92f-095a-48d2-8b3b-482e2084a135
+    Manager:         nephe-controller
+    Operation:       Update
+    Time:            2023-03-29T20:25:07Z
+  Resource Version:  1439699
+  UID:               e0bdb42f-c40b-4c65-a3a9-fe1d23b29890
 Spec:
   Endpoints:
-    Ip:           10.0.1.173
-    Ip:           54.177.32.161
+    Ip:           10.0.1.92
+    Ip:           35.162.150.106
   External Node:  nephe-controller
 Events:           <none>
 ```
@@ -366,7 +370,7 @@ spec:
   appliedTo:
   - externalEntitySelector:
       matchLabels:
-         kind.nephe: virtualmachine
+         nephe.io/kind: virtualmachine
   ingress:
   - action: Allow
     from:
@@ -405,15 +409,22 @@ sample-ns   i-0033eb4a6c846451d   SUCCESS       1
 The `externalEntitySelector` field in ANP supports the following pre-defined
 labels:
 
-- `kind.nephe`: Select based on CRD type. Currently, only supported
+- `nephe.io/kind`: Select based on CRD type. Currently, only supported
   CRD type is `virtualmachine` in lower case. `virtualmachine` may be used in
   `To`, `From`, `AppliedTo` ANP fields. Thus, an ANP may be applied to virtual
   machines.
-- `vpc.nephe`: Select based on cloud resource VPC.
-- `name.nephe`: Select based on K8s resource name. The resource name
+- `nephe.io/owner-vm-vpc`: Select based on K8s VPC resource name of VPC where
+   VM belongs.
+- `nephe.io/owner-vm`: Select based on K8s VM resource name. The resource name
   is meaningful only within the K8s cluster. For AWS, virtual machine name is
   the AWS VM instance ID. For Azure virtual machine name is the hashed values of
   the Azure VM resource ID.
-- `key.tag.nephe`: Select based on cloud resource tag key/value pair,
+- `nephe.io/cloud-vm-uid`: Select based on unique id(UID) of VM in cloud. For AWS,
+    UID is VM instance ID. For Azure, UID is vmID.
+- `nephe.io/cloud-vm-name`: Select based on VM name in cloud.
+- `nephe.io/cloud-vpc-name`: Select based on VPC name in cloud.
+- `nephe.io/cloud-vpc-uid`: Select based on unique id(UID) of VPC in cloud. For AWS,
+  UID is VPC ID. For Azure, UID is resourceGuid.
+- `nephe.io/tag-key`: Select based on cloud resource tag key/value pair,
   where `key` is the cloud resource `Key` tag (in lower case) and the `label`
   value is cloud resource tag `Value` in lower case.

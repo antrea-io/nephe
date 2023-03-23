@@ -128,7 +128,7 @@ func (r *VirtualMachineController) syncExternalEntities(vmNamespacedNameMap map[
 			// Ignore EE objects that are not created by nephe.
 			continue
 		}
-		eeLabelKeyName, exists := ee.Labels[config.ExternalEntityLabelKeyVmName]
+		eeLabelKeyName, exists := ee.Labels[config.ExternalEntityLabelKeyOwnerVm]
 		if !exists {
 			// Ignore EE objects not created by converter module.
 			continue
@@ -155,7 +155,7 @@ func (r *VirtualMachineController) syncExternalNodes(vmNamespacedNameMap map[typ
 		return err
 	}
 	for _, en := range enList.Items {
-		enLabelKeyName, exists := en.Labels[config.ExternalEntityLabelKeyVmName]
+		enLabelKeyName, exists := en.Labels[config.ExternalEntityLabelKeyOwnerVm]
 		if !exists {
 			// Ignore EN objects not created by converter module.
 			continue

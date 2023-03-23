@@ -16,17 +16,26 @@ package config
 
 const (
 	// Well known labels on ExternalEntities so that they can be selected by Antrea NetworkPolicies.
-	ExternalEntityLabelKeyPostfix    = "nephe"
-	ExternalEntityLabelKeyNamespace  = "namespace." + ExternalEntityLabelKeyPostfix
-	ExternalEntityLabelKeyKind       = "kind." + ExternalEntityLabelKeyPostfix
-	ExternalEntityLabelKeyVmName     = "name." + ExternalEntityLabelKeyPostfix
-	ExternalEntityLabelKeyTagPostfix = ".tag." + ExternalEntityLabelKeyPostfix
-	ExternalEntityLabelCloudVPCKey   = "vpc." + ExternalEntityLabelKeyPostfix
+	ExternalEntityLabelKeyTagPrefix    = "tag-"
+	ExternalEntityLabelKeyNamespace    = LabelPrefixNephe + "namespace"
+	ExternalEntityLabelKeyKind         = LabelPrefixNephe + "kind"
+	ExternalEntityLabelKeyOwnerVm      = LabelPrefixNephe + "owner-vm"
+	ExternalEntityLabelKeyOwnerVmVpc   = LabelPrefixNephe + "owner-vm-vpc"
+	ExternalEntityLabelKeyCloudRegion  = LabelPrefixNephe + LabelPrefixCloud + "region"
+	ExternalEntityLabelKeyCloudVpcUID  = LabelPrefixNephe + LabelPrefixCloud + "vpc-uid"
+	ExternalEntityLabelKeyCloudVpcName = LabelPrefixNephe + LabelPrefixCloud + "vpc-name"
+	ExternalEntityLabelKeyCloudVmUID   = LabelPrefixNephe + LabelPrefixCloud + "vm-uid"
+	ExternalEntityLabelKeyCloudVmName  = LabelPrefixNephe + LabelPrefixCloud + "vm-name"
 )
 
 const (
-	LabelCloudAccountName      = "cpa.name"
-	LabelCloudAccountNamespace = "cpa.namespace"
-	LabelCloudRegion           = "region"
-	LabelCloudVPCName          = "vpc.name"
+	// TODO: Prefix with VirtualMachine? or move to inventory package?
+	LabelPrefixNephe           = "nephe.io/"
+	LabelPrefixCloud           = "cloud-"
+	LabelCloudAccountName      = LabelPrefixNephe + "cpa-name"
+	LabelCloudAccountNamespace = LabelPrefixNephe + "cpa-namespace"
+	LabelVpcName               = LabelPrefixNephe + "vpc-name"
+	LabelCloudRegion           = LabelPrefixNephe + LabelPrefixCloud + "region"
+	LabelCloudVpcUID           = LabelPrefixNephe + LabelPrefixCloud + "vpc-uid"
+	LabelCloudVmUID            = LabelPrefixNephe + LabelPrefixCloud + "vm-uid"
 )

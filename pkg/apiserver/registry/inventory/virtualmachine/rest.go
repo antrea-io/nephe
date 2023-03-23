@@ -172,7 +172,7 @@ func (r *REST) ConvertToTable(_ context.Context, obj runtime.Object, _ runtime.O
 				return nil, nil
 			}
 			return []interface{}{vm.Name, vm.Status.Provider, vm.Status.Region,
-				vm.Labels[config.LabelCloudVPCName], vm.Status.State, vm.Status.Agented}, nil
+				vm.Labels[config.LabelVpcName], vm.Status.State, vm.Status.Agented}, nil
 		})
 	return table, err
 }

@@ -19,13 +19,20 @@ import (
 )
 
 type VpcStatus struct {
-	Name     string            `json:"name,omitempty"`
-	Id       string            `json:"id,omitempty"`
-	Provider CloudProvider     `json:"provider,omitempty"`
-	Region   string            `json:"region,omitempty"`
-	Tags     map[string]string `json:"tags,omitempty"`
-	Cidrs    []string          `json:"cidrs,omitempty"`
-	Managed  bool              `json:"managed,omitempty"`
+	// CloudName is the cloud assigned name of the VPC.
+	CloudName string `json:"cloudName,omitempty"`
+	// CloudId is the cloud assigned ID of the VPC.
+	CloudId string `json:"cloudId,omitempty"`
+	// Provider specifies cloud provider of the VPC.
+	Provider CloudProvider `json:"provider,omitempty"`
+	// Region indicates the cloud region of the VPC
+	Region string `json:"region,omitempty"`
+	// Tags indicates tags associated with the VPC.
+	Tags map[string]string `json:"tags,omitempty"`
+	// Cidrs is the IPv4 CIDR block associated with the VPC.
+	Cidrs []string `json:"cidrs,omitempty"`
+	// Managed flag indicates if the VPC is managed by Nephe.
+	Managed bool `json:"managed,omitempty"`
 }
 
 // +kubebuilder:object:root=true

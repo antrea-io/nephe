@@ -29,7 +29,7 @@ spec:
   appliedTo:
     - externalEntitySelector:
         matchLabels:
-          kind.nephe: virtualmachine
+          nephe.io/kind: virtualmachine
   ingress:
     - action: Drop
       ports:

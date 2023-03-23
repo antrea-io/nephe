@@ -128,7 +128,7 @@ func vpcKeyFunc(obj interface{}) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("object is not of type runtime/v1alpha1/Vpc: %v", obj)
 	}
-	return fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[config.LabelCloudAccountName], vpc.Status.Id), nil
+	return fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[config.LabelCloudAccountName], vpc.Status.CloudId), nil
 }
 
 // NewVPCInventoryStore creates a store of VPC.

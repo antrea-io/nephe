@@ -18,17 +18,20 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go/service/ec2"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/uuid"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
-	"antrea.io/nephe/pkg/cloud-provider/utils"
+	cloudcommon "antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
+	"antrea.io/nephe/pkg/controllers/config"
 )
 
 const ResourceNameTagKey = "Name"
 
 // ec2InstanceToInternalVirtualMachineObject converts ec2 instance to VirtualMachine runtime object.
-func ec2InstanceToInternalVirtualMachineObject(instance *ec2.Instance, namespace string, account *types.NamespacedName,
-	region string) *runtimev1alpha1.VirtualMachine {
+func ec2InstanceToInternalVirtualMachineObject(instance *ec2.Instance, vpcs map[string]*ec2.Vpc, namespace string,
+	account *types.NamespacedName, region string) *runtimev1alpha1.VirtualMachine {
 	tags := make(map[string]string)
 	vmTags := instance.Tags
 	if len(vmTags) > 0 {
@@ -74,9 +77,58 @@ func ec2InstanceToInternalVirtualMachineObject(instance *ec2.Instance, namespace
 	cloudID := *instance.InstanceId
 	cloudNetwork := *instance.VpcId
 
-	return utils.GenerateInternalVirtualMachineObject(cloudID, strings.ToLower(cloudName), strings.ToLower(cloudID), strings.ToLower(region),
-		namespace, strings.ToLower(cloudNetwork), cloudNetwork, runtimev1alpha1.VMState(*instance.State.Name), tags, networkInterfaces,
-		providerType, account)
+	vpcName := extractVpcName(vpcs, strings.ToLower(cloudNetwork))
+
+	vmStatus := &runtimev1alpha1.VirtualMachineStatus{
+		Provider:          runtimev1alpha1.CloudProvider(providerType),
+		Tags:              tags,
+		State:             runtimev1alpha1.VMState(*instance.State.Name),
+		NetworkInterfaces: networkInterfaces,
+		Region:            strings.ToLower(region),
+		Agented:           false,
+		CloudId:           strings.ToLower(cloudID),
+		CloudName:         strings.ToLower(cloudName),
+		CloudVpcId:        strings.ToLower(cloudNetwork),
+		CloudVpcName:      vpcName,
+	}
+
+	labelsMap := map[string]string{
+		config.LabelCloudAccountName:      account.Name,
+		config.LabelCloudAccountNamespace: account.Namespace,
+		config.LabelVpcName:               strings.ToLower(cloudNetwork),
+		config.LabelCloudVmUID:            strings.ToLower(cloudID),
+		config.LabelCloudVpcUID:           strings.ToLower(cloudNetwork),
+	}
+
+	vmCrd := &runtimev1alpha1.VirtualMachine{
+		TypeMeta: v1.TypeMeta{
+			Kind:       cloudcommon.VirtualMachineRuntimeObjectKind,
+			APIVersion: cloudcommon.RuntimeAPIVersion,
+		},
+		ObjectMeta: v1.ObjectMeta{
+			UID:       uuid.NewUUID(),
+			Name:      cloudID,
+			Namespace: namespace,
+			Labels:    labelsMap,
+		},
+		Status: *vmStatus,
+	}
+
+	return vmCrd
+}
+
+// extractVpcName function extracts tag by name "Name" and returns it as vpc name.
+func extractVpcName(vpcs map[string]*ec2.Vpc, vpcId string) string {
+	var vpcName string
+	if value, found := vpcs[vpcId]; found {
+		for _, tag := range value.Tags {
+			if *(tag.Key) == "Name" {
+				vpcName = *tag.Value
+				break
+			}
+		}
+	}
+	return vpcName
 }
 
 // ec2VpcToInternalVpcObject converts ec2 vpc object to vpc runtime object.
@@ -98,6 +150,31 @@ func ec2VpcToInternalVpcObject(vpc *ec2.Vpc, accountNamespace, accountName, regi
 		}
 	}
 
-	return utils.GenerateInternalVpcObject(*vpc.VpcId, accountNamespace, accountName, strings.ToLower(cloudName),
-		strings.ToLower(*vpc.VpcId), tags, runtimev1alpha1.AWSCloudProvider, region, cidrs, managed)
+	status := &runtimev1alpha1.VpcStatus{
+		CloudName: strings.ToLower(cloudName),
+		CloudId:   strings.ToLower(*vpc.VpcId),
+		Provider:  runtimev1alpha1.AWSCloudProvider,
+		Region:    region,
+		Tags:      tags,
+		Cidrs:     cidrs,
+		Managed:   managed,
+	}
+
+	labels := map[string]string{
+		config.LabelCloudAccountNamespace: accountNamespace,
+		config.LabelCloudAccountName:      accountName,
+		config.LabelCloudRegion:           region,
+		config.LabelCloudVpcUID:           *vpc.VpcId,
+	}
+
+	vpcObj := &runtimev1alpha1.Vpc{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      *vpc.VpcId,
+			Namespace: accountNamespace,
+			Labels:    labels,
+		},
+		Status: *status,
+	}
+
+	return vpcObj
 }

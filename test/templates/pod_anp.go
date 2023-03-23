@@ -47,16 +47,16 @@ spec:
     - externalEntitySelector:
         matchLabels:
 {{ if .To.Entity.Kind }}
-          kind.nephe: {{.To.Entity.Kind}}
+          nephe.io/kind: {{.To.Entity.Kind}}
 {{ end }}
 {{ if .To.Entity.CloudInstanceName }}
-          name.nephe: {{ .To.Entity.CloudInstanceName }}
+          nephe.io/owner-vm: {{ .To.Entity.CloudInstanceName }}
 {{ end }}
 {{ if .To.Entity.VPC }}
-          vpc.nephe: {{ .To.Entity.VPC }}
+          nephe.io/owner-vm-vpc: {{ .To.Entity.VPC }}
 {{ end }}
 {{ range $k, $v := .To.Entity.Tags }}
-          {{$k}}.tag.nephe: {{$v}}
+          nephe.io/tag-{{$k}}: {{$v}}
 {{ end }}
 {{ end }}{{/* .To.Entity */}}
 {{ if .To.Namespace }}

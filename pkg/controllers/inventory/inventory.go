@@ -59,11 +59,11 @@ func (inventory *Inventory) BuildVpcCache(discoveredVpcMap map[string]*runtimev1
 	// Remove vpcs in vpc cache which are not found in vpc list fetched from cloud.
 	for _, i := range vpcsInCache {
 		vpc := i.(*runtimev1alpha1.Vpc)
-		if _, found := discoveredVpcMap[vpc.Status.Id]; !found {
+		if _, found := discoveredVpcMap[vpc.Status.CloudId]; !found {
 			if err := inventory.vpcStore.Delete(fmt.Sprintf("%v/%v-%v", vpc.Namespace,
-				vpc.Labels[config.LabelCloudAccountName], vpc.Status.Id)); err != nil {
-				inventory.log.Error(err, "failed to delete vpc from vpc cache", "vpc id", vpc.Status.Id, "account",
-					namespacedName.String())
+				vpc.Labels[config.LabelCloudAccountName], vpc.Status.CloudId)); err != nil {
+				inventory.log.Error(err, "failed to delete vpc from vpc cache",
+					"vpc id", vpc.Status.CloudId, "account", namespacedName.String())
 			} else {
 				numVpcsToDelete++
 			}
@@ -74,7 +74,7 @@ func (inventory *Inventory) BuildVpcCache(discoveredVpcMap map[string]*runtimev1
 		var err error
 		key := fmt.Sprintf("%v/%v-%v", discoveredVpc.Namespace,
 			discoveredVpc.Labels[config.LabelCloudAccountName],
-			discoveredVpc.Status.Id)
+			discoveredVpc.Status.CloudId)
 		if cachedObj, found, _ := inventory.vpcStore.Get(key); !found {
 			err = inventory.vpcStore.Create(discoveredVpc)
 			if err == nil {
@@ -91,7 +91,7 @@ func (inventory *Inventory) BuildVpcCache(discoveredVpcMap map[string]*runtimev1
 		}
 		if err != nil {
 			return fmt.Errorf("failed to add vpc into vpc cache, vpc id: %s, error: %v",
-				discoveredVpc.Status.Id, err)
+				discoveredVpc.Status.CloudId, err)
 		}
 	}
 
@@ -111,11 +111,11 @@ func (inventory *Inventory) DeleteVpcsFromCache(namespacedName *types.Namespaced
 	var numVpcsToDelete int
 	for _, i := range vpcsInCache {
 		vpc := i.(*runtimev1alpha1.Vpc)
-		key := fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[config.LabelCloudAccountName], vpc.Status.Id)
+		key := fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[config.LabelCloudAccountName], vpc.Status.CloudId)
 		err := inventory.vpcStore.Delete(key)
 		if err != nil {
 			inventory.log.Error(err, "failed to delete vpc from vpc cache %s:%s",
-				*namespacedName, vpc.Status.Id, err)
+				*namespacedName, vpc.Status.CloudId, err)
 		} else {
 			numVpcsToDelete++
 		}

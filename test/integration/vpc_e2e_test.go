@@ -68,7 +68,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: VPC Inventory", focusAws, focusAzure), func
 				cmd = fmt.Sprintf("get vm -n %v -o json -o json -o=jsonpath={.items}", namespace.Name)
 			} else {
 				// Find if expected vpc id is present in the vpc inventory.
-				cmd = fmt.Sprintf("get vpc %v -n %v -o json -o=jsonpath={.status.id}", vpcObjectName, namespace.Name)
+				cmd = fmt.Sprintf("get vpc %v -n %v -o json -o=jsonpath={.status.cloudId}", vpcObjectName, namespace.Name)
 			}
 
 			out, err := kubeCtl.Cmd(cmd)

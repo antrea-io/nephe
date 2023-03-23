@@ -188,7 +188,7 @@ var _ = Describe("Virtual Machine", func() {
 				Labels: map[string]string{
 					config.LabelCloudAccountNamespace: accountNamespacedName.Namespace,
 					config.LabelCloudAccountName:      accountNamespacedName.Name,
-					config.LabelCloudVPCName:          "testNetworkID",
+					config.LabelVpcName:               "testNetworkID",
 				},
 			},
 			Status: runtimev1alpha1.VirtualMachineStatus{

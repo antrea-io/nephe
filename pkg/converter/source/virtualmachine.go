@@ -58,7 +58,14 @@ func (v *VirtualMachineSource) GetTags() map[string]string {
 
 // GetLabelsFromClient returns VirtualMachine specific labels.
 func (v *VirtualMachineSource) GetLabelsFromClient(_ client.Client) map[string]string {
-	return map[string]string{config.ExternalEntityLabelCloudVPCKey: v.Labels[config.LabelCloudVPCName]}
+	return map[string]string{
+		config.ExternalEntityLabelKeyOwnerVmVpc:   v.Labels[config.LabelVpcName],
+		config.ExternalEntityLabelKeyCloudVpcName: v.Status.CloudVpcName,
+		config.ExternalEntityLabelKeyCloudVpcUID:  v.Labels[config.LabelCloudVpcUID],
+		config.ExternalEntityLabelKeyCloudVmName:  v.Status.CloudName,
+		config.ExternalEntityLabelKeyCloudVmUID:   v.Labels[config.LabelCloudVmUID],
+		config.ExternalEntityLabelKeyCloudRegion:  v.Status.Region,
+	}
 }
 
 // GetExternalNodeName returns controller associated with VirtualMachine.

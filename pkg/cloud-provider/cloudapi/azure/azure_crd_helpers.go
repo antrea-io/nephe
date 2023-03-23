@@ -18,11 +18,15 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/uuid"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	cloudcommon "antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 	"antrea.io/nephe/pkg/cloud-provider/utils"
+	"antrea.io/nephe/pkg/controllers/config"
 )
 
 var azureStateMap = map[string]runtimev1alpha1.VMState{
@@ -36,7 +40,8 @@ var azureStateMap = map[string]runtimev1alpha1.VMState{
 }
 
 // computeInstanceToInternalVirtualMachineObject converts compute instance to VirtualMachine runtime object.
-func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable, namespace string, account *types.NamespacedName,
+func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable,
+	vnets map[string]armnetwork.VirtualNetwork, namespace string, account *types.NamespacedName,
 	region string) *runtimev1alpha1.VirtualMachine {
 	tags := make(map[string]string)
 
@@ -90,7 +95,17 @@ func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable
 	cloudID := strings.ToLower(*instance.ID)
 	cloudName := strings.ToLower(*instance.Name)
 	crdName := utils.GenerateShortResourceIdentifier(cloudID, cloudName)
+	var vmUid string
+	if instance.Properties != nil && instance.Properties.VMID != nil {
+		vmUid = strings.ToLower(*instance.Properties.VMID)
+	}
 
+	var vnetUid string
+	if value, found := vnets[cloudNetworkID]; found {
+		if value.Properties != nil && value.Properties.ResourceGUID != nil {
+			vnetUid = strings.ToLower(*value.Properties.ResourceGUID)
+		}
+	}
 	_, _, nwResName, err := extractFieldsFromAzureResourceID(cloudNetworkID)
 	if err != nil {
 		azurePluginLogger().Error(err, "failed to create VirtualMachine CRD")
@@ -103,8 +118,43 @@ func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable
 	} else {
 		state = runtimev1alpha1.Unknown
 	}
-	return utils.GenerateInternalVirtualMachineObject(crdName, strings.ToLower(cloudName), strings.ToLower(cloudID), strings.ToLower(region),
-		namespace, strings.ToLower(cloudNetworkID), cloudNetworkShortID, state, tags, networkInterfaces, providerType, account)
+
+	vmStatus := &runtimev1alpha1.VirtualMachineStatus{
+		Provider:          runtimev1alpha1.AzureCloudProvider,
+		Tags:              tags,
+		State:             state,
+		NetworkInterfaces: networkInterfaces,
+		Region:            strings.ToLower(region),
+		Agented:           false,
+		CloudId:           strings.ToLower(cloudID),
+		CloudName:         strings.ToLower(cloudName),
+		CloudVpcId:        strings.ToLower(cloudNetworkID),
+		CloudVpcName:      nwResName,
+	}
+
+	labelsMap := map[string]string{
+		config.LabelCloudAccountName:      account.Name,
+		config.LabelCloudAccountNamespace: account.Namespace,
+		config.LabelVpcName:               cloudNetworkShortID,
+		config.LabelCloudVmUID:            strings.ToLower(vmUid),
+		config.LabelCloudVpcUID:           strings.ToLower(vnetUid),
+	}
+
+	vmCrd := &runtimev1alpha1.VirtualMachine{
+		TypeMeta: v1.TypeMeta{
+			Kind:       cloudcommon.VirtualMachineRuntimeObjectKind,
+			APIVersion: cloudcommon.RuntimeAPIVersion,
+		},
+		ObjectMeta: v1.ObjectMeta{
+			UID:       uuid.NewUUID(),
+			Name:      crdName,
+			Namespace: namespace,
+			Labels:    labelsMap,
+		},
+		Status: *vmStatus,
+	}
+
+	return vmCrd
 }
 
 // ComputeVpcToInternalVpcObject converts vnet object from cloud format(network.VirtualNetwork) to vpc runtime object.
@@ -118,13 +168,44 @@ func ComputeVpcToInternalVpcObject(vnet *armnetwork.VirtualNetwork, accountNames
 		}
 	}
 	cidrs := make([]string, 0)
+	var uid string
 	properties := vnet.Properties
-	if properties != nil && properties.AddressSpace != nil && len(properties.AddressSpace.AddressPrefixes) > 0 {
-		for _, cidr := range vnet.Properties.AddressSpace.AddressPrefixes {
-			cidrs = append(cidrs, *cidr)
+	if properties != nil {
+		if properties.AddressSpace != nil && len(properties.AddressSpace.AddressPrefixes) > 0 {
+			for _, cidr := range vnet.Properties.AddressSpace.AddressPrefixes {
+				cidrs = append(cidrs, *cidr)
+			}
+		}
+		if properties.ResourceGUID != nil {
+			uid = strings.ToLower(*properties.ResourceGUID)
 		}
 	}
 
-	return utils.GenerateInternalVpcObject(crdName, accountNamespace, accountName, strings.ToLower(*vnet.Name),
-		strings.ToLower(*vnet.ID), tags, runtimev1alpha1.AzureCloudProvider, region, cidrs, managed)
+	status := &runtimev1alpha1.VpcStatus{
+		CloudName: strings.ToLower(*vnet.Name),
+		CloudId:   strings.ToLower(*vnet.ID),
+		Provider:  runtimev1alpha1.AzureCloudProvider,
+		Region:    region,
+		Tags:      tags,
+		Cidrs:     cidrs,
+		Managed:   managed,
+	}
+
+	labels := map[string]string{
+		config.LabelCloudAccountNamespace: accountNamespace,
+		config.LabelCloudAccountName:      accountName,
+		config.LabelCloudRegion:           region,
+		config.LabelCloudVpcUID:           uid,
+	}
+
+	vpc := &runtimev1alpha1.Vpc{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      crdName,
+			Namespace: accountNamespace,
+			Labels:    labels,
+		},
+		Status: *status,
+	}
+
+	return vpc
 }

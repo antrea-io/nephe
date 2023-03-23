@@ -69,16 +69,16 @@ spec:
   - externalEntitySelector:
       matchLabels:
 {{- if .AppliedTo.Kind }}
-        kind.nephe: {{.AppliedTo.Kind}}
+        nephe.io/kind: {{.AppliedTo.Kind}}
 {{ end }}
 {{- if .AppliedTo.CloudInstanceName }}
-        name.nephe: {{.AppliedTo.CloudInstanceName }}
+        nephe.io/owner-vm: {{.AppliedTo.CloudInstanceName }}
 {{ end }}
 {{- if .AppliedTo.VPC }}
-        vpc.nephe: {{ .AppliedTo.VPC }}
+        nephe.io/owner-vm-vpc: {{ .AppliedTo.VPC }}
 {{ end }}
 {{- range $k, $v := .AppliedTo.Tags }}
-        {{$k}}.tag.nephe: {{$v}}
+        nephe.io/tag-{{$k}}: {{$v}}
 {{ end }}
 {{ end }} {{- /* .AppliedTo */}}
 {{- if .From }}
@@ -97,16 +97,16 @@ spec:
       - externalEntitySelector:
           matchLabels:
 {{- if .From.Entity.Kind }}
-            kind.nephe: {{.From.Entity.Kind}}
+            nephe.io/kind: {{.From.Entity.Kind}}
 {{ end }}
 {{- if .From.Entity.CloudInstanceName }}
-            name.nephe: {{ .From.Entity.CloudInstanceName }}
+            nephe.io/owner-vm: {{ .From.Entity.CloudInstanceName }}
 {{ end }}
 {{- if .From.Entity.VPC }}
-            vpc.nephe: {{ .From.Entity.VPC }}
+            nephe.io/owner-vm-vpc: {{ .From.Entity.VPC }}
 {{ end }}
 {{- range $k, $v := .From.Entity.Tags }}
-            {{$k}}.tag.nephe: {{$v}}
+            nephe.io/tag-{{$k}}: {{$v}}
 {{ end }}
 {{ end }} {{/*.From.Entity */}}
 {{- if .From.Namespace }}
@@ -140,16 +140,16 @@ spec:
       - externalEntitySelector:
 {{- if .To.Entity.Kind }}
           matchLabels:
-            kind.nephe: {{.To.Entity.Kind}}
+            nephe.io/kind: {{.To.Entity.Kind}}
 {{ end }}
 {{- if .To.Entity.CloudInstanceName }}
-            name.nephe: {{ .To.Entity.CloudInstanceName }}
+            nephe.io/owner-vm: {{ .To.Entity.CloudInstanceName }}
 {{ end }}
 {{- if .To.Entity.VPC }}
-            vpc.nephe: {{ .To.Entity.VPC }}
+            nephe.io/owner-vm-vpc: {{ .To.Entity.VPC }}
 {{ end }}
 {{- range $k, $v := .To.Entity.Tags }}
-            {{$k}}.tag.nephe: {{$v}}
+            nephe.io/tag-{{$k}}: {{$v}}
 {{ end }}
 {{ end }} {{/* .To.Entity */}}
 {{- if .To.Namespace }}
@@ -179,15 +179,15 @@ spec:
     externalEntitySelector:
 {{- if .Entity.Kind }}
       matchLabels:
-        kind.nephe: {{.Entity.Kind}}
+        nephe.io/kind: {{.Entity.Kind}}
 {{ end }}
 {{- if .Entity.CloudInstanceName }}
       matchLabels:
-        name.nephe: {{ .Entity.CloudInstanceName }}
+        nephe.io/owner-vm: {{ .Entity.CloudInstanceName }}
 {{ end }}
 {{- if .Entity.VPC }}
       matchLabels:
-        vpc.nephe: {{ .Entity.VPC }}
+        nephe.io/owner-vm-vpc: {{ .Entity.VPC }}
 {{ end }}
 {{ end }}
 `

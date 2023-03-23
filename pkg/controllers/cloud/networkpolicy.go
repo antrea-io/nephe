@@ -271,7 +271,7 @@ func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPoli
 // getOwnerVm gets the parent VM object from ExternalEntity.
 func getOwnerVm(e *antreanetcore.ExternalEntity, r *NetworkPolicyReconciler) (*runtimev1alpha1.VirtualMachine, error) {
 	namespace := e.Namespace
-	ownerVm := e.Labels[config.ExternalEntityLabelKeyVmName]
+	ownerVm := e.Labels[config.ExternalEntityLabelKeyOwnerVm]
 	namespacedName := types.NamespacedName{Namespace: namespace, Name: ownerVm}
 	vm, found := r.Inventory.GetVmByKey(namespacedName.String())
 	if !found {

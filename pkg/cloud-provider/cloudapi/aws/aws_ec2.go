@@ -154,6 +154,22 @@ func (ec2Cfg *ec2ServiceConfig) getManagedVpcIDs() map[string]struct{} {
 	return vpcIDsCopy
 }
 
+// getManagedVpcs returns vpcs containing managed vms.
+func (ec2Cfg *ec2ServiceConfig) getManagedVpcs() map[string]*ec2.Vpc {
+	vpcCopy := make(map[string]*ec2.Vpc)
+	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
+	if snapshot == nil {
+		awsPluginLogger().Info("compute service cache snapshot nil", "type", providerType, "account", ec2Cfg.accountNamespacedName)
+		return vpcCopy
+	}
+
+	for _, vpc := range snapshot.(*ec2ResourcesCacheSnapshot).vpcs {
+		vpcCopy[strings.ToLower(*vpc.VpcId)] = vpc
+	}
+
+	return vpcCopy
+}
+
 // getCachedVpcNameToID returns the map vpcNameToID from the cache.
 func (ec2Cfg *ec2ServiceConfig) getCachedVpcNameToID() map[string]string {
 	vpcNameToIDCopy := make(map[string]string)
@@ -295,10 +311,11 @@ func (ec2Cfg *ec2ServiceConfig) RemoveResourceFilters(selectorName string) {
 func (ec2Cfg *ec2ServiceConfig) GetInternalResourceObjects(namespace string,
 	account *types.NamespacedName) map[string]*runtimev1alpha1.VirtualMachine {
 	instances := ec2Cfg.getCachedInstances()
+	vpcs := ec2Cfg.getManagedVpcs()
 	vmObjects := map[string]*runtimev1alpha1.VirtualMachine{}
 	for _, instance := range instances {
 		// build runtimev1alpha1 VirtualMachine object.
-		vmObject := ec2InstanceToInternalVirtualMachineObject(instance, namespace, account, ec2Cfg.credentials.region)
+		vmObject := ec2InstanceToInternalVirtualMachineObject(instance, vpcs, namespace, account, ec2Cfg.credentials.region)
 		vmObjects[vmObject.Name] = vmObject
 	}
 

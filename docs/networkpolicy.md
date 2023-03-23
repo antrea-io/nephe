@@ -207,9 +207,9 @@ aws-ns      virtualmachine-i-0a20bae92ddcdb60b   58m
 
 A sample Antrea `NetworkPolicy` is shown below, which specifies an Ingress rule
 allowing TCP traffic on port 22. The `from` field is an `externalEntitySelector`
-with matching labels as `name.nephe: i-0033eb4a6c846451d`.  And the `appliedTo`
+with matching labels as `nephe.io/owner-vm: i-0033eb4a6c846451d`.  And the `appliedTo`
 field is an `externalEntitySelector` with a matching label as
-`kind.nephe: virtualmachine`.
+`nephe.io/kind: virtualmachine`.
 
 ```bash
 # Add Policy to Allow SSH
@@ -223,13 +223,13 @@ spec:
   appliedTo:
   - externalEntitySelector:
       matchLabels:
-        kind.nephe: virtualmachine
+        nephe.io/kind: virtualmachine
   ingress:
   - action: Allow
     from:
     - externalEntitySelector:
         matchLabels:
-          name.nephe: i-0033eb4a6c846451d
+          nephe.io/owner-vm: i-0033eb4a6c846451d
     ports:
     - protocol: TCP
       port: 22
@@ -386,9 +386,9 @@ azure-ns    virtualmachine-ubuntu-host-vmlinux-0-16140   3m59s
 
 A sample Antrea `NetworkPolicy` is shown below, which specifies an Ingress rule
 allowing TCP traffic on port 22. The `from` field is an externalEntitySelector
-with matching labels as `name.nephe: rhel-host-vmlinux-0-15892`.
+with matching labels as `nephe.io/owner-vm: rhel-host-vmlinux-0-15892`.
 And the `appliedTo` field is an externalEntitySelector with a matching
-label as `kind.nephe: virtualmachine`.
+label as `nephe.io/kind: virtualmachine`.
 
 ```bash
 apiVersion: crd.antrea.io/v1alpha1
@@ -401,13 +401,13 @@ spec:
   appliedTo:
   - externalEntitySelector:
       matchLabels:
-        kind.nephe: virtualmachine
+        nephe.io/kind: virtualmachine
   ingress:
   - action: Allow
     from:
     - externalEntitySelector:
         matchLabels:
-          name.nephe: rhel-host-vmlinux-0-15892
+          nephe.io/owner-vm: rhel-host-vmlinux-0-15892
     ports:
     - protocol: TCP
       port: 22

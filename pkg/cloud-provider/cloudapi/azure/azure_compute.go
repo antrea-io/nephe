@@ -145,6 +145,22 @@ func (computeCfg *computeServiceConfig) getManagedVnetIDs() map[string]struct{} 
 	return vnetIDsCopy
 }
 
+// getManagedVnets returns vnets containing managed vms.
+func (computeCfg *computeServiceConfig) getManagedVnets() map[string]armnetwork.VirtualNetwork {
+	vnetCopy := make(map[string]armnetwork.VirtualNetwork)
+	snapshot := computeCfg.resourcesCache.GetSnapshot()
+	if snapshot == nil {
+		azurePluginLogger().Info("compute service cache snapshot nil", "type", providerType, "account", computeCfg.account)
+		return vnetCopy
+	}
+
+	for _, vnet := range snapshot.(*computeResourcesCacheSnapshot).vnets {
+		vnetCopy[strings.ToLower(*vnet.ID)] = vnet
+	}
+
+	return vnetCopy
+}
+
 func (computeCfg *computeServiceConfig) getVnetPeers(vnetID string) [][]string {
 	snapshot := computeCfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
@@ -266,11 +282,12 @@ func (computeCfg *computeServiceConfig) RemoveResourceFilters(selectorName strin
 func (computeCfg *computeServiceConfig) GetInternalResourceObjects(namespace string,
 	account *types.NamespacedName) map[string]*runtimev1alpha1.VirtualMachine {
 	virtualMachines := computeCfg.getCachedVirtualMachines()
+	vnets := computeCfg.getManagedVnets()
 	vmObjects := map[string]*runtimev1alpha1.VirtualMachine{}
 
 	for _, virtualMachine := range virtualMachines {
 		// build runtimev1alpha1 VirtualMachine object.
-		vmObject := computeInstanceToInternalVirtualMachineObject(virtualMachine, namespace, account, computeCfg.credentials.region)
+		vmObject := computeInstanceToInternalVirtualMachineObject(virtualMachine, vnets, namespace, account, computeCfg.credentials.region)
 		vmObjects[vmObject.Name] = vmObject
 	}
 

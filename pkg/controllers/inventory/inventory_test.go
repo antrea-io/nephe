@@ -64,16 +64,16 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 		vpcObj1.Name = "obj1"
 		vpcObj1.Namespace = namespace
 		vpcObj1.Labels = vpcLabelsMap
-		vpcObj1.Status.Id = testVpcID01
-		vpcObj1.Status.Name = testVpcName01
+		vpcObj1.Status.CloudId = testVpcID01
+		vpcObj1.Status.CloudName = testVpcName01
 		vpcList1[testVpcID01] = vpcObj1
 
 		vpcObj2 := new(runtimev1alpha1.Vpc)
 		vpcObj2.Name = "obj2"
 		vpcObj2.Namespace = namespace
 		vpcObj2.Labels = vpcLabelsMap
-		vpcObj2.Status.Id = testVpcID02
-		vpcObj2.Status.Name = testVpcName02
+		vpcObj2.Status.CloudId = testVpcID02
+		vpcObj2.Status.CloudName = testVpcName02
 		vpcList1[testVpcID02] = vpcObj2
 
 		It("Add VPCs to VPC inventory", func() {
@@ -100,8 +100,8 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			vpcObj := new(runtimev1alpha1.Vpc)
 			vpcObj.Name = "obj1"
 			vpcObj.Namespace = namespace
-			vpcObj.Status.Id = testVpcID01
-			vpcObj.Status.Name = testVpcName01
+			vpcObj.Status.CloudId = testVpcID01
+			vpcObj.Status.CloudName = testVpcName01
 			vpcList2[testVpcID01] = vpcObj
 
 			err = cloudInventory.BuildVpcCache(vpcList2, &namespacedAccountName)
@@ -128,7 +128,9 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 		vmLabelsMap := map[string]string{
 			config.LabelCloudAccountName:      namespacedAccountName.Name,
 			config.LabelCloudAccountNamespace: namespacedAccountName.Namespace,
-			config.LabelCloudVPCName:          testVpcID01,
+			config.LabelCloudVmUID:            testVmID01,
+			config.LabelCloudVpcUID:           testVpcID01,
+			config.LabelVpcName:               testVpcName01,
 		}
 
 		ipAddressCRD := runtimev1alpha1.IPAddress{
@@ -156,6 +158,7 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			CloudId:           testVmID01,
 			CloudName:         testVmName01,
 			CloudVpcId:        testVpcID01,
+			CloudVpcName:      testVpcName01,
 		}
 
 		vmList := make(map[string]*runtimev1alpha1.VirtualMachine)
