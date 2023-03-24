@@ -260,7 +260,7 @@ var _ = Describe("Azure Cloud Security", func() {
 			vnet.ID = &testVnetID01
 			vnetList = append(vnetList, *vnet)
 			serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{
-				vmIDToInfoMap, vnetList, vnetIDs, vpcPeers})
+				vmIDToInfoMap, vnetList, vnetIDs, vpcPeers, nil})
 		})
 
 		AfterEach(func() {
@@ -590,7 +590,7 @@ var _ = Describe("Azure Cloud Security", func() {
 
 				accCfg, _ := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
 				serviceConfig, _ := accCfg.GetServiceConfigByName(azureComputeServiceNameCompute)
-				serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{vmToUpdateMap, nil, nil, nil})
+				serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{vmToUpdateMap, nil, nil, nil, nil})
 
 				serviceConfig.(*computeServiceConfig).GetResourceCRDs(testAccountNamespacedName.Namespace, testAccountNamespacedName.String())
 			})

@@ -23,6 +23,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/Azure/go-autorest/autorest/to"
+	"github.com/mohae/deepcopy"
 	"go.uber.org/multierr"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -55,6 +56,15 @@ func (computeCfg *computeServiceConfig) getNetworkInterfacesOfVnet(vnetIDSet map
 	}
 	nwIntfs, _, err := getNetworkInterfaceTable(computeCfg.resourceGraphAPIClient, query, []*string{&subscriptionID})
 	return nwIntfs, err
+}
+
+func (computeCfg *computeServiceConfig) getCacheNetworkInterfacesOfVnet(vnet string) []*networkInterfaceTable {
+	cachedNetworkInterfaces := computeCfg.getManagedNetworkInterfaces()
+	var networkInterfaces []*networkInterfaceTable
+	if nIfs, ok := cachedNetworkInterfaces[strings.ToLower(vnet)]; ok {
+		networkInterfaces = deepcopy.Copy(nIfs).([]*networkInterfaceTable)
+	}
+	return networkInterfaces
 }
 
 // processAppliedToMembership attaches/detaches nics to/from the cloud appliedTo security group.
@@ -435,10 +445,7 @@ func (computeCfg *computeServiceConfig) buildEffectivePeerNSGSecurityRulesToAppl
 func (computeCfg *computeServiceConfig) updateSecurityGroupMembers(securityGroupIdentifier *securitygroup.CloudResourceID,
 	computeResourceIdentifier []*securitygroup.CloudResource, membershipOnly bool) error {
 	vnetID := securityGroupIdentifier.Vpc
-	vnetNetworkInterfaces, err := computeCfg.getNetworkInterfacesOfVnet(map[string]struct{}{vnetID: {}})
-	if err != nil {
-		return err
-	}
+	vnetNetworkInterfaces := computeCfg.getCacheNetworkInterfacesOfVnet(vnetID)
 
 	// find all network interfaces which needs to be attached to SG
 	memberVirtualMachines, memberNetworkInterfaces := securitygroup.FindResourcesBasedOnKind(computeResourceIdentifier)

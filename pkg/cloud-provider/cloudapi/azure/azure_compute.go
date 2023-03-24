@@ -44,10 +44,11 @@ type computeServiceConfig struct {
 }
 
 type computeResourcesCacheSnapshot struct {
-	virtualMachines map[cloudcommon.InstanceID]*virtualMachineTable
-	vnets           []armnetwork.VirtualNetwork
-	vnetIDs         map[string]struct{}
-	vnetPeers       map[string][][]string
+	virtualMachines   map[cloudcommon.InstanceID]*virtualMachineTable
+	vnets             []armnetwork.VirtualNetwork
+	vnetIDs           map[string]struct{}
+	vnetPeers         map[string][][]string
+	networkInterfaces map[string][]*networkInterfaceTable
 }
 
 func newComputeServiceConfig(name string, service azureServiceClientCreateInterface,
@@ -125,6 +126,18 @@ func (computeCfg *computeServiceConfig) getCachedVirtualMachines() []*virtualMac
 	azurePluginLogger().V(1).Info("cached vm instances", "service", azureComputeServiceNameCompute, "account", computeCfg.accountName,
 		"instances", len(instancesToReturn))
 	return instancesToReturn
+}
+
+func (computeCfg *computeServiceConfig) getManagedNetworkInterfaces() map[string][]*networkInterfaceTable {
+	networkInterfaces := map[string][]*networkInterfaceTable{}
+	snapshot := computeCfg.resourcesCache.GetSnapshot()
+	if snapshot == nil {
+		azurePluginLogger().V(4).Info("cache snapshot nil", "service", azureComputeServiceNameCompute, "account", computeCfg.accountName)
+		return networkInterfaces
+	}
+	networkInterfaces = snapshot.(*computeResourcesCacheSnapshot).networkInterfaces
+
+	return networkInterfaces
 }
 
 // getManagedVnetIDs returns vnetIDs of vnets containing managed vms.
@@ -224,6 +237,7 @@ func (computeCfg *computeServiceConfig) DoResourceInventory() error {
 		azurePluginLogger().Error(err, "failed to fetch cloud resources", "account", computeCfg.accountName)
 		return err
 	}
+	networkInterfacesMap := map[string][]*networkInterfaceTable{}
 
 	virtualMachines, err := computeCfg.getVirtualMachines()
 	if err != nil {
@@ -238,8 +252,17 @@ func (computeCfg *computeServiceConfig) DoResourceInventory() error {
 			id := cloudcommon.InstanceID(strings.ToLower(*vm.ID))
 			vmIDToInfoMap[id] = vm
 			vnetIDs[*vm.VnetID] = exists
+			vnetIDTmp := make(map[string]struct{})
+			vnetIDTmp[strings.ToLower(*vm.VnetID)] = exists
+
+			networkInterfaces, err := computeCfg.getNetworkInterfacesOfVnet(vnetIDTmp)
+			if err != nil {
+				azurePluginLogger().Error(err, "failed to get network interfaces of vnets", "vnet-ids", vnetIDTmp)
+			} else {
+				networkInterfacesMap[strings.ToLower(*vm.VnetID)] = networkInterfaces
+			}
 		}
-		computeCfg.resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{vmIDToInfoMap, vnets, vnetIDs, vpcPeers})
+		computeCfg.resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{vmIDToInfoMap, vnets, vnetIDs, vpcPeers, networkInterfacesMap})
 	}
 	return nil
 }

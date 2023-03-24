@@ -46,11 +46,12 @@ type ec2ServiceConfig struct {
 
 // ec2ResourcesCacheSnapshot holds the results from querying for all instances.
 type ec2ResourcesCacheSnapshot struct {
-	instances   map[cloudcommon.InstanceID]*ec2.Instance
-	vpcs        []*ec2.Vpc
-	vpcIDs      map[string]struct{}
-	vpcNameToID map[string]string
-	vpcPeers    map[string][]string
+	instances         map[cloudcommon.InstanceID]*ec2.Instance
+	vpcs              []*ec2.Vpc
+	vpcIDs            map[string]struct{}
+	vpcNameToID       map[string]string
+	vpcPeers          map[string][]string
+	networkInterfaces map[string][]*ec2.NetworkInterface
 }
 
 func newEC2ServiceConfig(name string, service awsServiceClientCreateInterface,
@@ -134,6 +135,19 @@ func (ec2Cfg *ec2ServiceConfig) getCachedInstances() []*ec2.Instance {
 	awsPluginLogger().V(1).Info("cached vm instances", "service", awsComputeServiceNameEC2, "account", ec2Cfg.accountName,
 		"instances", len(instancesToReturn))
 	return instancesToReturn
+}
+
+// getManagedVpcIDs returns networkInterfaces from the cache for the account.
+func (ec2Cfg *ec2ServiceConfig) getManagedNetworkInterfaces() map[string][]*ec2.NetworkInterface {
+	networkInterfaces := map[string][]*ec2.NetworkInterface{}
+	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
+	if snapshot == nil {
+		awsPluginLogger().V(4).Info("cache snapshot nil", "service", awsComputeServiceNameEC2, "account", ec2Cfg.accountName)
+		return networkInterfaces
+	}
+	networkInterfaces = snapshot.(*ec2ResourcesCacheSnapshot).networkInterfaces
+
+	return networkInterfaces
 }
 
 // getManagedVpcIDs returns vpcIDs of vpcs containing managed vms.
@@ -253,6 +267,7 @@ func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
 		awsPluginLogger().Error(err, "failed to fetch cloud resources", "account", ec2Cfg.accountName)
 		return err
 	}
+	networkInterfacesMap := map[string][]*ec2.NetworkInterface{}
 
 	instances, err := ec2Cfg.getInstances()
 	if err != nil {
@@ -268,8 +283,16 @@ func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
 			id := cloudcommon.InstanceID(strings.ToLower(aws.StringValue(instance.InstanceId)))
 			instanceIDs[id] = instance
 			vpcIDs[strings.ToLower(*instance.VpcId)] = exists
+			vpcIDTmp := make(map[string]struct{})
+			vpcIDTmp[strings.ToLower(*instance.VpcId)] = exists
+			networkInterfaces, err := ec2Cfg.getNetworkInterfacesOfVpc(vpcIDTmp)
+			if err != nil {
+				awsPluginLogger().Error(err, "failed to get network interfaces of vpcs", "vpc-id", *instance.VpcId)
+			} else {
+				networkInterfacesMap[strings.ToLower(*instance.VpcId)] = networkInterfaces
+			}
 		}
-		ec2Cfg.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{instanceIDs, vpcs, vpcIDs, vpcNameToID, vpcPeers})
+		ec2Cfg.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{instanceIDs, vpcs, vpcIDs, vpcNameToID, vpcPeers, networkInterfacesMap})
 	}
 
 	return nil

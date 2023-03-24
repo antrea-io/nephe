@@ -23,6 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/cenkalti/backoff/v4"
+	"github.com/mohae/deepcopy"
 	"go.uber.org/multierr"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -353,6 +354,15 @@ func (ec2Cfg *ec2ServiceConfig) getNetworkInterfacesOfVpc(vpcIDs map[string]stru
 	return networkInterfaces, nil
 }
 
+func (ec2Cfg *ec2ServiceConfig) getCacheNetworkInterfacesOfVpc(vpcID string) []*ec2.NetworkInterface {
+	cachedNetworkInterfaces := ec2Cfg.getManagedNetworkInterfaces()
+	var networkInterfaces []*ec2.NetworkInterface
+	if nIfs, ok := cachedNetworkInterfaces[vpcID]; ok {
+		networkInterfaces = deepcopy.Copy(nIfs).([]*ec2.NetworkInterface)
+	}
+	return networkInterfaces
+}
+
 func (ec2Cfg *ec2ServiceConfig) getSecurityGroupsOfVpc(vpcIDs map[string]struct{}) ([]*ec2.SecurityGroup, error) {
 	filters := buildAwsEc2FilterForVpcIDOnlyMatches(vpcIDs)
 	input := &ec2.DescribeSecurityGroupsInput{
@@ -369,10 +379,7 @@ func (ec2Cfg *ec2ServiceConfig) getSecurityGroupsOfVpc(vpcIDs map[string]struct{
 func (ec2Cfg *ec2ServiceConfig) updateSecurityGroupMembers(groupCloudSgID *string, groupCloudSgName string, vpcID string,
 	cloudResourceIdentifiers []*securitygroup.CloudResource, membershipOnly bool) error {
 	// find all network interfaces using this security group within VPC
-	networkInterfaces, err := ec2Cfg.getNetworkInterfacesOfVpc(map[string]struct{}{vpcID: {}})
-	if err != nil {
-		return err
-	}
+	networkInterfaces := ec2Cfg.getCacheNetworkInterfacesOfVpc(vpcID)
 
 	// get default sg ID for the VPC
 	vpcDefaultSgID, err := ec2Cfg.getVpcDefaultSecurityGroupID(vpcID)
