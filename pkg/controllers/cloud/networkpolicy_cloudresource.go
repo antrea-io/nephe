@@ -135,6 +135,7 @@ func (r *NetworkPolicyReconciler) newCloudResourceNPTracker(rsc *securitygroup.C
 		prevAppliedToSGs: make(map[string]*appliedToSecurityGroup),
 		cloudResource:    *rsc,
 	}
+	tracker.unmarkDirty()
 	if err := r.cloudResourceNPTrackerIndexer.Add(tracker); err != nil {
 		log.Error(err, "Add to cloudResourceNPTracker indexer")
 		return nil
@@ -153,6 +154,9 @@ func (r *NetworkPolicyReconciler) getCloudResourceNPTracker(rsc *securitygroup.C
 
 func (r *NetworkPolicyReconciler) processCloudResourceNPTrackers() {
 	log := r.Log.WithName("NPTracker")
+	if !r.syncedWithCloud {
+		return
+	}
 	for _, i := range r.cloudResourceNPTrackerIndexer.List() {
 		tracker := i.(*cloudResourceNPTracker)
 		if !tracker.isDirty() {
