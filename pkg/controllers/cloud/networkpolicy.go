@@ -1089,7 +1089,7 @@ func (a *appliedToSecurityGroup) getStatus() error {
 	if a.status != nil {
 		return a.status
 	}
-	if a.state == securityGroupStateCreated && a.ruleReady {
+	if a.state == securityGroupStateCreated && a.ruleReady && a.hasMembers {
 		return nil
 	}
 	return &InProgress{}
