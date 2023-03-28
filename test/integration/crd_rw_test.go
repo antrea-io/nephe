@@ -79,7 +79,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: Basic CRD Read-Write", focusAws, focusAzure
 	})
 
 	setCloudAccount := func() {
-		accountParameters := cloudVPC.GetCloudAccountParameters(testAccountName, nameSpaceName, cloudCluster)
+		accountParameters := cloudVPC.GetCloudAccountParameters(testAccountName, nameSpaceName)
 		cloudProvider = strings.Split(cloudProviders, ",")[0]
 		switch cloudProvider {
 		case string(v1alpha1.AWSCloudProvider):

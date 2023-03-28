@@ -83,6 +83,12 @@
                 - text:
                     credential-id: AWS_KEY_PAIR_NAME
                     variable: AWS_KEY_PAIR_NAME
+                - text:
+                    credential-id: AWS_SERVICE_USER_ROLE_ARN
+                    variable: AWS_SERVICE_USER_ROLE_ARN
+                - text:
+                    credential-id: AWS_SERVICE_USER_NAME
+                    variable: AWS_SERVICE_USER_NAME
           publishers:
           - archive:
               allow-empty: true
@@ -272,6 +278,12 @@
                       - text:
                             credential-id: EKS_IAM_INSTANCE_PROFILE
                             variable: EKS_IAM_INSTANCE_PROFILE
+                      - text:
+                            credential-id: AWS_SERVICE_USER_ROLE_ARN
+                            variable: AWS_SERVICE_USER_ROLE_ARN
+                      - text:
+                            credential-id: AWS_SERVICE_USER_NAME
+                            variable: AWS_SERVICE_USER_NAME
             publishers:
                 - archive:
                       allow-empty: true
@@ -461,6 +473,12 @@
                 - text:
                     credential-id: EKS_IAM_INSTANCE_PROFILE
                     variable: EKS_IAM_INSTANCE_PROFILE
+                - text:
+                    credential-id: AWS_SERVICE_USER_ROLE_ARN
+                    variable: AWS_SERVICE_USER_ROLE_ARN
+                - text:
+                    credential-id: AWS_SERVICE_USER_NAME
+                    variable: AWS_SERVICE_USER_NAME
           publishers:
           - archive:
               allow-empty: true
@@ -650,6 +668,12 @@
                 - text:
                     credential-id: EKS_IAM_INSTANCE_PROFILE
                     variable: EKS_IAM_INSTANCE_PROFILE
+                - text:
+                    credential-id: AWS_SERVICE_USER_ROLE_ARN
+                    variable: AWS_SERVICE_USER_ROLE_ARN
+                - text:
+                    credential-id: AWS_SERVICE_USER_NAME
+                    variable: AWS_SERVICE_USER_NAME
           publishers:
             - archive:
                 allow-empty: true

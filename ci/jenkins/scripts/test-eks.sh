@@ -24,14 +24,16 @@ _usage="Usage: $0 [arguments]
 Setup and run integration tests on EKS cluster with AWS VMs.
 
 [arguments]
-        [--aws-access-key-id <AccessKeyID>]  AWS Access Key ID.
-        [--aws-secret-key <SecretKey>]       AWS Secret Key.
-        [--aws-region <Region>]              The AWS region where the setup will be deployed. Defaults to us-west-2.
-        [--eks-cluster-role <ClusterRole>]   IAM Role for Cluster Control Plane.
-        [--eks-node-role <NodeRole>]         IAM Role for EKS worker node.
-        [--owner <OwnerName>]                Setup will be prefixed with owner name.
-        [--with-agent]                       Run test with agented Linux VMs.
-        [--with-agent-windows]               Run test with agented Windows VMs."
+        [--aws-access-key-id <AccessKeyID>]                  AWS Access Key ID.
+        [--aws-secret-key <SecretKey>]                       AWS Secret Key.
+        [--aws-service-user <ServiceUserName>]               AWS Service User Name.
+        [--aws-service-user-role-arn <ServiceUserRoleARN>]   AWS Service User Role ARN.
+        [--aws-region <Region>]                              AWS region where the setup will be deployed. Defaults to us-east-2.
+        [--eks-cluster-role <ClusterRole>]                   IAM Role for Cluster Control Plane.
+        [--eks-node-role <NodeRole>]                         IAM Role for EKS worker node.
+        [--owner <OwnerName>]                                Setup will be prefixed with owner name.
+        [--with-agent]                                       Run test with agented Linux VMs.
+        [--with-agent-windows]                               Run test with agented Windows VMs."
 
 function print_usage {
     echoerr "$_usage"
@@ -43,7 +45,7 @@ function print_help {
 
 # Defaults
 export TF_VAR_owner="ci"
-export AWS_DEFAULT_REGION="us-west-2"
+export AWS_DEFAULT_REGION="us-east-2"
 export WITH_AGENT=false
 export WITH_WINDOWS=false
 export TEST_FOCUS=".*test-cloud-cluster.*"
@@ -54,11 +56,19 @@ key="$1"
 
 case $key in
     --aws-access-key-id)
-    export AWS_ACCESS_KEY_ID="$2"
+    AWS_ACCESS_KEY_ID="$2"
     shift 2
     ;;
     --aws-secret-key)
-    export AWS_SECRET_ACCESS_KEY="$2"
+    AWS_SECRET_ACCESS_KEY="$2"
+    shift 2
+    ;;
+    --aws-service-user-role-arn)
+    AWS_SERVICE_USER_ROLE_ARN="$2"
+    shift 2
+    ;;
+    --aws-service-user)
+    AWS_SERVICE_USER_NAME="$2"
     shift 2
     ;;
     --aws-region)
@@ -109,6 +119,34 @@ if [ -z "$TF_VAR_eks_cluster_iam_role_name" ] || [ -z "$TF_VAR_eks_iam_instance_
     print_usage
     exit 1
 fi
+
+if [[ "$AWS_SERVICE_USER_ROLE_ARN" != "" ]] && [[ "$AWS_SERVICE_USER_NAME" != "" ]]; then
+    mkdir -p ~/.aws
+    cat > ~/.aws/config <<EOF
+[default]
+role_arn = $AWS_SERVICE_USER_ROLE_ARN
+source_profile = $AWS_SERVICE_USER_NAME
+region = $AWS_DEFAULT_REGION
+output = json
+EOF
+    cat > ~/.aws/credentials <<EOF
+[$AWS_SERVICE_USER_NAME]
+aws_access_key_id = $AWS_ACCESS_KEY_ID
+aws_secret_access_key = $AWS_SECRET_ACCESS_KEY
+EOF
+elif [[ "$AWS_SERVICE_USER_ROLE_ARN" = "" ]] && [[ "$AWS_SERVICE_USER_NAME" = "" ]]; then
+    export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+    export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+else
+    echoerr "invalid input; either specify both aws-service-user-role-arn and aws-service-user or none."
+    exit 1
+fi
+
+# Set env for NEPHE CI
+export NEPHE_CI=true
+export NEPHE_CI_AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+export NEPHE_CI_AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+export NEPHE_CI_AWS_ROLE_ARN=$AWS_SERVICE_USER_ROLE_ARN
 
 echo "Installing AWS CLI"
 curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"

@@ -193,7 +193,7 @@ case $testType in
     aws)
     echo "Run tests on Kind cluster with AWS VMs"
     ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/scripts/test-aws.sh --aws-access-key-id ${AWS_ACCESS_KEY_ID} --aws-secret-key ${AWS_ACCESS_KEY_SECRET} \
-                                                   --owner ${owner}"
+                                                   --aws-service-user-role-arn ${AWS_SERVICE_USER_ROLE_ARN} --aws-service-user ${AWS_SERVICE_USER_NAME} --owner ${owner}"
     ;;
     azure)
     echo "Run tests on Kind cluster with Azure VMs"
@@ -203,6 +203,7 @@ case $testType in
     eks)
     echo "Run tests on EKS cluster with AWS VMs"
     ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/scripts/test-eks.sh --aws-access-key-id ${AWS_ACCESS_KEY_ID} --aws-secret-key ${AWS_ACCESS_KEY_SECRET} \
+                                                   --aws-service-user-role-arn ${AWS_SERVICE_USER_ROLE_ARN} --aws-service-user ${AWS_SERVICE_USER_NAME} \
                                                    --eks-cluster-role ${EKS_IAM_ROLE} --eks-node-role ${EKS_IAM_INSTANCE_PROFILE} --owner ${owner}"
     ;;
     aks)
@@ -213,6 +214,7 @@ case $testType in
     eks-with-agent)
     echo "Run tests on EKS cluster with AWS agented VMs"
     ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/scripts/test-eks.sh --aws-access-key-id ${AWS_ACCESS_KEY_ID} --aws-secret-key ${AWS_ACCESS_KEY_SECRET} \
+                                                   --aws-service-user-role-arn ${AWS_SERVICE_USER_ROLE_ARN} --aws-service-user ${AWS_SERVICE_USER_NAME} \
                                                    --eks-cluster-role ${EKS_IAM_ROLE} --eks-node-role ${EKS_IAM_INSTANCE_PROFILE} --owner ${owner} --with-agent"
     ;;
     aks-with-agent)
@@ -223,6 +225,7 @@ case $testType in
     eks-with-windows-agent)
     echo "Run tests on EKS cluster with AWS agented VMs"
     ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/scripts/test-eks.sh --aws-access-key-id ${AWS_ACCESS_KEY_ID} --aws-secret-key ${AWS_ACCESS_KEY_SECRET} \
+                                                   --aws-service-user-role-arn ${AWS_SERVICE_USER_ROLE_ARN} --aws-service-user ${AWS_SERVICE_USER_NAME} \
                                                    --eks-cluster-role ${EKS_IAM_ROLE} --eks-node-role ${EKS_IAM_INSTANCE_PROFILE} --owner ${owner} --with-agent \
                                                    --with-agent-windows"
     ;;

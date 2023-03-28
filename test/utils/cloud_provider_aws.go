@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/wait"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	k8stemplates "antrea.io/nephe/test/templates"
@@ -35,12 +34,6 @@ type awsVPC struct {
 
 // createAWSVPC creates AWS VPC that contains some VMs. It returns VPC id if successful.
 func createAWSVPC(timeout time.Duration) (map[string]interface{}, error) {
-	envs := []string{"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"}
-	for _, key := range envs {
-		if _, ok := os.LookupEnv(key); !ok {
-			return nil, fmt.Errorf("environment variable %v not set", key)
-		}
-	}
 	homeDir := os.Getenv("HOME")
 	bin := homeDir + "/terraform/aws-tf"
 	_, err := os.Stat(bin)
@@ -191,7 +184,7 @@ func (p *awsVPC) Reapply(timeout time.Duration, withAgent bool) error {
 	return err
 }
 
-func (p *awsVPC) GetCloudAccountParameters(name, namespace string, cloudCluster bool) k8stemplates.CloudAccountParameters {
+func (p *awsVPC) GetCloudAccountParameters(name, namespace string) k8stemplates.CloudAccountParameters {
 	p.currentAccountName = name
 	out := k8stemplates.CloudAccountParameters{
 		Name:      name,
@@ -207,11 +200,13 @@ func (p *awsVPC) GetCloudAccountParameters(name, namespace string, cloudCluster 
 
 	cred := v1alpha1.AwsAccountCredential{}
 	// use role access if cloud cluster and the role is set in env variable
-	roleArn := os.Getenv("TF_VAR_nephe_controller_role_arn")
-	if cloudCluster && len(roleArn) != 0 {
-		cred.RoleArn = roleArn
-		logf.Log.Info("Using AWS role based access")
+	nepheCi := os.Getenv("NEPHE_CI")
+	if len(nepheCi) != 0 {
+		cred.RoleArn = os.Getenv("NEPHE_CI_AWS_ROLE_ARN")
+		cred.AccessKeyID = os.Getenv("NEPHE_CI_AWS_ACCESS_KEY_ID")
+		cred.AccessKeySecret = os.Getenv("NEPHE_CI_AWS_SECRET_ACCESS_KEY")
 	} else {
+		cred.RoleArn = os.Getenv("TF_VAR_nephe_controller_role_arn")
 		cred.AccessKeyID = os.Getenv("AWS_ACCESS_KEY_ID")
 		cred.AccessKeySecret = os.Getenv("AWS_SECRET_ACCESS_KEY")
 	}
