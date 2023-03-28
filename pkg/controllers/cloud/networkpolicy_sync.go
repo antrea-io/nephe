@@ -264,7 +264,7 @@ func (r *NetworkPolicyReconciler) getNICsOfCloudResources(resources []*securityg
 	nics := make([]*securitygroup.CloudResource, 0, len(resources))
 	for _, rsc := range resources {
 		id := rsc.Name
-		vmItems, err := r.Inventory.GetVmFromIndexer(common.VirtualMachineIndexerByCloudID, id)
+		vmItems, err := r.Inventory.GetVmFromIndexer(common.VirtualMachineIndexerByCloudId, id)
 		if err != nil {
 			r.Log.Error(err, "failed to get VMs from VM cache")
 			return resources, err

@@ -261,34 +261,33 @@ func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPoli
 			r.Log.Error(fmt.Errorf(""), "invalid cloud resource type received", "kind", kind)
 		}
 		if readOwnerLabels {
-			ownerVM, err := getOwnerVM(e, r)
+			ownerVm, err := getOwnerVm(e, r)
 			if err != nil {
 				r.Log.Error(err, "externalEntity owner not found", "key", key, "kind", kind)
 				namespacedName := &types.NamespacedName{Namespace: m.ExternalEntity.Namespace, Name: m.ExternalEntity.Name}
 				notFoundMember = append(notFoundMember, namespacedName)
 				continue
 			}
-			//cloudAccountID, ok := ownerVM.Labels[config.LabelCloudNamespacedAccountName]
-			cloudAccountName, ok := ownerVM.Labels[config.LabelCloudAccountName]
+			cloudAccountName, ok := ownerVm.Labels[config.LabelCloudAccountName]
 			if !ok {
-				r.Log.Error(fmt.Errorf(""), "cloud account ID annotation not found in ExternalEntity owner", "key", key, "kind", kind)
+				r.Log.Error(fmt.Errorf("invalid VM object"), "cpa name label not found ",
+					"key", key, "kind", kind)
 				continue
 			}
-			cloudAccountNamespace, ok := ownerVM.Labels[config.LabelCloudAccountNamespace]
+			cloudAccountNamespace, ok := ownerVm.Labels[config.LabelCloudAccountNamespace]
 			if !ok {
-				r.Log.Error(fmt.Errorf(""), "cloud account ID annotation not found in ExternalEntity owner", "key", key, "kind", kind)
+				r.Log.Error(fmt.Errorf("invalid VM object"), "cpa namespace label not found",
+					"key", key, "kind", kind)
 				continue
 			}
-			accountNamespacedNamed := types.NamespacedName{
+			cloudRsc.Name = ownerVm.Status.CloudId
+			cloudRsc.AccountID = types.NamespacedName{
 				Name:      cloudAccountName,
 				Namespace: cloudAccountNamespace,
-			}
-
-			cloudRsc.Name = ownerVM.Status.CloudId
-			cloudRsc.AccountID = accountNamespacedNamed.String()
-			cloudRsc.CloudProvider = string(ownerVM.Status.Provider)
-			cloudRsc.Vpc = ownerVM.Status.CloudVpcId
-			vpcs[ownerVM.Status.CloudVpcId] = append(vpcs[ownerVM.Status.CloudVpcId], &cloudRsc)
+			}.String()
+			cloudRsc.CloudProvider = string(ownerVm.Status.Provider)
+			cloudRsc.Vpc = ownerVm.Status.CloudVpcId
+			vpcs[ownerVm.Status.CloudVpcId] = append(vpcs[ownerVm.Status.CloudVpcId], &cloudRsc)
 		} else {
 			for _, ep := range e.Spec.Endpoints {
 				var ipnet *net.IPNet
@@ -302,10 +301,10 @@ func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPoli
 	return vpcs, ipBlocks, notFoundMember, nil
 }
 
-// getOwnerVM gets the parent VM object from ExternalEntity.
-func getOwnerVM(e *antreanetcore.ExternalEntity, r *NetworkPolicyReconciler) (*runtimev1alpha1.VirtualMachine, error) {
+// getOwnerVm gets the parent VM object from ExternalEntity.
+func getOwnerVm(e *antreanetcore.ExternalEntity, r *NetworkPolicyReconciler) (*runtimev1alpha1.VirtualMachine, error) {
 	namespace := e.Namespace
-	ownerVm := e.Labels[config.ExternalEntityLabelKeyName]
+	ownerVm := e.Labels[config.ExternalEntityLabelKeyVmName]
 	namespacedName := types.NamespacedName{Namespace: namespace, Name: ownerVm}
 	vm, found := r.Inventory.GetVmByKey(namespacedName.String())
 	if !found {

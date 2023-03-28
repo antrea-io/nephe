@@ -32,10 +32,10 @@ import (
 )
 
 type ec2ServiceConfig struct {
-	account        types.NamespacedName
-	apiClient      awsEC2Wrapper
-	resourcesCache *internal.CloudServiceResourcesCache
-	inventoryStats *internal.CloudServiceStats
+	accountNamespacedName types.NamespacedName
+	apiClient             awsEC2Wrapper
+	resourcesCache        *internal.CloudServiceResourcesCache
+	inventoryStats        *internal.CloudServiceStats
 	// instanceFilters has following possible values
 	// - empty map indicates no selectors configured for this account. NO cloud api call for inventory will be made.
 	// - non-empty map indicates selectors are configured. Cloud api call for inventory will be made.
@@ -54,21 +54,21 @@ type ec2ResourcesCacheSnapshot struct {
 	vpcPeers    map[string][]string
 }
 
-func newEC2ServiceConfig(account types.NamespacedName, service awsServiceClientCreateInterface,
+func newEC2ServiceConfig(accountNamespacedName types.NamespacedName, service awsServiceClientCreateInterface,
 	credentials *awsAccountConfig) (internal.CloudServiceInterface, error) {
 	// create ec2 sdk api client
 	apiClient, err := service.compute()
 	if err != nil {
-		return nil, fmt.Errorf("error creating ec2 sdk api client for account : %v, err: %v", account.String(), err)
+		return nil, fmt.Errorf("error creating ec2 sdk api client for account : %v, err: %v", accountNamespacedName.String(), err)
 	}
 
 	config := &ec2ServiceConfig{
-		apiClient:       apiClient,
-		account:         account,
-		resourcesCache:  &internal.CloudServiceResourcesCache{},
-		inventoryStats:  &internal.CloudServiceStats{},
-		instanceFilters: make(map[string][][]*ec2.Filter),
-		credentials:     credentials,
+		apiClient:             apiClient,
+		accountNamespacedName: accountNamespacedName,
+		resourcesCache:        &internal.CloudServiceResourcesCache{},
+		inventoryStats:        &internal.CloudServiceStats{},
+		instanceFilters:       make(map[string][][]*ec2.Filter),
+		credentials:           credentials,
 	}
 	return config, nil
 }
@@ -88,7 +88,7 @@ func (ec2Cfg *ec2ServiceConfig) waitForInventoryInit(duration time.Duration) err
 	operation := func() error {
 		done := ec2Cfg.inventoryStats.IsInventoryInitialized()
 		if !done {
-			return fmt.Errorf("inventory for account %v not initialized (waited %v duration)", ec2Cfg.account, duration)
+			return fmt.Errorf("inventory for account %v not initialized (waited %v duration)", ec2Cfg.accountNamespacedName, duration)
 		}
 		return nil
 	}
@@ -124,7 +124,7 @@ func (ec2Cfg *ec2ServiceConfig) getInstanceResourceFilters() ([][]*ec2.Filter, b
 func (ec2Cfg *ec2ServiceConfig) getCachedInstances() []*ec2.Instance {
 	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
-		awsPluginLogger().V(4).Info("cache snapshot nil", "service", awsComputeServiceNameEC2, "account", ec2Cfg.account)
+		awsPluginLogger().V(4).Info("cache snapshot nil", "service", awsComputeServiceNameEC2, "account", ec2Cfg.accountNamespacedName)
 		return []*ec2.Instance{}
 	}
 	instances := snapshot.(*ec2ResourcesCacheSnapshot).instances
@@ -132,7 +132,7 @@ func (ec2Cfg *ec2ServiceConfig) getCachedInstances() []*ec2.Instance {
 	for _, instance := range instances {
 		instancesToReturn = append(instancesToReturn, instance)
 	}
-	awsPluginLogger().V(1).Info("cached vm instances", "service", awsComputeServiceNameEC2, "account", ec2Cfg.account,
+	awsPluginLogger().V(1).Info("cached vm instances", "service", awsComputeServiceNameEC2, "account", ec2Cfg.accountNamespacedName,
 		"instances", len(instancesToReturn))
 	return instancesToReturn
 }
@@ -142,7 +142,7 @@ func (ec2Cfg *ec2ServiceConfig) getManagedVpcIDs() map[string]struct{} {
 	vpcIDsCopy := make(map[string]struct{})
 	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
-		awsPluginLogger().V(4).Info("cache snapshot nil", "service", awsComputeServiceNameEC2, "account", ec2Cfg.account)
+		awsPluginLogger().V(4).Info("cache snapshot nil", "service", awsComputeServiceNameEC2, "account", ec2Cfg.accountNamespacedName)
 		return vpcIDsCopy
 	}
 	vpcIDsSet := snapshot.(*ec2ResourcesCacheSnapshot).vpcIDs
@@ -159,7 +159,7 @@ func (ec2Cfg *ec2ServiceConfig) getCachedVpcNameToID() map[string]string {
 	vpcNameToIDCopy := make(map[string]string)
 	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
-		awsPluginLogger().V(4).Info("ec2 service cache snapshot nil", "type", providerType, "account", ec2Cfg.account)
+		awsPluginLogger().V(4).Info("ec2 service cache snapshot nil", "type", providerType, "account", ec2Cfg.accountNamespacedName)
 		return vpcNameToIDCopy
 	}
 	vpcNameToID := snapshot.(*ec2ResourcesCacheSnapshot).vpcNameToID
@@ -176,7 +176,7 @@ func (ec2Cfg *ec2ServiceConfig) GetCachedVpcs() []*ec2.Vpc {
 	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
 		awsPluginLogger().Info("cache snapshot nil", "service", awsComputeServiceNameEC2,
-			"account", ec2Cfg.account)
+			"account", ec2Cfg.accountNamespacedName)
 		return []*ec2.Vpc{}
 	}
 	vpcs := snapshot.(*ec2ResourcesCacheSnapshot).vpcs
@@ -190,7 +190,7 @@ func (ec2Cfg *ec2ServiceConfig) GetCachedVpcs() []*ec2.Vpc {
 func (ec2Cfg *ec2ServiceConfig) getVpcPeers(vpcID string) []string {
 	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
-		awsPluginLogger().V(4).Info("ec2 service cache snapshot nil", "type", providerType, "account", ec2Cfg.account)
+		awsPluginLogger().V(4).Info("ec2 service cache snapshot nil", "type", providerType, "account", ec2Cfg.accountNamespacedName)
 		return nil
 	}
 	vpcPeersCopy := make([]string, 0)
@@ -205,13 +205,13 @@ func (ec2Cfg *ec2ServiceConfig) getInstances() ([]*ec2.Instance, error) {
 	filters, hasFilters := ec2Cfg.getInstanceResourceFilters()
 	if !hasFilters {
 		awsPluginLogger().V(1).Info("fetching vm resources from cloud skipped",
-			"account", ec2Cfg.account, "resource-filters", "not-configured")
+			"account", ec2Cfg.accountNamespacedName, "resource-filters", "not-configured")
 		return nil, nil
 	}
 
 	if filters == nil {
 		awsPluginLogger().V(1).Info("fetching vm resources from cloud",
-			"account", ec2Cfg.account, "resource-filters", "all(nil)")
+			"account", ec2Cfg.accountNamespacedName, "resource-filters", "all(nil)")
 		var validInstanceStateFilters []*ec2.Filter
 		validInstanceStateFilters = append(validInstanceStateFilters, buildEc2FilterForValidInstanceStates())
 		request := &ec2.DescribeInstancesInput{
@@ -222,7 +222,7 @@ func (ec2Cfg *ec2ServiceConfig) getInstances() ([]*ec2.Instance, error) {
 	}
 
 	awsPluginLogger().V(1).Info("fetching vm resources from cloud",
-		"account", ec2Cfg.account, "resource-filters", "configured")
+		"account", ec2Cfg.accountNamespacedName, "resource-filters", "configured")
 	var instances []*ec2.Instance
 	for _, filter := range filters {
 		if len(filter) > 0 {
@@ -241,7 +241,7 @@ func (ec2Cfg *ec2ServiceConfig) getInstances() ([]*ec2.Instance, error) {
 		instances = append(instances, filterInstances...)
 	}
 
-	awsPluginLogger().V(1).Info("vm instances from cloud", "service", awsComputeServiceNameEC2, "account", ec2Cfg.account,
+	awsPluginLogger().V(1).Info("vm instances from cloud", "service", awsComputeServiceNameEC2, "account", ec2Cfg.accountNamespacedName,
 		"instances", len(instances))
 
 	return instances, nil
@@ -251,13 +251,13 @@ func (ec2Cfg *ec2ServiceConfig) getInstances() ([]*ec2.Instance, error) {
 func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
 	vpcs, err := ec2Cfg.getVpcs()
 	if err != nil {
-		awsPluginLogger().Error(err, "failed to fetch cloud resources", "account", ec2Cfg.account)
+		awsPluginLogger().Error(err, "failed to fetch cloud resources", "account", ec2Cfg.accountNamespacedName)
 		return err
 	}
 
 	instances, err := ec2Cfg.getInstances()
 	if err != nil {
-		awsPluginLogger().Error(err, "failed to fetch cloud resources", "account", ec2Cfg.account)
+		awsPluginLogger().Error(err, "failed to fetch cloud resources", "account", ec2Cfg.accountNamespacedName)
 		return err
 	} else {
 		exists := struct{}{}
@@ -292,7 +292,7 @@ func (ec2Cfg *ec2ServiceConfig) RemoveResourceFilters(selectorName string) {
 	delete(ec2Cfg.instanceFilters, selectorName)
 }
 
-func (ec2Cfg *ec2ServiceConfig) GetResourceCRDs(namespace string,
+func (ec2Cfg *ec2ServiceConfig) GetInternalResourceObjects(namespace string,
 	account *types.NamespacedName) map[string]*runtimev1alpha1.VirtualMachine {
 	instances := ec2Cfg.getCachedInstances()
 	vmObjects := map[string]*runtimev1alpha1.VirtualMachine{}
@@ -302,8 +302,8 @@ func (ec2Cfg *ec2ServiceConfig) GetResourceCRDs(namespace string,
 		vmObjects[vmObject.Name] = vmObject
 	}
 
-	awsPluginLogger().V(1).Info("CRDs", "service", awsComputeServiceNameEC2, "account", ec2Cfg.account,
-		"virtual-machine CRDs", len(vmObjects))
+	awsPluginLogger().V(1).Info("Internal resource objects", "Service", awsComputeServiceNameEC2, "Account", ec2Cfg.accountNamespacedName,
+		"VirtualMachine objects", len(vmObjects))
 
 	return vmObjects
 }
@@ -335,7 +335,7 @@ func (ec2Cfg *ec2ServiceConfig) buildMapVpcNameToID(vpcs []*ec2.Vpc) map[string]
 	vpcNameToID := make(map[string]string)
 	for _, vpc := range vpcs {
 		if len(vpc.Tags) == 0 {
-			awsPluginLogger().V(4).Info("vpc name not found", "account", ec2Cfg.account, "vpc", vpc)
+			awsPluginLogger().V(4).Info("vpc name not found", "account", ec2Cfg.accountNamespacedName, "vpc", vpc)
 			continue
 		}
 		var vpcName string
@@ -385,13 +385,13 @@ func (ec2Cfg *ec2ServiceConfig) GetVpcInventory() map[string]*runtimev1alpha1.Vp
 		if _, ok := vpcIDs[*vpc.VpcId]; ok {
 			managed = true
 		}
-		vpcObj := ec2VpcToInternalVpcObject(vpc, ec2Cfg.account.Namespace, ec2Cfg.account.Name,
+		vpcObj := ec2VpcToInternalVpcObject(vpc, ec2Cfg.accountNamespacedName.Namespace, ec2Cfg.accountNamespacedName.Name,
 			strings.ToLower(ec2Cfg.credentials.region), managed)
 		vpcMap[strings.ToLower(*vpc.VpcId)] = vpcObj
 	}
 
 	awsPluginLogger().V(1).Info("cached vpcs", "service", awsComputeServiceNameEC2,
-		"account", ec2Cfg.account, "vpc objects", len(vpcMap))
+		"account", ec2Cfg.accountNamespacedName, "vpc objects", len(vpcMap))
 
 	return vpcMap
 }

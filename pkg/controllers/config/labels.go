@@ -19,13 +19,12 @@ const (
 	ExternalEntityLabelKeyPostfix    = "nephe"
 	ExternalEntityLabelKeyNamespace  = "namespace." + ExternalEntityLabelKeyPostfix
 	ExternalEntityLabelKeyKind       = "kind." + ExternalEntityLabelKeyPostfix
-	ExternalEntityLabelKeyName       = "name." + ExternalEntityLabelKeyPostfix
+	ExternalEntityLabelKeyVmName     = "name." + ExternalEntityLabelKeyPostfix
 	ExternalEntityLabelKeyTagPostfix = ".tag." + ExternalEntityLabelKeyPostfix
 	ExternalEntityLabelCloudVPCKey   = "vpc." + ExternalEntityLabelKeyPostfix
 )
 
 const (
-	// TODO: Prefix with VirtualMachine? or move to inventory package?
 	LabelCloudAccountName      = "cpa.name"
 	LabelCloudAccountNamespace = "cpa.namespace"
 	LabelCloudRegion           = "region"

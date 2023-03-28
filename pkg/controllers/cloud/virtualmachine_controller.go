@@ -16,6 +16,7 @@ package cloud
 
 import (
 	"context"
+	"os"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/fields"
@@ -35,16 +36,14 @@ import (
 )
 
 const (
-	converterChannelBuffer = 50
+	ConverterChannelBuffer = 50
 )
 
-var vmManager *VirtualMachineManager
-
-// VirtualMachineManager reconciles a VirtualMachine object.
-type VirtualMachineManager struct {
+// VirtualMachineController reconciles a VirtualMachine object.
+type VirtualMachineController struct {
 	client.Client
-	log    logr.Logger
-	scheme *runtime.Scheme
+	Log    logr.Logger
+	Scheme *runtime.Scheme
 
 	Inventory inventory.Interface
 	converter converter.VMConverter
@@ -53,46 +52,37 @@ type VirtualMachineManager struct {
 
 // nolint:lll
 
-func init() {
-	vmManager = &VirtualMachineManager{}
-}
-
-// GetVirtualMachineManagerInstance gets the vmManager instance.
-func GetVirtualMachineManagerInstance() *VirtualMachineManager {
-	return vmManager
-}
-
-// Configure configures the client, scheme, log and converter.
-func (r *VirtualMachineManager) Configure(client client.Client, scheme *runtime.Scheme,
-	inventory inventory.Interface) *VirtualMachineManager {
-	r.Client = client
-	r.scheme = scheme
-	r.Inventory = inventory
-	r.log = logging.GetLogger("controllers").WithName("VirtualMachine")
+// ConfigureConverterAndStart configures the converter and starts the VirtualMachine controller.
+func (r *VirtualMachineController) ConfigureConverterAndStart() {
 	r.converter = converter.VMConverter{
 		Client: r.Client,
 		Log:    logging.GetLogger("converter").WithName("VMConverter"),
-		Ch:     make(chan watch.Event, converterChannelBuffer),
-		Scheme: r.scheme,
+		Ch:     make(chan watch.Event, ConverterChannelBuffer),
+		Scheme: r.Scheme,
 	}
-	return r
+	go func() {
+		if err := r.Start(); err != nil {
+			r.Log.Error(err, "failed to start VirtualMachine controller exiting")
+			os.Exit(1)
+		}
+	}()
 }
 
 // Start performs the initialization of the controller.
 // VM controller is said to be initialized and synced when all the VM and EE
 // CRs are reconciled.
-func (r *VirtualMachineManager) Start() error {
+func (r *VirtualMachineController) Start() error {
 	if err := GetControllerSyncStatusInstance().waitForControllersToSync(
 		[]controllerType{ControllerTypeEE, ControllerTypeCES, ControllerTypeCPA}, syncTimeout); err != nil {
 		return err
 	}
-	r.log.Info("Init done", "controller", ControllerTypeVM.String())
+	r.Log.Info("Init done", "controller", ControllerTypeVM.String())
 
-	vmMap := r.getAllVMs()
-	if err := r.syncExternalEntities(vmMap); err != nil {
+	vmNamespacedNameMap := r.getNamespacedNameVms()
+	if err := r.syncExternalEntities(vmNamespacedNameMap); err != nil {
 		return err
 	}
-	if err := r.syncExternalNodes(vmMap); err != nil {
+	if err := r.syncExternalNodes(vmNamespacedNameMap); err != nil {
 		return err
 	}
 
@@ -111,41 +101,45 @@ func (r *VirtualMachineManager) Start() error {
 	return nil
 }
 
-// getAllVMs returns a map which contains all the VMs.
-func (r *VirtualMachineManager) getAllVMs() map[types.NamespacedName]struct{} {
+// getNamespacedNameVms returns a map of NamespacedName objects of all VMs.
+func (r *VirtualMachineController) getNamespacedNameVms() map[types.NamespacedName]struct{} {
 	vmObjList := r.Inventory.GetAllVms()
-	tempVmMap := map[types.NamespacedName]struct{}{}
+	vmNamespaceNameMap := map[types.NamespacedName]struct{}{}
 	for _, vmObj := range vmObjList {
 		vm := vmObj.(*runtimev1alpha1.VirtualMachine)
-		vmNn := types.NamespacedName{
+		vmNamespaceNameKey := types.NamespacedName{
 			Name:      vm.Name,
 			Namespace: vm.Namespace,
 		}
-		tempVmMap[vmNn] = struct{}{}
+		vmNamespaceNameMap[vmNamespaceNameKey] = struct{}{}
 	}
-	return tempVmMap
+	return vmNamespaceNameMap
 }
 
 // syncExternalEntities validates that each EE has corresponding VM. If it does not exist then
 // the EE will be deleted.
-func (r *VirtualMachineManager) syncExternalEntities(vmMap map[types.NamespacedName]struct{}) error {
+func (r *VirtualMachineController) syncExternalEntities(vmNamespacedNameMap map[types.NamespacedName]struct{}) error {
 	eeList := &antreav1alpha2.ExternalEntityList{}
 	if err := r.Client.List(context.TODO(), eeList, &client.ListOptions{}); err != nil {
 		return err
 	}
 	for _, ee := range eeList.Items {
-		eeLabelKeyName, exists := ee.Labels[config.ExternalEntityLabelKeyName]
+		if ee.Spec.ExternalNode != config.ANPNepheController {
+			// Ignore EE objects that are not created by nephe.
+			continue
+		}
+		eeLabelKeyName, exists := ee.Labels[config.ExternalEntityLabelKeyVmName]
 		if !exists {
 			// Ignore EE objects not created by converter module.
 			continue
 		}
-		eeNn := types.NamespacedName{
+		eeNamespacedName := types.NamespacedName{
 			Name:      eeLabelKeyName,
 			Namespace: ee.Namespace,
 		}
-		if _, ok := vmMap[eeNn]; !ok {
-			r.log.Info("Could not find matching VM object, deleting ExternalEntity", "namespacedName", eeNn)
-			// Delete the external entity, since no matching VM found.
+		if _, ok := vmNamespacedNameMap[eeNamespacedName]; !ok {
+			r.Log.Info("Could not find matching VM object, deleting ExternalEntity", "namespacedName", eeNamespacedName)
+			// Delete the ExternalEntity, since no matching VM found.
 			_ = r.Client.Delete(context.TODO(), &ee)
 			continue
 		}
@@ -155,24 +149,24 @@ func (r *VirtualMachineManager) syncExternalEntities(vmMap map[types.NamespacedN
 
 // syncExternalNodes validates that each EN has corresponding VM. If it does not exist then
 // the EN will be deleted.
-func (r *VirtualMachineManager) syncExternalNodes(vmMap map[types.NamespacedName]struct{}) error {
+func (r *VirtualMachineController) syncExternalNodes(vmNamespacedNameMap map[types.NamespacedName]struct{}) error {
 	enList := &antreav1alpha1.ExternalNodeList{}
 	if err := r.Client.List(context.TODO(), enList, &client.ListOptions{}); err != nil {
 		return err
 	}
 	for _, en := range enList.Items {
-		enLabelKeyName, exists := en.Labels[config.ExternalEntityLabelKeyName]
+		enLabelKeyName, exists := en.Labels[config.ExternalEntityLabelKeyVmName]
 		if !exists {
 			// Ignore EN objects not created by converter module.
 			continue
 		}
-		eeNn := types.NamespacedName{
+		enNamespacedName := types.NamespacedName{
 			Name:      enLabelKeyName,
 			Namespace: en.Namespace,
 		}
-		if _, ok := vmMap[eeNn]; !ok {
-			r.log.Info("Could not find matching VM object, deleting ExternalNode", "namespacedName", eeNn)
-			// Delete the external entity, since no matching VM found.
+		if _, ok := vmNamespacedNameMap[enNamespacedName]; !ok {
+			r.Log.Info("Could not find matching VM object, deleting ExternalNode", "namespacedName", enNamespacedName)
+			// Delete the ExternalNode, since no matching VM found.
 			_ = r.Client.Delete(context.TODO(), &en)
 			continue
 		}
@@ -181,18 +175,17 @@ func (r *VirtualMachineManager) syncExternalNodes(vmMap map[types.NamespacedName
 }
 
 // resetWatcher sets a watcher to watch VM events.
-func (r *VirtualMachineManager) resetWatcher() (err error) {
+func (r *VirtualMachineController) resetWatcher() (err error) {
 	r.vmWatcher, err = r.Inventory.WatchVms(context.TODO(), "", labels.Everything(), fields.Everything())
 	if err != nil {
-		r.log.Error(err, "failed to start vmWatcher")
+		r.Log.Error(err, "failed to start vmWatcher")
 		return err
 	}
 	return nil
 }
 
-// processEvent waits for any VM events and feeds the event to the
-// converter module.
-func (r *VirtualMachineManager) processEvent() error {
+// processEvent waits for any VM events and feeds the event to the converter module.
+func (r *VirtualMachineController) processEvent() error {
 	resultCh := r.vmWatcher.ResultChan()
 	for {
 		event, ok := <-resultCh

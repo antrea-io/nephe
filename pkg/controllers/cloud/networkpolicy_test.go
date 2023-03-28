@@ -129,7 +129,7 @@ var _ = Describe("NetworkPolicy", func() {
 			labels := make(map[string]string)
 			// TODO: cleanup dead code
 			labels[config.ExternalEntityLabelKeyKind] = target.GetExternalEntityLabelKind(&runtimev1alpha1.VirtualMachine{})
-			labels[config.ExternalEntityLabelKeyName] = vmName
+			labels[config.ExternalEntityLabelKeyVmName] = vmName
 			labels[config.ExternalEntityLabelKeyNamespace] = namespace
 			labels[config.ExternalEntityLabelCloudVPCKey] = vpc
 			ee.Labels = labels

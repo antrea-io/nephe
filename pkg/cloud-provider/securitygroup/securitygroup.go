@@ -158,6 +158,7 @@ type CloudResourceID struct {
 type CloudResource struct {
 	Type CloudResourceType
 	CloudResourceID
+	// TODO: Rename AccountID to AccountNameSpacedName.
 	AccountID     string
 	CloudProvider string
 }

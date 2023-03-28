@@ -263,7 +263,7 @@ func (computeCfg *computeServiceConfig) RemoveResourceFilters(selectorName strin
 	delete(computeCfg.computeFilters, selectorName)
 }
 
-func (computeCfg *computeServiceConfig) GetResourceCRDs(namespace string,
+func (computeCfg *computeServiceConfig) GetInternalResourceObjects(namespace string,
 	account *types.NamespacedName) map[string]*runtimev1alpha1.VirtualMachine {
 	virtualMachines := computeCfg.getCachedVirtualMachines()
 	vmObjects := map[string]*runtimev1alpha1.VirtualMachine{}
@@ -274,8 +274,8 @@ func (computeCfg *computeServiceConfig) GetResourceCRDs(namespace string,
 		vmObjects[vmObject.Name] = vmObject
 	}
 
-	azurePluginLogger().V(1).Info("CRDs", "service", azureComputeServiceNameCompute, "account", computeCfg.account,
-		"virtual-machine CRDs", len(vmObjects))
+	azurePluginLogger().V(1).Info("Internal resource objects", "Service", azureComputeServiceNameCompute, "Account", computeCfg.account,
+		"VirtualMachine objects", len(vmObjects))
 
 	return vmObjects
 }

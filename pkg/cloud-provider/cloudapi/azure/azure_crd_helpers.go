@@ -88,8 +88,8 @@ func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable
 
 	cloudNetworkID := strings.ToLower(*instance.VnetID)
 	cloudID := strings.ToLower(*instance.ID)
-	CloudName := strings.ToLower(*instance.Name)
-	crdName := utils.GenerateShortResourceIdentifier(cloudID, CloudName)
+	cloudName := strings.ToLower(*instance.Name)
+	crdName := utils.GenerateShortResourceIdentifier(cloudID, cloudName)
 
 	_, _, nwResName, err := extractFieldsFromAzureResourceID(cloudNetworkID)
 	if err != nil {
@@ -103,7 +103,7 @@ func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable
 	} else {
 		state = runtimev1alpha1.Unknown
 	}
-	return utils.GenerateInternalVirtualMachineObject(crdName, strings.ToLower(CloudName), strings.ToLower(cloudID), strings.ToLower(region),
+	return utils.GenerateInternalVirtualMachineObject(crdName, strings.ToLower(cloudName), strings.ToLower(cloudID), strings.ToLower(region),
 		namespace, strings.ToLower(cloudNetworkID), cloudNetworkShortID, state, tags, networkInterfaces, providerType, account)
 }
 

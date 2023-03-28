@@ -225,7 +225,7 @@ var _ = Describe(fmt.Sprintf("%s: Entity selector test", focusAws), func() {
 		nameSpace = &v1.Namespace{}
 		nameSpace.Name = nameSpaceName + "-" + fmt.Sprintf("%x", rand.Int())
 		getVMsCmd = fmt.Sprintf(
-			"get virtualmachines -n %s -o=jsonpath='{range.items[*]}{.metadata.name}{\"\\n\"}{end}'", nameSpace.Name)
+			"get virtualmachine -n %s -o=jsonpath='{range.items[*]}{.metadata.name}{\"\\n\"}{end}'", nameSpace.Name)
 		accountParameters := cloudVPC.GetCloudAccountParameters(testAccountName, nameSpace.Name)
 		cloudProvider = strings.Split(cloudProviders, ",")[0]
 		switch cloudProvider {

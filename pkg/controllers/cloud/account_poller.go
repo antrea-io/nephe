@@ -276,13 +276,13 @@ func (p *accountPoller) doAccountPolling() {
 
 	// TODO: Avoid calling plugin to get VPC inventory from snapshot.
 	vpcMap, e := cloudInterface.GetVpcInventory(p.namespacedName)
-	vpcCount := len(vpcMap)
 	if e != nil {
 		p.log.Error(e, "failed to fetch cloud vpc list from internal snapshot", "account",
 			p.namespacedName.String())
 		return
 	}
 
+	vpcCount := len(vpcMap)
 	e = p.inventory.BuildVpcCache(vpcMap, p.namespacedName)
 	if e != nil {
 		p.log.Error(e, "failed to build vpc cache", "account", p.namespacedName.String())
@@ -299,8 +299,8 @@ func (p *accountPoller) doAccountPolling() {
 		p.inventory.BuildVmCache(virtualMachines, p.namespacedName)
 		vmCount = len(virtualMachines)
 	}
-	p.log.Info("Discovered compute resources statistics", "account", p.namespacedName,
-		"vpcs", vpcCount, "virtual-machines", vmCount)
+	p.log.Info("Discovered compute resources statistics", "Account", p.namespacedName,
+		"Vpcs", vpcCount, "VirtualMachines", vmCount)
 	p.pollDone = true
 }
 

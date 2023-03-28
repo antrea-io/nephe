@@ -54,8 +54,8 @@ type CloudServiceInterface interface {
 	DoResourceInventory() error
 	// GetInventoryStats returns Inventory statistics for the service.
 	GetInventoryStats() *CloudServiceStats
-	// GetResourceCRDs returns VM instances saved in CloudServiceResourcesCache in terms of runtimev1alpha1.VirtualMachine.
-	GetResourceCRDs(namespace string, accountId *types.NamespacedName) map[string]*runtimev1alpha1.VirtualMachine
+	// GetInternalResourceObjects returns VM instances saved in CloudServiceResourcesCache in terms of runtimev1alpha1.VirtualMachine.
+	GetInternalResourceObjects(namespace string, accountId *types.NamespacedName) map[string]*runtimev1alpha1.VirtualMachine
 	// GetName returns cloud name of the service.
 	GetName() CloudServiceName
 	// GetType returns service type (compute, any other type etc.)
@@ -101,11 +101,12 @@ func (cfg *CloudServiceCommon) getInventoryStats() *CloudServiceStats {
 	return cfg.serviceInterface.GetInventoryStats()
 }
 
-func (cfg *CloudServiceCommon) getResourceCRDs(namespace string, account *types.NamespacedName) map[string]*runtimev1alpha1.VirtualMachine {
+func (cfg *CloudServiceCommon) getInternalResourceObjects(namespace string,
+	account *types.NamespacedName) map[string]*runtimev1alpha1.VirtualMachine {
 	cfg.mutex.Lock()
 	defer cfg.mutex.Unlock()
 
-	return cfg.serviceInterface.GetResourceCRDs(namespace, account)
+	return cfg.serviceInterface.GetInternalResourceObjects(namespace, account)
 }
 
 func (cfg *CloudServiceCommon) getType() CloudServiceType {
@@ -126,8 +127,8 @@ func (cfg *CloudServiceCommon) getVpcInventory() map[string]*runtimev1alpha1.Vpc
 	return cfg.serviceInterface.GetVpcInventory()
 }
 
-// CloudServiceResourcesCache is cache used by all services. Each service can maintain its resources specific cache by
-// updating the snapshot.
+// CloudServiceResourcesCache is cache used by all services. Each service can maintain
+// its resources specific cache by updating the snapshot.
 type CloudServiceResourcesCache struct {
 	mutex    sync.Mutex
 	snapshot interface{}

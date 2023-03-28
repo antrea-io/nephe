@@ -115,11 +115,6 @@ func (ec2Cfg *ec2ServiceConfig) createOrGetSecurityGroups(vpcID string, cloudSgN
 		}
 	}
 
-	// return the up-to-date cloud objects for SGs
-	if len(cloudSgNamesToCreate) == 0 {
-		awsPluginLogger().Info("No new security group to be created")
-		return cloudSgNameToCloudSGObj, nil
-	}
 	return ec2Cfg.getCloudSecurityGroupsWithNameFromCloud(vpcIDs, cloudSgNames)
 }
 
@@ -559,7 +554,7 @@ func (ec2Cfg *ec2ServiceConfig) getNepheControllerManagedSecurityGroupsCloudView
 					Name: networkInterfaceID,
 					Vpc:  *networkInterface.VpcId,
 				},
-				AccountID:     ec2Cfg.account.String(),
+				AccountID:     ec2Cfg.accountNamespacedName.String(),
 				CloudProvider: string(runtimev1alpha1.AWSCloudProvider),
 			}
 			cloudResources := managedSgIDToMemberCloudResourcesMap[sgID]
@@ -605,7 +600,7 @@ func (ec2Cfg *ec2ServiceConfig) getNepheControllerManagedSecurityGroupsCloudView
 					Name: SgName,
 					Vpc:  vpcID,
 				},
-				AccountID:     ec2Cfg.account.String(),
+				AccountID:     ec2Cfg.accountNamespacedName.String(),
 				CloudProvider: string(runtimev1alpha1.AWSCloudProvider),
 			},
 			MembershipOnly:             isMembershipOnly,

@@ -36,6 +36,9 @@ const (
 	virtualMachineSelectorMatchIndexerByID   = "virtualmachine.selector.id"
 	virtualMachineSelectorMatchIndexerByName = "virtualmachine.selector.name"
 	virtualMachineSelectorMatchIndexerByVPC  = "virtualmachine.selector.vpc.id"
+
+	// To poll cloud inventory synchronously.
+	defaultPollTimeout = 60 * time.Second
 )
 
 // CloudEntitySelectorReconciler reconciles a CloudEntitySelector object.
@@ -122,14 +125,14 @@ func (r *CloudEntitySelectorReconciler) updatePendingSyncCountAndStatus() {
 }
 
 // waitForPollDone waits until account poller has polled the cloud inventory or timeout is reached.
-func (r *CloudEntitySelectorReconciler) waitForPollDone(accountNamespacedName *types.NamespacedName) error {
+func (r *CloudEntitySelectorReconciler) waitForPollDone(accountNamespacedName *types.NamespacedName, timeout time.Duration) error {
 	pollerScope, err := r.Poller.getAccountPoller(accountNamespacedName)
 	if err != nil {
 		return err
 	}
 
-	r.Log.Info("Poll cloud inventory in a synchronous call", "account", *accountNamespacedName)
-	if err = wait.PollImmediate(100*time.Millisecond, 2*time.Second, func() (done bool, err error) {
+	r.Log.Info("Poll cloud inventory synchronously", "account", *accountNamespacedName)
+	if err = wait.PollImmediate(100*time.Millisecond, timeout, func() (done bool, err error) {
 		pollerScope.mutex.RLock()
 		defer pollerScope.mutex.RUnlock()
 		if pollerScope.pollDone {
@@ -187,7 +190,7 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *cloudv1a
 		return err
 	}
 
-	return r.waitForPollDone(accountNamespacedName)
+	return r.waitForPollDone(accountNamespacedName, defaultPollTimeout)
 }
 
 func (r *CloudEntitySelectorReconciler) processDelete(selectorNamespacedName *types.NamespacedName) error {

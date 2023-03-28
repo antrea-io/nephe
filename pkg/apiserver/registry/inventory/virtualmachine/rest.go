@@ -85,11 +85,11 @@ func (r *REST) Get(ctx context.Context, name string, _ *metav1.GetOptions) (runt
 }
 
 func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (runtime.Object, error) {
-	// List only supports two types of input options
-	// 1. All namespaces
+	// List only supports three types of input options:
+	// 1. All namespaces.
 	// 2. Labelselector with only the specific namespace, the only valid labelselectors are "cpa.name=<accountname>"
-	//    and "cpa.namespace=<accountNamespace>"
-	// 3. Specific Namespace
+	//    and "cpa.namespace=<accountNamespace>".
+	// 3. Specific Namespace.
 	accountName := ""
 	accountNamespace := ""
 	if options != nil && options.LabelSelector != nil && options.LabelSelector.String() != "" {
@@ -101,23 +101,29 @@ func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (
 			} else if labelKeyAndValue[0] == config.LabelCloudAccountNamespace {
 				accountNamespace = labelKeyAndValue[1]
 			} else {
-				return nil, errors.NewBadRequest("unsupported label selector, only region label selector is supported")
+				return nil, errors.NewBadRequest("unsupported label selector, supported labels are: cpa.name and cpa.namespace")
 			}
 		}
 	}
 
-	var objs []interface{}
+	// Check if both cpa.name and cpa.namespace are specified.
+	if (accountName != "" && accountNamespace == "") || (accountName == "" && accountNamespace != "") {
+		return nil, errors.NewBadRequest("unsupported query, both cpa.name and cpa.namespace labels should be specified")
+	}
+
 	namespace, _ := request.NamespaceFrom(ctx)
+	// Check if account namespace and namespace are same.
+	if namespace != "" && accountNamespace != "" && accountNamespace != namespace {
+		return nil, errors.NewBadRequest("namespace in label selector is different from namespace specified")
+	}
+
+	var objs []interface{}
 	if namespace == "" {
 		objs = r.cloudInventory.GetAllVms()
-	} else if accountName != "" {
+	} else if accountName != "" && accountNamespace != "" {
 		accountNameSpacedName := types.NamespacedName{
 			Name:      accountName,
 			Namespace: accountNamespace,
-		}
-		// If account namespace is not specified in the label selector, then use the namespace specified.
-		if accountNamespace == "" {
-			accountNameSpacedName.Namespace = namespace
 		}
 		objs, _ = r.cloudInventory.GetVmFromIndexer(common.VirtualMachineIndexerByNameSpacedAccountName, accountNameSpacedName.String())
 	} else {

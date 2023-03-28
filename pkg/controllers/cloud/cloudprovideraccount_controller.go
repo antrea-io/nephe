@@ -147,7 +147,7 @@ func (r *CloudProviderAccountReconciler) processCreateOrUpdate(namespacedName *t
 
 	if !exists {
 		if r.startPollingThread(namespacedName) {
-			r.Log.Info("Creating account poller thread", "account", namespacedName)
+			r.Log.Info("Creating account poller", "account", namespacedName)
 			go wait.Until(accPoller.doAccountPolling, time.Duration(accPoller.pollIntvInSeconds)*time.Second, accPoller.ch)
 		}
 	} else {
@@ -206,7 +206,7 @@ func (r *CloudProviderAccountReconciler) startPollingThread(namespacedName *type
 
 	for _, ces := range cesList.Items {
 		if ces.Spec.AccountName == namespacedName.Name {
-			r.Log.V(1).Info("Ignoring start of account poller thread", "account", namespacedName)
+			r.Log.V(1).Info("Ignoring start of account poller", "account", namespacedName)
 			return false
 		}
 	}

@@ -18,13 +18,11 @@ package common
 const (
 	// Common indexers.
 	IndexerByNamespace      = "namespace"
-	IndexerByNamespacedName = "namespace.name"
+	IndexerByNamespacedName = "namespace-name"
 
-	VpcIndexerByNameSpacedAccountName = "namespace.cloud-account-name"
-	VpcIndexerByNamespacedRegion      = "namespace.region"
+	VpcIndexerByNameSpacedAccountName = "namespace-cloud-account-name"
+	VpcIndexerByNamespacedRegion      = "namespace-region"
 
-	VirtualMachineIndexerByCloudID               = "cloud-assigned-id"
-	VirtualMachineIndexerByCloudName             = "cloud-assigned-name"
-	VirtualMachineIndexerByCloudVPCID            = "cloud-assigned-vpc-id"
-	VirtualMachineIndexerByNameSpacedAccountName = "namespaced.cloud-account-name"
+	VirtualMachineIndexerByCloudId               = "cloud-assigned-id"
+	VirtualMachineIndexerByNameSpacedAccountName = "namespaced-cloud-account-name"
 )

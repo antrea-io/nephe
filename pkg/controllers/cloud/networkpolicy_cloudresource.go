@@ -45,7 +45,7 @@ func vmNPStatusSetter(tracker *cloudResourceNPTracker, r *NetworkPolicyReconcile
 	status := tracker.computeNPStatus(r)
 	updated := false
 
-	vmItems, err := r.Inventory.GetVmFromIndexer(common.VirtualMachineIndexerByCloudID, tracker.cloudResource.Name)
+	vmItems, err := r.Inventory.GetVmFromIndexer(common.VirtualMachineIndexerByCloudId, tracker.cloudResource.Name)
 	if err != nil {
 		log.Error(err, "failed to get VM from VM cache")
 		return false, err

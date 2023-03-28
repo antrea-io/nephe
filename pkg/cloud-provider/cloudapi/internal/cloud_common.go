@@ -43,7 +43,7 @@ type CloudCommonInterface interface {
 	GetCloudAccountByAccountId(accountID *string) (CloudAccountInterface, bool)
 	GetCloudAccounts() map[types.NamespacedName]CloudAccountInterface
 
-	GetCloudAccountComputeResourceCRDs(namespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.VirtualMachine,
+	GetCloudAccountComputeInternalResourceObjects(namespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.VirtualMachine,
 		error)
 
 	AddCloudAccount(client client.Client, account *crdv1alpha1.CloudProviderAccount, credentials interface{}) error
@@ -150,7 +150,7 @@ func (c *cloudCommon) GetCloudAccounts() map[types.NamespacedName]CloudAccountIn
 	return accountConfigs
 }
 
-func (c *cloudCommon) GetCloudAccountComputeResourceCRDs(accountNamespacedName *types.NamespacedName) (
+func (c *cloudCommon) GetCloudAccountComputeInternalResourceObjects(accountNamespacedName *types.NamespacedName) (
 	map[string]*runtimev1alpha1.VirtualMachine, error) {
 	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
 	if !found {
@@ -161,7 +161,7 @@ func (c *cloudCommon) GetCloudAccountComputeResourceCRDs(accountNamespacedName *
 	serviceConfigs := accCfg.GetServiceConfigs()
 	for _, serviceConfig := range serviceConfigs {
 		if serviceConfig.getType() == CloudServiceTypeCompute {
-			return serviceConfig.getResourceCRDs(accCfg.GetNamespacedName().Namespace, accCfg.GetNamespacedName()), nil
+			return serviceConfig.getInternalResourceObjects(accCfg.GetNamespacedName().Namespace, accCfg.GetNamespacedName()), nil
 		}
 	}
 

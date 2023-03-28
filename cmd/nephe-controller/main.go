@@ -100,14 +100,14 @@ func main() {
 	// Configure controller sync status.
 	controllers.GetControllerSyncStatusInstance().Configure()
 
-	// Configure and start VM manager.
-	vmManager := controllers.GetVirtualMachineManagerInstance().Configure(mgr.GetClient(), mgr.GetScheme(), cloudInventory)
-	go func() {
-		if err := vmManager.Start(); err != nil {
-			setupLog.Error(err, "exiting controller")
-			os.Exit(1)
-		}
-	}()
+	// Create a VM controller, configure converter, and start it in a separate thread.
+	vmController := &controllers.VirtualMachineController{
+		Client:    mgr.GetClient(),
+		Log:       logging.GetLogger("controllers").WithName("VirtualMachine"),
+		Scheme:    mgr.GetScheme(),
+		Inventory: cloudInventory,
+	}
+	vmController.ConfigureConverterAndStart()
 
 	if err = (&controllers.CloudEntitySelectorReconciler{
 		Client: mgr.GetClient(),

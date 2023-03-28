@@ -108,14 +108,21 @@ func (inventory *Inventory) DeleteVpcsFromCache(namespacedName *types.Namespaced
 	if err != nil {
 		return err
 	}
-	// TODO: Add a counter to indicate numbers of vpcs that were deleted.
+	var numVpcsToDelete int
 	for _, i := range vpcsInCache {
 		vpc := i.(*runtimev1alpha1.Vpc)
 		key := fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[config.LabelCloudAccountName], vpc.Status.Id)
-		if err := inventory.vpcStore.Delete(key); err != nil {
-			return fmt.Errorf("failed to delete vpc from vpc cache %s:%s, error %v",
+		err := inventory.vpcStore.Delete(key)
+		if err != nil {
+			inventory.log.Error(err, "failed to delete vpc from vpc cache %s:%s",
 				*namespacedName, vpc.Status.Id, err)
+		} else {
+			numVpcsToDelete++
 		}
+	}
+
+	if numVpcsToDelete != 0 {
+		inventory.log.Info("Vpc poll statistics", "account", namespacedName, "deleted", numVpcsToDelete)
 	}
 	return nil
 }
@@ -190,7 +197,7 @@ func (inventory *Inventory) BuildVmCache(discoveredVmMap map[string]*runtimev1al
 	}
 
 	if numVmsToAdd != 0 || numVmsToUpdate != 0 || numVmsToDelete != 0 {
-		inventory.log.Info("VM poll statistics", "account", namespacedName, "added", numVmsToAdd,
+		inventory.log.Info("Vm poll statistics", "account", namespacedName, "added", numVmsToAdd,
 			"update", numVmsToUpdate, "delete", numVmsToDelete)
 	}
 }
@@ -201,14 +208,20 @@ func (inventory *Inventory) DeleteVmsFromCache(namespacedName *types.NamespacedN
 	if err != nil {
 		return err
 	}
-	// TODO: Add a counter to indicate numbers of vms that were deleted.
+	var numVmsToDelete int
 	for _, cachedObject := range vmsInCache {
 		cachedVm := cachedObject.(*runtimev1alpha1.VirtualMachine)
 		key := fmt.Sprintf("%v/%v", cachedVm.Namespace, cachedVm.Name)
-		if err := inventory.vmStore.Delete(key); err != nil {
-			return fmt.Errorf("failed to delete vm from vm cache %s:%s, error %v",
-				*namespacedName, cachedVm.Name, err)
+		err := inventory.vmStore.Delete(key)
+		if err != nil {
+			inventory.log.Error(err, "failed to delete vm from vm cache %s:%s", *namespacedName, cachedVm.Name)
+		} else {
+			numVmsToDelete++
 		}
+	}
+
+	if numVmsToDelete != 0 {
+		inventory.log.Info("Vm poll statistics", "account", namespacedName, "deleted", numVmsToDelete)
 	}
 	return nil
 }

@@ -43,7 +43,6 @@ func GenerateInternalVirtualMachineObject(crdName, CloudName, cloudID, region, n
 		CloudVpcId:        cloudNetwork,
 	}
 	labelsMap := map[string]string{
-		//config.LabelCloudNamespacedAccountName: account.String(),
 		config.LabelCloudAccountName:      account.Name,
 		config.LabelCloudAccountNamespace: account.Namespace,
 		config.LabelCloudVPCName:          shortNetworkID,
@@ -97,7 +96,6 @@ func GenerateInternalVpcObject(name, namespace, accountName, CloudName,
 	}
 
 	labels := map[string]string{
-		//config.LabelCloudNamespacedAccountName: namespacedAccountName,
 		config.LabelCloudAccountNamespace: namespace,
 		config.LabelCloudAccountName:      accountName,
 		config.LabelCloudRegion:           region,

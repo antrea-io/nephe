@@ -86,12 +86,12 @@ func (r *REST) Get(ctx context.Context, name string, _ *metav1.GetOptions) (runt
 }
 
 func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (runtime.Object, error) {
-	// List only supports four types of input options
-	// 1. All namespace
+	// List only supports four types of input options:
+	// 1. All namespace.
 	// 2. Labelselector with only the specific namespace, the only valid labelselectors are "cpa.name=<accountname>",
-	//    "cpa.namespace=<accountNamespace> and "region=<region>"
-	// 3. Fieldselector with only the specific namespace, the only valid fieldselectors is "metadata.name=<metadata.name>"
-	// 4. Specific Namespace
+	//    "cpa.namespace=<accountNamespace> and "region=<region>".
+	// 3. Fieldselector with only the specific namespace, the only valid fieldselectors is "metadata.name=<metadata.name>".
+	// 4. Specific Namespace.
 	accountName := ""
 	accountNamespace := ""
 	region := ""
@@ -107,7 +107,7 @@ func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (
 			} else if labelKeyAndValue[0] == config.LabelCloudRegion {
 				region = strings.ToLower(labelKeyAndValue[1])
 			} else {
-				return nil, errors.NewBadRequest("unsupported label selector, only region label selector is supported")
+				return nil, errors.NewBadRequest("unsupported label selector, supported labels are: cpa.name and region")
 			}
 		}
 	}
@@ -136,11 +136,11 @@ func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (
 		namespace = ns
 	}
 
-	var objs []interface{}
-	if namespace == "" && (region != "" || name != "") {
+	if namespace == "" && (accountName != "" || region != "" || name != "") {
 		return nil, errors.NewBadRequest("cannot query with all namespaces. Namespace should be specified")
 	}
 
+	var objs []interface{}
 	if namespace == "" {
 		objs = r.cloudInventory.GetAllVpcs()
 	} else if accountName != "" {
