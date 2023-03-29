@@ -21,6 +21,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"k8s.io/apimachinery/pkg/types"
 
 	"antrea.io/nephe/pkg/cloud-provider/cloudapi/internal"
@@ -58,29 +59,39 @@ func (h *awsServicesHelperImpl) newServiceSdkConfigProvider(accConfig *awsAccoun
 		var sess *session.Session
 		// If credentials are specified too, create a session with these credentials.
 		if len(accConfig.AccessKeyID) != 0 && len(accConfig.AccessKeySecret) != 0 {
-			tempCreds := credentials.NewStaticCredentials(accConfig.AccessKeyID, accConfig.AccessKeySecret, "")
-			sess, err = session.NewSession(&aws.Config{
+			tempCreds := credentials.NewStaticCredentials(accConfig.AccessKeyID, accConfig.AccessKeySecret, accConfig.SessionToken)
+			if sess, err = session.NewSession(&aws.Config{
 				Region:                        &accConfig.region,
 				Credentials:                   tempCreds,
 				CredentialsChainVerboseErrors: aws.Bool(true),
-			})
+			}); err != nil {
+				return nil, fmt.Errorf("unable to initialize AWS session: %v", err)
+			}
 		} else {
 			// use role base access if role provided
 			// new session using worker node role, it should have AssumeRole permissions to the Customer's role ARN resource
-			sess, err = session.NewSession(&aws.Config{
+			if sess, err = session.NewSession(&aws.Config{
 				Region:                        &accConfig.region,
 				CredentialsChainVerboseErrors: aws.Bool(true),
-			})
-		}
-		if err != nil {
-			return nil, fmt.Errorf("unable to initialize AWS session: %v", err)
+			}); err != nil {
+				return nil, fmt.Errorf("unable to initialize AWS session: %v", err)
+			}
 		}
 
 		// configure to assume customer role and retrieve temporary credentials
-		creds = stscreds.NewCredentials(sess, accConfig.RoleArn)
+		externalID := &accConfig.ExternalID
+		if len(accConfig.ExternalID) == 0 {
+			externalID = nil
+		}
+		stsClient := sts.New(sess)
+		creds = credentials.NewCredentials(&stscreds.AssumeRoleProvider{
+			Client:     stsClient,
+			RoleARN:    accConfig.RoleArn,
+			ExternalID: externalID,
+		})
 	} else {
 		// use static credentials passed in
-		creds = credentials.NewStaticCredentials(accConfig.AccessKeyID, accConfig.AccessKeySecret, "")
+		creds = credentials.NewStaticCredentials(accConfig.AccessKeyID, accConfig.AccessKeySecret, accConfig.SessionToken)
 	}
 
 	awsConfig := &aws.Config{

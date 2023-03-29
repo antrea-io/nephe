@@ -73,6 +73,7 @@ type SecretReference struct {
 type AwsAccountCredential struct {
 	AccessKeyID     string `json:"accessKeyId,omitempty"`
 	AccessKeySecret string `json:"accessKeySecret,omitempty"`
+	SessionToken    string `json:"sessionToken,omitempty"`
 	RoleArn         string `json:"roleArn,omitempty"`
 	ExternalID      string `json:"externalId,omitempty"`
 }

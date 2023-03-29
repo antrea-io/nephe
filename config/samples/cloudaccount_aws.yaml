@@ -1,6 +1,11 @@
-# Add AWS Account and Onboard VPC
+# Add AWS Account and Onboard VPC.
 # To get base64 encoded json string for secret credential, run:
-# echo '{"accessKeyId": "YOUR_AWS_ACCESS_KEY_ID", "accessKeySecret": "YOUR_AWS_ACCESS_KEY_SECRET", "roleArn": "YOUR_AWS_IAM_ROLE_ARN", "externalId": "IAM_ROLE_EXTERNAL_ID"}' | openssl base64
+# echo '{"accessKeyId": "YOUR_AWS_ACCESS_KEY_ID", "accessKeySecret": "YOUR_AWS_ACCESS_KEY_SECRET", "sessionToken": "YOUR_AWS_SESSION_TOKEN", "roleArn": "YOUR_AWS_IAM_ROLE_ARN", "externalId": "IAM_ROLE_EXTERNAL_ID"}' | openssl base64 | tr -d '\n'
+# And replace <BASE64_ENCODED_JSON_STRING> with the output.
+
+# For Key Based Access, sessionToken is optional.
+# For Role ARN Based Access, externalId is optional.
+
 apiVersion: v1
 kind: Secret
 metadata:

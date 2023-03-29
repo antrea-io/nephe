@@ -191,7 +191,7 @@ var _ = Describe("AWS cloud", func() {
 				Expect(len(vpcMap)).Should(Equal(len(vpcIDs)))
 			})
 			It("Stop cloud inventory poll on poller delete", func() {
-				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret"}`
+				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret", "sessionToken": "token"}`
 
 				secret = &corev1.Secret{
 					ObjectMeta: v1.ObjectMeta{

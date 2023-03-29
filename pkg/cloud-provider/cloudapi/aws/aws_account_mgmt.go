@@ -63,6 +63,10 @@ func compareAccountCredentials(accountName string, existing interface{}, new int
 		credsChanged = true
 		awsPluginLogger().Info("account access key secret updated", "account", accountName)
 	}
+	if strings.Compare(existingConfig.SessionToken, newConfig.SessionToken) != 0 {
+		credsChanged = true
+		awsPluginLogger().Info("account session token updated", "account", accountName)
+	}
 	if strings.Compare(existingConfig.RoleArn, newConfig.RoleArn) != 0 {
 		credsChanged = true
 		awsPluginLogger().Info("account IAM role updated", "account", accountName)

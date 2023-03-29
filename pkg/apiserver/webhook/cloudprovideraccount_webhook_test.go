@@ -457,8 +457,122 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 			Expect(response.AdmissionResponse.Allowed).To(BeFalse())
 			Expect(response.AdmissionResponse.String()).Should(ContainSubstring(errorMsgInvalidRegion))
 		})
+		It("Validate AWS Access and Secret Key with Session Token", func() {
+			cred := `{"accessKeyId": "keyId", "accessKeySecret": "keySecret", "sessionToken": "token"}`
+			s1 := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testSecretNamespacedName.Name,
+					Namespace: testSecretNamespacedName.Namespace,
+				},
+				Data: map[string][]byte{
+					credentials: []byte(cred),
+				},
+			}
+			err = fakeClient.Create(context.Background(), s1)
+			Expect(err).Should(BeNil())
+
+			awsAccount = &v1alpha1.CloudProviderAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testAccountNamespacedName.Name,
+					Namespace: testAccountNamespacedName.Namespace,
+				},
+				Spec: v1alpha1.CloudProviderAccountSpec{
+					PollIntervalInSeconds: &pollIntv,
+					AWSConfig: &v1alpha1.CloudProviderAccountAWSConfig{
+						Region: "us-west-1",
+						SecretRef: &v1alpha1.SecretReference{
+							Name:      testSecretNamespacedName.Name,
+							Namespace: testSecretNamespacedName.Namespace,
+							Key:       credentials,
+						},
+					},
+				},
+			}
+			encodedAccount, _ = json.Marshal(awsAccount)
+			accountReq = admission.Request{
+				AdmissionRequest: v1.AdmissionRequest{
+					Kind: metav1.GroupVersionKind{
+						Group:   "",
+						Version: "v1alpha1",
+						Kind:    "CloudProviderAccount",
+					},
+					Resource: metav1.GroupVersionResource{
+						Group:    "",
+						Version:  "v1alpha1",
+						Resource: "CloudProviderAccounts",
+					},
+					Name:      testAccountNamespacedName.Name,
+					Namespace: testAccountNamespacedName.Namespace,
+					Operation: v1.Create,
+					Object: runtime.RawExtension{
+						Raw: encodedAccount,
+					},
+				},
+			}
+
+			response := validator.Handle(context.Background(), accountReq)
+			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
+			Expect(response.AdmissionResponse.Allowed).To(BeTrue())
+		})
 		It("Validate AWS RoleARN based credential", func() {
 			cred := `{"roleArn": "roleArnId", "externalId": "externalId"}`
+			s1 := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testSecretNamespacedName.Name,
+					Namespace: testSecretNamespacedName.Namespace,
+				},
+				Data: map[string][]byte{
+					credentials: []byte(cred),
+				},
+			}
+			err = fakeClient.Create(context.Background(), s1)
+			Expect(err).Should(BeNil())
+
+			awsAccount = &v1alpha1.CloudProviderAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testAccountNamespacedName.Name,
+					Namespace: testAccountNamespacedName.Namespace,
+				},
+				Spec: v1alpha1.CloudProviderAccountSpec{
+					PollIntervalInSeconds: &pollIntv,
+					AWSConfig: &v1alpha1.CloudProviderAccountAWSConfig{
+						Region: "us-west-1",
+						SecretRef: &v1alpha1.SecretReference{
+							Name:      testSecretNamespacedName.Name,
+							Namespace: testSecretNamespacedName.Namespace,
+							Key:       credentials,
+						},
+					},
+				},
+			}
+			encodedAccount, _ = json.Marshal(awsAccount)
+			accountReq = admission.Request{
+				AdmissionRequest: v1.AdmissionRequest{
+					Kind: metav1.GroupVersionKind{
+						Group:   "",
+						Version: "v1alpha1",
+						Kind:    "CloudProviderAccount",
+					},
+					Resource: metav1.GroupVersionResource{
+						Group:    "",
+						Version:  "v1alpha1",
+						Resource: "CloudProviderAccounts",
+					},
+					Name:      testAccountNamespacedName.Name,
+					Namespace: testAccountNamespacedName.Namespace,
+					Operation: v1.Create,
+					Object: runtime.RawExtension{
+						Raw: encodedAccount,
+					},
+				},
+			}
+
+			response := validator.Handle(context.Background(), accountReq)
+			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
+			Expect(response.AdmissionResponse.Allowed).To(BeTrue())
+		})
+		It("Validate AWS RoleARN with Access and Secret Key", func() {
+			cred := `{"accessKeyId": "keyId","accessKeySecret": "keySecret", "roleArn": "roleArnId", "externalId": "externalId"}`
 			s1 := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testSecretNamespacedName.Name,
