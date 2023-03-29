@@ -157,7 +157,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Pods", focusAws, focusAzur
 				err := k8sClient.Create(context.TODO(), vmNamespace)
 				Expect(err).ToNot(HaveOccurred())
 			}
-			accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account", vmNamespace.Name, cloudCluster)
+			accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account", vmNamespace.Name)
 			err := utils.AddCloudAccount(kubeCtl, accountParams)
 			Expect(err).ToNot(HaveOccurred())
 

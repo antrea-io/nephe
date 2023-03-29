@@ -396,7 +396,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: ExternalNode", focusAws, focusAzure), func(
 		publicIps = cloudVPC.GetVMIPs()
 		privateIps = cloudVPC.GetVMPrivateIPs()
 
-		accountParameters := cloudVPC.GetCloudAccountParameters(testAccountName, namespace.Name, cloudCluster)
+		accountParameters := cloudVPC.GetCloudAccountParameters(testAccountName, namespace.Name)
 		cloudProvider = strings.Split(cloudProviders, ",")[0]
 		switch cloudProvider {
 		case string(v1alpha1.AWSCloudProvider):

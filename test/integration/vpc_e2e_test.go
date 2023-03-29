@@ -132,7 +132,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: VPC Inventory", focusAws, focusAzure), func
 
 	It("CPA Add/Delete", func() {
 		By("Configure CPA and verify VPC inventory")
-		accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account"+namespace.Name, namespace.Name, cloudCluster)
+		accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account"+namespace.Name, namespace.Name)
 		err := utils.AddCloudAccount(kubeCtl, accountParams)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -150,7 +150,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: VPC Inventory", focusAws, focusAzure), func
 		Expect(err).ToNot(HaveOccurred(), "timeout waiting to get VPC list")
 	})
 	It("CES Add/Delete", func() {
-		accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account"+namespace.Name, namespace.Name, cloudCluster)
+		accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account"+namespace.Name, namespace.Name)
 		err := utils.AddCloudAccount(kubeCtl, accountParams)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -170,7 +170,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: VPC Inventory", focusAws, focusAzure), func
 		Expect(err).ToNot(HaveOccurred(), "timeout waiting to retrieve a VPC")
 	})
 	It("Restart Controller", func() {
-		accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account"+namespace.Name, namespace.Name, cloudCluster)
+		accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account"+namespace.Name, namespace.Name)
 		err := utils.AddCloudAccount(kubeCtl, accountParams)
 		Expect(err).ToNot(HaveOccurred())
 

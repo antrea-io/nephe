@@ -61,7 +61,6 @@ var (
 	scheme        = runtime.NewScheme()
 	preserveSetup = false
 	testFocus     = []string{focusAws, focusAzure}
-	cloudCluster  bool
 	staticVMNS    = &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vm-ns"}}
 	tmpDir        string
 
@@ -85,7 +84,6 @@ func init() {
 	flag.StringVar(&cloudProviders, "cloud-provider", string(cloudv1alpha1.AzureCloudProvider),
 		"Cloud Providers to use, separated by comma. Default is Azure.")
 	flag.StringVar(&clusterContext, "cluster-context", "", "cluster context to use. Default is empty.")
-	flag.BoolVar(&cloudCluster, "cloud-cluster", false, "Cluster deployed in public cloud.")
 	rand.Seed(time.Now().Unix())
 }
 

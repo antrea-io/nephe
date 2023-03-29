@@ -216,7 +216,7 @@ func (p *azureVPC) Reapply(timeout time.Duration, withAgent bool) error {
 	return err
 }
 
-func (p *azureVPC) GetCloudAccountParameters(name, namespace string, _ bool) k8stemplates.CloudAccountParameters {
+func (p *azureVPC) GetCloudAccountParameters(name, namespace string) k8stemplates.CloudAccountParameters {
 	p.currentAccountName = name
 	out := k8stemplates.CloudAccountParameters{
 		Name:      name,

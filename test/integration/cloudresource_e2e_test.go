@@ -174,7 +174,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 				Expect(err).ToNot(HaveOccurred())
 				logf.Log.V(1).Info("Created namespace", "ns", ns.Name)
 			}
-			accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account"+ns.Name, ns.Name, cloudCluster)
+			accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account"+ns.Name, ns.Name)
 			err = utils.AddCloudAccount(kubeCtl, accountParams)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -251,7 +251,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 				if ns == nil {
 					continue
 				}
-				_ = cloudVPC.GetCloudAccountParameters("test-cloud-account"+ns.Name, ns.Name, cloudCluster)
+				_ = cloudVPC.GetCloudAccountParameters("test-cloud-account"+ns.Name, ns.Name)
 				entityParams := cloudVPC.GetEntitySelectorParameters("test-entity-selector"+ns.Name, ns.Name, kind, nil)
 				entityParams.Agented = withAgent
 				err = utils.ConfigureEntitySelectorAndWait(kubeCtl, k8sClient, entityParams, kind, num, ns.Name, false)
