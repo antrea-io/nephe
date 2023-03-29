@@ -18,7 +18,7 @@ coverage:
       default:
         # Choose a minimum coverage ratio that the commit must meet to be considered a success.
         # <number> specify a target of an exact coverage number.
-        target: 70%
+        target: auto
         # Allow the coverage to drop by X%, and posting a success status.
         threshold: 5%
         # Use the pull request base if the commit is on a pull request. If not, the parent commit will be used.
