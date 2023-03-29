@@ -23,7 +23,7 @@ import (
 	"reflect"
 	"strings"
 
-	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 )
 
 /*
@@ -126,8 +126,8 @@ var ProtocolNameNumMap = map[string]int{
 type CloudResourceType string
 
 var (
-	CloudResourceTypeVM  = CloudResourceType(reflect.TypeOf(crdv1alpha1.VirtualMachine{}).Name())
-	CloudResourceTypeNIC = CloudResourceType(reflect.TypeOf(crdv1alpha1.NetworkInterface{}).Name())
+	CloudResourceTypeVM  = CloudResourceType(reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name())
+	CloudResourceTypeNIC = CloudResourceType(reflect.TypeOf(runtimev1alpha1.NetworkInterface{}).Name())
 )
 
 var (
@@ -158,6 +158,7 @@ type CloudResourceID struct {
 type CloudResource struct {
 	Type CloudResourceType
 	CloudResourceID
+	// TODO: Rename AccountID to AccountNameSpacedName.
 	AccountID     string
 	CloudProvider string
 }

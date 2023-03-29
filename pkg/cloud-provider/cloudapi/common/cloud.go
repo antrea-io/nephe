@@ -20,25 +20,19 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
-	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 )
 
 var (
-	APIVersion                      = "crd.cloud.antrea.io/v1alpha1"
-	NetworkInterfaceCRDKind         = reflect.TypeOf(v1alpha1.NetworkInterface{}).Name()
-	VirtualMachineCRDKind           = reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()
-	AnnotationCloudAssignedIDKey    = "cloud-assigned-id"
-	AnnotationCloudAssignedNameKey  = "cloud-assigned-name"
-	AnnotationCloudAssignedVPCIDKey = "cloud-assigned-vpc-id"
-	AnnotationCloudAccountIDKey     = "cloud-account-id"
+	RuntimeAPIVersion               = "runtime.cloud.antrea.io/v1alpha1"
+	VirtualMachineRuntimeObjectKind = reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()
 
 	MaxCloudResourceResponse int64 = 100
 )
 
-type ProviderType v1alpha1.CloudProvider
+type ProviderType runtimev1alpha1.CloudProvider
 type InstanceID string
 
 // CloudInterface is an abstract providing set of methods to be implemented by cloud providers.
@@ -56,15 +50,15 @@ type CloudInterface interface {
 // AccountMgmtInterface is an abstract providing set of methods to manage cloud account details to be implemented by cloud providers.
 type AccountMgmtInterface interface {
 	// AddProviderAccount adds and initializes given account of a cloud provider.
-	AddProviderAccount(client client.Client, account *v1alpha1.CloudProviderAccount) error
+	AddProviderAccount(client client.Client, account *crdv1alpha1.CloudProviderAccount) error
 	// RemoveProviderAccount removes and cleans up any resources of given account of a cloud provider.
 	RemoveProviderAccount(namespacedName *types.NamespacedName)
 	// AddAccountResourceSelector adds account specific resource selector.
-	AddAccountResourceSelector(accNamespacedName *types.NamespacedName, selector *v1alpha1.CloudEntitySelector) error
+	AddAccountResourceSelector(accNamespacedName *types.NamespacedName, selector *crdv1alpha1.CloudEntitySelector) error
 	// RemoveAccountResourcesSelector removes account specific resource selector.
 	RemoveAccountResourcesSelector(accNamespacedName *types.NamespacedName, selector string)
 	// GetAccountStatus gets accounts status.
-	GetAccountStatus(accNamespacedName *types.NamespacedName) (*cloudv1alpha1.CloudProviderAccountStatus, error)
+	GetAccountStatus(accNamespacedName *types.NamespacedName) (*crdv1alpha1.CloudProviderAccountStatus, error)
 	// DoInventoryPoll calls cloud API to get cloud resources.
 	DoInventoryPoll(accountNamespacedName *types.NamespacedName) error
 	// DeleteInventoryPollCache resets cloud snapshot to nil.
@@ -75,10 +69,9 @@ type AccountMgmtInterface interface {
 
 // ComputeInterface is an abstract providing set of methods to get Instance details to be implemented by cloud providers.
 type ComputeInterface interface {
-	// Instances returns VirtualMachineStatus across all accounts for a cloud provider.
-	Instances() ([]*v1alpha1.VirtualMachine, error)
-	// InstancesGivenProviderAccount returns VirtualMachineStatus for a given account of a cloud provider.
-	InstancesGivenProviderAccount(namespacedName *types.NamespacedName) ([]*v1alpha1.VirtualMachine, error)
+	// InstancesGivenProviderAccount returns all VM instances of a given cloud provider account, as a map of
+	// runtime VirtualMachine objects.
+	InstancesGivenProviderAccount(namespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.VirtualMachine, error)
 }
 
 type SecurityInterface interface {

@@ -36,10 +36,9 @@ import (
 	antreav1alpha1 "antrea.io/antrea/pkg/apis/crd/v1alpha1"
 	antreav1alpha2 "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	antreanetworkingclient "antrea.io/antrea/pkg/client/clientset/versioned/typed/controlplane/v1beta2"
-	cloudv1alplha1 "antrea.io/nephe/apis/crd/v1alpha1"
-	"antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 	"antrea.io/nephe/pkg/controllers/config"
+	"antrea.io/nephe/pkg/controllers/inventory"
 )
 
 const (
@@ -50,7 +49,6 @@ const (
 	networkPolicyIndexerByAppliedToGrp          = "AppliedToGrp"
 	cloudResourceNPTrackerIndexerByAppliedToGrp = "AppliedToGrp"
 	cloudRuleIndexerByAppliedToGrp              = "AppliedToGrp"
-	virtualMachineIndexerByCloudID              = "metadata.annotations.cloud-assigned-id"
 
 	operationCount = 15
 
@@ -92,6 +90,8 @@ type NetworkPolicyReconciler struct {
 	cloudResourceNPTrackerIndexer cache.Indexer
 	virtualMachinePolicyIndexer   cache.Indexer
 	cloudRuleIndexer              cache.Indexer
+
+	Inventory inventory.Interface
 
 	// pendingDeleteGroups keep tracks of deleting AddressGroup or AppliedToGroup.
 	pendingDeleteGroups *PendingItemQueue
@@ -629,7 +629,7 @@ func (r *NetworkPolicyReconciler) externalEntityStart(_ context.Context) error {
 }
 
 // Reconcile exists to cache ExternalEntities in shared informer.
-func (r *NetworkPolicyReconciler) Reconcile(_ context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *NetworkPolicyReconciler) Reconcile(_ context.Context, _ ctrl.Request) (ctrl.Result, error) {
 	if !r.initialized {
 		if err := GetControllerSyncStatusInstance().waitTillControllerIsInitialized(&r.initialized, initTimeout, ControllerTypeEE); err != nil {
 			return ctrl.Result{}, err
@@ -769,15 +769,6 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	if mgr == nil {
 		return nil
-	}
-
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &cloudv1alplha1.VirtualMachine{}, virtualMachineIndexerByCloudID,
-		func(obj client.Object) []string {
-			vm := obj.(*cloudv1alplha1.VirtualMachine)
-			cloudID := vm.Annotations[common.AnnotationCloudAssignedIDKey]
-			return []string{cloudID}
-		}); err != nil {
-		return err
 	}
 	r.antreaClient = antreanetworkingclient.NewForConfigOrDie(mgr.GetConfig())
 	if err := ctrl.NewControllerManagedBy(mgr).For(&antreav1alpha2.ExternalEntity{}).Complete(r); err != nil {

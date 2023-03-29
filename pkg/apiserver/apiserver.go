@@ -30,7 +30,8 @@ import (
 	controllerruntime "sigs.k8s.io/controller-runtime"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
-	vpc_inventory "antrea.io/nephe/pkg/apiserver/registry/inventory"
+	virtualmachineinventory "antrea.io/nephe/pkg/apiserver/registry/inventory/virtualmachine"
+	vpcinventory "antrea.io/nephe/pkg/apiserver/registry/inventory/vpc"
 	"antrea.io/nephe/pkg/apiserver/registry/virtualmachinepolicy"
 	"antrea.io/nephe/pkg/controllers/inventory"
 )
@@ -46,7 +47,7 @@ var (
 type ExtraConfig struct {
 	// virtual machine policy indexer.
 	vmpIndexer     cache.Indexer
-	cloudInventory *inventory.Inventory
+	cloudInventory inventory.Interface
 }
 
 // Config defines the config for the apiserver.
@@ -55,7 +56,7 @@ type Config struct {
 	ExtraConfig   ExtraConfig
 }
 
-func NewConfig(codecs serializer.CodecFactory, vmpIndexer cache.Indexer, cloudInventory *inventory.Inventory) (*Config, error) {
+func NewConfig(codecs serializer.CodecFactory, vmpIndexer cache.Indexer, cloudInventory inventory.Interface) (*Config, error) {
 	recommend := genericoptions.NewRecommendedOptions("", nil)
 	serverConfig := genericapiserver.NewRecommendedConfig(codecs)
 	recommend.SecureServing.BindPort = apiServerPort
@@ -106,7 +107,7 @@ func (s *NepheControllerAPIServer) Start(stop context.Context) error {
 func (s *NepheControllerAPIServer) SetupWithManager(
 	mgr controllerruntime.Manager,
 	vmpIndexer cache.Indexer,
-	cloudInventory *inventory.Inventory,
+	cloudInventory inventory.Interface,
 	logger logger.Logger) error {
 	s.logger = logger
 	codecs := serializer.NewCodecFactory(mgr.GetScheme())
@@ -159,13 +160,15 @@ func (c completedConfig) New(scheme *runtime.Scheme, codecs serializer.CodecFact
 		return nil, err
 	}
 
-	vpcStorage := vpc_inventory.NewREST(c.ExtraConfig.cloudInventory, logger.WithName("VpcInventory"))
+	vpcStorage := vpcinventory.NewREST(c.ExtraConfig.cloudInventory, logger.WithName("VpcInventory"))
 	vmpStorage := virtualmachinepolicy.NewREST(c.ExtraConfig.vmpIndexer, logger.WithName("VirtualMachinePolicy"))
+	vmStorage := virtualmachineinventory.NewREST(c.ExtraConfig.cloudInventory, logger.WithName("VirtualMachineInventory"))
 
 	cpGroup := genericapiserver.NewDefaultAPIGroupInfo(runtimev1alpha1.GroupVersion.Group, scheme, metav1.ParameterCodec, codecs)
 	cpv1alpha1Storage := map[string]rest.Storage{}
 	cpv1alpha1Storage["vpc"] = vpcStorage
 	cpv1alpha1Storage["virtualmachinepolicy"] = vmpStorage
+	cpv1alpha1Storage["virtualmachine"] = vmStorage
 
 	cpGroup.VersionedResourcesStorageMap["v1alpha1"] = cpv1alpha1Storage
 

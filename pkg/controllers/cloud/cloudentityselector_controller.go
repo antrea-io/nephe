@@ -17,11 +17,13 @@ package cloud
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -31,10 +33,12 @@ import (
 )
 
 const (
-	virtualMachineIndexerByCloudAccount      = "virtualmachine.cloudaccount"
 	virtualMachineSelectorMatchIndexerByID   = "virtualmachine.selector.id"
 	virtualMachineSelectorMatchIndexerByName = "virtualmachine.selector.name"
 	virtualMachineSelectorMatchIndexerByVPC  = "virtualmachine.selector.vpc.id"
+
+	// To poll cloud inventory synchronously.
+	defaultPollTimeout = 60 * time.Second
 )
 
 // CloudEntitySelectorReconciler reconciles a CloudEntitySelector object.
@@ -81,19 +85,6 @@ func (r *CloudEntitySelectorReconciler) Reconcile(ctx context.Context, req ctrl.
 
 func (r *CloudEntitySelectorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.selectorToAccountMap = make(map[types.NamespacedName]types.NamespacedName)
-
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &cloudv1alpha1.VirtualMachine{},
-		virtualMachineIndexerByCloudAccount, func(obj client.Object) []string {
-			vm := obj.(*cloudv1alpha1.VirtualMachine)
-			owner := vm.GetOwnerReferences()
-			if len(owner) == 0 {
-				return nil
-			}
-			return []string{owner[0].Name}
-		}); err != nil {
-		return err
-	}
-
 	if err := ctrl.NewControllerManagedBy(mgr).For(&cloudv1alpha1.CloudEntitySelector{}).Complete(r); err != nil {
 		return err
 	}
@@ -133,6 +124,27 @@ func (r *CloudEntitySelectorReconciler) updatePendingSyncCountAndStatus() {
 	}
 }
 
+// waitForPollDone waits until account poller has polled the cloud inventory or timeout is reached.
+func (r *CloudEntitySelectorReconciler) waitForPollDone(accountNamespacedName *types.NamespacedName, timeout time.Duration) error {
+	pollerScope, err := r.Poller.getAccountPoller(accountNamespacedName)
+	if err != nil {
+		return err
+	}
+
+	r.Log.Info("Poll cloud inventory synchronously", "account", *accountNamespacedName)
+	if err = wait.PollImmediate(100*time.Millisecond, timeout, func() (done bool, err error) {
+		pollerScope.mutex.RLock()
+		defer pollerScope.mutex.RUnlock()
+		if pollerScope.pollDone {
+			return true, nil
+		}
+		return false, nil
+	}); err != nil {
+		return fmt.Errorf("failed to poll cloud inventory, err %v", err)
+	}
+	return nil
+}
+
 func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *cloudv1alpha1.CloudEntitySelector,
 	selectorNamespacedName *types.NamespacedName) error {
 	r.Log.Info("Received request", "selector", selectorNamespacedName, "operation", "create/update")
@@ -160,28 +172,25 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *cloudv1a
 		}
 	}()
 
-	err = cloudInterface.AddAccountResourceSelector(accountNamespacedName, selector)
-	if err != nil {
+	if err = cloudInterface.AddAccountResourceSelector(accountNamespacedName, selector); err != nil {
 		r.Log.Info(errorMsgSelectorAddFail, "selector", selectorNamespacedName, "error", err)
 		callCESDelete = true
 		return fmt.Errorf("%s %s, err: %v", errorMsgSelectorAddFail, selectorNamespacedName.Name, err)
 	}
 
-	err = r.Poller.updateAccountPoller(accountNamespacedName, selector)
-	if err != nil {
+	if err = r.Poller.updateAccountPoller(accountNamespacedName, selector); err != nil {
 		r.Log.Info(errorMsgSelectorAddFail, "selector", selectorNamespacedName, "error", err)
 		callCESDelete = true
 		return err
 	}
 
-	err = r.Poller.restartAccountPoller(accountNamespacedName)
-	if err != nil {
+	if err = r.Poller.restartAccountPoller(accountNamespacedName); err != nil {
 		r.Log.Info(errorMsgSelectorAddFail, "selector", selectorNamespacedName, "error", err)
 		callCESDelete = true
 		return err
 	}
 
-	return nil
+	return r.waitForPollDone(accountNamespacedName, defaultPollTimeout)
 }
 
 func (r *CloudEntitySelectorReconciler) processDelete(selectorNamespacedName *types.NamespacedName) error {

@@ -19,7 +19,14 @@ const (
 	ExternalEntityLabelKeyPostfix    = "nephe"
 	ExternalEntityLabelKeyNamespace  = "namespace." + ExternalEntityLabelKeyPostfix
 	ExternalEntityLabelKeyKind       = "kind." + ExternalEntityLabelKeyPostfix
-	ExternalEntityLabelKeyName       = "name." + ExternalEntityLabelKeyPostfix
+	ExternalEntityLabelKeyVmName     = "name." + ExternalEntityLabelKeyPostfix
 	ExternalEntityLabelKeyTagPostfix = ".tag." + ExternalEntityLabelKeyPostfix
 	ExternalEntityLabelCloudVPCKey   = "vpc." + ExternalEntityLabelKeyPostfix
+)
+
+const (
+	LabelCloudAccountName      = "cpa.name"
+	LabelCloudAccountNamespace = "cpa.namespace"
+	LabelCloudRegion           = "region"
+	LabelCloudVPCName          = "vpc.name"
 )

@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package source
+package vpc
 
-var (
-	RetryInterval = retryInterval
+import (
+	"testing"
+
+	"antrea.io/nephe/pkg/logging"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
-type RetryRecord = retryRecord
-
-func ProcessEvent(v VMConverter, vm *VirtualMachineSource, failedUpdates map[string]retryRecord, isRetry bool, isAgented bool) {
-	v.processEvent(vm, failedUpdates, isRetry, isAgented)
-}
-
-func (v VMConverter) GetRetryCh() chan VirtualMachineSource {
-	return v.retryCh
+func TestVpc(t *testing.T) {
+	logging.SetDebugLog(true)
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Vpc Suite")
 }

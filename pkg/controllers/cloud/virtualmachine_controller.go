@@ -16,112 +16,189 @@ package cloud
 
 import (
 	"context"
+	"os"
 
 	"github.com/go-logr/logr"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	ctrl "sigs.k8s.io/controller-runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/watch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	antreav1alpha1 "antrea.io/antrea/pkg/apis/crd/v1alpha1"
+	antreav1alpha2 "antrea.io/antrea/pkg/apis/crd/v1alpha2"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/controllers/config"
+	"antrea.io/nephe/pkg/controllers/inventory"
 	converter "antrea.io/nephe/pkg/converter/source"
 	"antrea.io/nephe/pkg/logging"
 )
 
 const (
-	converterChannelBuffer = 50
+	ConverterChannelBuffer = 50
 )
 
-// VirtualMachineReconciler reconciles a VirtualMachine object.
-type VirtualMachineReconciler struct {
+// VirtualMachineController reconciles a VirtualMachine object.
+type VirtualMachineController struct {
 	client.Client
-	Log       logr.Logger
-	Scheme    *runtime.Scheme
-	converter converter.VMConverter
+	Log    logr.Logger
+	Scheme *runtime.Scheme
 
-	pendingSyncCount int
-	Initialized      bool
+	Inventory inventory.Interface
+	converter converter.VMConverter
+	vmWatcher watch.Interface
 }
 
-// +kubebuilder:rbac:groups=crd.cloud.antrea.io,resources=virtualmachines,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=crd.cloud.antrea.io,resources=virtualmachines/status,verbs=get;update;patch
 // nolint:lll
 
-func (r *VirtualMachineReconciler) Reconcile(_ context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = r.Log.WithValues("Virtualmachine", req.NamespacedName)
-
-	if !r.Initialized {
-		if err := GetControllerSyncStatusInstance().waitTillControllerIsInitialized(&r.Initialized, initTimeout, ControllerTypeVM); err != nil {
-			return ctrl.Result{}, err
-		}
-	}
-
-	virtualMachine := cloudv1alpha1.VirtualMachine{}
-	if err := r.Get(context.TODO(), req.NamespacedName, &virtualMachine); err != nil {
-		if !errors.IsNotFound(err) {
-			r.Log.Error(err, "failed to get VM crd", "vm", req.NamespacedName)
-			return ctrl.Result{}, err
-		}
-		// Fall through if owner is deleted.
-		r.Log.Info("Received request", "vm", req.NamespacedName, "operation", "delete")
-		accessor, _ := meta.Accessor(&virtualMachine)
-		accessor.SetName(req.Name)
-		accessor.SetNamespace(req.Namespace)
-	} else {
-		r.Log.Info("Received request", "vm", req.NamespacedName, "operation", "create/update")
-	}
-
-	r.converter.Ch <- virtualMachine
-	r.updatePendingSyncCountAndStatus()
-	return ctrl.Result{}, nil
-}
-
-// SetupWithManager registers VirtualMachineReconciler with manager.
-// It also sets up converter channels to forward VM events.
-func (r *VirtualMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
+// ConfigureConverterAndStart configures the converter and starts the VirtualMachine controller.
+func (r *VirtualMachineController) ConfigureConverterAndStart() {
 	r.converter = converter.VMConverter{
 		Client: r.Client,
 		Log:    logging.GetLogger("converter").WithName("VMConverter"),
-		Ch:     make(chan cloudv1alpha1.VirtualMachine, converterChannelBuffer),
+		Ch:     make(chan watch.Event, ConverterChannelBuffer),
 		Scheme: r.Scheme,
 	}
-	if err := ctrl.NewControllerManagedBy(mgr).For(&cloudv1alpha1.VirtualMachine{}).Complete(r); err != nil {
-		return err
-	}
-	go r.converter.Start()
-	return mgr.Add(r)
+	go func() {
+		if err := r.Start(); err != nil {
+			r.Log.Error(err, "failed to start VirtualMachine controller exiting")
+			os.Exit(1)
+		}
+	}()
 }
 
 // Start performs the initialization of the controller.
-// A controller is said to be initialized only when the dependent controllers
-// are synced, and it keeps a count of pending CRs to be reconciled.
-func (r *VirtualMachineReconciler) Start(context.Context) error {
-	if err := GetControllerSyncStatusInstance().waitForControllersToSync([]controllerType{ControllerTypeEE}, syncTimeout); err != nil {
-		r.Log.Error(err, "dependent controller sync failed", "controller", ControllerTypeEE.String())
+// VM controller is said to be initialized and synced when all the VM and EE
+// CRs are reconciled.
+func (r *VirtualMachineController) Start() error {
+	if err := GetControllerSyncStatusInstance().waitForControllersToSync(
+		[]controllerType{ControllerTypeEE, ControllerTypeCES, ControllerTypeCPA}, syncTimeout); err != nil {
 		return err
 	}
-	vmList := &cloudv1alpha1.VirtualMachineList{}
-	if err := r.Client.List(context.TODO(), vmList, &client.ListOptions{}); err != nil {
+	r.Log.Info("Init done", "controller", ControllerTypeVM.String())
+
+	vmNamespacedNameMap := r.getNamespacedNameVms()
+	if err := r.syncExternalEntities(vmNamespacedNameMap); err != nil {
+		return err
+	}
+	if err := r.syncExternalNodes(vmNamespacedNameMap); err != nil {
 		return err
 	}
 
-	r.pendingSyncCount = len(vmList.Items)
-	if r.pendingSyncCount == 0 {
-		GetControllerSyncStatusInstance().SetControllerSyncStatus(ControllerTypeVM)
+	// Start the converter module.
+	go r.converter.Start()
+	// Set sync status as complete.
+	GetControllerSyncStatusInstance().SetControllerSyncStatus(ControllerTypeVM)
+	// Setup watcher after VM cache is populated and EE CRs are reconciled.
+	if err := r.resetWatcher(); err != nil {
+		return err
 	}
-	r.Initialized = true
-	r.Log.Info("Init done", "controller", ControllerTypeVM.String())
+	// Blocking thread to wait for any VM event.
+	if err := r.processEvent(); err != nil {
+		return err
+	}
 	return nil
 }
 
-// updatePendingSyncCountAndStatus decrements the pendingSyncCount and when
-// pendingSyncCount is 0, sets the sync status.
-func (r *VirtualMachineReconciler) updatePendingSyncCountAndStatus() {
-	if r.pendingSyncCount > 0 {
-		r.pendingSyncCount--
-		if r.pendingSyncCount == 0 {
-			GetControllerSyncStatusInstance().SetControllerSyncStatus(ControllerTypeVM)
+// getNamespacedNameVms returns a map of NamespacedName objects of all VMs.
+func (r *VirtualMachineController) getNamespacedNameVms() map[types.NamespacedName]struct{} {
+	vmObjList := r.Inventory.GetAllVms()
+	vmNamespaceNameMap := map[types.NamespacedName]struct{}{}
+	for _, vmObj := range vmObjList {
+		vm := vmObj.(*runtimev1alpha1.VirtualMachine)
+		vmNamespaceNameKey := types.NamespacedName{
+			Name:      vm.Name,
+			Namespace: vm.Namespace,
 		}
+		vmNamespaceNameMap[vmNamespaceNameKey] = struct{}{}
+	}
+	return vmNamespaceNameMap
+}
+
+// syncExternalEntities validates that each EE has corresponding VM. If it does not exist then
+// the EE will be deleted.
+func (r *VirtualMachineController) syncExternalEntities(vmNamespacedNameMap map[types.NamespacedName]struct{}) error {
+	eeList := &antreav1alpha2.ExternalEntityList{}
+	if err := r.Client.List(context.TODO(), eeList, &client.ListOptions{}); err != nil {
+		return err
+	}
+	for _, ee := range eeList.Items {
+		if ee.Spec.ExternalNode != config.ANPNepheController {
+			// Ignore EE objects that are not created by nephe.
+			continue
+		}
+		eeLabelKeyName, exists := ee.Labels[config.ExternalEntityLabelKeyVmName]
+		if !exists {
+			// Ignore EE objects not created by converter module.
+			continue
+		}
+		eeNamespacedName := types.NamespacedName{
+			Name:      eeLabelKeyName,
+			Namespace: ee.Namespace,
+		}
+		if _, ok := vmNamespacedNameMap[eeNamespacedName]; !ok {
+			r.Log.Info("Could not find matching VM object, deleting ExternalEntity", "namespacedName", eeNamespacedName)
+			// Delete the ExternalEntity, since no matching VM found.
+			_ = r.Client.Delete(context.TODO(), &ee)
+			continue
+		}
+	}
+	return nil
+}
+
+// syncExternalNodes validates that each EN has corresponding VM. If it does not exist then
+// the EN will be deleted.
+func (r *VirtualMachineController) syncExternalNodes(vmNamespacedNameMap map[types.NamespacedName]struct{}) error {
+	enList := &antreav1alpha1.ExternalNodeList{}
+	if err := r.Client.List(context.TODO(), enList, &client.ListOptions{}); err != nil {
+		return err
+	}
+	for _, en := range enList.Items {
+		enLabelKeyName, exists := en.Labels[config.ExternalEntityLabelKeyVmName]
+		if !exists {
+			// Ignore EN objects not created by converter module.
+			continue
+		}
+		enNamespacedName := types.NamespacedName{
+			Name:      enLabelKeyName,
+			Namespace: en.Namespace,
+		}
+		if _, ok := vmNamespacedNameMap[enNamespacedName]; !ok {
+			r.Log.Info("Could not find matching VM object, deleting ExternalNode", "namespacedName", enNamespacedName)
+			// Delete the ExternalNode, since no matching VM found.
+			_ = r.Client.Delete(context.TODO(), &en)
+			continue
+		}
+	}
+	return nil
+}
+
+// resetWatcher sets a watcher to watch VM events.
+func (r *VirtualMachineController) resetWatcher() (err error) {
+	r.vmWatcher, err = r.Inventory.WatchVms(context.TODO(), "", labels.Everything(), fields.Everything())
+	if err != nil {
+		r.Log.Error(err, "failed to start vmWatcher")
+		return err
+	}
+	return nil
+}
+
+// processEvent waits for any VM events and feeds the event to the converter module.
+func (r *VirtualMachineController) processEvent() error {
+	resultCh := r.vmWatcher.ResultChan()
+	for {
+		event, ok := <-resultCh
+		if !ok {
+			r.vmWatcher.Stop()
+			if err := r.resetWatcher(); err != nil {
+				return err
+			}
+		}
+		// Skip handling Bookmark events.
+		if event.Type == watch.Bookmark {
+			continue
+		}
+		r.converter.Ch <- event
 	}
 }

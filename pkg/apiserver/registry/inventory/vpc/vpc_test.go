@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package inventory
+package vpc
 
 import (
 	"sort"
@@ -29,14 +29,17 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/endpoints/request"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/controllers/config"
 	"antrea.io/nephe/pkg/controllers/inventory"
-	"antrea.io/nephe/pkg/controllers/inventory/common"
 	"antrea.io/nephe/pkg/logging"
 )
 
 var _ = Describe("VPC", func() {
+	accountNamespacedName := types.NamespacedName{
+		Name:      "accountname",
+		Namespace: "default",
+	}
 	cloudInventory := inventory.InitInventory()
 
 	l := logging.GetLogger("VPC test")
@@ -75,8 +78,9 @@ var _ = Describe("VPC", func() {
 			Namespace: "default",
 			Name:      "targetId2",
 			Labels: map[string]string{
-				common.VpcLabelAccountName: "accountname",
-				common.VpcLabelRegion:      "region",
+				config.LabelCloudAccountNamespace: accountNamespacedName.Namespace,
+				config.LabelCloudAccountName:      accountNamespacedName.Name,
+				config.LabelCloudRegion:           "region",
 			},
 		},
 		Status: runtimev1alpha1.VpcStatus{
@@ -104,10 +108,11 @@ var _ = Describe("VPC", func() {
 	}
 
 	Describe("Test Get function of Rest", func() {
+		By("Test Get function of Rest")
 		for i, cachedVpc := range cachedVpcs {
 			vpcMap := make(map[string]*runtimev1alpha1.Vpc)
 			vpcMap[cachedVpc.Status.Id] = cachedVpc
-			namespacedName := types.NamespacedName{Namespace: cachedVpc.Namespace, Name: cachedVpc.Labels[common.VpcLabelAccountName]}
+			namespacedName := types.NamespacedName{Namespace: cachedVpc.Namespace, Name: accountNamespacedName.Name}
 			err := cloudInventory.BuildVpcCache(vpcMap, &namespacedName)
 			Expect(err).Should(BeNil())
 			rest := NewREST(cloudInventory, l)
@@ -123,6 +128,7 @@ var _ = Describe("VPC", func() {
 	})
 
 	Describe("Test List function of Rest", func() {
+		By("Test List function of Rest")
 		expectedPolicyList1 := &runtimev1alpha1.VpcList{
 			Items: []runtimev1alpha1.Vpc{
 				{
@@ -145,8 +151,9 @@ var _ = Describe("VPC", func() {
 						Namespace: "default",
 						Name:      "targetId2",
 						Labels: map[string]string{
-							common.VpcLabelAccountName: "accountname",
-							common.VpcLabelRegion:      "region",
+							config.LabelCloudAccountNamespace: accountNamespacedName.Namespace,
+							config.LabelCloudAccountName:      accountNamespacedName.Name,
+							config.LabelCloudRegion:           "region",
 						},
 					},
 					Status: runtimev1alpha1.VpcStatus{
@@ -169,8 +176,9 @@ var _ = Describe("VPC", func() {
 						Namespace: "default",
 						Name:      "targetId2",
 						Labels: map[string]string{
-							common.VpcLabelAccountName: "accountname",
-							common.VpcLabelRegion:      "region",
+							config.LabelCloudAccountNamespace: accountNamespacedName.Namespace,
+							config.LabelCloudAccountName:      accountNamespacedName.Name,
+							config.LabelCloudRegion:           "region",
 						},
 					},
 					Status: runtimev1alpha1.VpcStatus{
@@ -192,11 +200,14 @@ var _ = Describe("VPC", func() {
 			expectedPolicyList2,
 			expectedPolicyList2,
 		}
-		req1, _ := labels.NewRequirement("account-name", selection.Equals, []string{"accountname"})
+		// select vpcs based on account name.
+		req1, _ := labels.NewRequirement(config.LabelCloudAccountName, selection.Equals,
+			[]string{accountNamespacedName.Name})
 		labelSelector1 := labels.NewSelector()
 		labelSelector1 = labelSelector1.Add(*req1)
 
-		req2, _ := labels.NewRequirement("region", selection.Equals, []string{"region"})
+		// select vpcs based on region.
+		req2, _ := labels.NewRequirement(config.LabelCloudRegion, selection.Equals, []string{"region"})
 		labelSelector2 := labels.NewSelector()
 		labelSelector2 = labelSelector2.Add(*req2)
 
@@ -212,7 +223,8 @@ var _ = Describe("VPC", func() {
 		for _, cachedVpc := range cachedVpcs {
 			vpcMap := make(map[string]*runtimev1alpha1.Vpc)
 			vpcMap[cachedVpc.Status.Id] = cachedVpc
-			namespacedName := types.NamespacedName{Namespace: cachedVpc.Namespace, Name: cachedVpc.Labels[common.VpcLabelAccountName]}
+			namespacedName := types.NamespacedName{Namespace: cachedVpc.Namespace,
+				Name: cachedVpc.Labels[config.LabelCloudAccountName]}
 			err := cloudInventory.BuildVpcCache(vpcMap, &namespacedName)
 			Expect(err).Should(BeNil())
 		}
@@ -228,6 +240,7 @@ var _ = Describe("VPC", func() {
 				Expect(actualObj).To(Equal(expectedPolicyLists[i]))
 			}
 		})
+
 		listFieldSelectorOption1 := &internalversion.ListOptions{}
 		listFieldSelectorOption1.FieldSelector = fields.OneTermEqualSelector("metadata.name", "targetId2")
 		listFieldSelectorOption2 := &internalversion.ListOptions{}
@@ -257,7 +270,8 @@ var _ = Describe("VPC", func() {
 			actualObj1, err := rest.List(request.NewDefaultContext(), listFieldSelectorOption1)
 			Expect(err).Should(BeNil())
 			Expect(actualObj1).To(Equal(expectedPolicyList2))
-			actualObj2, err := rest.List(request.WithNamespace(request.NewContext(), "non-default"), listFieldSelectorOption2)
+			actualObj2, err := rest.List(request.WithNamespace(request.NewContext(), "non-default"),
+				listFieldSelectorOption2)
 			Expect(err).Should(BeNil())
 			Expect(actualObj2).To(Equal(expectedPolicyList3))
 		})
@@ -271,7 +285,7 @@ var _ = Describe("VPC", func() {
 		Status: runtimev1alpha1.VpcStatus{
 			Id:       "targetId4",
 			Name:     "targetName",
-			Provider: v1alpha1.AWSCloudProvider,
+			Provider: runtimev1alpha1.AWSCloudProvider,
 			Region:   "us-west-2",
 		},
 	}
@@ -284,14 +298,15 @@ var _ = Describe("VPC", func() {
 		},
 		Rows: []metav1.TableRow{
 			{
-				Cells: []interface{}{"targetId4", v1alpha1.AWSCloudProvider, "us-west-2", false},
+				Cells: []interface{}{"targetId4", runtimev1alpha1.AWSCloudProvider, "us-west-2", false},
 			},
 		},
 	}
 	Describe("Test Convert table function of Rest", func() {
+		By("Test Convert table function of Rest")
 		vpcMap := make(map[string]*runtimev1alpha1.Vpc)
 		vpcMap[cacheTest4.Status.Id] = cacheTest4
-		namespacedName := types.NamespacedName{Namespace: cacheTest4.Namespace, Name: cacheTest4.Labels[common.VpcLabelAccountName]}
+		namespacedName := types.NamespacedName{Namespace: cacheTest4.Namespace, Name: accountNamespacedName.Name}
 		err := cloudInventory.BuildVpcCache(vpcMap, &namespacedName)
 		Expect(err).Should(BeNil())
 		rest := NewREST(cloudInventory, l)
@@ -304,10 +319,15 @@ var _ = Describe("VPC", func() {
 	cacheTest5 := &runtimev1alpha1.Vpc{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "default",
-			Name:      "targetId",
+			Name:      "targetId2",
+			Labels: map[string]string{
+				config.LabelCloudAccountNamespace: accountNamespacedName.Namespace,
+				config.LabelCloudAccountName:      accountNamespacedName.Name,
+				config.LabelCloudRegion:           "region",
+			},
 		},
 		Status: runtimev1alpha1.VpcStatus{
-			Id:   "targetId",
+			Id:   "targetId2",
 			Name: "targetName",
 			Tags: map[string]string{
 				"no.delete": "false",
@@ -317,24 +337,28 @@ var _ = Describe("VPC", func() {
 	}
 	expectedEvents := []watch.Event{
 		{Type: watch.Bookmark, Object: &runtimev1alpha1.Vpc{}},
-		{Type: watch.Added, Object: cacheTest1},
+		{Type: watch.Added, Object: cacheTest3},
 		{Type: watch.Modified, Object: cacheTest5},
 		{Type: watch.Deleted, Object: cacheTest5},
 	}
+
 	Describe("Test Watch function of Rest", func() {
+		By("Test Watch function of Rest")
 		cloudInventory1 := inventory.InitInventory()
 		vpcMap := make(map[string]*runtimev1alpha1.Vpc)
-		namespacedName := types.NamespacedName{Namespace: cacheTest1.Namespace, Name: cacheTest1.Labels[common.VpcLabelAccountName]}
-		err := cloudInventory1.BuildVpcCache(vpcMap, &namespacedName)
-		Expect(err).Should(BeNil())
+		namespacedName := types.NamespacedName{Namespace: accountNamespacedName.Namespace, Name: accountNamespacedName.Name}
 		rest := NewREST(cloudInventory1, l)
 		watcher, err := rest.Watch(request.NewDefaultContext(), &internalversion.ListOptions{})
-		vpcMap[cacheTest1.Status.Id] = cacheTest1
-		_ = cloudInventory1.BuildVpcCache(vpcMap, &namespacedName)
-		vpcMap[cacheTest1.Status.Id] = cacheTest5
-		_ = cloudInventory1.BuildVpcCache(vpcMap, &namespacedName)
 		Expect(err).Should(BeNil())
-		err = cloudInventory1.DeleteVpcCache(&namespacedName)
+		// key = default/accountname-targetId2
+		vpcMap[cacheTest3.Status.Id] = cacheTest3
+		err = cloudInventory1.BuildVpcCache(vpcMap, &namespacedName)
+		Expect(err).Should(BeNil())
+		// key = default/accountname-targetId2
+		vpcMap[cacheTest3.Status.Id] = cacheTest5
+		err = cloudInventory1.BuildVpcCache(vpcMap, &namespacedName)
+		Expect(err).Should(BeNil())
+		err = cloudInventory1.DeleteVpcsFromCache(&namespacedName)
 		Expect(err).Should(BeNil())
 		for _, expectedEvent := range expectedEvents {
 			ev := <-watcher.ResultChan()

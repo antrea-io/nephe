@@ -19,9 +19,11 @@ import (
 	"sync"
 	"time"
 
-	"antrea.io/nephe/pkg/logging"
 	"github.com/cenkalti/backoff/v4"
+	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	"antrea.io/nephe/pkg/logging"
 )
 
 var (
@@ -33,16 +35,13 @@ type controllerSyncStatus struct {
 	syncMap map[controllerType]bool
 	// number of values of the type controllerType
 	numElements int
-	log         func() logging.Logger
+	log         logr.Logger
 }
 
 func init() {
 	ctrlSyncStatus = &controllerSyncStatus{
 		syncMap:     make(map[controllerType]bool),
 		numElements: int(ControllerTypeVM),
-		log: func() logging.Logger {
-			return logging.GetLogger("controllers-sync-status")
-		},
 	}
 
 	// initialize the map to default values
@@ -51,8 +50,15 @@ func init() {
 	}
 }
 
+// GetControllerSyncStatusInstance returns only instance of controllerSyncStatus.
 func GetControllerSyncStatusInstance() *controllerSyncStatus {
 	return ctrlSyncStatus
+}
+
+// Configure configures controllerSyncStatus.
+func (c *controllerSyncStatus) Configure() *controllerSyncStatus {
+	c.log = logging.GetLogger("controllers").WithName("VirtualMachine")
+	return nil
 }
 
 // SetControllerSyncStatus sets the sync status of the controller.
@@ -60,7 +66,7 @@ func (c *controllerSyncStatus) SetControllerSyncStatus(controller controllerType
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	c.syncMap[controller] = true
-	c.log().Info("Sync done", "controller", controller.String())
+	c.log.Info("Sync done", "controller", controller.String())
 }
 
 // ResetControllerSyncStatus resets the sync status of the controller.

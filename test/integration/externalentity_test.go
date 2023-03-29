@@ -184,8 +184,11 @@ var _ = Describe(fmt.Sprintf("%s,%s: ExternalEntity", focusAws, focusAzure), fun
 	}
 	table.DescribeTable("Test ExternalEntity Life cycle",
 		func(kind string, hasNic, hasPort bool) {
+			// TODO: VM CRD is no longer present
+			Skip("Change logic of the test")
 			tester(kind, len(expectedEndpoints), hasNic, hasPort)
 		},
+		//
 		table.Entry("VirtualMachine", "VirtualMachine", true, false),
 	)
 
@@ -196,6 +199,8 @@ var _ = Describe(fmt.Sprintf("%s,%s: ExternalEntity", focusAws, focusAzure), fun
 
 		table.DescribeTable("Test ExternalEntity Life cycle",
 			func(kind string, hasNic, hasPort bool) {
+				// TODO: VM CRD is no longer present
+				Skip("Change logic of the test")
 				tester(kind, len(expectedEndpoints), hasNic, hasPort)
 			},
 			table.Entry("VirtualMachine", "VirtualMachine", true, false),

@@ -97,6 +97,18 @@ func main() {
 	// Initialize Account poller map.
 	poller := controllers.InitPollers()
 
+	// Configure controller sync status.
+	controllers.GetControllerSyncStatusInstance().Configure()
+
+	// Create a VM controller, configure converter, and start it in a separate thread.
+	vmController := &controllers.VirtualMachineController{
+		Client:    mgr.GetClient(),
+		Log:       logging.GetLogger("controllers").WithName("VirtualMachine"),
+		Scheme:    mgr.GetScheme(),
+		Inventory: cloudInventory,
+	}
+	vmController.ConfigureConverterAndStart()
+
 	if err = (&controllers.CloudEntitySelectorReconciler{
 		Client: mgr.GetClient(),
 		Log:    logging.GetLogger("controllers").WithName("CloudEntitySelector"),
@@ -124,6 +136,7 @@ func main() {
 		Log:               logging.GetLogger("controllers").WithName("NetworkPolicy"),
 		Scheme:            mgr.GetScheme(),
 		CloudSyncInterval: opts.config.CloudSyncInterval,
+		Inventory:         cloudInventory,
 	}
 
 	if err = npController.SetupWithManager(mgr); err != nil {
@@ -131,16 +144,23 @@ func main() {
 		os.Exit(1)
 	}
 
-	vmController := &controllers.VirtualMachineReconciler{
-		Client: mgr.GetClient(),
-		Log:    logging.GetLogger("controllers").WithName("VirtualMachine"),
-		Scheme: mgr.GetScheme(),
-	}
-	if err = vmController.SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "VirtualMachine")
+	if err = (&apiserver.NepheControllerAPIServer{}).SetupWithManager(mgr,
+		npController.GetVirtualMachinePolicyIndexer(), cloudInventory, logging.GetLogger("apiServer")); err != nil {
+		setupLog.Error(err, "unable to create APIServer")
 		os.Exit(1)
 	}
 
+	configureWebhooks(mgr)
+
+	// +kubebuilder:scaffold:builder
+	setupLog.Info("starting manager")
+	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+		setupLog.Error(err, "problem running manager")
+		os.Exit(1)
+	}
+}
+
+func configureWebhooks(mgr ctrl.Manager) {
 	// Register webhook for secret.
 	mgr.GetWebhookServer().Register("/validate-v1-secret",
 		&webhook.Admission{Handler: &nephewebhook.SecretValidator{Client: mgr.GetClient(),
@@ -166,17 +186,4 @@ func main() {
 	mgr.GetWebhookServer().Register("/validate-crd-cloud-antrea-io-v1alpha1-cloudentityselector",
 		&webhook.Admission{Handler: &nephewebhook.CESValidator{Client: mgr.GetClient(),
 			Log: logging.GetLogger("webhook").WithName("CloudEntitySelector")}})
-
-	if err = (&apiserver.NepheControllerAPIServer{}).SetupWithManager(mgr,
-		npController.GetVirtualMachinePolicyIndexer(), cloudInventory, logging.GetLogger("apiServer")); err != nil {
-		setupLog.Error(err, "unable to create APIServer")
-		os.Exit(1)
-	}
-
-	// +kubebuilder:scaffold:builder
-	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running manager")
-		os.Exit(1)
-	}
 }

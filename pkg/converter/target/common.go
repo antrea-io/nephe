@@ -57,7 +57,7 @@ func genTargetEntityLabels(source interface{}, cl client.Client) map[string]stri
 	labels := make(map[string]string)
 	accessor, _ := meta.Accessor(vmSource)
 	labels[config.ExternalEntityLabelKeyKind] = GetExternalEntityLabelKind(vmSource.EmbedType())
-	labels[config.ExternalEntityLabelKeyName] = strings.ToLower(accessor.GetName())
+	labels[config.ExternalEntityLabelKeyVmName] = strings.ToLower(accessor.GetName())
 	labels[config.ExternalEntityLabelKeyNamespace] = strings.ToLower(accessor.GetNamespace())
 	for key, val := range vmSource.GetLabelsFromClient(cl) {
 		labels[key] = val

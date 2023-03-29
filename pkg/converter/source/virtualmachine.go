@@ -15,10 +15,11 @@
 package source
 
 import (
+	"k8s.io/apimachinery/pkg/watch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
-	"antrea.io/nephe/apis/crd/v1alpha1"
+	"antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/controllers/config"
 	"antrea.io/nephe/pkg/controllers/utils"
 	"antrea.io/nephe/pkg/converter/target"
@@ -27,6 +28,7 @@ import (
 // VirtualMachineSource says VirtualMachine is a source of converter targets.
 type VirtualMachineSource struct {
 	v1alpha1.VirtualMachine
+	watch.EventType
 }
 
 // GetEndPointAddresses returns VirtualMachine's IP addresses.
@@ -56,7 +58,7 @@ func (v *VirtualMachineSource) GetTags() map[string]string {
 
 // GetLabelsFromClient returns VirtualMachine specific labels.
 func (v *VirtualMachineSource) GetLabelsFromClient(_ client.Client) map[string]string {
-	return map[string]string{config.ExternalEntityLabelCloudVPCKey: v.Status.VirtualPrivateCloud}
+	return map[string]string{config.ExternalEntityLabelCloudVPCKey: v.Labels[config.LabelCloudVPCName]}
 }
 
 // GetExternalNodeName returns controller associated with VirtualMachine.

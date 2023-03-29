@@ -21,12 +21,13 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	cloud "antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/converter/source"
 	"antrea.io/nephe/pkg/converter/target"
 )
 
-func SetupVirtualMachine(vm *cloud.VirtualMachine, name, namespace string, agented bool, nics ...*cloud.NetworkInterface) {
+func SetupVirtualMachine(vm *runtimev1alpha1.VirtualMachine, name, namespace string, agented bool,
+	nics ...*runtimev1alpha1.NetworkInterface) {
 	vm.Status.NetworkInterfaces = nil
 	for _, nic := range nics {
 		vm.Status.NetworkInterfaces = append(vm.Status.NetworkInterfaces, *nic)
@@ -34,20 +35,19 @@ func SetupVirtualMachine(vm *cloud.VirtualMachine, name, namespace string, agent
 	vm.Name = name
 	vm.Namespace = namespace
 	vm.Status.Tags = map[string]string{"test-vm-tag": "test-vm-key"}
-	vm.Status.VirtualPrivateCloud = "test-vm-vpc"
 	vm.Status.Agented = agented
 }
 
 func SetupVirtualMachineOwnerOf(vm *source.VirtualMachineSource, name, namespace string,
-	agented bool, nics ...*cloud.NetworkInterface) {
+	agented bool, nics ...*runtimev1alpha1.NetworkInterface) {
 	SetupVirtualMachine(&vm.VirtualMachine, name, namespace, agented, nics...)
 }
 
-func SetupNetworkInterface(nic *cloud.NetworkInterface, name string, ips []string) {
+func SetupNetworkInterface(nic *runtimev1alpha1.NetworkInterface, name string, ips []string) {
 	nic.Name = name
 	nic.IPs = nil
 	for _, ip := range ips {
-		nic.IPs = append(nic.IPs, cloud.IPAddress{Address: ip})
+		nic.IPs = append(nic.IPs, runtimev1alpha1.IPAddress{Address: ip})
 	}
 }
 
@@ -57,10 +57,10 @@ func SetupExternalEntitySources(ips []string, namespace string) map[string]targe
 	virtualMachine := &source.VirtualMachineSource{}
 	sources["VirtualMachine"] = virtualMachine
 
-	networkInterfaces := make([]*cloud.NetworkInterface, 0)
+	networkInterfaces := make([]*runtimev1alpha1.NetworkInterface, 0)
 	for i, ip := range ips {
 		name := "nic" + fmt.Sprintf("%d", i)
-		nic := &cloud.NetworkInterface{}
+		nic := &runtimev1alpha1.NetworkInterface{}
 		SetupNetworkInterface(nic, name, []string{ip})
 		networkInterfaces = append(networkInterfaces, nic)
 	}
@@ -75,11 +75,11 @@ func SetupExternalNodeSources(ips []string, namespace string) map[string]target.
 	virtualMachine := &source.VirtualMachineSource{}
 	sources["VirtualMachine"] = virtualMachine
 
-	networkInterfaces := make([]*cloud.NetworkInterface, 0)
+	networkInterfaces := make([]*runtimev1alpha1.NetworkInterface, 0)
 	// Currently only one NetworkInterface with multiple IPs is supported.
 	i := 0
 	name := "nic" + fmt.Sprintf("%d", i)
-	nic := &cloud.NetworkInterface{}
+	nic := &runtimev1alpha1.NetworkInterface{}
 	SetupNetworkInterface(nic, name, ips)
 	networkInterfaces = append(networkInterfaces, nic)
 	SetupVirtualMachineOwnerOf(virtualMachine, "test-vm", namespace, true, networkInterfaces...)
@@ -88,8 +88,8 @@ func SetupExternalNodeSources(ips []string, namespace string) map[string]target.
 }
 
 func SetNetworkInterfaceIP(kind string, source client.Object, name string, ip string) client.Object {
-	if kind == reflect.TypeOf(cloud.VirtualMachine{}).Name() {
-		vm := (source).(*cloud.VirtualMachine)
+	if kind == reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name() {
+		vm := (source).(*runtimev1alpha1.VirtualMachine)
 		nics := &vm.Status.NetworkInterfaces
 		//assign ip address to the nic passed to the function
 		for i, nic := range *nics {
@@ -97,7 +97,7 @@ func SetNetworkInterfaceIP(kind string, source client.Object, name string, ip st
 				if strings.Compare(ip, "") == 0 {
 					nic.IPs = nil
 				} else {
-					nic.IPs = []cloud.IPAddress{{Address: ip}}
+					nic.IPs = []runtimev1alpha1.IPAddress{{Address: ip}}
 				}
 			}
 			(*nics)[i] = nic

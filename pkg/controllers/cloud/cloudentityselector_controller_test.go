@@ -136,7 +136,7 @@ var _ = Describe("CloudEntitySelector Controller", func() {
 
 			_ = fakeClient.Create(context.Background(), account)
 
-			err := cpaReconciler.processCreate(&testAccountNamespacedName, account)
+			err := cpaReconciler.processCreateOrUpdate(&testAccountNamespacedName, account)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			err = cesReconciler.processCreateOrUpdate(selector, &testSelectorNamespacedName)
@@ -158,7 +158,7 @@ var _ = Describe("CloudEntitySelector Controller", func() {
 		It("CPA delete before CES delete", func() {
 			_ = fakeClient.Create(context.Background(), secret)
 			_ = fakeClient.Create(context.Background(), account)
-			err := cpaReconciler.processCreate(&testAccountNamespacedName, account)
+			err := cpaReconciler.processCreateOrUpdate(&testAccountNamespacedName, account)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			err = cesReconciler.processCreateOrUpdate(selector, &testSelectorNamespacedName)

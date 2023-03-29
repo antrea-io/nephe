@@ -1,4 +1,4 @@
-// Copyright 2022 Antrea Authors.
+// Copyright 2023 Antrea Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,15 +21,22 @@ import (
 type AddressType string
 
 const (
-	// Address type is host name.
-	AddressTypeHostName AddressType = "HostName"
-	// Address type is internal IP.
+	// AddressTypeInternalIP is internal IP.
 	AddressTypeInternalIP AddressType = "InternalIP"
-	// Address type is external IP.
+	// AddressTypeExternalIP external IP.
 	AddressTypeExternalIP AddressType = "ExternalIP"
 )
 
 type VMState string
+
+type CloudProvider string
+
+const (
+	// AzureCloudProvider specifies Azure.
+	AzureCloudProvider CloudProvider = "Azure"
+	// AWSCloudProvider specifies AWS.
+	AWSCloudProvider CloudProvider = "AWS"
+)
 
 const (
 	Running      VMState = "running"
@@ -78,8 +85,6 @@ type NetworkInterface struct {
 type VirtualMachineStatus struct {
 	// Provider specifies cloud provider of this VirtualMachine.
 	Provider CloudProvider `json:"provider,omitempty"`
-	// VirtualPrivateCloud is the virtual private cloud this VirtualMachine belongs to.
-	VirtualPrivateCloud string `json:"virtualPrivateCloud,omitempty"`
 	// Tags of this VirtualMachine. A corresponding label is also generated for each tag.
 	Tags map[string]string `json:"tags,omitempty"`
 	// NetworkInterfaces is array of NetworkInterfaces attached to this VirtualMachine.
@@ -90,18 +95,17 @@ type VirtualMachineStatus struct {
 	Region string `json:"region,omitempty"`
 	// Agented specifies if VM runs in agented mode, default is false.
 	Agented bool `json:"agented"`
+	// CloudId is the cloud assigned ID of the VM.
+	CloudId string `json:"cloudId,omitempty"`
+	// CloudName is the cloud assigned name of the VM.
+	CloudName string `json:"cloudName,omitempty"`
+	// CloudVpcId is the VPC ID this VirtualMachine belongs to.
+	CloudVpcId string `json:"cloudVpcId,omitempty"`
 }
 
-// +genclient
 // +kubebuilder:object:root=true
-
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:shortName="vm"
-// +kubebuilder:printcolumn:name="Cloud-Provider",type=string,JSONPath=`.status.provider`
-// +kubebuilder:printcolumn:name="Region",type=string,JSONPath=`.status.region`
-// +kubebuilder:printcolumn:name="Virtual-Private-Cloud",type=string,JSONPath=`.status.virtualPrivateCloud`
-// +kubebuilder:printcolumn:name="State",type=string,JSONPath=`.status.state`
-// +kubebuilder:printcolumn:name="Agented",type=string,JSONPath=`.status.agented`
+
 // VirtualMachine is the Schema for the virtualmachines API
 // A virtualMachine object is created automatically based on
 // matching criteria specification of CloudEntitySelector.
@@ -113,6 +117,7 @@ type VirtualMachine struct {
 }
 
 // +kubebuilder:object:root=true
+
 // VirtualMachineList contains a list of VirtualMachine.
 type VirtualMachineList struct {
 	metav1.TypeMeta `json:",inline"`

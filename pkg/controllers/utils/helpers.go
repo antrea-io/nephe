@@ -17,18 +17,19 @@ package utils
 import (
 	"fmt"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
+	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 )
 
 var ErrorMsgUnknownCloudProvider = "missing cloud provider config. Please add AWS or Azure Config"
 
 // GetVMIPAddresses returns IP addresses of all network interfaces attached to the vm.
-func GetVMIPAddresses(vm *v1alpha1.VirtualMachine) []v1alpha1.IPAddress {
+func GetVMIPAddresses(vm *runtimev1alpha1.VirtualMachine) []runtimev1alpha1.IPAddress {
 	ipLen := len(vm.Status.NetworkInterfaces)
 	if ipLen == 0 {
 		return nil
 	}
-	ips := make([]v1alpha1.IPAddress, 0, ipLen)
+	ips := make([]runtimev1alpha1.IPAddress, 0, ipLen)
 	for _, value := range vm.Status.NetworkInterfaces {
 		ips = append(ips, value.IPs...)
 	}
@@ -36,11 +37,11 @@ func GetVMIPAddresses(vm *v1alpha1.VirtualMachine) []v1alpha1.IPAddress {
 }
 
 // GetAccountProviderType returns cloud provider type from CPA.
-func GetAccountProviderType(account *v1alpha1.CloudProviderAccount) (v1alpha1.CloudProvider, error) {
+func GetAccountProviderType(account *crdv1alpha1.CloudProviderAccount) (runtimev1alpha1.CloudProvider, error) {
 	if account.Spec.AWSConfig != nil {
-		return v1alpha1.AWSCloudProvider, nil
+		return runtimev1alpha1.AWSCloudProvider, nil
 	} else if account.Spec.AzureConfig != nil {
-		return v1alpha1.AzureCloudProvider, nil
+		return runtimev1alpha1.AzureCloudProvider, nil
 	} else {
 		return "", fmt.Errorf("%s", ErrorMsgUnknownCloudProvider)
 	}

@@ -29,8 +29,7 @@ import (
 
 	antreanetworking "antrea.io/antrea/pkg/apis/controlplane/v1beta2"
 	antreanetcore "antrea.io/antrea/pkg/apis/crd/v1alpha2"
-	cloud "antrea.io/nephe/apis/crd/v1alpha1"
-	cloudcommon "antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 	"antrea.io/nephe/pkg/cloud-provider/utils"
 	"antrea.io/nephe/pkg/controllers/config"
@@ -254,41 +253,41 @@ func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPoli
 			continue
 		}
 		var cloudRsc securitygroup.CloudResource
-		readAnnotations := false
-		if kind == converter.GetExternalEntityLabelKind(&cloud.VirtualMachine{}) {
+		readOwnerLabels := false
+		if kind == converter.GetExternalEntityLabelKind(&runtimev1alpha1.VirtualMachine{}) {
 			cloudRsc.Type = securitygroup.CloudResourceTypeVM
-			readAnnotations = true
+			readOwnerLabels = true
 		} else {
 			r.Log.Error(fmt.Errorf(""), "invalid cloud resource type received", "kind", kind)
 		}
-		if readAnnotations {
-			ownerAnnotations, ownerCloudProvider, err := getOwnerProperties(e, r)
+		if readOwnerLabels {
+			ownerVm, err := getOwnerVm(e, r)
 			if err != nil {
 				r.Log.Error(err, "externalEntity owner not found", "key", key, "kind", kind)
 				namespacedName := &types.NamespacedName{Namespace: m.ExternalEntity.Namespace, Name: m.ExternalEntity.Name}
 				notFoundMember = append(notFoundMember, namespacedName)
 				continue
 			}
-			vpc, ok := ownerAnnotations[cloudcommon.AnnotationCloudAssignedVPCIDKey]
+			cloudAccountName, ok := ownerVm.Labels[config.LabelCloudAccountName]
 			if !ok {
-				r.Log.Error(fmt.Errorf(""), "vpc annotation not found in ExternalEntity owner", "key", key, "kind", kind)
+				r.Log.Error(fmt.Errorf("invalid VM object"), "cpa name label not found ",
+					"key", key, "kind", kind)
 				continue
 			}
-			cloudRsc.Vpc = vpc
-			vpcs[vpc] = append(vpcs[vpc], &cloudRsc)
-			cloudAssignedID, ok := ownerAnnotations[cloudcommon.AnnotationCloudAssignedIDKey]
+			cloudAccountNamespace, ok := ownerVm.Labels[config.LabelCloudAccountNamespace]
 			if !ok {
-				r.Log.Error(fmt.Errorf(""), "cloud assigned ID annotation not found in ExternalEntity owner", "key", key, "kind", kind)
+				r.Log.Error(fmt.Errorf("invalid VM object"), "cpa namespace label not found",
+					"key", key, "kind", kind)
 				continue
 			}
-			cloudRsc.Name = cloudAssignedID
-			cloudAccountID, ok := ownerAnnotations[cloudcommon.AnnotationCloudAccountIDKey]
-			if !ok {
-				r.Log.Error(fmt.Errorf(""), "cloud account ID annotation not found in ExternalEntity owner", "key", key, "kind", kind)
-				continue
-			}
-			cloudRsc.AccountID = cloudAccountID
-			cloudRsc.CloudProvider = ownerCloudProvider
+			cloudRsc.Name = ownerVm.Status.CloudId
+			cloudRsc.AccountID = types.NamespacedName{
+				Name:      cloudAccountName,
+				Namespace: cloudAccountNamespace,
+			}.String()
+			cloudRsc.CloudProvider = string(ownerVm.Status.Provider)
+			cloudRsc.Vpc = ownerVm.Status.CloudVpcId
+			vpcs[ownerVm.Status.CloudVpcId] = append(vpcs[ownerVm.Status.CloudVpcId], &cloudRsc)
 		} else {
 			for _, ep := range e.Spec.Endpoints {
 				var ipnet *net.IPNet
@@ -302,23 +301,16 @@ func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPoli
 	return vpcs, ipBlocks, notFoundMember, nil
 }
 
-// getOwnerProperties gets VM object from etcd and returns annotations and cloud provider type from it.
-func getOwnerProperties(e *antreanetcore.ExternalEntity, r *NetworkPolicyReconciler) (map[string]string, string, error) {
-	if len(e.OwnerReferences) == 0 {
-		return nil, "", fmt.Errorf("externalEntiry owner not found (%v/%v)", e.Namespace, e.Name)
-	}
+// getOwnerVm gets the parent VM object from ExternalEntity.
+func getOwnerVm(e *antreanetcore.ExternalEntity, r *NetworkPolicyReconciler) (*runtimev1alpha1.VirtualMachine, error) {
 	namespace := e.Namespace
-	owner := e.OwnerReferences[0]
-	key := client.ObjectKey{Name: owner.Name, Namespace: namespace}
-	if owner.Kind == cloudcommon.VirtualMachineCRDKind {
-		vm := &cloud.VirtualMachine{}
-		if err := r.Get(context.TODO(), key, vm); err != nil {
-			r.Log.Error(err, "client get VirtualMachine", "key", key)
-			return nil, "", err
-		}
-		return vm.Annotations, string(vm.Status.Provider), nil
+	ownerVm := e.Labels[config.ExternalEntityLabelKeyVmName]
+	namespacedName := types.NamespacedName{Namespace: namespace, Name: ownerVm}
+	vm, found := r.Inventory.GetVmByKey(namespacedName.String())
+	if !found {
+		return nil, fmt.Errorf("failed to get vm from vm cache (%v/%v)", e.Namespace, e.Name)
 	}
-	return nil, "", fmt.Errorf("unsupported cloud owner kind")
+	return vm, nil
 }
 
 // securityGroupImpl supplies common implementations for addrSecurityGroup and appliedToSecurityGroup.

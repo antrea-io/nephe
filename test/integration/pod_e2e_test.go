@@ -29,7 +29,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	cloud "antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	k8stemplates "antrea.io/nephe/test/templates"
 	"antrea.io/nephe/test/utils"
 )
@@ -134,9 +134,9 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Pods", focusAws, focusAzur
 
 		if importing {
 			entityParams := cloudVPC.GetEntitySelectorParameters("test-entity-selector", vmNamespace.Name,
-				reflect.TypeOf(cloud.VirtualMachine{}).Name(), nil)
+				reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name(), nil)
 			err = utils.ConfigureEntitySelectorAndWait(kubeCtl, k8sClient, entityParams,
-				reflect.TypeOf(cloud.VirtualMachine{}).Name(),
+				reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name(),
 				len(cloudVPC.GetVMs()), vmNamespace.Name, false)
 			Expect(err).ToNot(HaveOccurred())
 		}
@@ -163,9 +163,9 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Pods", focusAws, focusAzur
 
 			if importFirst {
 				entityParams := cloudVPC.GetEntitySelectorParameters("test-entity-selector", vmNamespace.Name,
-					reflect.TypeOf(cloud.VirtualMachine{}).Name(), nil)
+					reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name(), nil)
 				err := utils.ConfigureEntitySelectorAndWait(kubeCtl, k8sClient, entityParams,
-					reflect.TypeOf(cloud.VirtualMachine{}).Name(),
+					reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name(),
 					len(cloudVPC.GetVMs()), vmNamespace.Name, false)
 				Expect(err).ToNot(HaveOccurred())
 			}
@@ -191,7 +191,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Pods", focusAws, focusAzur
 			}
 			oks[0] = true
 			name := cloudVPC.GetVMs()[0]
-			if kind != reflect.TypeOf(cloud.VirtualMachine{}).Name() {
+			if kind != reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name() {
 				name = cloudVPC.GetNICs()[0]
 			}
 			podANPVerify(kind, name, "", "", "", oks, pods[0], false, diffNS)
@@ -202,7 +202,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Pods", focusAws, focusAzur
 			}
 			podANPVerify(kind, "", cloudVPC.GetCRDVPCID(), "", "", oks, pods[0], false, diffNS)
 
-			if kind == reflect.TypeOf(cloud.VirtualMachine{}).Name() {
+			if kind == reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name() {
 				By(kind + " reachable via tag label selector")
 				for i := range oks {
 					oks[i] = false
@@ -218,12 +218,12 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Pods", focusAws, focusAzur
 			}
 		},
 		table.Entry("To VM In Same Namespace",
-			reflect.TypeOf(cloud.VirtualMachine{}).Name(), true, false),
+			reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name(), true, false),
 		table.Entry("To VM In Different Namespace",
-			reflect.TypeOf(cloud.VirtualMachine{}).Name(), true, true),
+			reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name(), true, true),
 		table.Entry("To VM In Same Namespace Before Import",
-			reflect.TypeOf(cloud.VirtualMachine{}).Name(), false, false),
+			reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name(), false, false),
 		table.Entry("To VM In Different Namespace Before Import",
-			reflect.TypeOf(cloud.VirtualMachine{}).Name(), false, true),
+			reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name(), false, true),
 	)
 })

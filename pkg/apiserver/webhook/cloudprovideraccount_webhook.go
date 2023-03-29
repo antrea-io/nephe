@@ -31,7 +31,8 @@ import (
 	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
+	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/controllers/cloud"
 	"antrea.io/nephe/pkg/controllers/utils"
 )
@@ -65,8 +66,8 @@ type CPAMutator struct {
 }
 
 // Handle handles mutator admission requests for CPA.
-func (m *CPAMutator) Handle(ctx context.Context, req admission.Request) admission.Response {
-	account := &v1alpha1.CloudProviderAccount{}
+func (m *CPAMutator) Handle(_ context.Context, req admission.Request) admission.Response {
+	account := &crdv1alpha1.CloudProviderAccount{}
 	err := m.decoder.Decode(req, account)
 	if err != nil {
 		m.Log.Error(err, "Failed to decode CloudProviderAccount", "CPAMutator", req.Name)
@@ -104,7 +105,7 @@ type CPAValidator struct {
 }
 
 // Handle handles validator admission requests for CPA.
-func (v *CPAValidator) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (v *CPAValidator) Handle(_ context.Context, req admission.Request) admission.Response {
 	v.Log.V(1).Info("Received CPA admission webhook request", "Name", req.Name, "Operation", req.Operation)
 	if !cloud.GetControllerSyncStatusInstance().IsControllerSynced(cloud.ControllerTypeCPA) {
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("%v %v, retry after sometime",
@@ -136,7 +137,7 @@ func (v *CPAValidator) InjectDecoder(d *admission.Decoder) error {
 
 // ValidateCreate implements webhook validations for CPA add operation.
 func (v *CPAValidator) validateCreate(req admission.Request) admission.Response {
-	cpa := &v1alpha1.CloudProviderAccount{}
+	cpa := &crdv1alpha1.CloudProviderAccount{}
 	err := v.decoder.Decode(req, cpa)
 	if err != nil {
 		v.Log.Error(err, "Failed to decode CloudProviderAccount", "CPAValidator", req.Name)
@@ -149,11 +150,11 @@ func (v *CPAValidator) validateCreate(req admission.Request) admission.Response 
 	}
 
 	switch cloudProviderType {
-	case v1alpha1.AWSCloudProvider:
+	case runtimev1alpha1.AWSCloudProvider:
 		if err := v.validateAWSAccount(cpa); err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
 		}
-	case v1alpha1.AzureCloudProvider:
+	case runtimev1alpha1.AzureCloudProvider:
 		if err := v.validateAzureAccount(cpa); err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
 		}
@@ -168,13 +169,13 @@ func (v *CPAValidator) validateCreate(req admission.Request) admission.Response 
 
 // ValidateUpdate implements webhook validations for CPA update operation.
 func (v *CPAValidator) validateUpdate(req admission.Request) admission.Response {
-	newCpa := &v1alpha1.CloudProviderAccount{}
+	newCpa := &crdv1alpha1.CloudProviderAccount{}
 	err := v.decoder.Decode(req, newCpa)
 	if err != nil {
 		v.Log.Error(err, "Failed to decode CloudProviderAccount", "CPAValidator", req.Name)
 		return admission.Errored(http.StatusBadRequest, err)
 	}
-	oldCpa := &v1alpha1.CloudProviderAccount{}
+	oldCpa := &crdv1alpha1.CloudProviderAccount{}
 	if req.OldObject.Raw != nil {
 		if err := json.Unmarshal(req.OldObject.Raw, &oldCpa); err != nil {
 			v.Log.Error(err, "Failed to decode old CloudProviderAccount", "CPAValidator", req.Name)
@@ -188,11 +189,11 @@ func (v *CPAValidator) validateUpdate(req admission.Request) admission.Response 
 	}
 
 	switch cloudProviderType {
-	case v1alpha1.AWSCloudProvider:
+	case runtimev1alpha1.AWSCloudProvider:
 		if err := v.validateAWSAccount(newCpa); err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
 		}
-	case v1alpha1.AzureCloudProvider:
+	case runtimev1alpha1.AzureCloudProvider:
 		if err := v.validateAzureAccount(newCpa); err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
 		}
@@ -206,13 +207,13 @@ func (v *CPAValidator) validateUpdate(req admission.Request) admission.Response 
 }
 
 // ValidateDelete implements webhook validations for CPA delete.
-func (v *CPAValidator) validateDelete(req admission.Request) admission.Response { //nolint:unparam
+func (v *CPAValidator) validateDelete(_ admission.Request) admission.Response { //nolint:unparam
 	// TODO(user): fill in your validation logic upon object deletion.
 	return admission.Allowed("")
 }
 
 // validateAWSAccount validates parameters in CPA AWS account credentials.
-func (v *CPAValidator) validateAWSAccount(account *v1alpha1.CloudProviderAccount) error {
+func (v *CPAValidator) validateAWSAccount(account *crdv1alpha1.CloudProviderAccount) error {
 	u := &unstructured.Unstructured{}
 	u.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   "",
@@ -234,7 +235,7 @@ func (v *CPAValidator) validateAWSAccount(account *v1alpha1.CloudProviderAccount
 		return fmt.Errorf("%s: %s", errorMsgDecodeFail, err.Error())
 	}
 
-	awsCredential := &v1alpha1.AwsAccountCredential{}
+	awsCredential := &crdv1alpha1.AwsAccountCredential{}
 	if err = json.Unmarshal(decode, awsCredential); err != nil {
 		return fmt.Errorf("%s: %s", errorMsgJsonUnmarshalFail, err.Error())
 	}
@@ -266,7 +267,7 @@ func (v *CPAValidator) validateAWSAccount(account *v1alpha1.CloudProviderAccount
 }
 
 // validateAzureAccount validates parameters in CPA Azure account credentials.
-func (v *CPAValidator) validateAzureAccount(account *v1alpha1.CloudProviderAccount) error {
+func (v *CPAValidator) validateAzureAccount(account *crdv1alpha1.CloudProviderAccount) error {
 	u := &unstructured.Unstructured{}
 	u.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   "",
@@ -288,7 +289,7 @@ func (v *CPAValidator) validateAzureAccount(account *v1alpha1.CloudProviderAccou
 		return fmt.Errorf("%s: %s", errorMsgDecodeFail, err.Error())
 	}
 
-	azureCredential := &v1alpha1.AzureAccountCredential{}
+	azureCredential := &crdv1alpha1.AzureAccountCredential{}
 	if err = json.Unmarshal(decode, azureCredential); err != nil {
 		return fmt.Errorf("%s: %s", errorMsgJsonUnmarshalFail, err.Error())
 	}

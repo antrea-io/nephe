@@ -19,11 +19,10 @@ import (
 	"strings"
 	"sync"
 
-	"go.uber.org/multierr"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/logging"
 )
@@ -44,17 +43,16 @@ type CloudCommonInterface interface {
 	GetCloudAccountByAccountId(accountID *string) (CloudAccountInterface, bool)
 	GetCloudAccounts() map[types.NamespacedName]CloudAccountInterface
 
-	GetCloudAccountComputeResourceCRDs(namespacedName *types.NamespacedName) ([]*cloudv1alpha1.VirtualMachine,
+	GetCloudAccountComputeInternalResourceObjects(namespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.VirtualMachine,
 		error)
-	GetAllCloudAccountsComputeResourceCRDs() ([]*cloudv1alpha1.VirtualMachine, error)
 
-	AddCloudAccount(client client.Client, account *cloudv1alpha1.CloudProviderAccount, credentials interface{}) error
+	AddCloudAccount(client client.Client, account *crdv1alpha1.CloudProviderAccount, credentials interface{}) error
 	RemoveCloudAccount(namespacedName *types.NamespacedName)
 
-	AddSelector(namespacedName *types.NamespacedName, selector *cloudv1alpha1.CloudEntitySelector) error
+	AddSelector(namespacedName *types.NamespacedName, selector *crdv1alpha1.CloudEntitySelector) error
 	RemoveSelector(accNamespacedName *types.NamespacedName, selectorName string)
 
-	GetStatus(accNamespacedName *types.NamespacedName) (*cloudv1alpha1.CloudProviderAccountStatus, error)
+	GetStatus(accNamespacedName *types.NamespacedName) (*crdv1alpha1.CloudProviderAccountStatus, error)
 
 	DoInventoryPoll(accountNamespacedName *types.NamespacedName) error
 
@@ -82,7 +80,7 @@ func NewCloudCommon(logger func() logging.Logger, commonHelper CloudCommonHelper
 	}
 }
 
-func (c *cloudCommon) AddCloudAccount(client client.Client, account *cloudv1alpha1.CloudProviderAccount, credentials interface{}) error {
+func (c *cloudCommon) AddCloudAccount(client client.Client, account *crdv1alpha1.CloudProviderAccount, credentials interface{}) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -152,43 +150,25 @@ func (c *cloudCommon) GetCloudAccounts() map[types.NamespacedName]CloudAccountIn
 	return accountConfigs
 }
 
-func (c *cloudCommon) GetCloudAccountComputeResourceCRDs(accountNamespacedName *types.NamespacedName) ([]*cloudv1alpha1.VirtualMachine,
-	error) {
+func (c *cloudCommon) GetCloudAccountComputeInternalResourceObjects(accountNamespacedName *types.NamespacedName) (
+	map[string]*runtimev1alpha1.VirtualMachine, error) {
 	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
 	if !found {
 		return nil, fmt.Errorf("unable to find cloud account: %v", *accountNamespacedName)
 	}
-	namespace := accCfg.GetNamespacedName().Namespace
 
-	var computeCRDs []*cloudv1alpha1.VirtualMachine
+	computeCRs := map[string]*runtimev1alpha1.VirtualMachine{}
 	serviceConfigs := accCfg.GetServiceConfigs()
 	for _, serviceConfig := range serviceConfigs {
 		if serviceConfig.getType() == CloudServiceTypeCompute {
-			resourceCRDs := serviceConfig.getResourceCRDs(namespace, accCfg.GetNamespacedName().String())
-			computeCRDs = append(computeCRDs, resourceCRDs.virtualMachines...)
+			return serviceConfig.getInternalResourceObjects(accCfg.GetNamespacedName().Namespace, accCfg.GetNamespacedName()), nil
 		}
 	}
 
-	return computeCRDs, nil
+	return computeCRs, nil
 }
 
-func (c *cloudCommon) GetAllCloudAccountsComputeResourceCRDs() ([]*cloudv1alpha1.VirtualMachine,
-	error) {
-	var err error
-	var computeCRDs []*cloudv1alpha1.VirtualMachine
-	for namespacedName := range c.GetCloudAccounts() {
-		accountComputeCRDs, e := c.GetCloudAccountComputeResourceCRDs(&namespacedName)
-		if e == nil {
-			computeCRDs = append(computeCRDs, accountComputeCRDs...)
-		} else {
-			err = multierr.Append(err, e)
-		}
-	}
-
-	return computeCRDs, err
-}
-
-func (c *cloudCommon) AddSelector(accountNamespacedName *types.NamespacedName, selector *cloudv1alpha1.CloudEntitySelector) error {
+func (c *cloudCommon) AddSelector(accountNamespacedName *types.NamespacedName, selector *crdv1alpha1.CloudEntitySelector) error {
 	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
 	if !found {
 		return fmt.Errorf("unable to find cloud account: %v", *accountNamespacedName)
@@ -213,7 +193,7 @@ func (c *cloudCommon) RemoveSelector(accNamespacedName *types.NamespacedName, se
 	}
 }
 
-func (c *cloudCommon) GetStatus(accountNamespacedName *types.NamespacedName) (*cloudv1alpha1.CloudProviderAccountStatus, error) {
+func (c *cloudCommon) GetStatus(accountNamespacedName *types.NamespacedName) (*crdv1alpha1.CloudProviderAccountStatus, error) {
 	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
 	if !found {
 		return nil, fmt.Errorf("unable to find cloud account: %v", *accountNamespacedName)

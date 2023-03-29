@@ -29,7 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	cloudutils "antrea.io/nephe/pkg/cloud-provider/utils"
 	"antrea.io/nephe/test/utils"
 )
@@ -95,7 +95,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: VPC Inventory", focusAws, focusAzure), func
 		vpcID = strings.ToLower(cloudVPC.GetVPCID())
 		vpcName = cloudVPC.GetVPCName()
 		cloudProvider = strings.Split(cloudProviders, ",")[0]
-		kind = reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()
+		kind = reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()
 
 		namespace = &v1.Namespace{}
 		namespace.Name = "vpc-test" + "-" + fmt.Sprintf("%x", rand.Int())
@@ -103,9 +103,9 @@ var _ = Describe(fmt.Sprintf("%s,%s: VPC Inventory", focusAws, focusAzure), func
 
 		// Generate kubernetes object name for vpc object.
 		switch cloudProvider {
-		case string(v1alpha1.AWSCloudProvider):
+		case string(runtimev1alpha1.AWSCloudProvider):
 			vpcObjectName = vpcID
-		case string(v1alpha1.AzureCloudProvider):
+		case string(runtimev1alpha1.AzureCloudProvider):
 			vpcObjectName = cloudutils.GenerateShortResourceIdentifier(vpcID, vpcName)
 		default:
 			logf.Log.Error(nil, "invalid provider", "Provider", cloudProvider)

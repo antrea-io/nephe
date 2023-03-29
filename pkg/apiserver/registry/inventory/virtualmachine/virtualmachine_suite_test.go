@@ -1,4 +1,4 @@
-// Copyright 2022 Antrea Authors.
+// Copyright 2023 Antrea Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package inventory
+package virtualmachine
 
 import (
 	"testing"
@@ -22,8 +22,8 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestVpc(t *testing.T) {
+func TestVirtualMachine(t *testing.T) {
 	logging.SetDebugLog(true)
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Vpc Suite")
+	RunSpecs(t, "Virtual Machine Suite")
 }

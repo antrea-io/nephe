@@ -26,7 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	antreav1alpha1 "antrea.io/antrea/pkg/apis/crd/v1alpha1"
-	"antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 )
 
 type ExternalNodeSource interface {
@@ -35,7 +35,7 @@ type ExternalNodeSource interface {
 	// Passing client in case there are references needs to be retrieved from local cache.
 	GetEndPointAddresses() ([]string, error)
 	// GetNetworkInterfaces returns list of NetworkInterfaces of ExternalNodeSource.
-	GetNetworkInterfaces() ([]v1alpha1.NetworkInterface, error)
+	GetNetworkInterfaces() ([]runtimev1alpha1.NetworkInterface, error)
 	// GetTags returns tags of ExternalNodeSource.
 	GetTags() map[string]string
 	// GetLabelsFromClient returns labels specific to ExternalNodeSource.

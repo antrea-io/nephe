@@ -21,7 +21,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
+	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 )
 
 // aws instance resource filter keys.
@@ -44,7 +44,7 @@ var (
 )
 
 // convertSelectorToEC2InstanceFilters converts vm selector to aws filters.
-func convertSelectorToEC2InstanceFilters(selector *v1alpha1.CloudEntitySelector) ([][]*ec2.Filter, bool) {
+func convertSelectorToEC2InstanceFilters(selector *crdv1alpha1.CloudEntitySelector) ([][]*ec2.Filter, bool) {
 	if selector == nil {
 		return nil, false
 	}
@@ -56,12 +56,12 @@ func convertSelectorToEC2InstanceFilters(selector *v1alpha1.CloudEntitySelector)
 }
 
 // buildEc2Filters builds ec2 filters for VirtualMachineSelector.
-func buildEc2Filters(vmSelector []v1alpha1.VirtualMachineSelector) [][]*ec2.Filter {
+func buildEc2Filters(vmSelector []crdv1alpha1.VirtualMachineSelector) [][]*ec2.Filter {
 	vpcIDsWithVpcIDOnlyMatches := make(map[string]struct{})
-	var vpcIDWithOtherMatches []v1alpha1.VirtualMachineSelector
-	var vmIDOnlyMatches []v1alpha1.EntityMatch
-	var vmNameOnlyMatches []v1alpha1.EntityMatch
-	var vpcNameOnlyMatches []v1alpha1.VirtualMachineSelector
+	var vpcIDWithOtherMatches []crdv1alpha1.VirtualMachineSelector
+	var vmIDOnlyMatches []crdv1alpha1.EntityMatch
+	var vmNameOnlyMatches []crdv1alpha1.EntityMatch
+	var vpcNameOnlyMatches []crdv1alpha1.VirtualMachineSelector
 
 	// vpcMatch contains VpcID and vmMatch contains nil:
 	// vpcIDsWithVpcIDOnlyMatches map contains the corresponding vmSelector section.
@@ -108,13 +108,13 @@ func buildEc2Filters(vmSelector []v1alpha1.VirtualMachineSelector) [][]*ec2.Filt
 			vpcNameOnlyMatches = append(vpcNameOnlyMatches, match)
 		}
 
-		for _, vmmatch := range match.VMMatch {
+		for _, vmMatch := range match.VMMatch {
 			isVMIDPresent := false
 			isVMNamePresent := false
-			if len(strings.TrimSpace(vmmatch.MatchID)) > 0 {
+			if len(strings.TrimSpace(vmMatch.MatchID)) > 0 {
 				isVMIDPresent = true
 			}
-			if len(strings.TrimSpace(vmmatch.MatchName)) > 0 {
+			if len(strings.TrimSpace(vmMatch.MatchName)) > 0 {
 				isVMNamePresent = true
 			}
 
@@ -130,12 +130,12 @@ func buildEc2Filters(vmSelector []v1alpha1.VirtualMachineSelector) [][]*ec2.Filt
 
 			// vm id only matches.
 			if isVMIDPresent && !isVMNamePresent && !isVpcIDPresent {
-				vmIDOnlyMatches = append(vmIDOnlyMatches, vmmatch)
+				vmIDOnlyMatches = append(vmIDOnlyMatches, vmMatch)
 			}
 
 			// vm name only matches.
 			if isVMNamePresent && !isVMIDPresent && !isVpcIDPresent {
-				vmNameOnlyMatches = append(vmNameOnlyMatches, vmmatch)
+				vmNameOnlyMatches = append(vmNameOnlyMatches, vmMatch)
 			}
 		}
 	}
@@ -198,7 +198,7 @@ func buildAwsEc2FilterForVpcIDOnlyMatches(vpcIDsWithVpcIDOnlyMatches map[string]
 	return filters
 }
 
-func buildAwsEc2FilterForVpcIDWithOtherMatches(vpcIDWithOtherMatches []v1alpha1.VirtualMachineSelector,
+func buildAwsEc2FilterForVpcIDWithOtherMatches(vpcIDWithOtherMatches []crdv1alpha1.VirtualMachineSelector,
 	vpcIDsWithVpcIDOnlyMatches map[string]struct{}) [][]*ec2.Filter {
 	if len(vpcIDWithOtherMatches) == 0 {
 		return nil
@@ -243,7 +243,7 @@ func buildAwsEc2FilterForVpcIDWithOtherMatches(vpcIDWithOtherMatches []v1alpha1.
 	return allFilters
 }
 
-func buildAwsEc2FilterForVMIDOnlyMatches(vmIDOnlyMatches []v1alpha1.EntityMatch) []*ec2.Filter {
+func buildAwsEc2FilterForVMIDOnlyMatches(vmIDOnlyMatches []crdv1alpha1.EntityMatch) []*ec2.Filter {
 	if len(vmIDOnlyMatches) == 0 {
 		return nil
 	}
@@ -268,7 +268,7 @@ func buildAwsEc2FilterForVMIDOnlyMatches(vmIDOnlyMatches []v1alpha1.EntityMatch)
 	return filters
 }
 
-func buildAwsEc2FilterForVMNameOnlyMatches(vmNameOnlyMatches []v1alpha1.EntityMatch) []*ec2.Filter {
+func buildAwsEc2FilterForVMNameOnlyMatches(vmNameOnlyMatches []crdv1alpha1.EntityMatch) []*ec2.Filter {
 	if len(vmNameOnlyMatches) == 0 {
 		return nil
 	}
@@ -293,7 +293,7 @@ func buildAwsEc2FilterForVMNameOnlyMatches(vmNameOnlyMatches []v1alpha1.EntityMa
 	return filters
 }
 
-func buildAwsEc2FilterForVPCNameOnlyMatches(vpcNameOnlyMatches []v1alpha1.VirtualMachineSelector) []*ec2.Filter {
+func buildAwsEc2FilterForVPCNameOnlyMatches(vpcNameOnlyMatches []crdv1alpha1.VirtualMachineSelector) []*ec2.Filter {
 	if len(vpcNameOnlyMatches) == 0 {
 		return nil
 	}

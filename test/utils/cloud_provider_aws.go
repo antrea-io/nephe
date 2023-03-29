@@ -24,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	k8stemplates "antrea.io/nephe/test/templates"
 )
 
@@ -189,7 +190,7 @@ func (p *awsVPC) GetCloudAccountParameters(name, namespace string) k8stemplates.
 	out := k8stemplates.CloudAccountParameters{
 		Name:      name,
 		Namespace: namespace,
-		Provider:  string(v1alpha1.AWSCloudProvider),
+		Provider:  string(runtimev1alpha1.AWSCloudProvider),
 		SecretRef: k8stemplates.AccountSecretParameters{
 			Name:      name + "-aws-cred",
 			Namespace: "nephe-system",

@@ -36,8 +36,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
-	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	k8stemplates "antrea.io/nephe/test/templates"
 )
@@ -194,9 +192,9 @@ func GetServiceClusterIPPort(k8sClient client.Client, name, namespace string) (s
 func AddCloudAccount(kubeCtl *KubeCtl, params k8stemplates.CloudAccountParameters) error {
 	var t string
 	switch params.Provider {
-	case string(v1alpha1.AWSCloudProvider):
+	case string(runtimev1alpha1.AWSCloudProvider):
 		t = k8stemplates.AWSCloudAccount
-	case string(v1alpha1.AzureCloudProvider):
+	case string(runtimev1alpha1.AzureCloudProvider):
 		t = k8stemplates.AzureCloudAccount
 	default:
 		return fmt.Errorf("unknown cloud provider %v", params.Provider)
@@ -224,9 +222,9 @@ func AddCloudAccount(kubeCtl *KubeCtl, params k8stemplates.CloudAccountParameter
 func DeleteCloudAccount(kubeCtl *KubeCtl, params k8stemplates.CloudAccountParameters) error {
 	var t string
 	switch params.Provider {
-	case string(v1alpha1.AWSCloudProvider):
+	case string(runtimev1alpha1.AWSCloudProvider):
 		t = k8stemplates.AWSCloudAccount
-	case string(v1alpha1.AzureCloudProvider):
+	case string(runtimev1alpha1.AzureCloudProvider):
 		t = k8stemplates.AzureCloudAccount
 	default:
 		return fmt.Errorf("unknown cloud provider %v", params.Provider)
@@ -258,8 +256,8 @@ func ConfigureEntitySelectorAndWait(kubeCtl *KubeCtl, k8sClient client.Client, p
 		return err
 	}
 	if err := wait.Poll(time.Second*2, time.Second*120, func() (bool, error) {
-		if kind == reflect.TypeOf(v1alpha1.VirtualMachine{}).Name() {
-			vmList := &v1alpha1.VirtualMachineList{}
+		if kind == reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name() {
+			vmList := &runtimev1alpha1.VirtualMachineList{}
 			if err := k8sClient.List(context.TODO(), vmList, &client.ListOptions{Namespace: namespace}); err != nil {
 				return false, err
 			}
@@ -304,7 +302,7 @@ func CheckCloudResourceNetworkPolicies(kubeCtl *KubeCtl, k8sClient client.Client
 
 	if err := wait.Poll(time.Second*2, time.Second*300, func() (bool, error) {
 		var getter func(k8sClient client.Client, id, namespace string) (*runtimev1alpha1.VirtualMachinePolicy, error)
-		if kind == reflect.TypeOf(v1alpha1.VirtualMachine{}).Name() {
+		if kind == reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name() {
 			getter = GetVirtualMachinePolicy
 		} else {
 			return false, fmt.Errorf("unknown kind %v", kind)
@@ -472,9 +470,9 @@ func SetAgentConfig(c client.Client, ns *corev1.Namespace, cloudProviders, antre
 	// TODO: decouple cluster type with cloud provider type
 	clusterType := ""
 	switch cloudProviders {
-	case string(cloudv1alpha1.AzureCloudProvider):
+	case string(runtimev1alpha1.AzureCloudProvider):
 		clusterType = "aks"
-	case string(cloudv1alpha1.AWSCloudProvider):
+	case string(runtimev1alpha1.AWSCloudProvider):
 		clusterType = "eks"
 	default:
 		return fmt.Errorf("unsupported cloud provider: %v", cloudProviders)

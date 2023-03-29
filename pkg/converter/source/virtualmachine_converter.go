@@ -22,11 +22,12 @@ import (
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/watch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	antreav1alpha1 "antrea.io/antrea/pkg/apis/crd/v1alpha1"
 	antreav1alpha2 "antrea.io/antrea/pkg/apis/crd/v1alpha2"
-	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/converter/target"
 )
 
@@ -38,14 +39,14 @@ const (
 type VMConverter struct {
 	client.Client
 	Log     logr.Logger
-	Ch      chan cloudv1alpha1.VirtualMachine
-	retryCh chan cloudv1alpha1.VirtualMachine
+	Ch      chan watch.Event
+	retryCh chan VirtualMachineSource
 	Scheme  *runtime.Scheme
 }
 
 func (v VMConverter) Start() {
 	failedUpdates := make(map[string]retryRecord)
-	v.retryCh = make(chan cloudv1alpha1.VirtualMachine)
+	v.retryCh = make(chan VirtualMachineSource)
 
 	for {
 		select {
@@ -54,23 +55,20 @@ func (v VMConverter) Start() {
 				v.Log.Info("VM converter channel closed")
 				return
 			}
-			vm := &VirtualMachineSource{recv}
-			go func() {
-				v.processEvent(vm, failedUpdates, false, vm.Status.Agented)
-			}()
+			vm := &VirtualMachineSource{*recv.Object.(*runtimev1alpha1.VirtualMachine), recv.Type}
+			v.processEvent(vm, failedUpdates, false, vm.Status.Agented)
 		case recv := <-v.retryCh:
-			vm := &VirtualMachineSource{recv}
-			v.processEvent(vm, failedUpdates, true, vm.Status.Agented)
+			v.processEvent(&recv, failedUpdates, true, recv.Status.Agented)
 		}
 	}
 }
 
-func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[string]retryRecord, isRetry bool, isExternalnode bool) {
+func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[string]retryRecord, isRetry, isExternalNode bool) {
 	var err error
 	var fetchKey client.ObjectKey
 	var resource string
 
-	if isExternalnode {
+	if isExternalNode {
 		resource = "ExternalNode"
 		fetchKey = target.GetExternalNodeKeyFromSource(vm)
 	} else {
@@ -78,6 +76,7 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 		fetchKey = target.GetExternalEntityKeyFromSource(vm)
 	}
 	v.Log.V(1).Info(fmt.Sprintf("Received %s event", resource), "Key", fetchKey)
+
 	if isRetry {
 		retry, ok := failedUpdates[fetchKey.String()]
 		// ignore event if newer event succeeds or newer event retrying
@@ -108,23 +107,19 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 		}
 		failedUpdates[fetchKey.String()] = record
 		time.AfterFunc(retryInterval, func() {
-			v.retryCh <- vm.VirtualMachine
+			v.retryCh <- *vm
 		})
 	}()
 
-	ctx := context.Background()
-	ips, err := vm.GetEndPointAddresses()
-	if err != nil {
-		v.Log.Info(fmt.Sprintf("Failed to get IP address for %s", resource), "Name", fetchKey,
-			"err", err)
-		return
+	var isDelete bool
+	if vm.EventType == watch.Deleted {
+		isDelete = true
 	}
-
-	isDelete := len(ips) == 0
+	ctx := context.Background()
 	externNode := &antreav1alpha1.ExternalNode{}
 	externEntity := &antreav1alpha2.ExternalEntity{}
 	isNotFound := false
-	if isExternalnode {
+	if isExternalNode {
 		err = v.Client.Get(ctx, fetchKey, externNode)
 	} else {
 		err = v.Client.Get(ctx, fetchKey, externEntity)
@@ -138,14 +133,14 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 		isNotFound = true
 	}
 
-	// No-op.
+	// Skip processing if resource is not present and isDelete event is set.
 	if isDelete && isNotFound {
 		return
 	}
 
 	// Delete.
 	if isDelete && !isNotFound {
-		if isExternalnode {
+		if isExternalNode {
 			err = v.Client.Delete(ctx, externNode)
 		} else {
 			err = v.Client.Delete(ctx, externEntity)
@@ -159,9 +154,8 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 		return
 	}
 
-	// Update.
 	if !isNotFound {
-		if isExternalnode {
+		if isExternalNode {
 			base := client.MergeFrom(externNode.DeepCopy())
 			patch, changed := target.PatchExternalNodeFrom(vm, externNode, v.Client)
 			if changed {
@@ -186,8 +180,8 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 		return
 	}
 
-	// Create.
-	if isExternalnode {
+	// TODO: Split Add/Create/Delete is new functions
+	if isExternalNode {
 		externNode = target.NewExternalNodeFrom(vm, fetchKey.Name, fetchKey.Namespace, v.Client, v.Scheme)
 		err = v.Client.Create(ctx, externNode)
 	} else {

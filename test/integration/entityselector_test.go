@@ -15,6 +15,7 @@
 package integration
 
 import (
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"context"
 	"errors"
 	"fmt"
@@ -202,7 +203,7 @@ var _ = Describe(fmt.Sprintf("%s: Entity selector test", focusAws), func() {
 		Expect(err).ToNot(HaveOccurred())
 		VMList := strings.Split(strings.Trim(output, "'"), "\n")
 		// vms in different VPCs might have the same name and all of them will be selected
-		if cloudProvider == string(v1alpha1.AzureCloudProvider) && matchKey == vmNameMatch {
+		if cloudProvider == string(runtimev1alpha1.AzureCloudProvider) && matchKey == vmNameMatch {
 			Expect(checkContain(removeEmptyStr(VMList), expectedResult)).To(BeTrue())
 		} else {
 			actualResult := removeEmptyStr(VMList)
@@ -224,11 +225,11 @@ var _ = Describe(fmt.Sprintf("%s: Entity selector test", focusAws), func() {
 		nameSpace = &v1.Namespace{}
 		nameSpace.Name = nameSpaceName + "-" + fmt.Sprintf("%x", rand.Int())
 		getVMsCmd = fmt.Sprintf(
-			"get virtualmachines -n %s -o=jsonpath='{range.items[*]}{.metadata.name}{\"\\n\"}{end}'", nameSpace.Name)
+			"get virtualmachine -n %s -o=jsonpath='{range.items[*]}{.metadata.name}{\"\\n\"}{end}'", nameSpace.Name)
 		accountParameters := cloudVPC.GetCloudAccountParameters(testAccountName, nameSpace.Name)
 		cloudProvider = strings.Split(cloudProviders, ",")[0]
 		switch cloudProvider {
-		case string(v1alpha1.AWSCloudProvider):
+		case string(runtimev1alpha1.AWSCloudProvider):
 			account = &v1alpha1.CloudProviderAccount{
 				ObjectMeta: v12.ObjectMeta{
 					Name:      testAccountName,
@@ -246,7 +247,7 @@ var _ = Describe(fmt.Sprintf("%s: Entity selector test", focusAws), func() {
 					},
 				},
 			}
-		case string(v1alpha1.AzureCloudProvider):
+		case string(runtimev1alpha1.AzureCloudProvider):
 			account = &v1alpha1.CloudProviderAccount{
 				ObjectMeta: v12.ObjectMeta{
 					Name:      testAccountName,

@@ -32,7 +32,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
+	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 	"antrea.io/nephe/pkg/config"
 )
@@ -49,8 +50,8 @@ var _ = Describe("AWS Cloud Security", func() {
 		credentials               = "credentials"
 
 		cloudInterface *awsCloud
-		account        *v1alpha1.CloudProviderAccount
-		selector       *v1alpha1.CloudEntitySelector
+		account        *crdv1alpha1.CloudProviderAccount
+		selector       *crdv1alpha1.CloudEntitySelector
 		secret         *corev1.Secret
 
 		mockCtrl           *gomock.Controller
@@ -61,16 +62,16 @@ var _ = Describe("AWS Cloud Security", func() {
 
 	BeforeEach(func() {
 		var pollIntv uint = 2
-		account = &v1alpha1.CloudProviderAccount{
+		account = &crdv1alpha1.CloudProviderAccount{
 			ObjectMeta: v1.ObjectMeta{
 				Name:      testAccountNamespacedName.Name,
 				Namespace: testAccountNamespacedName.Namespace,
 			},
-			Spec: v1alpha1.CloudProviderAccountSpec{
+			Spec: crdv1alpha1.CloudProviderAccountSpec{
 				PollIntervalInSeconds: &pollIntv,
-				AWSConfig: &v1alpha1.CloudProviderAccountAWSConfig{
+				AWSConfig: &crdv1alpha1.CloudProviderAccountAWSConfig{
 					Region: "us-west-2",
-					SecretRef: &v1alpha1.SecretReference{
+					SecretRef: &crdv1alpha1.SecretReference{
 						Name:      testAccountNamespacedName.Name,
 						Namespace: testAccountNamespacedName.Namespace,
 						Key:       credentials,
@@ -89,16 +90,16 @@ var _ = Describe("AWS Cloud Security", func() {
 				"credentials": []byte(credential),
 			},
 		}
-		selector = &v1alpha1.CloudEntitySelector{
+		selector = &crdv1alpha1.CloudEntitySelector{
 			ObjectMeta: v1.ObjectMeta{
 				Name:      testEntitySelectorName,
 				Namespace: testAccountNamespacedName.Namespace,
 			},
-			Spec: v1alpha1.CloudEntitySelectorSpec{
+			Spec: crdv1alpha1.CloudEntitySelectorSpec{
 				AccountName: testAccountNamespacedName.Name,
-				VMSelector: []v1alpha1.VirtualMachineSelector{
+				VMSelector: []crdv1alpha1.VirtualMachineSelector{
 					{
-						VpcMatch: &v1alpha1.EntityMatch{
+						VpcMatch: &crdv1alpha1.EntityMatch{
 							MatchID: testVpcID01,
 						},
 					},
@@ -152,7 +153,7 @@ var _ = Describe("AWS Cloud Security", func() {
 					Vpc:  testVpcID01,
 				},
 				AccountID:     testAccountNamespacedName.String(),
-				CloudProvider: string(v1alpha1.AWSCloudProvider),
+				CloudProvider: string(runtimev1alpha1.AWSCloudProvider),
 			}
 
 			input1 := constructEc2DescribeSecurityGroupsInput(webAddressGroupIdentifier.Vpc,
@@ -181,7 +182,7 @@ var _ = Describe("AWS Cloud Security", func() {
 					Vpc:  testVpcID01,
 				},
 				AccountID:     testAccountNamespacedName.String(),
-				CloudProvider: string(v1alpha1.AWSCloudProvider),
+				CloudProvider: string(runtimev1alpha1.AWSCloudProvider),
 			}
 			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Any()).Return(
 				constructEc2DescribeSecurityGroupsOutput(&webAddressGroupIdentifier.CloudResourceID, true, false), nil).Times(1)
@@ -201,7 +202,7 @@ var _ = Describe("AWS Cloud Security", func() {
 					Vpc:  testVpcID01,
 				},
 				AccountID:     testAccountNamespacedName.String(),
-				CloudProvider: string(v1alpha1.AWSCloudProvider),
+				CloudProvider: string(runtimev1alpha1.AWSCloudProvider),
 			}
 			input := constructEc2DescribeSecurityGroupsInput(webAddressGroupIdentifier.Vpc,
 				map[string]struct{}{webAddressGroupIdentifier.GetCloudName(true): {}})
@@ -219,7 +220,7 @@ var _ = Describe("AWS Cloud Security", func() {
 					Vpc:  testVpcID01,
 				},
 				AccountID:     testAccountNamespacedName.String(),
-				CloudProvider: string(v1alpha1.AWSCloudProvider),
+				CloudProvider: string(runtimev1alpha1.AWSCloudProvider),
 			}
 			input1 := constructEc2DescribeSecurityGroupsInput(webAddressGroupIdentifier.Vpc,
 				map[string]struct{}{webAddressGroupIdentifier.GetCloudName(true): {}})
@@ -252,7 +253,7 @@ var _ = Describe("AWS Cloud Security", func() {
 					Vpc:  testVpcID01,
 				},
 				AccountID:     testAccountNamespacedName.String(),
-				CloudProvider: string(v1alpha1.AWSCloudProvider),
+				CloudProvider: string(runtimev1alpha1.AWSCloudProvider),
 			}
 			addRule := []*securitygroup.CloudRule{{
 				Rule: &securitygroup.IngressRule{
@@ -294,7 +295,7 @@ var _ = Describe("AWS Cloud Security", func() {
 					Vpc:  testVpcID01,
 				},
 				AccountID:     testAccountNamespacedName.String(),
-				CloudProvider: string(v1alpha1.AWSCloudProvider),
+				CloudProvider: string(runtimev1alpha1.AWSCloudProvider),
 			}
 			addRule := []*securitygroup.CloudRule{{
 				Rule: &securitygroup.IngressRule{
@@ -330,7 +331,7 @@ var _ = Describe("AWS Cloud Security", func() {
 					Vpc:  testVpcID01,
 				},
 				AccountID:     testAccountNamespacedName.String(),
-				CloudProvider: string(v1alpha1.AWSCloudProvider),
+				CloudProvider: string(runtimev1alpha1.AWSCloudProvider),
 			}
 			addRule := []*securitygroup.CloudRule{{
 				Rule: &securitygroup.EgressRule{
@@ -371,7 +372,7 @@ var _ = Describe("AWS Cloud Security", func() {
 					Vpc:  testVpcID01,
 				},
 				AccountID:     testAccountNamespacedName.String(),
-				CloudProvider: string(v1alpha1.AWSCloudProvider),
+				CloudProvider: string(runtimev1alpha1.AWSCloudProvider),
 			}
 			addRule := []*securitygroup.CloudRule{{
 				Rule: &securitygroup.EgressRule{
@@ -413,7 +414,7 @@ var _ = Describe("AWS Cloud Security", func() {
 					Vpc:  testVpcID01,
 				},
 				AccountID:     testAccountNamespacedName.String(),
-				CloudProvider: string(v1alpha1.AWSCloudProvider),
+				CloudProvider: string(runtimev1alpha1.AWSCloudProvider),
 			}
 
 			input := &ec2.DescribeSecurityGroupsInput{
@@ -472,7 +473,7 @@ var _ = Describe("AWS Cloud Security", func() {
 					Vpc:  testVpcID01,
 				},
 				AccountID:     testAccountNamespacedName.String(),
-				CloudProvider: string(v1alpha1.AWSCloudProvider),
+				CloudProvider: string(runtimev1alpha1.AWSCloudProvider),
 			}
 
 			input := &ec2.DescribeSecurityGroupsInput{
@@ -528,7 +529,7 @@ var _ = Describe("AWS Cloud Security", func() {
 					Vpc:  testVpcID01,
 				},
 				AccountID:     testAccountNamespacedName.String(),
-				CloudProvider: string(v1alpha1.AWSCloudProvider),
+				CloudProvider: string(runtimev1alpha1.AWSCloudProvider),
 			}
 
 			input := &ec2.DescribeSecurityGroupsInput{

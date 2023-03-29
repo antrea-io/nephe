@@ -18,8 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
-	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	cloudcommon "antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 	"antrea.io/nephe/pkg/cloud-provider/cloudapi/internal"
@@ -31,7 +30,7 @@ var azurePluginLogger = func() logging.Logger {
 }
 
 const (
-	providerType = cloudcommon.ProviderType(v1alpha1.AzureCloudProvider)
+	providerType = cloudcommon.ProviderType(runtimev1alpha1.AzureCloudProvider)
 )
 
 // azureCloud implements CloudInterface for Azure.
@@ -64,17 +63,12 @@ func (c *azureCloud) ProviderType() cloudcommon.ProviderType {
 //
 // /////////////////////////////////////////////.
 
-// Instances returns VM status for all virtualMachines across all accounts of a cloud provider.
-func (c *azureCloud) Instances() ([]*v1alpha1.VirtualMachine, error) {
-	vmCRDs, err := c.cloudCommon.GetAllCloudAccountsComputeResourceCRDs()
-	return vmCRDs, err
-}
-
-// InstancesGivenProviderAccount returns VM CRD for all virtualMachines of a given cloud provider account.
-func (c *azureCloud) InstancesGivenProviderAccount(accountNamespacedName *types.NamespacedName) ([]*v1alpha1.VirtualMachine,
+// InstancesGivenProviderAccount returns all VM instances of a given cloud provider account, as a map of
+// runtime VirtualMachine objects.
+func (c *azureCloud) InstancesGivenProviderAccount(accountNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.VirtualMachine,
 	error) {
-	vmCRDs, err := c.cloudCommon.GetCloudAccountComputeResourceCRDs(accountNamespacedName)
-	return vmCRDs, err
+	vmInternalObjectsMap, err := c.cloudCommon.GetCloudAccountComputeInternalResourceObjects(accountNamespacedName)
+	return vmInternalObjectsMap, err
 }
 
 // ////////////////////////////////////////////////////////
@@ -84,7 +78,7 @@ func (c *azureCloud) InstancesGivenProviderAccount(accountNamespacedName *types.
 // ////////////////////////////////////////////////////////
 
 // AddProviderAccount adds and initializes given account of a cloud provider.
-func (c *azureCloud) AddProviderAccount(client client.Client, account *v1alpha1.CloudProviderAccount) error {
+func (c *azureCloud) AddProviderAccount(client client.Client, account *crdv1alpha1.CloudProviderAccount) error {
 	return c.cloudCommon.AddCloudAccount(client, account, account.Spec.AzureConfig)
 }
 
@@ -94,7 +88,7 @@ func (c *azureCloud) RemoveProviderAccount(namespacedName *types.NamespacedName)
 }
 
 // AddAccountResourceSelector adds account specific resource selector.
-func (c *azureCloud) AddAccountResourceSelector(accNamespacedName *types.NamespacedName, selector *v1alpha1.CloudEntitySelector) error {
+func (c *azureCloud) AddAccountResourceSelector(accNamespacedName *types.NamespacedName, selector *crdv1alpha1.CloudEntitySelector) error {
 	return c.cloudCommon.AddSelector(accNamespacedName, selector)
 }
 
@@ -103,7 +97,7 @@ func (c *azureCloud) RemoveAccountResourcesSelector(accNamespacedName *types.Nam
 	c.cloudCommon.RemoveSelector(accNamespacedName, selectorName)
 }
 
-func (c *azureCloud) GetAccountStatus(accNamespacedName *types.NamespacedName) (*cloudv1alpha1.CloudProviderAccountStatus, error) {
+func (c *azureCloud) GetAccountStatus(accNamespacedName *types.NamespacedName) (*crdv1alpha1.CloudProviderAccountStatus, error) {
 	return c.cloudCommon.GetStatus(accNamespacedName)
 }
 

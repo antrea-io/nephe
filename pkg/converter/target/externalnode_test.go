@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	cloud "antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	converter "antrea.io/nephe/pkg/converter/target"
 	"antrea.io/nephe/pkg/testing"
 	"antrea.io/nephe/pkg/testing/controllerruntimeclient"
@@ -73,8 +73,8 @@ var _ = Describe("ExternalNode", func() {
 	getLabelsTester := func(name string, hasLabels bool) {
 		mockclient.EXPECT().Get(mock.Any(), mock.Any(), mock.Any()).
 			Return(nil).
-			Do(func(_ context.Context, key client.ObjectKey, out *cloud.VirtualMachine) {
-				vm := externalNodeSources["VirtualMachine"].EmbedType().(*cloud.VirtualMachine)
+			Do(func(_ context.Context, key client.ObjectKey, out *runtimev1alpha1.VirtualMachine) {
+				vm := externalNodeSources["VirtualMachine"].EmbedType().(*runtimev1alpha1.VirtualMachine)
 				Expect(key.Name).To(Equal(vm.Name))
 				Expect(key.Namespace).To(Equal(vm.Namespace))
 				vm.DeepCopyInto(out)
@@ -106,6 +106,6 @@ var _ = Describe("ExternalNode", func() {
 			func(name string, expType interface{}) {
 				embedTypeTester(name, expType)
 			},
-			table.Entry("VirtualMachine", "VirtualMachine", &cloud.VirtualMachine{}))
+			table.Entry("VirtualMachine", "VirtualMachine", &runtimev1alpha1.VirtualMachine{}))
 	})
 })

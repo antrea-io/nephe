@@ -133,6 +133,7 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 			Expect(err).Should(BeNil())
 
 			// set CPA sync status.
+			cloud.GetControllerSyncStatusInstance().Configure()
 			cloud.GetControllerSyncStatusInstance().SetControllerSyncStatus(cloud.ControllerTypeCPA)
 
 			mutator = &CPAMutator{

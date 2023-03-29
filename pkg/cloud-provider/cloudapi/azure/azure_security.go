@@ -26,7 +26,7 @@ import (
 	"go.uber.org/multierr"
 	"k8s.io/apimachinery/pkg/types"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 )
 
@@ -193,7 +193,7 @@ func (computeCfg *computeServiceConfig) processAddressGroupMembership(addressGro
 
 	// find network interfaces which are using or need to use the provided ASG
 	nwIntfIDSetAsgToAttach := make(map[string]struct{})
-	nwIntfIDSetAsgToDettach := make(map[string]struct{})
+	nwIntfIDSSetAsgToDetach := make(map[string]struct{})
 	for _, networkInterface := range networkInterfaces {
 		nwIntfIDLowerCase := strings.ToLower(*networkInterface.ID)
 		// 	for network interfaces not attached to any virtual machines, skip processing
@@ -220,7 +220,7 @@ func (computeCfg *computeServiceConfig) processAddressGroupMembership(addressGro
 		_, isNicMemberNetworkInterface := memberNetworkInterfaces[strings.ToLower(*networkInterface.ID)]
 		if isAsgAttached {
 			if !isNicAttachedToMemberVM && !isNicMemberNetworkInterface {
-				nwIntfIDSetAsgToDettach[nwIntfIDLowerCase] = struct{}{}
+				nwIntfIDSSetAsgToDetach[nwIntfIDLowerCase] = struct{}{}
 			}
 		} else {
 			if isNicAttachedToMemberVM || isNicMemberNetworkInterface {
@@ -229,7 +229,7 @@ func (computeCfg *computeServiceConfig) processAddressGroupMembership(addressGro
 		}
 	}
 
-	return computeCfg.processAsgAttachDetachConcurrently(asgObj, nwIntfIDSetAsgToAttach, nwIntfIDSetAsgToDettach)
+	return computeCfg.processAsgAttachDetachConcurrently(asgObj, nwIntfIDSetAsgToAttach, nwIntfIDSSetAsgToDetach)
 }
 
 // processAsgAttachDetachConcurrently attaches/detaches network interfaces to/from an ASG.
@@ -628,8 +628,8 @@ func (computeCfg *computeServiceConfig) processAndBuildATSgView(networkInterface
 						Name: strings.ToLower(*networkInterface.ID),
 						Vpc:  vnetIDLowerCase,
 					},
-					AccountID:     computeCfg.accountName,
-					CloudProvider: string(v1alpha1.AzureCloudProvider),
+					AccountID:     computeCfg.account.String(),
+					CloudProvider: string(runtimev1alpha1.AzureCloudProvider),
 				}
 				cloudResources := nepheControllerATSgNameToMemberCloudResourcesMap[asgName]
 				cloudResources = append(cloudResources, cloudResource)
@@ -682,8 +682,8 @@ func (computeCfg *computeServiceConfig) getATGroupView(nepheControllerATSGNameTo
 					Name: atSgName,
 					Vpc:  vnetIDLowercase,
 				},
-				AccountID:     computeCfg.accountName,
-				CloudProvider: string(v1alpha1.AzureCloudProvider),
+				AccountID:     computeCfg.account.String(),
+				CloudProvider: string(runtimev1alpha1.AzureCloudProvider),
 			}
 			groupSyncObj := securitygroup.SynchronizationContent{
 				Resource:       resource,
@@ -761,8 +761,8 @@ func (computeCfg *computeServiceConfig) processAndBuildAGSgView(
 					Name: strings.ToLower(*networkInterface.ID),
 					Vpc:  vnetIDLowerCase,
 				},
-				AccountID:     computeCfg.accountName,
-				CloudProvider: string(v1alpha1.AzureCloudProvider),
+				AccountID:     computeCfg.account.String(),
+				CloudProvider: string(runtimev1alpha1.AzureCloudProvider),
 			}
 			cloudResources := nepheControllerAGSgNameToMemberCloudResourcesMap[sgName]
 			cloudResources = append(cloudResources, cloudResource)
@@ -797,8 +797,8 @@ func (computeCfg *computeServiceConfig) getAGGroupView(nepheControllerAGSgNameTo
 				Name: asgName,
 				Vpc:  vnetID,
 			},
-			AccountID:     computeCfg.accountName,
-			CloudProvider: string(v1alpha1.AzureCloudProvider),
+			AccountID:     computeCfg.account.String(),
+			CloudProvider: string(runtimev1alpha1.AzureCloudProvider),
 		}
 		groupSyncObj := securitygroup.SynchronizationContent{
 			Resource:       resource,

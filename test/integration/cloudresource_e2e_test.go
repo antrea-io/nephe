@@ -30,7 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	"antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	cpautils "antrea.io/nephe/pkg/cloud-provider/utils"
 	k8stemplates "antrea.io/nephe/test/templates"
 	"antrea.io/nephe/test/utils"
@@ -107,7 +107,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		Expect(err).ToNot(HaveOccurred())
 		err = utils.ConfigureK8s(kubeCtl, anpParams, k8stemplates.CloudAntreaNetworkPolicy, true)
 		Expect(err).ToNot(HaveOccurred())
-		err = utils.CheckCloudResourceNetworkPolicies(kubeCtl, k8sClient, reflect.TypeOf(v1alpha1.VirtualMachine{}).Name(), namespace.Name,
+		err = utils.CheckCloudResourceNetworkPolicies(kubeCtl, k8sClient, reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name(), namespace.Name,
 			cloudVPC.GetVMs(), nil, withAgent)
 		Expect(err).ToNot(HaveOccurred())
 	})
@@ -234,7 +234,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			Name:      "test-cloud-setup-anp",
 			Namespace: namespace.Name,
 		}
-		vmKind := reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()
+		vmKind := reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()
 		anpSetupParams.AppliedTo = configANPApplyTo(vmKind, "", "", "", "")
 		anpSetupParams.From = configANPToFrom("", "", "", "", "",
 			"0.0.0.0/0", "", allowedPorts, false)
@@ -276,7 +276,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		Expect(err).ToNot(HaveOccurred())
 		for i, ok := range applied {
 			var np []string
-			if kind == reflect.TypeOf(v1alpha1.VirtualMachine{}).Name() {
+			if kind == reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name() {
 				np = append(np, anpSetupParams.Name)
 			}
 			if ok {
@@ -315,7 +315,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		err := utils.ConfigureK8s(kubeCtl, anpParams, k8stemplates.CloudAntreaNetworkPolicy, false)
 		Expect(err).ToNot(HaveOccurred())
 		var np []string
-		if kind == reflect.TypeOf(v1alpha1.VirtualMachine{}).Name() {
+		if kind == reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name() {
 			np = append(np, anpSetupParams.Name)
 		}
 		np = append(np, anpParams.Name)
@@ -334,7 +334,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			Expect(err).ToNot(HaveOccurred())
 		}
 		var np []string
-		if kind == reflect.TypeOf(v1alpha1.VirtualMachine{}).Name() {
+		if kind == reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name() {
 			np = append(np, anpSetupParams.Name)
 		}
 		np = append(np, anpParams.Name)
@@ -349,7 +349,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		var ids []string
 		var ips []string
 		tagTest := true
-		if kind == reflect.TypeOf(v1alpha1.VirtualMachine{}).Name() {
+		if kind == reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name() {
 			ids = cloudVPC.GetVMs()
 			ips = cloudVPC.GetVMPrivateIPs()
 		} else {
@@ -401,7 +401,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 	testAppliedToUsingGroup := func(kind string) {
 		var ids []string
 		var ips []string
-		if kind == reflect.TypeOf(v1alpha1.VirtualMachine{}).Name() {
+		if kind == reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name() {
 			ids = cloudVPC.GetVMs()
 			ips = cloudVPC.GetVMPrivateIPs()
 		} else {
@@ -452,7 +452,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		var ids []string
 		var ips []string
 		testTag := true
-		if kind == reflect.TypeOf(v1alpha1.VirtualMachine{}).Name() {
+		if kind == reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name() {
 			ids = cloudVPC.GetVMs()
 			ips = cloudVPC.GetVMPrivateIPs()
 		} else {
@@ -514,7 +514,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		var ids []string
 		var ips []string
 		testTag := true
-		if kind == reflect.TypeOf(v1alpha1.VirtualMachine{}).Name() {
+		if kind == reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name() {
 			ids = cloudVPC.GetVMs()
 			ips = cloudVPC.GetVMPrivateIPs()
 		} else {
@@ -578,7 +578,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			testAppliedTo(kind)
 		},
 		table.Entry(fmt.Sprintf("%s %s: VM In Same Namespace", focusAzure, focusAgent),
-			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()),
+			reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
 	)
 
 	table.DescribeTable("AppliedToUsingGroup",
@@ -586,7 +586,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			testAppliedToUsingGroup(kind)
 		},
 		table.Entry(fmt.Sprintf("%s: VM In Same Namespace", focusAws),
-			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()),
+			reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
 	)
 
 	table.DescribeTable("Egress",
@@ -594,7 +594,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			testEgress(kind)
 		},
 		table.Entry(fmt.Sprintf("%s: VM In Same Namespace", focusAgent),
-			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()),
+			reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
 	)
 
 	table.DescribeTable("Ingress",
@@ -602,7 +602,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			testIngress(kind)
 		},
 		table.Entry(fmt.Sprintf("%s %s: VM In Same Namespace", focusAzure, focusAgent),
-			reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()),
+			reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
 	)
 
 	Context("Enforce Before Import", func() {
@@ -615,7 +615,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 				testAppliedTo(kind)
 			},
 			table.Entry(fmt.Sprintf("%s %s: VM In Same Namespace", focusAzure, focusAgent),
-				reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()),
+				reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
 		)
 
 		table.DescribeTable("Egress",
@@ -623,7 +623,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 				testEgress(kind)
 			},
 			table.Entry(fmt.Sprintf("%s: VM In Same Namespace", focusAgent),
-				reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()),
+				reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
 		)
 
 		table.DescribeTable("Ingress",
@@ -631,14 +631,14 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 				testIngress(kind)
 			},
 			table.Entry(fmt.Sprintf("%s %s: VM In Same Namespace", focusAzure, focusAgent),
-				reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()),
+				reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
 		)
 	})
 
 	It("Reconcile with cloud", func() {
 		ids := cloudVPC.GetVMs()
 		ips := cloudVPC.GetVMPrivateIPs()
-		kind := reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()
+		kind := reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()
 		setup(kind, len(ids), []string{"22"}, false)
 		appliedIdx := len(ids) - 1
 		srcVMs := cloudVPC.GetVMs()[:appliedIdx]
@@ -703,7 +703,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		ids := cloudVPC.GetVMs()
 		ips := cloudVPC.GetVMPrivateIPs()
 
-		kind := reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()
+		kind := reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()
 		setup(kind, len(ids), []string{"22"}, false)
 		appliedIdx := len(ids) - 1
 		srcVMs := cloudVPC.GetVMs()[:appliedIdx]
@@ -740,7 +740,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 	It("Remove Stale Member", func() {
 		vmCount := 1
 		ids := cloudVPC.GetVMIDs()
-		kind := reflect.TypeOf(v1alpha1.VirtualMachine{}).Name()
+		kind := reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()
 		setup(kind, len(ids), []string{"22"}, false)
 		anpParams.AppliedTo = configANPApplyTo(kind, "", cloudVPC.GetCRDVPCID(), "", "")
 		anpParams.From = configANPToFrom(kind, "", "", "", "", "", namespace.Name,

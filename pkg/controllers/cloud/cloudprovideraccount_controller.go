@@ -28,7 +28,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	cloudprovider "antrea.io/nephe/pkg/cloud-provider"
 	"antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
 	"antrea.io/nephe/pkg/controllers/inventory"
@@ -45,7 +46,7 @@ type CloudProviderAccountReconciler struct {
 
 	mutex               sync.Mutex
 	accountProviderType map[types.NamespacedName]common.ProviderType
-	Inventory           *inventory.Inventory
+	Inventory           inventory.Interface
 	Poller              *Poller
 	pendingSyncCount    int
 	initialized         bool
@@ -64,17 +65,15 @@ func (r *CloudProviderAccountReconciler) Reconcile(ctx context.Context, req ctrl
 		}
 	}
 
-	providerAccount := &cloudv1alpha1.CloudProviderAccount{}
-	err := r.Get(ctx, req.NamespacedName, providerAccount)
-	if err != nil && !errors.IsNotFound(err) {
-		return ctrl.Result{}, err
-	}
-	if errors.IsNotFound(err) {
-		err := r.processDelete(&req.NamespacedName)
-		return ctrl.Result{}, err
+	providerAccount := &crdv1alpha1.CloudProviderAccount{}
+	if err := r.Get(ctx, req.NamespacedName, providerAccount); err != nil {
+		if !errors.IsNotFound(err) {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, r.processDelete(&req.NamespacedName)
 	}
 
-	if err = r.processCreate(&req.NamespacedName, providerAccount); err != nil {
+	if err := r.processCreateOrUpdate(&req.NamespacedName, providerAccount); err != nil {
 		_ = r.processDelete(&req.NamespacedName)
 		return ctrl.Result{}, err
 	}
@@ -85,7 +84,7 @@ func (r *CloudProviderAccountReconciler) Reconcile(ctx context.Context, req ctrl
 
 func (r *CloudProviderAccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.accountProviderType = make(map[types.NamespacedName]common.ProviderType)
-	if err := ctrl.NewControllerManagedBy(mgr).For(&cloudv1alpha1.CloudProviderAccount{}).Complete(r); err != nil {
+	if err := ctrl.NewControllerManagedBy(mgr).For(&crdv1alpha1.CloudProviderAccount{}).Complete(r); err != nil {
 		return err
 	}
 	return mgr.Add(r)
@@ -102,7 +101,7 @@ func (r *CloudProviderAccountReconciler) Start(context.Context) error {
 		return fmt.Errorf("failed to sync shared informer cache")
 	}
 
-	cpaList := &cloudv1alpha1.CloudProviderAccountList{}
+	cpaList := &crdv1alpha1.CloudProviderAccountList{}
 	if err := r.Client.List(context.TODO(), cpaList, &client.ListOptions{}); err != nil {
 		return err
 	}
@@ -127,8 +126,8 @@ func (r *CloudProviderAccountReconciler) updatePendingSyncCountAndStatus() {
 	}
 }
 
-func (r *CloudProviderAccountReconciler) processCreate(namespacedName *types.NamespacedName,
-	account *cloudv1alpha1.CloudProviderAccount) error {
+func (r *CloudProviderAccountReconciler) processCreateOrUpdate(namespacedName *types.NamespacedName,
+	account *crdv1alpha1.CloudProviderAccount) error {
 	r.Log.Info("Received request", "account", namespacedName, "operation", "create/update")
 
 	accountCloudType, err := utils.GetAccountProviderType(account)
@@ -140,20 +139,19 @@ func (r *CloudProviderAccountReconciler) processCreate(namespacedName *types.Nam
 	if err != nil {
 		return err
 	}
-	err = cloudInterface.AddProviderAccount(r.Client, account)
-	if err != nil {
+	if err = cloudInterface.AddProviderAccount(r.Client, account); err != nil {
 		return fmt.Errorf("%s, err: %v", errorMsgAccountAddFail, err)
 	}
 
 	accPoller, exists := r.Poller.addAccountPoller(accountCloudType, namespacedName, account, r)
 
 	if !exists {
-		go wait.Until(accPoller.doAccountPolling, time.Duration(accPoller.pollIntvInSeconds)*time.Second, accPoller.ch)
-	} else {
-		err = r.Poller.restartAccountPoller(namespacedName)
-		if err != nil {
-			return err
+		if r.startPollingThread(namespacedName) {
+			r.Log.Info("Creating account poller", "account", namespacedName)
+			go wait.Until(accPoller.doAccountPolling, time.Duration(accPoller.pollIntvInSeconds)*time.Second, accPoller.ch)
 		}
+	} else {
+		return r.Poller.restartAccountPoller(namespacedName)
 	}
 
 	return nil
@@ -162,11 +160,10 @@ func (r *CloudProviderAccountReconciler) processCreate(namespacedName *types.Nam
 func (r *CloudProviderAccountReconciler) processDelete(namespacedName *types.NamespacedName) error {
 	r.Log.Info("Received request", "account", namespacedName, "operation", "delete")
 
-	err := r.Poller.removeAccountPoller(namespacedName)
-	if err != nil {
+	if err := r.Poller.removeAccountPoller(namespacedName); err != nil {
 		return err
 	}
-	r.Log.V(1).Info("removed account poller", "account", namespacedName.String())
+	r.Log.V(1).Info("Removed account poller", "account", namespacedName)
 
 	cloudType := r.getAccountProviderType(namespacedName)
 	cloudInterface, err := cloudprovider.GetCloudInterface(cloudType)
@@ -174,13 +171,15 @@ func (r *CloudProviderAccountReconciler) processDelete(namespacedName *types.Nam
 		return err
 	}
 
-	err = cloudInterface.DeleteInventoryPollCache(namespacedName)
-	if err != nil {
+	if err = cloudInterface.DeleteInventoryPollCache(namespacedName); err != nil {
 		return err
 	}
 
-	err = r.Inventory.DeleteVpcCache(namespacedName)
-	if err != nil {
+	if err = r.Inventory.DeleteVpcsFromCache(namespacedName); err != nil {
+		return err
+	}
+
+	if err = r.Inventory.DeleteVmsFromCache(namespacedName); err != nil {
 		return err
 	}
 
@@ -190,8 +189,32 @@ func (r *CloudProviderAccountReconciler) processDelete(namespacedName *types.Nam
 	return nil
 }
 
+// startPollingThread returns whether a polling thread needs to be started or not.
+func (r *CloudProviderAccountReconciler) startPollingThread(namespacedName *types.NamespacedName) bool {
+	// Check if a CES CR exits in the same namespace. If it exits, then do not start the polling thread
+	// in CPA and let CES controller create the polling thread. This is an optimization done to avoid polling
+	// twice for a given account, once for CPA and once for CES. Polling cloud is an expensive operation, so
+	// try to avoid calling cloud multiple times for same operation.
+	cesList := &crdv1alpha1.CloudEntitySelectorList{}
+	listOptions := &client.ListOptions{
+		Namespace: namespacedName.Namespace,
+	}
+	if err := r.Client.List(context.TODO(), cesList, listOptions); err != nil {
+		r.Log.V(1).Info("Failed to get CES objects", "namespace", namespacedName.Namespace, "err", err)
+		return true
+	}
+
+	for _, ces := range cesList.Items {
+		if ces.Spec.AccountName == namespacedName.Name {
+			r.Log.V(1).Info("Ignoring start of account poller", "account", namespacedName)
+			return false
+		}
+	}
+	return true
+}
+
 func (r *CloudProviderAccountReconciler) addAccountProviderType(namespacedName *types.NamespacedName,
-	provider cloudv1alpha1.CloudProvider) common.ProviderType {
+	provider runtimev1alpha1.CloudProvider) common.ProviderType {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 

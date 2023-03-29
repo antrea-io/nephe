@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package inventory
+package vpc
 
 import (
 	"context"
@@ -31,6 +31,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/controllers/config"
 	"antrea.io/nephe/pkg/controllers/inventory"
 	"antrea.io/nephe/pkg/controllers/inventory/common"
 	"antrea.io/nephe/pkg/controllers/inventory/store"
@@ -38,7 +39,7 @@ import (
 
 // REST implements rest.Storage for VPC Inventory.
 type REST struct {
-	cloudInventory *inventory.Inventory
+	cloudInventory inventory.Interface
 	logger         logger.Logger
 }
 
@@ -50,7 +51,7 @@ var (
 )
 
 // NewREST returns a REST object that will work against API services.
-func NewREST(cloudInventory *inventory.Inventory, l logger.Logger) *REST {
+func NewREST(cloudInventory inventory.Interface, l logger.Logger) *REST {
 	return &REST{
 		cloudInventory: cloudInventory,
 		logger:         l,
@@ -72,7 +73,7 @@ func (r *REST) Get(ctx context.Context, name string, _ *metav1.GetOptions) (runt
 	}
 	namespacedName := ns + "/" + name
 
-	objs, err := r.cloudInventory.GetVpcsFromIndexer(common.VpcIndexerByVpcNamespacedName, namespacedName)
+	objs, err := r.cloudInventory.GetVpcsFromIndexer(common.IndexerByNamespacedName, namespacedName)
 	if err != nil {
 		return nil, err
 	}
@@ -85,23 +86,28 @@ func (r *REST) Get(ctx context.Context, name string, _ *metav1.GetOptions) (runt
 }
 
 func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (runtime.Object, error) {
-	// List only supports four types of input options
-	// 1. All namespace
-	// 2. Labelselector with only the specific namespace, the only valid labelselectors are "account-name=<accountname>" and "region=<region>"
-	// 3. Fieldselector with only the specific namespace, the only valid fieldselectors is "metadata.name=<metadata.name>"
-	// 4. Specific Namespace
+	// List only supports four types of input options:
+	// 1. All namespace.
+	// 2. Labelselector with only the specific namespace, the only valid labelselectors are "cpa.name=<accountname>",
+	//    "cpa.namespace=<accountNamespace> and "region=<region>".
+	// 3. Fieldselector with only the specific namespace, the only valid fieldselectors is "metadata.name=<metadata.name>".
+	// 4. Specific Namespace.
 	accountName := ""
+	accountNamespace := ""
 	region := ""
+
 	if options != nil && options.LabelSelector != nil && options.LabelSelector.String() != "" {
 		labelSelectorStrings := strings.Split(options.LabelSelector.String(), ",")
 		for _, labelSelectorString := range labelSelectorStrings {
 			labelKeyAndValue := strings.Split(labelSelectorString, "=")
-			if labelKeyAndValue[0] == "account-name" {
+			if labelKeyAndValue[0] == config.LabelCloudAccountName {
 				accountName = labelKeyAndValue[1]
-			} else if labelKeyAndValue[0] == "region" {
+			} else if labelKeyAndValue[0] == config.LabelCloudAccountNamespace {
+				accountNamespace = labelKeyAndValue[1]
+			} else if labelKeyAndValue[0] == config.LabelCloudRegion {
 				region = strings.ToLower(labelKeyAndValue[1])
 			} else {
-				return nil, errors.NewBadRequest("unsupported label selector, supported labels are: account-name and region")
+				return nil, errors.NewBadRequest("unsupported label selector, supported labels are: cpa.name and region")
 			}
 		}
 	}
@@ -130,33 +136,37 @@ func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (
 		namespace = ns
 	}
 
-	var objs []interface{}
 	if namespace == "" && (accountName != "" || region != "" || name != "") {
 		return nil, errors.NewBadRequest("cannot query with all namespaces. Namespace should be specified")
 	}
 
+	var objs []interface{}
 	if namespace == "" {
 		objs = r.cloudInventory.GetAllVpcs()
 	} else if accountName != "" {
-		accountNameSpace := types.NamespacedName{
+		accountNameSpacedName := types.NamespacedName{
 			Name:      accountName,
-			Namespace: namespace,
+			Namespace: accountNamespace,
 		}
-		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.VpcIndexerByAccountNameSpacedName, accountNameSpace.String())
+		// If account namespace is not specified in the label selector, then use the namespace specified.
+		if accountNamespace == "" {
+			accountNameSpacedName.Namespace = namespace
+		}
+		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.VpcIndexerByNameSpacedAccountName, accountNameSpacedName.String())
 	} else if name != "" {
 		namespacedName := types.NamespacedName{
-			Name:      name,
 			Namespace: namespace,
+			Name:      name,
 		}
-		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.VpcIndexerByVpcNamespacedName, namespacedName.String())
+		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.IndexerByNamespacedName, namespacedName.String())
 	} else if region != "" {
 		namespacedRegion := types.NamespacedName{
-			Name:      region,
 			Namespace: namespace,
+			Name:      region,
 		}
 		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.VpcIndexerByNamespacedRegion, namespacedRegion.String())
 	} else {
-		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.VpcIndexerByNamespace, namespace)
+		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.IndexerByNamespace, namespace)
 	}
 	vpcList := &runtimev1alpha1.VpcList{}
 	for _, obj := range objs {
@@ -171,7 +181,7 @@ func (r *REST) NamespaceScoped() bool {
 	return true
 }
 
-func (r *REST) ConvertToTable(ctx context.Context, obj runtime.Object, tableOptions runtime.Object) (*metav1.Table, error) {
+func (r *REST) ConvertToTable(_ context.Context, obj runtime.Object, _ runtime.Object) (*metav1.Table, error) {
 	table := &metav1.Table{
 		ColumnDefinitions: []metav1.TableColumnDefinition{
 			{Name: "NAME", Type: "string", Description: "Name"},
@@ -193,6 +203,9 @@ func (r *REST) ConvertToTable(ctx context.Context, obj runtime.Object, tableOpti
 	table.Rows, err = metatable.MetaToTableRow(obj,
 		func(obj runtime.Object, _ metav1.Object, _, _ string) ([]interface{}, error) {
 			vpc := obj.(*runtimev1alpha1.Vpc)
+			if vpc.Name == "" {
+				return nil, nil
+			}
 			return []interface{}{vpc.Name, vpc.Status.Provider, vpc.Status.Region, vpc.Status.Managed}, nil
 		})
 	return table, err
@@ -200,5 +213,5 @@ func (r *REST) ConvertToTable(ctx context.Context, obj runtime.Object, tableOpti
 
 func (r *REST) Watch(ctx context.Context, options *internalversion.ListOptions) (watch.Interface, error) {
 	key, label, field := store.GetSelectors(options)
-	return r.cloudInventory.Watch(ctx, key, label, field)
+	return r.cloudInventory.WatchVpcs(ctx, key, label, field)
 }
