@@ -172,7 +172,7 @@ func (p *pendingGroup) RunPendingItem(id string, context interface{}) bool {
 		members = append(members, v)
 	}
 	name, memberOnly := getGroupIDFromUniqueName(id)
-	err := r.processMemberGrp(name, p.event, memberOnly, members, nil)
+	err := r.processGroup(name, p.event, memberOnly, members, nil)
 	if p.refCnt != nil {
 		return true
 	}

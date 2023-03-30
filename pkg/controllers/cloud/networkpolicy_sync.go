@@ -213,9 +213,6 @@ func (r *NetworkPolicyReconciler) syncWithCloud() {
 	r.syncedWithCloud = true
 	for _, i := range r.addrSGIndexer.List() {
 		sg := i.(*addrSecurityGroup)
-		if sg.isIPBlocks() {
-			continue
-		}
 		sg.sync(cloudAddrSGs[sg.getID()], r)
 	}
 	for _, i := range r.appliedToSGIndexer.List() {
