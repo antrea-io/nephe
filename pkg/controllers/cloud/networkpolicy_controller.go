@@ -17,7 +17,6 @@ package cloud
 import (
 	"context"
 	"fmt"
-	"net"
 	"reflect"
 	"time"
 
@@ -210,52 +209,51 @@ func (r *NetworkPolicyReconciler) normalizedANPObject(anp *antreanetworking.Netw
 	}
 }
 
-// processMemberGrp is common function to process AppliedTo/AddressGroup updates from Antrea controller.
-func (r *NetworkPolicyReconciler) processMemberGrp(name string, eventType watch.EventType, isAddrGrp bool,
+// processGroup is common function to process AppliedTo/Address Group updates from Antrea controller.
+func (r *NetworkPolicyReconciler) processGroup(groupName string, eventType watch.EventType, isAddrGrp bool,
 	added, removed []antreanetworking.GroupMember) error {
 	if r.processBookMark(eventType) {
 		return nil
 	}
-	uName := getGroupUniqueName(name, isAddrGrp)
+	// Address and AppliedTo Group can have the same name received. uGroupName will prefix mm_ for Address Group.
+	uGroupName := getGroupUniqueName(groupName, isAddrGrp)
 	var err error
 	defer func() {
 		if err != nil && (eventType == watch.Added || eventType == watch.Modified) {
-			if !r.retryQueue.Has(uName) {
-				r.retryQueue.Add(uName, &pendingGroup{})
+			if !r.retryQueue.Has(uGroupName) {
+				r.retryQueue.Add(uGroupName, &pendingGroup{})
 			}
-			_ = r.retryQueue.Update(uName, false, eventType, added, removed)
+			_ = r.retryQueue.Update(uGroupName, false, eventType, added, removed)
 		}
 		if eventType == watch.Deleted {
-			r.retryQueue.Remove(getGroupUniqueName(name, isAddrGrp))
+			r.retryQueue.Remove(uGroupName)
 		}
 	}()
 
 	if securitygroup.CloudSecurityGroup == nil {
-		r.Log.V(1).Info("Skip group message no plug-in found", "group", name)
+		r.Log.V(1).Info("Skip group message no plug-in found", "group", groupName, "membershipOnly", isAddrGrp)
 		return nil
 	}
 
-	if r.pendingDeleteGroups.Has(uName) {
-		_ = r.pendingDeleteGroups.Update(uName, false, eventType, added, removed)
-		r.Log.V(1).Info("Wait for group pending delete to complete", "Name", uName)
+	if r.pendingDeleteGroups.Has(uGroupName) {
+		_ = r.pendingDeleteGroups.Update(uGroupName, false, eventType, added, removed)
+		r.Log.V(1).Info("Wait for group pending delete to complete", "Name", groupName, "membershipOnly", isAddrGrp)
 		return nil
 	}
 
 	var indexer cache.Indexer
-	var creator func(*securitygroup.CloudResource, interface{}, *securityGroupState) cloudSecurityGroup
+	var creatorFunc func(*securitygroup.CloudResource, interface{}, *securityGroupState) cloudSecurityGroup
 	if isAddrGrp {
 		indexer = r.addrSGIndexer
-		creator = newAddrSecurityGroup
+		creatorFunc = newAddrSecurityGroup
 	} else {
 		indexer = r.appliedToSGIndexer
-		creator = newAppliedToSecurityGroup
+		creatorFunc = newAppliedToSecurityGroup
 	}
-
 	var addedMembers, removedMembers map[string][]*securitygroup.CloudResource
-	var addedIPs, removedIPs []*net.IPNet
 	var notFoundMember []*types.NamespacedName
 	if eventType == watch.Added {
-		if addedMembers, addedIPs, notFoundMember, err = vpcsFromGroupMembers(added, r); err != nil {
+		if addedMembers, notFoundMember, err = vpcsFromGroupMembers(added, r); err != nil {
 			return err
 		}
 		if len(notFoundMember) > 0 {
@@ -263,28 +261,28 @@ func (r *NetworkPolicyReconciler) processMemberGrp(name string, eventType watch.
 			return err
 		}
 	} else if eventType == watch.Modified {
-		if addedMembers, addedIPs, notFoundMember, err = vpcsFromGroupMembers(added, r); err != nil {
+		if addedMembers, notFoundMember, err = vpcsFromGroupMembers(added, r); err != nil {
 			return err
 		}
 		if len(notFoundMember) > 0 {
 			err = fmt.Errorf("missing externalEntities: %v", notFoundMember)
 			return err
 		}
-		if removedMembers, removedIPs, notFoundMember, err = vpcsFromGroupMembers(removed, r); err != nil {
+		if removedMembers, notFoundMember, err = vpcsFromGroupMembers(removed, r); err != nil {
 			return err
 		}
 		if len(notFoundMember) > 0 {
-			sgs, _ := r.addrSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, name)
+			sgs, _ := r.addrSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, groupName)
 			for _, i := range sgs {
 				i.(*addrSecurityGroup).removeStaleMembers(notFoundMember, r)
 			}
-			sgs1, _ := r.appliedToSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, name)
+			sgs1, _ := r.appliedToSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, groupName)
 			for _, i := range sgs1 {
 				i.(*appliedToSecurityGroup).removeStaleMembers(notFoundMember, r)
 			}
 		}
 	} else if eventType == watch.Deleted {
-		sgs, err := indexer.ByIndex(addrAppliedToIndexerByGroupID, name)
+		sgs, err := indexer.ByIndex(addrAppliedToIndexerByGroupID, groupName)
 		if err != nil {
 			return err
 		}
@@ -296,16 +294,14 @@ func (r *NetworkPolicyReconciler) processMemberGrp(name string, eventType watch.
 		}
 		return nil
 	} else {
-		r.Log.V(1).Info("Skip unhandled watch event", "type", eventType, "group", name)
+		r.Log.V(1).Info("Skip unhandled watch event", "type", eventType, "group", groupName)
 		return nil
 	}
 
-	// sgChanges changes in addrGroup requires, associated nps to recompute their rules.
-	sgChanges := false
 	for vpc, members := range addedMembers {
-		var cloudProvider string
-		var accountID string
-		key := &securitygroup.CloudResourceID{Name: name, Vpc: vpc}
+		// AddressGroup and AppliedToGroup cache key is 'Name of the group and VPC ID'. If the Group extends multiple
+		// VPCs, multiple entries will be added in cache for each VPC.
+		key := &securitygroup.CloudResourceID{Name: groupName, Vpc: vpc}
 		var sg cloudSecurityGroup
 		if i, ok, _ := indexer.GetByKey(key.String()); ok {
 			sg = i.(cloudSecurityGroup)
@@ -318,95 +314,46 @@ func (r *NetworkPolicyReconciler) processMemberGrp(name string, eventType watch.
 				delete(removedMembers, vpc)
 			}
 			if err := sg.update(members, removed, r); err != nil {
-				r.Log.Error(err, "Update SecurityGroup to cloud", "key", key)
+				r.Log.Error(err, "update SecurityGroup to cloud", "key", key)
 				continue
 			}
 		} else {
-			// Find accountID and cloudProvider for the cloud resource using any member inside as fields are same for all
-			for _, a := range members {
-				cloudProvider = a.CloudProvider
-				accountID = a.AccountID
-				break
-			}
+			// All members in a vpc will share same AccountID and CloudProvider.
 			cloudRsrc := securitygroup.CloudResource{
 				Type:            securitygroup.CloudResourceTypeVM,
 				CloudResourceID: *key,
-				AccountID:       accountID,
-				CloudProvider:   cloudProvider,
+				AccountID:       members[0].AccountID,
+				CloudProvider:   members[0].CloudProvider,
 			}
-			sg = creator(&cloudRsrc, members, nil)
+			sg = creatorFunc(&cloudRsrc, members, nil)
 			if sg == nil {
+				r.Log.Error(fmt.Errorf("failed to create"), "cloud resource", "resource", cloudRsrc)
 				continue
 			}
 			if err := sg.add(r); err != nil {
-				r.Log.Error(err, "Add SecurityGroup to cloud", "key", key)
+				r.Log.Error(err, "add SecurityGroup to cloud", "key", key)
 				continue
 			}
-			sgChanges = true
 		}
 	}
 	for vpc, members := range removedMembers {
-		key := (&securitygroup.CloudResourceID{Name: name, Vpc: vpc}).String()
+		key := (&securitygroup.CloudResourceID{Name: groupName, Vpc: vpc}).String()
 		i, ok, err := indexer.GetByKey(key)
 		if !ok {
-			r.Log.Error(err, "Get from indexer", "key", key)
+			r.Log.Error(err, "get from indexer", "key", key)
 			continue
 		}
 		sg := i.(cloudSecurityGroup)
 		if err := sg.update(nil, members, r); err != nil {
-			r.Log.Error(err, "Update SecurityGroup to cloud", "key", sg.getID())
+			r.Log.Error(err, "update SecurityGroup to cloud", "key", sg.getID())
 			continue
-		}
-	}
-	if isAddrGrp && (addedIPs != nil || removedIPs != nil) {
-		key := &securitygroup.CloudResourceID{Name: name, Vpc: ""}
-		sg, _, _ := indexer.GetByKey(key.String())
-		if sg != nil {
-			sg.(*addrSecurityGroup).updateIPs(addedIPs, removedIPs, r)
-		} else if eventType == watch.Added {
-			cloudRsrc := securitygroup.CloudResource{
-				Type:            securitygroup.CloudResourceTypeVM,
-				CloudResourceID: *key,
-				AccountID:       "",
-				CloudProvider:   "",
-			}
-			sg = creator(&cloudRsrc, addedIPs, nil)
-			_ = sg.(*addrSecurityGroup).add(r)
-		} else {
-			r.Log.Error(nil, "Update to IP block does find security group", "key", key)
-		}
-		sgChanges = true
-	}
-	// Empty membershipGroup
-	if eventType == watch.Added && len(added) == 0 && len(removed) == 0 && isAddrGrp {
-		key := &securitygroup.CloudResourceID{Name: name, Vpc: ""}
-		sg, _, _ := indexer.GetByKey(key.String())
-		if sg != nil {
-			r.Log.Info("Cannot add an empty membershipGroup that already exists", "Key", key)
-			return nil
-		}
-		cloudRsrc := securitygroup.CloudResource{
-			Type:            securitygroup.CloudResourceTypeVM,
-			CloudResourceID: *key,
-			AccountID:       "",
-			CloudProvider:   "",
-		}
-		sg = creator(&cloudRsrc, addedIPs, nil)
-		_ = sg.(*addrSecurityGroup).add(r)
-		sgChanges = true
-	}
-	if sgChanges && isAddrGrp {
-		nps, _ := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAddrGrp, name)
-		for _, i := range nps {
-			np := i.(*networkPolicy)
-			np.update(nil, true, r)
 		}
 	}
 	return nil
 }
 
-// processAddrGrp processes AddrGroup updates from Antrea controller.
-func (r *NetworkPolicyReconciler) processAddrGrp(event watch.Event) error {
+// processAddressGroup processes AddressGroup updates from Antrea controller.
+func (r *NetworkPolicyReconciler) processAddressGroup(event watch.Event) error {
 	accessor, _ := meta.Accessor(event.Object)
 	patch, _ := event.Object.(*antreanetworking.AddressGroupPatch)
 	complete, _ := event.Object.(*antreanetworking.AddressGroup)
@@ -422,11 +369,11 @@ func (r *NetworkPolicyReconciler) processAddrGrp(event watch.Event) error {
 		added = patch.AddedGroupMembers
 		removed = patch.RemovedGroupMembers
 	}
-	return r.processMemberGrp(getNormalizedName(accessor.GetName()), event.Type, true, added, removed)
+	return r.processGroup(getNormalizedName(accessor.GetName()), event.Type, true, added, removed)
 }
 
-// processAppliedToGrp processes AppliedToGroup updates from Antrea controller.
-func (r *NetworkPolicyReconciler) processAppliedToGrp(event watch.Event) error {
+// processAppliedToGroup processes AppliedToGroup updates from Antrea controller.
+func (r *NetworkPolicyReconciler) processAppliedToGroup(event watch.Event) error {
 	accessor, _ := meta.Accessor(event.Object)
 	patch, _ := event.Object.(*antreanetworking.AppliedToGroupPatch)
 	complete, _ := event.Object.(*antreanetworking.AppliedToGroup)
@@ -442,7 +389,7 @@ func (r *NetworkPolicyReconciler) processAppliedToGrp(event watch.Event) error {
 		added = patch.AddedGroupMembers
 		removed = patch.RemovedGroupMembers
 	}
-	return r.processMemberGrp(getNormalizedName(accessor.GetName()), event.Type, false, added, removed)
+	return r.processGroup(getNormalizedName(accessor.GetName()), event.Type, false, added, removed)
 }
 
 // processNetworkPolicy processes NetworkPolicy updates from Antrea controller.
@@ -512,9 +459,9 @@ func (r *NetworkPolicyReconciler) processLocalEvent(event watch.Event) error {
 	case *antreanetworking.NetworkPolicy:
 		return r.processNetworkPolicy(event)
 	case *antreanetworking.AppliedToGroup:
-		return r.processAppliedToGrp(event)
+		return r.processAppliedToGroup(event)
 	case *antreanetworking.AppliedToGroupPatch:
-		return r.processAppliedToGrp(event)
+		return r.processAppliedToGroup(event)
 
 	default:
 		r.Log.Error(nil, "Unknown local event", "Event", event)
@@ -558,7 +505,7 @@ func (r *NetworkPolicyReconciler) Start(stop context.Context) error {
 				}
 				break
 			}
-			err = r.processAddrGrp(event)
+			err = r.processAddressGroup(event)
 		case event, ok := <-r.appliedToGroupWatcher.ResultChan():
 			if !ok || event.Type == watch.Error {
 				r.Log.V(1).Info("Closed appliedToGroupWatcher channel, restart")
@@ -567,7 +514,7 @@ func (r *NetworkPolicyReconciler) Start(stop context.Context) error {
 				}
 				break
 			}
-			err = r.processAppliedToGrp(event)
+			err = r.processAppliedToGroup(event)
 		case event, ok := <-r.networkPolicyWatcher.ResultChan():
 			if !ok || event.Type == watch.Error {
 				r.Log.V(1).Info("Closed networkPolicyWatcher channel, restart")

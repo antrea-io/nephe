@@ -747,7 +747,7 @@ var _ = Describe("NetworkPolicy", func() {
 		}
 		for _, grp := range addrGrps {
 			event = watch.Event{Type: watch.Added, Object: grp}
-			err = reconciler.processAddrGrp(event)
+			err = reconciler.processAddressGroup(event)
 			if sgConfig.k8sGetError != nil {
 				Expect(err).To(Equal(sgConfig.k8sGetError))
 			} else {
@@ -756,7 +756,7 @@ var _ = Describe("NetworkPolicy", func() {
 		}
 		for _, grp := range appliedToGrps {
 			event = watch.Event{Type: watch.Added, Object: grp}
-			err = reconciler.processAppliedToGrp(event)
+			err = reconciler.processAppliedToGroup(event)
 			if sgConfig.k8sGetError != nil {
 				Expect(err).To(Equal(sgConfig.k8sGetError))
 			} else {
@@ -803,12 +803,12 @@ var _ = Describe("NetworkPolicy", func() {
 		}
 		for _, grp := range addrGrps {
 			event = watch.Event{Type: watch.Deleted, Object: grp}
-			err = reconciler.processAddrGrp(event)
+			err = reconciler.processAddressGroup(event)
 			Expect(err).ToNot(HaveOccurred())
 		}
 		for _, grp := range appliedToGrps {
 			event = watch.Event{Type: watch.Deleted, Object: grp}
-			err = reconciler.processAppliedToGrp(event)
+			err = reconciler.processAppliedToGroup(event)
 			Expect(err).ToNot(HaveOccurred())
 		}
 		if !outOrder {
@@ -980,7 +980,7 @@ var _ = Describe("NetworkPolicy", func() {
 		checkGrpPatchChange(addrGrp.Name, addrGrp.GroupMembers, false, []*antreatypes.ExternalEntity{remove}, true)
 		var err error
 		event := watch.Event{Type: watch.Modified, Object: p1}
-		err = reconciler.processAddrGrp(event)
+		err = reconciler.processAddressGroup(event)
 		Expect(err).ToNot(HaveOccurred())
 
 		wait()
@@ -994,7 +994,7 @@ var _ = Describe("NetworkPolicy", func() {
 		p1 := patchAppliedToGrpMember(appliedToGrp, add, remove, 0)
 		checkGrpPatchChange(appliedToGrp.Name, appliedToGrp.GroupMembers, false, []*antreatypes.ExternalEntity{remove}, false)
 		event := watch.Event{Type: watch.Modified, Object: p1}
-		err := reconciler.processAppliedToGrp(event)
+		err := reconciler.processAppliedToGroup(event)
 		Expect(err).ToNot(HaveOccurred())
 
 		wait()
@@ -1013,7 +1013,7 @@ var _ = Describe("NetworkPolicy", func() {
 		checkGrpPatchChange(appliedToGrp.Name, appliedToGrp.GroupMembers, true, []*antreatypes.ExternalEntity{remove}, false)
 
 		event := watch.Event{Type: watch.Modified, Object: p1}
-		err := reconciler.processAppliedToGrp(event)
+		err := reconciler.processAppliedToGroup(event)
 		Expect(err).ToNot(HaveOccurred())
 		verifyVmp(len(trackedVMs) - 1)
 	})
@@ -1031,7 +1031,7 @@ var _ = Describe("NetworkPolicy", func() {
 
 		checkAddrGroup(ag)
 		event := watch.Event{Type: watch.Added, Object: ag}
-		err := reconciler.processAddrGrp(event)
+		err := reconciler.processAddressGroup(event)
 		Expect(err).ToNot(HaveOccurred())
 
 		ingress := ingressRule[0]
@@ -1059,7 +1059,7 @@ var _ = Describe("NetworkPolicy", func() {
 		var err error
 		checkAppliedGroup(ag)
 		event := watch.Event{Type: watch.Added, Object: ag}
-		err = reconciler.processAppliedToGrp(event)
+		err = reconciler.processAppliedToGroup(event)
 		Expect(err).ToNot(HaveOccurred())
 		event = watch.Event{Type: watch.Modified, Object: anp}
 		err = reconciler.processNetworkPolicy(event)

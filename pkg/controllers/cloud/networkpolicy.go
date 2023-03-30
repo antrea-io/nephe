@@ -33,7 +33,6 @@ import (
 	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
 	"antrea.io/nephe/pkg/cloud-provider/utils"
 	"antrea.io/nephe/pkg/controllers/config"
-	converter "antrea.io/nephe/pkg/converter/target"
 )
 
 // InProgress indicates a securityGroup operation is in progress.
@@ -206,31 +205,11 @@ func compareCloudResources(s1, s2 []*securitygroup.CloudResource) bool {
 	return len(mergeCloudResources(s1, nil, s2)) == 0
 }
 
-// mergeIPs added and removed IPNets from src.
-func mergeIPs(src, added, removed []*net.IPNet) (list []*net.IPNet) {
-	srcMap := make(map[string]*net.IPNet)
-	for _, s := range src {
-		srcMap[s.String()] = s
-	}
-	for _, r := range removed {
-		delete(srcMap, r.String())
-	}
-	for _, a := range added {
-		rsc := *a
-		srcMap[a.String()] = &rsc
-	}
-	for _, v := range srcMap {
-		list = append(list, v)
-	}
-	return
-}
-
 // vpcsFromGroupMembers, provided with a list of ExternalEntityReferences, returns corresponding CloudResources keyed by VPC.
 // If an ExternalEntity does not correspond to a CloudResource, its IP(s) is returned.
 func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPolicyReconciler) (
-	map[string][]*securitygroup.CloudResource, []*net.IPNet, []*types.NamespacedName, error) {
+	map[string][]*securitygroup.CloudResource, []*types.NamespacedName, error) {
 	vpcs := make(map[string][]*securitygroup.CloudResource)
-	var ipBlocks []*net.IPNet
 	var notFoundMember []*types.NamespacedName
 	for _, m := range members {
 		if m.ExternalEntity == nil {
@@ -245,60 +224,44 @@ func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPoli
 				continue
 			}
 			r.Log.Error(err, "client get ExternalEntity", "key", key)
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
 		kind, ok := e.Labels[config.ExternalEntityLabelKeyKind]
 		if !ok {
 			r.Log.Error(fmt.Errorf(""), "kind label not found in ExternalEntity", "key", key, "labels", e.Labels)
 			continue
 		}
-		var cloudRsc securitygroup.CloudResource
-		readOwnerLabels := false
-		if kind == converter.GetExternalEntityLabelKind(&runtimev1alpha1.VirtualMachine{}) {
-			cloudRsc.Type = securitygroup.CloudResourceTypeVM
-			readOwnerLabels = true
-		} else {
-			r.Log.Error(fmt.Errorf(""), "invalid cloud resource type received", "kind", kind)
+
+		ownerVm, err := getOwnerVm(e, r)
+		if err != nil {
+			r.Log.Error(err, "externalEntity owner not found", "key", key, "kind", kind)
+			namespacedName := &types.NamespacedName{Namespace: m.ExternalEntity.Namespace, Name: m.ExternalEntity.Name}
+			notFoundMember = append(notFoundMember, namespacedName)
+			continue
 		}
-		if readOwnerLabels {
-			ownerVm, err := getOwnerVm(e, r)
-			if err != nil {
-				r.Log.Error(err, "externalEntity owner not found", "key", key, "kind", kind)
-				namespacedName := &types.NamespacedName{Namespace: m.ExternalEntity.Namespace, Name: m.ExternalEntity.Name}
-				notFoundMember = append(notFoundMember, namespacedName)
-				continue
-			}
-			cloudAccountName, ok := ownerVm.Labels[config.LabelCloudAccountName]
-			if !ok {
-				r.Log.Error(fmt.Errorf("invalid VM object"), "cpa name label not found ",
-					"key", key, "kind", kind)
-				continue
-			}
-			cloudAccountNamespace, ok := ownerVm.Labels[config.LabelCloudAccountNamespace]
-			if !ok {
-				r.Log.Error(fmt.Errorf("invalid VM object"), "cpa namespace label not found",
-					"key", key, "kind", kind)
-				continue
-			}
-			cloudRsc.Name = ownerVm.Status.CloudId
-			cloudRsc.AccountID = types.NamespacedName{
-				Name:      cloudAccountName,
-				Namespace: cloudAccountNamespace,
-			}.String()
-			cloudRsc.CloudProvider = string(ownerVm.Status.Provider)
-			cloudRsc.Vpc = ownerVm.Status.CloudVpcId
-			vpcs[ownerVm.Status.CloudVpcId] = append(vpcs[ownerVm.Status.CloudVpcId], &cloudRsc)
-		} else {
-			for _, ep := range e.Spec.Endpoints {
-				var ipnet *net.IPNet
-				if _, ipnet, _ = net.ParseCIDR(ep.IP); ipnet == nil {
-					_, ipnet, _ = net.ParseCIDR(ep.IP + "/32")
-				}
-				ipBlocks = append(ipBlocks, ipnet)
-			}
+		cloudAccountName, ok := ownerVm.Labels[config.LabelCloudAccountName]
+		if !ok {
+			r.Log.Error(fmt.Errorf("invalid VM object"), "cpa name label not found ",
+				"key", key, "kind", kind)
+			continue
 		}
+		cloudAccountNamespace, ok := ownerVm.Labels[config.LabelCloudAccountNamespace]
+		if !ok {
+			r.Log.Error(fmt.Errorf("invalid VM object"), "cpa namespace label not found",
+				"key", key, "kind", kind)
+			continue
+		}
+
+		cloudRsc := securitygroup.CloudResource{
+			Type:            securitygroup.CloudResourceTypeVM,
+			CloudResourceID: securitygroup.CloudResourceID{Name: ownerVm.Status.CloudId, Vpc: ownerVm.Status.CloudVpcId},
+			AccountID:       types.NamespacedName{Name: cloudAccountName, Namespace: cloudAccountNamespace}.String(),
+			CloudProvider:   string(ownerVm.Status.Provider),
+		}
+
+		vpcs[ownerVm.Status.CloudVpcId] = append(vpcs[ownerVm.Status.CloudVpcId], &cloudRsc)
 	}
-	return vpcs, ipBlocks, notFoundMember, nil
+	return vpcs, notFoundMember, nil
 }
 
 // getOwnerVm gets the parent VM object from ExternalEntity.
@@ -407,7 +370,6 @@ func (s *securityGroupImpl) deleteImpl(c cloudSecurityGroup, membershipOnly bool
 				return nil
 			}
 		}
-		r.Log.V(1).Info("Deleting SecurityGroup", "Name", s.id.Name, "MembershipOnly", membershipOnly)
 		if err := indexer.Delete(c); err != nil {
 			r.Log.Error(err, "deleting SecurityGroup from indexer", "Name", s.id.Name)
 		}
@@ -427,6 +389,7 @@ func (s *securityGroupImpl) deleteImpl(c cloudSecurityGroup, membershipOnly bool
 	}
 	_ = r.pendingDeleteGroups.Update(guName, false, 1, false)
 	s.status = &InProgress{}
+	r.Log.V(1).Info("Deleting SecurityGroup", "Name", s.id.Name, "MembershipOnly", membershipOnly)
 	ch := securitygroup.CloudSecurityGroup.DeleteSecurityGroup(&s.id, membershipOnly)
 	go func() {
 		err := <-ch
@@ -513,18 +476,16 @@ func (s *securityGroupImpl) markDirty(r *NetworkPolicyReconciler, create bool) {
 // addrSecurityGroup keeps track of membership within a SecurityGroup in a VPC.
 type addrSecurityGroup struct {
 	securityGroupImpl
-	// IPs presents IPs of these non-cloud ExternalEntities associated with this AddressGroup.
-	ipBlocks []*net.IPNet
 }
 
 // newAddrSecurityGroup creates a new addSecurityGroup from Antrea AddressGroup.
 func newAddrSecurityGroup(id *securitygroup.CloudResource, data interface{}, state *securityGroupState) cloudSecurityGroup {
 	sg := &addrSecurityGroup{}
-	if ips, ok := data.([]*net.IPNet); ok {
-		sg.ipBlocks = ips
-	} else {
-		sg.members = data.([]*securitygroup.CloudResource)
+	members, ok := data.([]*securitygroup.CloudResource)
+	if !ok {
+		return nil
 	}
+	sg.members = members
 	if state != nil {
 		sg.state = *state
 	} else {
@@ -536,42 +497,22 @@ func newAddrSecurityGroup(id *securitygroup.CloudResource, data interface{}, sta
 
 // add invokes cloud plug-in to create an addrSecurityGroup.
 func (a *addrSecurityGroup) add(r *NetworkPolicyReconciler) error {
-	if a.isIPBlocks() {
-		return r.addrSGIndexer.Add(a)
-	}
 	return a.addImpl(a, true, r)
 }
 
 // delete invokes cloud plug-in to delete an addrSecurityGroup.
 func (a *addrSecurityGroup) delete(r *NetworkPolicyReconciler) error {
-	if a.isIPBlocks() {
-		return r.addrSGIndexer.Delete(a)
-	}
 	return a.deleteImpl(a, true, r)
-}
-
-// updateIPs updates IPs stored in an addrSecurityGroup. It does not trigger operations to cloud plug-in.
-func (a *addrSecurityGroup) updateIPs(added, removed []*net.IPNet, r *NetworkPolicyReconciler) {
-	r.Log.V(1).Info("AddrSecurityGroup UpdateIPs", "Name", a.id.Name)
-	a.ipBlocks = mergeIPs(a.ipBlocks, added, removed)
 }
 
 // update invokes cloud plug-in to update an addrSecurityGroup.
 func (a *addrSecurityGroup) update(added, removed []*securitygroup.CloudResource, r *NetworkPolicyReconciler) error {
-	if a.isIPBlocks() {
-		return nil
-	}
 	return a.updateImpl(a, added, removed, true, r)
 }
 
 // isReady returns true if cloud plug-in has created addrSecurityGroup.
 func (a *addrSecurityGroup) isReady() bool {
-	return a.isIPBlocks() || a.state == securityGroupStateCreated
-}
-
-// isIPBlocks returns true if this addrSecurityGroup is used for storing IPBlocks.
-func (a *addrSecurityGroup) isIPBlocks() bool {
-	return len(a.id.Vpc) == 0
+	return a.state == securityGroupStateCreated
 }
 
 // notify calls into addrSecurityGroup to report operation status from cloud plug-in.
@@ -621,6 +562,7 @@ func (a *addrSecurityGroup) notify(op securityGroupOperation, status error, r *N
 	// Update networkPolicies.
 	for _, i := range nps {
 		np := i.(*networkPolicy)
+		r.Log.V(1).Info("AddrSecurityGroup notify networkPolicy change", "Name", a.id.Name, "networkPolicy", np.Name)
 		if err := np.notifyAddrGrpChanges(r); err != nil {
 			r.Log.Error(err, "networkPolicy", "name", np.Name)
 		}
@@ -633,15 +575,10 @@ func (a *addrSecurityGroup) getStatus() error {
 	if a.status != nil {
 		return a.status
 	}
-	if a.state == securityGroupStateCreated || a.isIPBlocks() {
+	if a.state == securityGroupStateCreated {
 		return nil
 	}
 	return &InProgress{}
-}
-
-// getIPs returns IPs in an addrSecurityGroup.
-func (a *addrSecurityGroup) getIPs() []*net.IPNet {
-	return a.ipBlocks
 }
 
 // notifyNetworkPolicyChange notifies some NetworkPolicy reference to this securityGroup has changed.
@@ -1241,11 +1178,6 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler) (ingressList []*s
 			}
 			for _, i := range sgs {
 				sg := i.(*addrSecurityGroup)
-				for _, ip := range sg.getIPs() {
-					ingress := &securitygroup.IngressRule{}
-					ingress.FromSrcIP = append(ingress.FromSrcIP, ip)
-					iRules = append(iRules, ingress)
-				}
 				id := sg.getID()
 				if len(id.Vpc) > 0 {
 					ingress := &securitygroup.IngressRule{}
@@ -1302,11 +1234,6 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler) (ingressList []*s
 		}
 		for _, i := range sgs {
 			sg := i.(*addrSecurityGroup)
-			for _, ip := range sg.getIPs() {
-				egress := &securitygroup.EgressRule{}
-				egress.ToDstIP = append(egress.ToDstIP, ip)
-				eRules = append(eRules, egress)
-			}
 			id := sg.getID()
 			if len(id.Vpc) > 0 {
 				egress := &securitygroup.EgressRule{}
@@ -1524,8 +1451,7 @@ func (n *networkPolicy) notifyAddrGrpChanges(r *NetworkPolicyReconciler) error {
 	if n.rulesReady {
 		return nil
 	}
-	_ = n.computeRulesReady(false, r)
-	if !n.rulesReady {
+	if ruleReady := n.computeRules(r); !ruleReady {
 		return nil
 	}
 
