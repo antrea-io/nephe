@@ -16,7 +16,9 @@ package cloud
 
 import (
 	"context"
+	"os"
 	"sync"
+	"time"
 
 	mock "github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
@@ -26,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	fakewatch "k8s.io/client-go/kubernetes/fake"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -100,7 +103,6 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 				},
 			}
 		})
-
 		It("Account Add and Delete workflow", func() {
 			_ = fakeClient.Create(context.Background(), secret)
 			_ = fakeClient.Create(context.Background(), account)
@@ -147,6 +149,53 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 
 			err = reconciler.processDelete(&testAccountNamespacedName)
 			Expect(err).Should(HaveOccurred())
+		})
+		It("Secret watcher", func() {
+			var err error
+			reconciler.clientset = fakewatch.NewSimpleClientset()
+			credential := `{"accessKeyId": "keyId","accessKeySecret": "Secret"}`
+			err = os.Setenv("POD_NAMESPACE", testSecretNamespacedName.Namespace)
+			Expect(err).ShouldNot(HaveOccurred())
+			// Create a secret using both fakeClient and clientset, since secret watcher uses cleintset
+			// while reconciler using client from controller run-time. Both secret watcher and reconciler
+			// should be able to retrieve the secret object.
+			_, err = reconciler.clientset.CoreV1().Secrets(testSecretNamespacedName.Namespace).
+				Create(context.Background(), secret, v1.CreateOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			_ = fakeClient.Create(context.Background(), secret)
+			// Create CPA.
+			_ = fakeClient.Create(context.Background(), account)
+			go func() {
+				reconciler.setupSecretWatcher()
+			}()
+			time.Sleep(time.Second * 10)
+			// Update the valid secret credentials.
+			secret = &corev1.Secret{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      testSecretNamespacedName.Name,
+					Namespace: testSecretNamespacedName.Namespace,
+				},
+				Data: map[string][]byte{
+					"credentials": []byte(credential),
+				},
+			}
+			_, err = reconciler.clientset.CoreV1().Secrets(testSecretNamespacedName.Namespace).
+				Update(context.Background(), secret, v1.UpdateOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			// Update the invalid secret credentials.
+			secret = &corev1.Secret{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      testSecretNamespacedName.Name,
+					Namespace: testSecretNamespacedName.Namespace,
+				},
+				Data: map[string][]byte{
+					"credentials": []byte("credentialg"),
+				},
+			}
+			_ = fakeClient.Update(context.Background(), secret)
+			_, err = reconciler.clientset.CoreV1().Secrets(testSecretNamespacedName.Namespace).
+				Update(context.Background(), secret, v1.UpdateOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
 		})
 	})
 })

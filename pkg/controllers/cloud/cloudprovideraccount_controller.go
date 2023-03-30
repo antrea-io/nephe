@@ -21,10 +21,14 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -32,6 +36,7 @@ import (
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	cloudprovider "antrea.io/nephe/pkg/cloud-provider"
 	"antrea.io/nephe/pkg/cloud-provider/cloudapi/common"
+	"antrea.io/nephe/pkg/config"
 	"antrea.io/nephe/pkg/controllers/inventory"
 	"antrea.io/nephe/pkg/controllers/utils"
 )
@@ -50,6 +55,8 @@ type CloudProviderAccountReconciler struct {
 	Poller              *Poller
 	pendingSyncCount    int
 	initialized         bool
+	watcher             watch.Interface
+	clientset           kubernetes.Interface
 }
 
 // nolint:lll
@@ -64,6 +71,8 @@ func (r *CloudProviderAccountReconciler) Reconcile(ctx context.Context, req ctrl
 			return ctrl.Result{}, err
 		}
 	}
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
 
 	providerAccount := &crdv1alpha1.CloudProviderAccount{}
 	if err := r.Get(ctx, req.NamespacedName, providerAccount); err != nil {
@@ -83,7 +92,14 @@ func (r *CloudProviderAccountReconciler) Reconcile(ctx context.Context, req ctrl
 }
 
 func (r *CloudProviderAccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	var err error
 	r.accountProviderType = make(map[types.NamespacedName]common.ProviderType)
+	// Client in controller requires reconciler for each object that are under watch. So to avoid reconciler and use only
+	// watch, that can be implemented by clientset.
+	if r.clientset, err = kubernetes.NewForConfig(ctrl.GetConfigOrDie()); err != nil {
+		r.Log.Error(err, "error creating client config")
+		return err
+	}
 	if err := ctrl.NewControllerManagedBy(mgr).For(&crdv1alpha1.CloudProviderAccount{}).Complete(r); err != nil {
 		return err
 	}
@@ -93,7 +109,7 @@ func (r *CloudProviderAccountReconciler) SetupWithManager(mgr ctrl.Manager) erro
 // Start performs the initialization of the controller.
 // A controller is said to be initialized only when the dependent controllers
 // are synced, and controller keeps a count of pending CRs to be reconciled.
-func (r *CloudProviderAccountReconciler) Start(context.Context) error {
+func (r *CloudProviderAccountReconciler) Start(ctx context.Context) error {
 	r.Log.Info("Waiting for shared informer caches to be synced")
 	// Blocking call to wait till the informer caches are synced by controller run-time
 	// or the context is Done.
@@ -108,7 +124,7 @@ func (r *CloudProviderAccountReconciler) Start(context.Context) error {
 
 	r.pendingSyncCount = len(cpaList.Items)
 	if r.pendingSyncCount == 0 {
-		GetControllerSyncStatusInstance().SetControllerSyncStatus(ControllerTypeCPA)
+		r.setSyncStatusAndSecretWatcher()
 	}
 	r.initialized = true
 	r.Log.Info("Init done", "controller", ControllerTypeCPA.String())
@@ -121,9 +137,17 @@ func (r *CloudProviderAccountReconciler) updatePendingSyncCountAndStatus() {
 	if r.pendingSyncCount > 0 {
 		r.pendingSyncCount--
 		if r.pendingSyncCount == 0 {
-			GetControllerSyncStatusInstance().SetControllerSyncStatus(ControllerTypeCPA)
+			r.setSyncStatusAndSecretWatcher()
 		}
 	}
+}
+
+// setSyncStatusAndSecretWatcher sets the controller sync status and watcher.
+func (r *CloudProviderAccountReconciler) setSyncStatusAndSecretWatcher() {
+	GetControllerSyncStatusInstance().SetControllerSyncStatus(ControllerTypeCPA)
+	go func() {
+		r.setupSecretWatcher()
+	}()
 }
 
 func (r *CloudProviderAccountReconciler) processCreateOrUpdate(namespacedName *types.NamespacedName,
@@ -215,25 +239,94 @@ func (r *CloudProviderAccountReconciler) startPollingThread(namespacedName *type
 
 func (r *CloudProviderAccountReconciler) addAccountProviderType(namespacedName *types.NamespacedName,
 	provider runtimev1alpha1.CloudProvider) common.ProviderType {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
 	providerType := common.ProviderType(provider)
 	r.accountProviderType[*namespacedName] = providerType
-
 	return providerType
 }
 
 func (r *CloudProviderAccountReconciler) removeAccountProviderType(namespacedName *types.NamespacedName) {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
 	delete(r.accountProviderType, *namespacedName)
 }
 
 func (r *CloudProviderAccountReconciler) getAccountProviderType(namespacedName *types.NamespacedName) common.ProviderType {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
 	return r.accountProviderType[*namespacedName]
+}
+
+// getCpaBySecret returns nil only when the Secret is not used by any CloudProvideAccount CR,
+// otherwise the dependent CloudProvideAccount CRs will be returned.
+func (r *CloudProviderAccountReconciler) getCpaBySecret(s types.NamespacedName) (error, []crdv1alpha1.CloudProviderAccount) {
+	cpaList := &crdv1alpha1.CloudProviderAccountList{}
+	if err := r.Client.List(context.TODO(), cpaList, &client.ListOptions{}); err != nil {
+		return fmt.Errorf("failed to get CloudProviderAccount list, err %v", err), nil
+	}
+	var cpaItems []crdv1alpha1.CloudProviderAccount
+	for _, cpa := range cpaList.Items {
+		if cpa.Spec.AWSConfig != nil {
+			if cpa.Spec.AWSConfig.SecretRef.Name == s.Name &&
+				cpa.Spec.AWSConfig.SecretRef.Namespace == s.Namespace {
+				cpaItems = append(cpaItems, cpa)
+			}
+		}
+
+		if cpa.Spec.AzureConfig != nil {
+			if cpa.Spec.AzureConfig.SecretRef.Name == s.Name &&
+				cpa.Spec.AzureConfig.SecretRef.Namespace == s.Namespace {
+				cpaItems = append(cpaItems, cpa)
+			}
+		}
+	}
+	return nil, cpaItems
+}
+
+// watchSecret watch the Secret objects.
+func (r *CloudProviderAccountReconciler) watchSecret() {
+	for {
+		event, ok := <-r.watcher.ResultChan()
+		if !ok {
+			r.resetSecretWatcher()
+		} else {
+			switch event.Type {
+			case watch.Modified:
+				r.mutex.Lock()
+				secret := event.Object.(*v1.Secret)
+				namespacedName := types.NamespacedName{Namespace: secret.Namespace, Name: secret.Name}
+				r.Log.WithName("Secret").Info("Received request", "Secret", namespacedName, "operation", "update")
+				err, cpaItems := r.getCpaBySecret(namespacedName)
+				if err != nil {
+					r.Log.WithName("Secret").Error(err, "error getting CPA by Secret", "account", namespacedName)
+				}
+				for _, cpa := range cpaItems {
+					accountNamespacedName := types.NamespacedName{Namespace: cpa.Namespace, Name: cpa.Name}
+					err := r.processCreateOrUpdate(&accountNamespacedName, &cpa)
+					if err != nil {
+						r.Log.WithName("Secret").Error(err, "error updating account", "account", accountNamespacedName)
+					} else {
+						r.Log.WithName("Secret").Info("Done processing secret", "account", accountNamespacedName)
+					}
+				}
+				r.mutex.Unlock()
+			case watch.Error:
+				r.resetSecretWatcher()
+			}
+		}
+	}
+}
+
+// resetSecretWatcher create a watcher for Secret
+func (r *CloudProviderAccountReconciler) resetSecretWatcher() {
+	var err error
+	for {
+		if r.watcher, err = r.clientset.CoreV1().Secrets(config.GetPodNamespace()).Watch(context.Background(), metav1.ListOptions{}); err != nil {
+			r.Log.WithName("Secret").Error(err, "error creating Secret watcher")
+			time.Sleep(time.Second * 5)
+			continue
+		}
+		break
+	}
+}
+
+// setupSecretWatcher set up a watcher for Secret objects.
+func (r *CloudProviderAccountReconciler) setupSecretWatcher() {
+	r.resetSecretWatcher()
+	r.watchSecret()
 }

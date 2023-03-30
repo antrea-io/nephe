@@ -509,6 +509,11 @@ spec:
         - --enable-debug-log
         command:
         - /nephe-controller
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
         image: projects.registry.vmware.com/antrea/nephe:latest
         imagePullPolicy: IfNotPresent
         name: nephe-controller
@@ -706,7 +711,6 @@ webhooks:
     apiVersions:
     - v1
     operations:
-    - UPDATE
     - DELETE
     resources:
     - secrets
