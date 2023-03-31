@@ -69,16 +69,16 @@ spec:
   - externalEntitySelector:
       matchLabels:
 {{- if .AppliedTo.Kind }}
-        nephe.io/kind: {{.AppliedTo.Kind}}
+        {{.AppliedTo.Kind}}
 {{ end }}
 {{- if .AppliedTo.CloudInstanceName }}
-        nephe.io/owner-vm: {{.AppliedTo.CloudInstanceName }}
+        {{.AppliedTo.CloudInstanceName }}
 {{ end }}
 {{- if .AppliedTo.VPC }}
-        nephe.io/owner-vm-vpc: {{ .AppliedTo.VPC }}
+        {{ .AppliedTo.VPC }}
 {{ end }}
 {{- range $k, $v := .AppliedTo.Tags }}
-        nephe.io/tag-{{$k}}: {{$v}}
+        {{$k}}: {{$v}}
 {{ end }}
 {{ end }} {{- /* .AppliedTo */}}
 {{- if .From }}
@@ -97,16 +97,16 @@ spec:
       - externalEntitySelector:
           matchLabels:
 {{- if .From.Entity.Kind }}
-            nephe.io/kind: {{.From.Entity.Kind}}
+            {{.From.Entity.Kind}}
 {{ end }}
 {{- if .From.Entity.CloudInstanceName }}
-            nephe.io/owner-vm: {{ .From.Entity.CloudInstanceName }}
+            {{ .From.Entity.CloudInstanceName }}
 {{ end }}
 {{- if .From.Entity.VPC }}
-            nephe.io/owner-vm-vpc: {{ .From.Entity.VPC }}
+            {{ .From.Entity.VPC }}
 {{ end }}
 {{- range $k, $v := .From.Entity.Tags }}
-            nephe.io/tag-{{$k}}: {{$v}}
+            {{$k}}: {{$v}}
 {{ end }}
 {{ end }} {{/*.From.Entity */}}
 {{- if .From.Namespace }}
@@ -140,16 +140,16 @@ spec:
       - externalEntitySelector:
 {{- if .To.Entity.Kind }}
           matchLabels:
-            nephe.io/kind: {{.To.Entity.Kind}}
+            {{.To.Entity.Kind}}
 {{ end }}
 {{- if .To.Entity.CloudInstanceName }}
-            nephe.io/owner-vm: {{ .To.Entity.CloudInstanceName }}
+            {{ .To.Entity.CloudInstanceName }}
 {{ end }}
 {{- if .To.Entity.VPC }}
-            nephe.io/owner-vm-vpc: {{ .To.Entity.VPC }}
+            {{ .To.Entity.VPC }}
 {{ end }}
 {{- range $k, $v := .To.Entity.Tags }}
-            nephe.io/tag-{{$k}}: {{$v}}
+            {{$k}}: {{$v}}
 {{ end }}
 {{ end }} {{/* .To.Entity */}}
 {{- if .To.Namespace }}
@@ -179,15 +179,15 @@ spec:
     externalEntitySelector:
 {{- if .Entity.Kind }}
       matchLabels:
-        nephe.io/kind: {{.Entity.Kind}}
+        {{.Entity.Kind}}
 {{ end }}
 {{- if .Entity.CloudInstanceName }}
       matchLabels:
-        nephe.io/owner-vm: {{ .Entity.CloudInstanceName }}
+        {{ .Entity.CloudInstanceName }}
 {{ end }}
 {{- if .Entity.VPC }}
       matchLabels:
-        nephe.io/owner-vm-vpc: {{ .Entity.VPC }}
+        {{ .Entity.VPC }}
 {{ end }}
 {{ end }}
 `

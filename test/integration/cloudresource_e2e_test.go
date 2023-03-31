@@ -32,6 +32,7 @@ import (
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	cpautils "antrea.io/nephe/pkg/cloud-provider/utils"
+	"antrea.io/nephe/pkg/controllers/config"
 	k8stemplates "antrea.io/nephe/test/templates"
 	"antrea.io/nephe/test/utils"
 )
@@ -113,12 +114,18 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 	})
 
 	configANPApplyTo = func(kind, instanceName, vpc, tagKey, tagVal string) *k8stemplates.EntitySelectorParameters {
-		ret := &k8stemplates.EntitySelectorParameters{
-			Kind:              strings.ToLower(kind),
-			VPC:               strings.ToLower(vpc),
-			CloudInstanceName: strings.ToLower(instanceName),
+		ret := &k8stemplates.EntitySelectorParameters{}
+		if len(kind) > 0 {
+			ret.Kind = config.ExternalEntityLabelKeyKind + ": " + strings.ToLower(kind)
+		}
+		if len(vpc) > 0 {
+			ret.VPC = config.ExternalEntityLabelKeyOwnerVmVpc + ": " + strings.ToLower(vpc)
+		}
+		if len(instanceName) > 0 {
+			ret.CloudInstanceName = config.ExternalEntityLabelKeyOwnerVm + ": " + strings.ToLower(instanceName)
 		}
 		if len(tagKey) > 0 {
+			tagKey = config.LabelPrefixNephe + config.ExternalEntityLabelKeyTagPrefix + tagKey
 			ret.Tags = map[string]string{strings.ToLower(tagKey): strings.ToLower(tagVal)}
 		}
 		return ret
@@ -132,12 +139,16 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		}
 		if len(kind) > 0 {
 			ret.Entity = &k8stemplates.EntitySelectorParameters{
-				Kind:              strings.ToLower(kind),
-				VPC:               strings.ToLower(vpc),
-				CloudInstanceName: strings.ToLower(instanceName),
+				Kind: config.ExternalEntityLabelKeyKind + ": " + strings.ToLower(kind),
 			}
-
+			if len(vpc) > 0 {
+				ret.Entity.VPC = config.ExternalEntityLabelKeyOwnerVmVpc + ": " + strings.ToLower(vpc)
+			}
+			if len(instanceName) > 0 {
+				ret.Entity.CloudInstanceName = config.ExternalEntityLabelKeyOwnerVm + ": " + strings.ToLower(instanceName)
+			}
 			if len(tagKey) > 0 {
+				tagKey = config.LabelPrefixNephe + config.ExternalEntityLabelKeyTagPrefix + tagKey
 				ret.Entity.Tags = map[string]string{strings.ToLower(tagKey): strings.ToLower(tagVal)}
 			}
 		}
@@ -208,6 +219,9 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			// TODO: Update the tests later to remove this rule
 			defaultANPParameters = k8stemplates.DefaultANPParameters{
 				Namespace: staticVMNS.Name,
+				Entity: &k8stemplates.EntitySelectorParameters{
+					Kind: config.ExternalEntityLabelKeyKind + ": " + reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name(),
+				},
 			}
 			err := utils.ConfigureK8s(kubeCtl, defaultANPParameters, k8stemplates.DefaultANPSetup, false)
 			Expect(err).ToNot(HaveOccurred(), "failed to add default ANP rule")
@@ -348,7 +362,6 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 	testAppliedTo := func(kind string) {
 		var ids []string
 		var ips []string
-		tagTest := true
 		if kind == reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name() {
 			ids = cloudVPC.GetVMs()
 			ips = cloudVPC.GetVMPrivateIPs()
@@ -389,13 +402,11 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		anpParams.AppliedTo = configANPApplyTo(kind, "", cloudVPC.GetCRDVPCID(), "", "")
 		verifyAppliedTo(kind, ids, ips, srcVM, srcIP, applied)
 
-		if tagTest {
-			By(fmt.Sprintf("Applied NetworkPolicy to %v by tag label selector", kind))
-			applied = make([]bool, len(ids))
-			applied[appliedIdx] = true
-			anpParams.AppliedTo = configANPApplyTo(kind, "", "", "name", cloudVPC.GetTags()[appliedIdx]["Name"])
-			verifyAppliedTo(kind, ids, ips, srcVM, srcIP, applied)
-		}
+		By(fmt.Sprintf("Applied NetworkPolicy to %v by tag label selector", kind))
+		applied = make([]bool, len(ids))
+		applied[appliedIdx] = true
+		anpParams.AppliedTo = configANPApplyTo(kind, "", "", "name", cloudVPC.GetTags()[appliedIdx]["Name"])
+		verifyAppliedTo(kind, ids, ips, srcVM, srcIP, applied)
 	}
 
 	testAppliedToUsingGroup := func(kind string) {
@@ -421,7 +432,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		}
 		By(fmt.Sprintf("Applied NetworkPolicy to %v by kind label selector using group", kind))
 		groupParameters.Entity = &k8stemplates.EntitySelectorParameters{
-			Kind: strings.ToLower(kind),
+			Kind: config.ExternalEntityLabelKeyKind + ": " + strings.ToLower(kind),
 		}
 		err := utils.ConfigureK8s(kubeCtl, groupParameters, k8stemplates.CloudAntreaGroup, false)
 		Expect(err).ToNot(HaveOccurred())
@@ -441,7 +452,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 
 		// Update Group.
 		groupParameters.Entity = &k8stemplates.EntitySelectorParameters{
-			CloudInstanceName: ids[appliedIdx],
+			CloudInstanceName: config.ExternalEntityLabelKeyOwnerVm + ": " + strings.ToLower(ids[appliedIdx]),
 		}
 		err = utils.ConfigureK8s(kubeCtl, groupParameters, k8stemplates.CloudAntreaGroup, false)
 		Expect(err).ToNot(HaveOccurred())
@@ -451,7 +462,6 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 	testEgress := func(kind string) {
 		var ids []string
 		var ips []string
-		testTag := true
 		if kind == reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name() {
 			ids = cloudVPC.GetVMs()
 			ips = cloudVPC.GetVMPrivateIPs()
@@ -494,14 +504,13 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			[]string{apachePort}, false)
 		verifyEgress(kind, ids[appliedIdx], srcVM, ips[:len(ips)-1], oks)
 
-		if testTag {
-			By(fmt.Sprintf("Egress NetworkPolicy on %v by tag label selector", kind))
-			oks = make([]bool, len(ids)-1)
-			oks[0] = true
-			anpParams.To = configANPToFrom(kind, "", "", "name", cloudVPC.GetTags()[0]["Name"], "", dstNsName,
-				[]string{apachePort}, false)
-			verifyEgress(kind, ids[appliedIdx], srcVM, ips[:len(ips)-1], oks)
-		}
+		By(fmt.Sprintf("Egress NetworkPolicy on %v by tag label selector", kind))
+		oks = make([]bool, len(ids)-1)
+		oks[0] = true
+		anpParams.To = configANPToFrom(kind, "", "", "name", cloudVPC.GetTags()[0]["Name"], "", dstNsName,
+			[]string{apachePort}, false)
+		verifyEgress(kind, ids[appliedIdx], srcVM, ips[:len(ips)-1], oks)
+
 		By(fmt.Sprintf("Egress NetworkPolicy on %v by IPBlock", kind))
 		oks = make([]bool, len(ids)-1)
 		oks[1] = true
@@ -513,7 +522,6 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 	testIngress := func(kind string) {
 		var ids []string
 		var ips []string
-		testTag := true
 		if kind == reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name() {
 			ids = cloudVPC.GetVMs()
 			ips = cloudVPC.GetVMPrivateIPs()
@@ -556,14 +564,12 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			[]string{apachePort}, false)
 		verifyIngress(kind, ids[appliedIdx], ips[appliedIdx], srcVMs, oks, false)
 
-		if testTag {
-			By(fmt.Sprintf("Ingress NetworkPolicy on %v by tag label selector", kind))
-			oks = make([]bool, len(ids)-1)
-			oks[0] = true
-			anpParams.From = configANPToFrom(kind, "", "", "name", cloudVPC.GetTags()[0]["Name"], "", dstNsName,
-				[]string{apachePort}, false)
-			verifyIngress(kind, ids[appliedIdx], ips[appliedIdx], srcVMs, oks, false)
-		}
+		By(fmt.Sprintf("Ingress NetworkPolicy on %v by tag label selector", kind))
+		oks = make([]bool, len(ids)-1)
+		oks[0] = true
+		anpParams.From = configANPToFrom(kind, "", "", "name", cloudVPC.GetTags()[0]["Name"], "", dstNsName,
+			[]string{apachePort}, false)
+		verifyIngress(kind, ids[appliedIdx], ips[appliedIdx], srcVMs, oks, false)
 
 		By(fmt.Sprintf("Ingress NetworkPolicy on %v by IPBlock", kind))
 		oks = make([]bool, len(ids)-1)
