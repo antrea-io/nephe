@@ -358,13 +358,14 @@ func (s *securityGroupImpl) deleteImpl(c cloudSecurityGroup, membershipOnly bool
 		if err != nil {
 			return fmt.Errorf("get networkpolicy indexer with index=%v, name=%v: %w", indexKey, s.id.Name, err)
 		}
-		if len(nps) != 0 {
-			r.Log.V(1).Info("Deleting SecurityGroup pending, in use by networkpolicies", "Name", s.id.Name,
-				"MembershipOnly", membershipOnly, "anpNum", len(nps))
-			s.deletePending = true
-			return nil
-		}
 		if membershipOnly {
+			if len(nps) != 0 {
+				r.Log.V(1).Info("Deleting SecurityGroup pending, in use by networkpolicies", "Name", s.id.Name,
+					"MembershipOnly", membershipOnly, "anpNum", len(nps))
+				s.deletePending = true
+				return nil
+			}
+
 			refs, err := r.appliedToSGIndexer.ByIndex(appliedToIndexerByAddrGroupRef, s.id.CloudResourceID.String())
 			if err != nil {
 				return fmt.Errorf("get appliedTo indexer with name=%v: %w", s.id.CloudResourceID.String(), err)
@@ -1135,18 +1136,8 @@ func (a *appliedToSecurityGroup) notify(op securityGroupOperation, status error,
 }
 
 // notifyNetworkPolicyChange notifies some NetworkPolicy reference to this securityGroup has changed.
-func (a *appliedToSecurityGroup) notifyNetworkPolicyChange(r *NetworkPolicyReconciler) {
-	nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAppliedToGrp, a.id.Name)
-	if err != nil {
-		r.Log.Error(err, "get networkPolicy indexer", a.id.Name, err, "indexKey", networkPolicyIndexerByAppliedToGrp)
-	}
-	r.Log.V(1).Info("AppliedToSecurityGroup notifyNetworkPolicyChange", "Name",
-		a.id.CloudResourceID.String(), "anpNum", len(nps))
-	if len(nps) == 0 && a.deletePending {
-		if err := a.delete(r); err != nil {
-			r.Log.Error(err, "delete securityGroup", "Name", a.id.Name)
-		}
-	}
+func (a *appliedToSecurityGroup) notifyNetworkPolicyChange(_ *NetworkPolicyReconciler) {
+	// Unused.
 }
 
 // removeStaleMembers removes sg members that their corresponding CRs no longer exist and cleans up relevant internal resources.
@@ -1395,7 +1386,6 @@ func (n *networkPolicy) update(anp *antreanetworking.NetworkPolicy, recompute bo
 		}
 		for _, i := range sgs {
 			sg := i.(*appliedToSecurityGroup)
-			sg.notifyNetworkPolicyChange(r)
 			sg.updateANPRules(r, n)
 		}
 	}
@@ -1416,7 +1406,6 @@ func (n *networkPolicy) delete(r *NetworkPolicyReconciler) error {
 		}
 		for _, i := range sgs {
 			sg := i.(*appliedToSecurityGroup)
-			sg.notifyNetworkPolicyChange(r)
 			sg.updateANPRules(r, n)
 		}
 	}
