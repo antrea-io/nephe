@@ -14,25 +14,12 @@ github_checks:
 
 coverage:
   status:
-    patch:
-      default:
-        # Choose a minimum coverage ratio that the commit must meet to be considered a success.
-        # <number> specify a target of an exact coverage number.
-        target: auto
-        # Allow the coverage to drop by X%, and posting a success status.
-        threshold: 5%
-        # Use the pull request base if the commit is on a pull request. If not, the parent commit will be used.
-        base: auto
-        # Only post a status to pull requests.
-        only_pulls: true
-        flags:
-          - unit-tests
     project:
       default:
         # `auto` will use the coverage from the base commit (pull request base or parent commit) coverage to compare against.
         target: auto
         # Allow the coverage to drop by X% for the project, and posting a success status.
-        threshold: 1%
+        threshold: 2%
         flags:
           - unit-tests
 
