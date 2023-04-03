@@ -38,7 +38,13 @@ var (
 	mutex sync.Mutex
 )
 
-func (computeCfg *computeServiceConfig) getNetworkInterfacesOfVnet(vnetIDSet map[string]struct{}) ([]*networkInterfaceTable, error) {
+type networkInterfaceInternal struct {
+	armnetwork.Interface
+	vnetID string
+}
+
+// getNetworkInterfacesOfVnet fetch network interfaces for a set of VNET-IDs.
+func (computeCfg *computeServiceConfig) getNetworkInterfacesOfVnet(vnetIDSet map[string]struct{}) ([]*networkInterfaceInternal, error) {
 	location := computeCfg.credentials.region
 	subscriptionID := computeCfg.credentials.SubscriptionID
 	tenentID := computeCfg.credentials.TenantID
@@ -48,18 +54,42 @@ func (computeCfg *computeServiceConfig) getNetworkInterfacesOfVnet(vnetIDSet map
 		vnetIDs = append(vnetIDs, vnetID)
 	}
 
+	// TODO: Change the query to just retrieve interfaces of the VNET and data should just include interface name.
 	query, err := getNwIntfsByVnetIDsAndSubscriptionIDsAndTenantIDsAndLocationsMatchQuery(vnetIDs, []string{subscriptionID},
 		[]string{tenentID}, []string{location})
 	if err != nil {
 		return nil, err
 	}
-	nwIntfs, _, err := getNetworkInterfaceTable(computeCfg.resourceGraphAPIClient, query, []*string{&subscriptionID})
-	return nwIntfs, err
+	// Required just for vnet-id to interface mapping.
+	nwInterfacesFromRGQuery, _, err := getNetworkInterfaceTable(computeCfg.resourceGraphAPIClient, query, []*string{&subscriptionID})
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert to map.
+	nwInterfacesMapFromRGQuery := make(map[string]*networkInterfaceTable)
+	for _, nwInterface := range nwInterfacesFromRGQuery {
+		nwInterfacesMapFromRGQuery[strings.ToLower(*nwInterface.ID)] = nwInterface
+	}
+
+	// Fetch all network interfaces from the subscription.
+	// TODO: Check if the query can support any filtering in future.
+	nwInterfaces, err := computeCfg.nwIntfAPIClient.listAllComplete(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	var retNwInterfaces []*networkInterfaceInternal
+	for _, nwInterface := range nwInterfaces {
+		if rgNwInterface, ok := nwInterfacesMapFromRGQuery[strings.ToLower(*nwInterface.ID)]; ok {
+			retNwInterfaces = append(retNwInterfaces, &networkInterfaceInternal{nwInterface, *rgNwInterface.VnetID})
+		}
+	}
+	return retNwInterfaces, err
 }
 
 // processAppliedToMembership attaches/detaches nics to/from the cloud appliedTo security group.
 func (computeCfg *computeServiceConfig) processAppliedToMembership(appliedToGroupIdentifier *securitygroup.CloudResourceID,
-	networkInterfaces []*networkInterfaceTable, rgName string, memberVirtualMachines map[string]struct{},
+	networkInterfaces []*networkInterfaceInternal, rgName string, memberVirtualMachines map[string]struct{},
 	memberNetworkInterfaces map[string]struct{}, isPeer bool) error {
 	// appliedTo sg has asg as well as nsg created corresponding to it. Hence, update membership for both asg and nsg.
 	appliedToGroupOriginalNameToBeUsedAsTag := appliedToGroupIdentifier.GetCloudName(false)
@@ -83,51 +113,58 @@ func (computeCfg *computeServiceConfig) processAppliedToMembership(appliedToGrou
 	}
 
 	// find network interfaces which are using or need to use the provided NSG
-	nwIntfIDSetNsgToAttach := make(map[string]struct{})
-	nwIntfIDSetNsgToDetach := make(map[string]struct{})
+	nwIntfIDSetNsgToAttach := make(map[string]*armnetwork.Interface)
+	nwIntfIDSetNsgToDetach := make(map[string]*armnetwork.Interface)
 	for _, networkInterface := range networkInterfaces {
 		nwIntfIDLowerCase := strings.ToLower(*networkInterface.ID)
 		// 	for network interfaces not attached to any virtual machines, skip processing
-		if emptyString(networkInterface.VirtualMachineID) {
+		if networkInterface.Properties.VirtualMachine == nil || emptyString(networkInterface.Properties.VirtualMachine.ID) {
 			continue
 		}
 
 		isNsgAttached := false
-		if networkInterface.NetworkSecurityGroupID != nil && len(*networkInterface.NetworkSecurityGroupID) > 0 {
-			nsgID := strings.ToLower(*networkInterface.NetworkSecurityGroupID)
+		if networkInterface.Properties.NetworkSecurityGroup != nil && !emptyString(networkInterface.Properties.NetworkSecurityGroup.ID) {
+			nsgID := strings.ToLower(*networkInterface.Properties.NetworkSecurityGroup.ID)
 			_, _, nsgNameLowercase, err := extractFieldsFromAzureResourceID(nsgID)
 			if err != nil {
 				azurePluginLogger().Error(err, "nsg ID format not valid", "nsgID", nsgID)
 				return err
 			}
 
-			attachedAsgIDs := networkInterface.ApplicationSecurityGroupIDs
-			for _, asgID := range attachedAsgIDs {
-				asgIDLowerCase := strings.ToLower(*asgID)
-				// proceed only if network-interface attached to nephe ASG
-				_, _, asgName, err := extractFieldsFromAzureResourceID(asgIDLowerCase)
-				if err != nil {
+			for _, ipConfigs := range networkInterface.Properties.IPConfigurations {
+				if ipConfigs.Properties == nil {
 					continue
 				}
-				_, _, isAT := securitygroup.IsNepheControllerCreatedSG(asgName)
-				if isAT {
-					if strings.Compare(nsgNameLowercase, perVnetNsgNameLowercase) == 0 &&
-						strings.Compare(cloudSgNameLowercase, asgName) == 0 {
-						isNsgAttached = true
-						break
+				for _, asg := range ipConfigs.Properties.ApplicationSecurityGroups {
+					asgIDLowerCase := strings.ToLower(*asg.ID)
+					// proceed only if network-interface attached to nephe ASG
+					_, _, asgName, err := extractFieldsFromAzureResourceID(asgIDLowerCase)
+					if err != nil {
+						continue
+					}
+					_, _, isAT := securitygroup.IsNepheControllerCreatedSG(asgName)
+					if isAT {
+						if strings.Compare(nsgNameLowercase, perVnetNsgNameLowercase) == 0 &&
+							strings.Compare(cloudSgNameLowercase, asgName) == 0 {
+							isNsgAttached = true
+							break
+						}
 					}
 				}
+				// Handling just first available ip-configuration; with an assumption that it will be primary IP always.
+				break
 			}
 		}
-		_, isNicAttachedToMemberVM := memberVirtualMachines[strings.ToLower(*networkInterface.VirtualMachineID)]
+
+		_, isNicAttachedToMemberVM := memberVirtualMachines[strings.ToLower(*networkInterface.Properties.VirtualMachine.ID)]
 		_, isNicMemberNetworkInterface := memberNetworkInterfaces[strings.ToLower(*networkInterface.ID)]
 		if isNsgAttached {
 			if !isNicAttachedToMemberVM && !isNicMemberNetworkInterface {
-				nwIntfIDSetNsgToDetach[nwIntfIDLowerCase] = struct{}{}
+				nwIntfIDSetNsgToDetach[nwIntfIDLowerCase] = &networkInterface.Interface
 			}
 		} else {
 			if isNicAttachedToMemberVM || isNicMemberNetworkInterface {
-				nwIntfIDSetNsgToAttach[nwIntfIDLowerCase] = struct{}{}
+				nwIntfIDSetNsgToAttach[nwIntfIDLowerCase] = &networkInterface.Interface
 			}
 		}
 	}
@@ -138,50 +175,41 @@ func (computeCfg *computeServiceConfig) processAppliedToMembership(appliedToGrou
 
 // processNsgAttachDetachConcurrently attaches/detaches network interfaces to/from NSG.
 func (computeCfg *computeServiceConfig) processNsgAttachDetachConcurrently(nsgObj armnetwork.SecurityGroup,
-	asgObj armnetwork.ApplicationSecurityGroup, nwIntfIDSetNsgToAttach map[string]struct{},
-	nwIntfIDSetNsgToDetach map[string]struct{}, nwIntfTagKeyToUpdate string) error {
-	allNwIntfIDs := mergeSet(nwIntfIDSetNsgToAttach, nwIntfIDSetNsgToDetach)
-
-	nwIntfAPIClient := computeCfg.nwIntfAPIClient
-	nwIntfIDToObjMap, err1 := getNetworkInterfacesGivenIDs(nwIntfAPIClient, allNwIntfIDs)
-	if err1 != nil {
-		return nil
-	}
-
+	asgObj armnetwork.ApplicationSecurityGroup, nwIntfIDSetNsgToAttach map[string]*armnetwork.Interface,
+	nwIntfIDSetNsgToDetach map[string]*armnetwork.Interface, nwIntfTagKeyToUpdate string) error {
 	ch := make(chan error)
 	var err error
 	var wg sync.WaitGroup
-
-	wg.Add(len(allNwIntfIDs))
+	wg.Add(len(nwIntfIDSetNsgToAttach) + len(nwIntfIDSetNsgToDetach))
 	go func() {
 		wg.Wait()
 		close(ch)
 	}()
 
-	for _, nwIntfObj := range nwIntfIDToObjMap {
-		isAttach := false
-		nwIntfIDLowercase := strings.ToLower(*nwIntfObj.ID)
-		if _, found := nwIntfIDSetNsgToAttach[nwIntfIDLowercase]; found {
-			isAttach = true
-		}
-
-		go func(nwIntfObj armnetwork.Interface, nsgObj armnetwork.SecurityGroup, isAttach bool, ch chan error) {
+	nwIntfAPIClient := computeCfg.nwIntfAPIClient
+	for _, nwIntfObj := range nwIntfIDSetNsgToDetach {
+		go func(nwIntfObj *armnetwork.Interface, nsgObj armnetwork.SecurityGroup, isAttach bool, ch chan error) {
 			defer wg.Done()
 			ch <- updateNetworkInterfaceNsg(nwIntfAPIClient, nwIntfObj, nsgObj, asgObj, isAttach, nwIntfTagKeyToUpdate)
-		}(nwIntfObj, nsgObj, isAttach, ch)
+		}(nwIntfObj, nsgObj, false, ch)
+	}
+	for _, nwIntfObj := range nwIntfIDSetNsgToAttach {
+		go func(nwIntfObj *armnetwork.Interface, nsgObj armnetwork.SecurityGroup, isAttach bool, ch chan error) {
+			defer wg.Done()
+			ch <- updateNetworkInterfaceNsg(nwIntfAPIClient, nwIntfObj, nsgObj, asgObj, isAttach, nwIntfTagKeyToUpdate)
+		}(nwIntfObj, nsgObj, true, ch)
 	}
 	for e := range ch {
 		if e != nil {
 			err = multierr.Append(err, e)
 		}
 	}
-
 	return err
 }
 
 // processAddressGroupMembership attaches/detaches members from AddressGroup SG.
 func (computeCfg *computeServiceConfig) processAddressGroupMembership(addressGroupIdentifier *securitygroup.CloudResourceID,
-	networkInterfaces []*networkInterfaceTable, rgName string, memberVirtualMachines map[string]struct{},
+	networkInterfaces []*networkInterfaceInternal, rgName string, memberVirtualMachines map[string]struct{},
 	memberNetworkInterfaces map[string]struct{}) error {
 	cloudAsgNameLowercase := addressGroupIdentifier.GetCloudName(true)
 
@@ -192,85 +220,84 @@ func (computeCfg *computeServiceConfig) processAddressGroupMembership(addressGro
 	}
 
 	// find network interfaces which are using or need to use the provided ASG
-	nwIntfIDSetAsgToAttach := make(map[string]struct{})
-	nwIntfIDSSetAsgToDetach := make(map[string]struct{})
+	nwIntfIDSetAsgToAttach := make(map[string]*armnetwork.Interface)
+	nwIntfIDSetAsgToDetach := make(map[string]*armnetwork.Interface)
 	for _, networkInterface := range networkInterfaces {
 		nwIntfIDLowerCase := strings.ToLower(*networkInterface.ID)
 		// 	for network interfaces not attached to any virtual machines, skip processing
-		if emptyString(networkInterface.VirtualMachineID) {
+		if networkInterface.Properties.VirtualMachine == nil || emptyString(networkInterface.Properties.VirtualMachine.ID) {
 			continue
 		}
 
 		isAsgAttached := false
-		for _, asgID := range networkInterface.ApplicationSecurityGroupIDs {
-			_, _, asgNameLowercase, err := extractFieldsFromAzureResourceID(strings.ToLower(*asgID))
-			if err != nil {
-				azurePluginLogger().Error(err, "asg ID format not valid", "asgID", asgID)
+		for _, ipconfig := range networkInterface.Properties.IPConfigurations {
+			if ipconfig.Properties == nil {
 				continue
 			}
-			_, isNepheControllerCreatedAG, _ := securitygroup.IsNepheControllerCreatedSG(asgNameLowercase)
-			if !isNepheControllerCreatedAG {
-				continue
+			for _, asg := range ipconfig.Properties.ApplicationSecurityGroups {
+				_, _, asgNameLowercase, err := extractFieldsFromAzureResourceID(strings.ToLower(*asg.ID))
+				if err != nil {
+					azurePluginLogger().Error(err, "asg ID format not valid", "asgID", *asg.ID)
+					continue
+				}
+				_, isNepheControllerCreatedAG, _ := securitygroup.IsNepheControllerCreatedSG(asgNameLowercase)
+				if !isNepheControllerCreatedAG {
+					continue
+				}
+				if strings.Compare(asgNameLowercase, cloudAsgNameLowercase) == 0 {
+					isAsgAttached = true
+				}
 			}
-			if strings.Compare(asgNameLowercase, cloudAsgNameLowercase) == 0 {
-				isAsgAttached = true
-			}
+			// Handling just first available ip-configuration; with an assumption that it will be primary IP always.
+			break
 		}
-		_, isNicAttachedToMemberVM := memberVirtualMachines[strings.ToLower(*networkInterface.VirtualMachineID)]
+		_, isNicAttachedToMemberVM := memberVirtualMachines[strings.ToLower(*networkInterface.Properties.VirtualMachine.ID)]
 		_, isNicMemberNetworkInterface := memberNetworkInterfaces[strings.ToLower(*networkInterface.ID)]
 		if isAsgAttached {
 			if !isNicAttachedToMemberVM && !isNicMemberNetworkInterface {
-				nwIntfIDSSetAsgToDetach[nwIntfIDLowerCase] = struct{}{}
+				nwIntfIDSetAsgToDetach[nwIntfIDLowerCase] = &networkInterface.Interface
 			}
 		} else {
 			if isNicAttachedToMemberVM || isNicMemberNetworkInterface {
-				nwIntfIDSetAsgToAttach[nwIntfIDLowerCase] = struct{}{}
+				nwIntfIDSetAsgToAttach[nwIntfIDLowerCase] = &networkInterface.Interface
 			}
 		}
 	}
 
-	return computeCfg.processAsgAttachDetachConcurrently(asgObj, nwIntfIDSetAsgToAttach, nwIntfIDSSetAsgToDetach)
+	return computeCfg.processAsgAttachDetachConcurrently(asgObj, nwIntfIDSetAsgToAttach, nwIntfIDSetAsgToDetach)
 }
 
 // processAsgAttachDetachConcurrently attaches/detaches network interfaces to/from an ASG.
 func (computeCfg *computeServiceConfig) processAsgAttachDetachConcurrently(asgObj armnetwork.ApplicationSecurityGroup,
-	nwIntfIDSetAsgToAttach map[string]struct{}, nwIntfIDSetAsgToDetach map[string]struct{}) error {
-	allNwIntfIDs := mergeSet(nwIntfIDSetAsgToAttach, nwIntfIDSetAsgToDetach)
-
-	nwIntfAPIClient := computeCfg.nwIntfAPIClient
-	nwIntfIDToObjMap, err1 := getNetworkInterfacesGivenIDs(nwIntfAPIClient, allNwIntfIDs)
-	if err1 != nil {
-		return nil
-	}
-
+	nwIntfIDSetAsgToAttach, nwIntfIDSetAsgToDetach map[string]*armnetwork.Interface) error {
 	ch := make(chan error)
 	var err error
 	var wg sync.WaitGroup
-
-	wg.Add(len(allNwIntfIDs))
+	wg.Add(len(nwIntfIDSetAsgToAttach) + len(nwIntfIDSetAsgToDetach))
 	go func() {
 		wg.Wait()
 		close(ch)
 	}()
 
-	for _, nwIntfObj := range nwIntfIDToObjMap {
-		isAttach := false
-		nwIntfIDLowercase := strings.ToLower(*nwIntfObj.ID)
-		if _, found := nwIntfIDSetAsgToAttach[nwIntfIDLowercase]; found {
-			isAttach = true
-		}
-
-		go func(nwIntfObj armnetwork.Interface, asgObj armnetwork.ApplicationSecurityGroup, isAttach bool, ch chan error) {
+	nwIntfAPIClient := computeCfg.nwIntfAPIClient
+	for _, nwIntfObj := range nwIntfIDSetAsgToDetach {
+		go func(nwIntfObj *armnetwork.Interface, asgObj armnetwork.ApplicationSecurityGroup, isAttach bool, ch chan error) {
 			defer wg.Done()
 			ch <- updateNetworkInterfaceAsg(nwIntfAPIClient, nwIntfObj, asgObj, isAttach)
-		}(nwIntfObj, asgObj, isAttach, ch)
+		}(nwIntfObj, asgObj, false, ch)
+	}
+
+	for _, nwIntfObj := range nwIntfIDSetAsgToAttach {
+		go func(nwIntfObj *armnetwork.Interface, asgObj armnetwork.ApplicationSecurityGroup, isAttach bool, ch chan error) {
+			defer wg.Done()
+			ch <- updateNetworkInterfaceAsg(nwIntfAPIClient, nwIntfObj, asgObj, isAttach)
+		}(nwIntfObj, asgObj, true, ch)
 	}
 	for e := range ch {
 		if e != nil {
 			err = multierr.Append(err, e)
 		}
 	}
-
 	return err
 }
 
@@ -587,19 +614,19 @@ func (computeCfg *computeServiceConfig) isValidAppliedToSg(asgID string, vnetID 
 }
 
 // processAndBuildATSgView creates synchronization content for AppliedTo SG.
-func (computeCfg *computeServiceConfig) processAndBuildATSgView(networkInterfaces []*networkInterfaceTable) (
+func (computeCfg *computeServiceConfig) processAndBuildATSgView(networkInterfaces []*networkInterfaceInternal) (
 	[]securitygroup.SynchronizationContent, error) {
 	nepheControllerATSgNameToMemberCloudResourcesMap := make(map[string][]securitygroup.CloudResource)
 	perVnetNsgIDToNepheControllerAppliedToSGNameSet := make(map[string]map[string]struct{})
 	nsgIDToVnetIDMap := make(map[string]string)
 	for _, networkInterface := range networkInterfaces {
-		if emptyString(networkInterface.VirtualMachineID) {
+		if networkInterface.Properties.VirtualMachine == nil || emptyString(networkInterface.Properties.VirtualMachine.ID) {
 			continue
 		}
-		if emptyString(networkInterface.NetworkSecurityGroupID) {
+		if networkInterface.Properties.NetworkSecurityGroup == nil || emptyString(networkInterface.Properties.NetworkSecurityGroup.ID) {
 			continue
 		}
-		nsgIDLowerCase := strings.ToLower(*networkInterface.NetworkSecurityGroupID)
+		nsgIDLowerCase := strings.ToLower(*networkInterface.Properties.NetworkSecurityGroup.ID)
 		// proceed only if network-interface attached to nephe per-vnet NSG
 		_, _, nsgName, err := extractFieldsFromAzureResourceID(nsgIDLowerCase)
 		if err != nil {
@@ -610,32 +637,38 @@ func (computeCfg *computeServiceConfig) processAndBuildATSgView(networkInterface
 			continue
 		}
 
-		vnetIDLowerCase := strings.ToLower(*networkInterface.VnetID)
+		vnetIDLowerCase := strings.ToLower(networkInterface.vnetID)
 		nsgIDToVnetIDMap[nsgIDLowerCase] = vnetIDLowerCase
 		if strings.Contains(strings.ToLower(sgName), appliedToSecurityGroupNamePerVnet) {
 			// from ASGs attached to network interface find nephe AT SG(s) and build membership map
 			newNepheControllerAppliedToSGNameSet := make(map[string]struct{})
-			attachedAsgIDs := networkInterface.ApplicationSecurityGroupIDs
-			for _, asgID := range attachedAsgIDs {
-				asgName, isValidATSg := computeCfg.isValidAppliedToSg(strings.ToLower(*asgID), vnetIDLowerCase)
-				if !isValidATSg {
+			for _, ipConfigs := range networkInterface.Properties.IPConfigurations {
+				if ipConfigs.Properties == nil {
 					continue
 				}
+				for _, asg := range ipConfigs.Properties.ApplicationSecurityGroups {
+					asgID := asg.ID
+					asgName, isValidATSg := computeCfg.isValidAppliedToSg(strings.ToLower(*asgID), vnetIDLowerCase)
+					if !isValidATSg {
+						continue
+					}
 
-				cloudResource := securitygroup.CloudResource{
-					Type: securitygroup.CloudResourceTypeNIC,
-					CloudResourceID: securitygroup.CloudResourceID{
-						Name: strings.ToLower(*networkInterface.ID),
-						Vpc:  vnetIDLowerCase,
-					},
-					AccountID:     computeCfg.account.String(),
-					CloudProvider: string(runtimev1alpha1.AzureCloudProvider),
+					cloudResource := securitygroup.CloudResource{
+						Type: securitygroup.CloudResourceTypeNIC,
+						CloudResourceID: securitygroup.CloudResourceID{
+							Name: strings.ToLower(*networkInterface.ID),
+							Vpc:  vnetIDLowerCase,
+						},
+						AccountID:     computeCfg.account.String(),
+						CloudProvider: string(runtimev1alpha1.AzureCloudProvider),
+					}
+					cloudResources := nepheControllerATSgNameToMemberCloudResourcesMap[asgName]
+					cloudResources = append(cloudResources, cloudResource)
+					nepheControllerATSgNameToMemberCloudResourcesMap[asgName] = cloudResources
+
+					newNepheControllerAppliedToSGNameSet[asgName] = struct{}{}
 				}
-				cloudResources := nepheControllerATSgNameToMemberCloudResourcesMap[asgName]
-				cloudResources = append(cloudResources, cloudResource)
-				nepheControllerATSgNameToMemberCloudResourcesMap[asgName] = cloudResources
-
-				newNepheControllerAppliedToSGNameSet[asgName] = struct{}{}
+				break
 			}
 
 			if len(newNepheControllerAppliedToSGNameSet) > 0 {
@@ -734,41 +767,47 @@ func (computeCfg *computeServiceConfig) isValidAddressGroupSg(asgIDLowercase str
 
 // processAndBuildAGSgView creates synchronization content for AdressGroup SG.
 func (computeCfg *computeServiceConfig) processAndBuildAGSgView(
-	networkInterfaces []*networkInterfaceTable) ([]securitygroup.SynchronizationContent, error) {
+	networkInterfaces []*networkInterfaceInternal) ([]securitygroup.SynchronizationContent, error) {
 	nepheControllerAGSgNameToMemberCloudResourcesMap := make(map[string][]securitygroup.CloudResource)
 	asgIDToVnetIDMap := make(map[string]string)
 	for _, networkInterface := range networkInterfaces {
-		if emptyString(networkInterface.VirtualMachineID) {
+		if networkInterface.Properties.VirtualMachine == nil || emptyString(networkInterface.Properties.VirtualMachine.ID) {
 			continue
 		}
-		vnetIDLowerCase := strings.ToLower(*networkInterface.VnetID)
-		attachedAsgIDs := networkInterface.ApplicationSecurityGroupIDs
-		for _, asgID := range attachedAsgIDs {
-			asgIDLowerCase := strings.ToLower(*asgID)
-			// proceed only if network-interface attached to nephe ASG
-			_, _, asgName, err := extractFieldsFromAzureResourceID(asgIDLowerCase)
-			if err != nil {
+		vnetIDLowerCase := strings.ToLower(networkInterface.vnetID)
+
+		for _, ipConfigs := range networkInterface.Properties.IPConfigurations {
+			if ipConfigs.Properties == nil {
 				continue
 			}
-			sgName, isAG, _ := securitygroup.IsNepheControllerCreatedSG(asgName)
-			if !isAG {
-				continue
-			}
+			for _, asg := range ipConfigs.Properties.ApplicationSecurityGroups {
+				asgIDLowerCase := strings.ToLower(*asg.ID)
+				// proceed only if network-interface attached to nephe ASG
+				_, _, asgName, err := extractFieldsFromAzureResourceID(asgIDLowerCase)
+				if err != nil {
+					continue
+				}
+				sgName, isAG, _ := securitygroup.IsNepheControllerCreatedSG(asgName)
+				if !isAG {
+					continue
+				}
 
-			cloudResource := securitygroup.CloudResource{
-				Type: securitygroup.CloudResourceTypeNIC,
-				CloudResourceID: securitygroup.CloudResourceID{
-					Name: strings.ToLower(*networkInterface.ID),
-					Vpc:  vnetIDLowerCase,
-				},
-				AccountID:     computeCfg.account.String(),
-				CloudProvider: string(runtimev1alpha1.AzureCloudProvider),
-			}
-			cloudResources := nepheControllerAGSgNameToMemberCloudResourcesMap[sgName]
-			cloudResources = append(cloudResources, cloudResource)
-			nepheControllerAGSgNameToMemberCloudResourcesMap[sgName] = cloudResources
+				cloudResource := securitygroup.CloudResource{
+					Type: securitygroup.CloudResourceTypeNIC,
+					CloudResourceID: securitygroup.CloudResourceID{
+						Name: strings.ToLower(*networkInterface.ID),
+						Vpc:  vnetIDLowerCase,
+					},
+					AccountID:     computeCfg.account.String(),
+					CloudProvider: string(runtimev1alpha1.AzureCloudProvider),
+				}
+				cloudResources := nepheControllerAGSgNameToMemberCloudResourcesMap[sgName]
+				cloudResources = append(cloudResources, cloudResource)
+				nepheControllerAGSgNameToMemberCloudResourcesMap[sgName] = cloudResources
 
-			asgIDToVnetIDMap[asgIDLowerCase] = vnetIDLowerCase
+				asgIDToVnetIDMap[asgIDLowerCase] = vnetIDLowerCase
+			}
+			break
 		}
 	}
 
