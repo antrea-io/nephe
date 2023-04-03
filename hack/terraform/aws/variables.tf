@@ -153,7 +153,7 @@ variable "namespace" {
 
 variable "antrea_version" {
   type    = string
-  default = "v1.10.0"
+  default = "v1.11.0"
 }
 
 variable "antrea_agent_k8s_config" {
