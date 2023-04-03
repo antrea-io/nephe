@@ -32,7 +32,7 @@ func (p *azureServiceSdkConfigProvider) networkInterfaces(subscriptionID string)
 }
 
 // updateNetworkInterfaceAsg updates network interface on cloud with the new set of ASGs.
-func updateNetworkInterfaceAsg(nwIntfAPIClient azureNwIntfWrapper, nwIntfObj armnetwork.Interface,
+func updateNetworkInterfaceAsg(nwIntfAPIClient azureNwIntfWrapper, nwIntfObj *armnetwork.Interface,
 	asgObjToAttachOrDetach armnetwork.ApplicationSecurityGroup, isAttach bool) error {
 	if nwIntfObj.ID == nil {
 		return fmt.Errorf("network interface object is empty")
@@ -43,16 +43,16 @@ func updateNetworkInterfaceAsg(nwIntfAPIClient azureNwIntfWrapper, nwIntfObj arm
 	if nwIntfObj.Properties == nil {
 		return fmt.Errorf("network interface properties is empty, cannot update network interface with asg")
 	}
-	ipConfigurations := getAsgUpdatedIPConfigurations(&nwIntfObj, asgObjToAttachOrDetach, isAttach)
+	ipConfigurations := getAsgUpdatedIPConfigurations(nwIntfObj, asgObjToAttachOrDetach, isAttach)
 	nwIntfObj.Properties.IPConfigurations = ipConfigurations
 
-	_, err := nwIntfAPIClient.createOrUpdate(context.Background(), rgName, resName, nwIntfObj)
+	_, err := nwIntfAPIClient.createOrUpdate(context.Background(), rgName, resName, *nwIntfObj)
 	azurePluginLogger().Info("updated network-interface", "ID", *nwIntfObj.ID, "err", err)
 	return err
 }
 
 // updateNetworkInterfaceNsg updates network interface on cloud with new set of NSGs.
-func updateNetworkInterfaceNsg(nwIntfAPIClient azureNwIntfWrapper, nwIntfObj armnetwork.Interface,
+func updateNetworkInterfaceNsg(nwIntfAPIClient azureNwIntfWrapper, nwIntfObj *armnetwork.Interface,
 	nsgObjToAttachOrDetach armnetwork.SecurityGroup, asgObjToAttachOrDetach armnetwork.ApplicationSecurityGroup,
 	isAttach bool, tagKey string) error {
 	if nwIntfObj.ID == nil {
@@ -65,34 +65,16 @@ func updateNetworkInterfaceNsg(nwIntfAPIClient azureNwIntfWrapper, nwIntfObj arm
 
 	_, rgName, resName, _ := extractFieldsFromAzureResourceID(*nwIntfObj.ID)
 
-	nsg, tags := getUpdatedNetworkInterfaceNsgAndTags(&nwIntfObj, nsgObjToAttachOrDetach, isAttach, tagKey)
-	ipConfigurations := getAsgUpdatedIPConfigurations(&nwIntfObj, asgObjToAttachOrDetach, isAttach)
+	nsg, tags := getUpdatedNetworkInterfaceNsgAndTags(nwIntfObj, nsgObjToAttachOrDetach, isAttach, tagKey)
+	ipConfigurations := getAsgUpdatedIPConfigurations(nwIntfObj, asgObjToAttachOrDetach, isAttach)
 
 	nwIntfObj.Properties.IPConfigurations = ipConfigurations
 	nwIntfObj.Properties.NetworkSecurityGroup = nsg
 	nwIntfObj.Tags = tags
-	_, err := nwIntfAPIClient.createOrUpdate(context.Background(), rgName, resName, nwIntfObj)
+	_, err := nwIntfAPIClient.createOrUpdate(context.Background(), rgName, resName, *nwIntfObj)
 	azurePluginLogger().Info("updated network-interface", "ID", *nwIntfObj.ID, "err", err)
 
 	return err
-}
-
-// getNetworkInterfacesGivenIDs returns the network interface objects from cloud matching the interface IDS in nwIntfIDSet.
-func getNetworkInterfacesGivenIDs(nwIntfAPIClient azureNwIntfWrapper, nwIntfIDSet map[string]struct{}) (map[string]armnetwork.Interface,
-	error) {
-	nwIntfObjs, err := nwIntfAPIClient.listAllComplete(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	nwIntfIDToObj := make(map[string]armnetwork.Interface)
-	for _, nwIntfObj := range nwIntfObjs {
-		nwIntfIDLowerCase := strings.ToLower(*nwIntfObj.ID)
-		if _, found := nwIntfIDSet[nwIntfIDLowerCase]; found {
-			nwIntfIDToObj[nwIntfIDLowerCase] = nwIntfObj
-		}
-	}
-
-	return nwIntfIDToObj, nil
 }
 
 // getAsgUpdatedIPConfigurations adds/deletes the ASG from the list of ASGs attached to an interface object.
