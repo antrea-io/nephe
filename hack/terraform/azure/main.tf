@@ -50,7 +50,7 @@ resource "random_string" "special" {
   upper            = true
   numeric          = true
   special          = true
-  override_special =  "!@$*-?"
+  override_special = "!@$*-?"
 }
 
 data "template_file" user_data {
@@ -92,7 +92,7 @@ resource "azurerm_virtual_machine_extension" "win_script" {
 # Copy the files since custom_data is unavailable
 # in compute/azurerm module for Windows VM.
 resource "null_resource" "win-remote-exec" {
-  count = var.with_windows ? length(var.azure_vm_os_types_agented_windows) : 0
+  count    = var.with_windows ? length(var.azure_vm_os_types_agented_windows) : 0
   triggers = {
     vm_id = module.vm_cluster[count.index].vm_ids[0]
   }
@@ -126,7 +126,10 @@ module "vm_cluster" {
   vnet_subnet_id          = module.network.vnet_subnets[0]
   enable_ssh_key          = var.with_windows ? false : true
   ssh_key                 = var.ssh_public_key
-  remote_port             = var.with_agent ? "*" : "80"
+  # TODO: Reevaluate security rule creation after upgrading Azure/compute/azurerm
+  # and verify if https://github.com/antrea-io/nephe/issues/199 is fixed.
+  # remote_port             = var.with_agent ? "*" : "80"
+  remote_port             = "80"
   source_address_prefixes = ["0.0.0.0/0"]
   is_windows_image        = var.with_windows ? true : false
   admin_username          = var.username
@@ -153,4 +156,22 @@ module "network" {
   subnet_names        = ["subnet1"]
   vnet_name           = local.vnet_name_random
   vnet_location       = var.location
+}
+
+# TODO: Reevaluate security rule creation after upgrading Azure/compute/azurerm
+# and verify if https://github.com/antrea-io/nephe/issues/199 is fixed.
+resource "azurerm_network_security_rule" "agent_allow_all" {
+  count                       = var.with_agent ? length(local.azure_vm_os_types) : 0
+  name                        = "agent_allow_all"
+  resource_group_name         = azurerm_resource_group.vm.name
+  priority                    = 102
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "*"
+  source_address_prefixes     = ["0.0.0.0/0"]
+  destination_address_prefix  = "*"
+  network_security_group_name = module.vm_cluster[count.index].network_security_group_name
+  depends_on = [module.vm_cluster]
 }
