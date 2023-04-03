@@ -109,6 +109,10 @@ const (
 	uniqueGroupNameMemberPrefix = "mm_"
 )
 
+const (
+	pendingQBufferLimit = 50
+)
+
 func getGroupUniqueName(name string, memberOnly bool) string {
 	if memberOnly {
 		return uniqueGroupNameMemberPrefix + name
@@ -292,6 +296,8 @@ type securityGroupImpl struct {
 	retryOp *securityGroupOperation
 	// true if retry operation is ongoing.
 	retryInProgress bool
+	// true if cloud operation is ongoing.
+	cloudOpInProgress bool
 }
 
 // getID returns securityGroup ID.
@@ -631,6 +637,7 @@ type appliedToSecurityGroup struct {
 	ruleReady     bool
 	hasMembers    bool
 	addrGroupRefs map[string]bool
+	pendingNpQ    chan *networkPolicy
 }
 
 // newAddrAppliedGroup creates a new addSecurityGroup from Antrea AddressGroup membership.
@@ -657,6 +664,8 @@ func (a *appliedToSecurityGroup) add(r *NetworkPolicyReconciler) error {
 			_ = tracker.update(a, false, r)
 		}
 	}
+	// Init pending NetworkPolicy queue here.
+	a.pendingNpQ = make(chan *networkPolicy, pendingQBufferLimit)
 	return a.addImpl(a, false, r)
 }
 
@@ -715,6 +724,12 @@ func (a *appliedToSecurityGroup) updateANPRules(r *NetworkPolicyReconciler, np *
 		return
 	}
 
+	if a.cloudOpInProgress {
+		r.Log.V(1).Info("Adding NetworkPolicy to pending queue", "appliedToGroup", a.id.Name, "networkPolicy", np.Name)
+		a.pendingNpQ <- np
+		return
+	}
+
 	npNamespacedName := np.getNamespacedName()
 	nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAppliedToGrp, a.id.Name)
 	if err != nil {
@@ -756,6 +771,7 @@ func (a *appliedToSecurityGroup) updateANPRules(r *NetworkPolicyReconciler, np *
 		return
 	}
 
+	a.cloudOpInProgress = true
 	r.Log.V(1).Info("Updating AppliedToSecurityGroup rules for anp", "anp", np.Name, "name", a.id.Name,
 		"rules", rules)
 	ch := securitygroup.CloudSecurityGroup.UpdateSecurityGroupRules(&a.id, addRules, rmRules, allRules)
@@ -770,6 +786,7 @@ func (a *appliedToSecurityGroup) updateANPRules(r *NetworkPolicyReconciler, np *
 				_ = r.cloudRuleIndexer.Delete(rule)
 			}
 		}
+		a.cloudOpInProgress = false
 		r.updateRuleRealizationStatus(a.id.CloudResourceID.String(), np, err)
 		r.cloudResponse <- &securityGroupStatus{sg: a, op: securityGroupOperationUpdateRules, err: err}
 	}()
@@ -1038,6 +1055,26 @@ func (a *appliedToSecurityGroup) updateNPTracker(r *NetworkPolicyReconciler) err
 	return nil
 }
 
+// processPendingNetworkPolicy reads pending NetworkPolicy queue and process the item.
+func (a *appliedToSecurityGroup) processPendingNetworkPolicy(r *NetworkPolicyReconciler) {
+	if !a.cloudOpInProgress {
+		noitems := false
+		for i := 0; i < pendingQBufferLimit; i++ {
+			select {
+			case np := <-a.pendingNpQ:
+				r.Log.V(1).Info("Processing NetworkPolicy from pending queue", "appliedToGroup", a.id.Name, "np", np.Name)
+				a.updateANPRules(r, np)
+			default:
+				noitems = true
+			}
+			// Break if noitems were detected, or if updateANPRules triggered other cloud processing.
+			if a.cloudOpInProgress || noitems {
+				break
+			}
+		}
+	}
+}
+
 // notify calls into appliedToSecurityGroup to report operation status from cloud plug-in.
 func (a *appliedToSecurityGroup) notify(op securityGroupOperation, status error, r *NetworkPolicyReconciler) error {
 	defer func() {
@@ -1045,6 +1082,8 @@ func (a *appliedToSecurityGroup) notify(op securityGroupOperation, status error,
 			return
 		}
 		a.notifyImpl(a, false, op, status, r)
+		// Process pending Network Policies.
+		a.processPendingNetworkPolicy(r)
 	}()
 
 	if !(a.state == securityGroupStateGarbageCollectState && op != securityGroupOperationDelete) {
