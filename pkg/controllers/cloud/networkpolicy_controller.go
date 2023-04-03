@@ -401,8 +401,11 @@ func (r *NetworkPolicyReconciler) processNetworkPolicy(event watch.Event) error 
 	}
 
 	r.Log.V(1).Info("Received NetworkPolicy event", "type", event.Type, "obj", anp)
-
 	if r.processBookMark(event.Type) {
+		return nil
+	}
+	if securitygroup.CloudSecurityGroup == nil {
+		r.Log.V(1).Info("Skip NetworkPolicy message, no plug-in found")
 		return nil
 	}
 	if err := r.isNetworkPolicySupported(anp); err != nil {
@@ -439,10 +442,6 @@ func (r *NetworkPolicyReconciler) processNetworkPolicy(event watch.Event) error 
 		// Send rule realization status if even no rule diff is found. This is because in case of
 		// antrea controller restart, it will send all ANPs again and there won't be any diff.
 		r.sendRuleRealizationStatus(anp, nil)
-		return nil
-	}
-	if securitygroup.CloudSecurityGroup == nil {
-		r.Log.V(1).Info("Skip NetworkPolicy message, no plug-in found")
 		return nil
 	}
 	np.update(anp, isCreate, r)
