@@ -44,9 +44,9 @@ func (v *SecretValidator) Handle(ctx context.Context, req admission.Request) adm
 	v.Log.V(1).Info("Received admission webhook request", "Name", req.Name, "Operation", req.Operation)
 	switch req.Operation {
 	case admissionv1.Create:
-		return v.validateCreate(req)
+		return v.validateCreate()
 	case admissionv1.Update:
-		return v.validateUpdate(req)
+		return v.validateUpdate()
 	case admissionv1.Delete:
 		return v.validateDelete(req)
 	default:
@@ -58,14 +58,6 @@ func (v *SecretValidator) Handle(ctx context.Context, req admission.Request) adm
 func (v *SecretValidator) InjectDecoder(d *admission.Decoder) error { //nolint:unparam
 	v.decoder = d
 	return nil
-}
-
-// allowSecretUpdate returns true only when Secret data key is unchanged.
-func (v *SecretValidator) allowSecretUpdate(new *corev1.Secret, old *corev1.Secret, key string) bool {
-	if changed := string(new.Data[key]) != string(old.Data[key]); changed {
-		return false
-	}
-	return true
 }
 
 // getCPABySecret returns nil only when the Secret is not used by any CloudProvideAccount CR,
@@ -96,44 +88,12 @@ func (v *SecretValidator) getCPABySecret(s *corev1.Secret) (error, *crdv1alpha1.
 }
 
 // validateCreate does not deny Secret creation.
-func (v *SecretValidator) validateCreate(req admission.Request) admission.Response { // nolint: unparam
+func (v *SecretValidator) validateCreate() admission.Response { // nolint: unparam
 	return admission.Allowed("")
 }
 
 // validateUpdate denies Secret update, if the Secret key is referred in a CloudProviderAccount.
-func (v *SecretValidator) validateUpdate(req admission.Request) admission.Response {
-	newSecret := &corev1.Secret{}
-	err := v.decoder.Decode(req, newSecret)
-	if err != nil {
-		v.Log.Error(err, "Failed to decode Secret", "SecretValidator", req.Name)
-		return admission.Errored(http.StatusBadRequest, err)
-	}
-	oldSecret := &corev1.Secret{}
-	if req.OldObject.Raw != nil {
-		if err := json.Unmarshal(req.OldObject.Raw, &oldSecret); err != nil {
-			v.Log.Error(err, "Failed to decode old Secret", "SecretValidator", req.Name)
-			return admission.Errored(http.StatusBadRequest, err)
-		}
-	}
-
-	err, cpa := v.getCPABySecret(oldSecret)
-	if err != nil {
-		return admission.Denied(err.Error())
-	}
-	if cpa != nil {
-		var key string
-		if cpa.Spec.AWSConfig != nil {
-			key = cpa.Spec.AWSConfig.SecretRef.Key
-		} else if cpa.Spec.AzureConfig != nil {
-			key = cpa.Spec.AzureConfig.SecretRef.Key
-		}
-		if ok := v.allowSecretUpdate(newSecret, oldSecret, key); !ok {
-			v.Log.Error(nil, "The Secret is referred by a CloudProviderAccount. Cannot modify it,",
-				"Secret", oldSecret.Name, "CloudProviderAccount", cpa.Name)
-			return admission.Denied(fmt.Sprintf("the Secret %v is referred by a "+
-				"CloudProviderAccount %s. The %s field 'value' cannot be changed", oldSecret.Name, cpa.Name, key))
-		}
-	}
+func (v *SecretValidator) validateUpdate() admission.Response {
 	return admission.Allowed("")
 }
 

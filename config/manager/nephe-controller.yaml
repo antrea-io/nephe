@@ -55,6 +55,11 @@ spec:
         image: "projects.registry.vmware.com/antrea/nephe:latest"
         imagePullPolicy: IfNotPresent
         name: nephe-controller
+        env:
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
         resources:
           limits:
             cpu: 1000m

@@ -107,7 +107,6 @@ webhooks:
         apiVersions:
             - v1
         operations:
-            - UPDATE
             - DELETE
         resources:
             - secrets
