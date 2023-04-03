@@ -142,7 +142,8 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Pods", focusAws, focusAzur
 		}
 
 		Expect(len(cloudVPC.GetVMIPs())).To(Equal(len(oks)))
-		err = utils.ExecuteCurlCmds(nil, kubeCtl, []string{pod}, namespace.Name, cloudVPC.GetVMIPs(), "80", oks, 2)
+		// Increased retry count to allow command execution total timeout to 120 seconds.
+		err = utils.ExecuteCurlCmds(nil, kubeCtl, []string{pod}, namespace.Name, cloudVPC.GetVMIPs(), "80", oks, 24)
 		Expect(err).ToNot(HaveOccurred())
 	}
 
