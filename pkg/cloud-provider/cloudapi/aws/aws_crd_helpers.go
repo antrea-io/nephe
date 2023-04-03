@@ -100,7 +100,7 @@ func ec2InstanceToInternalVirtualMachineObject(instance *ec2.Instance, vpcs map[
 		config.LabelCloudVpcUID:           strings.ToLower(cloudNetwork),
 	}
 
-	vmCrd := &runtimev1alpha1.VirtualMachine{
+	vmObj := &runtimev1alpha1.VirtualMachine{
 		TypeMeta: v1.TypeMeta{
 			Kind:       cloudcommon.VirtualMachineRuntimeObjectKind,
 			APIVersion: cloudcommon.RuntimeAPIVersion,
@@ -114,7 +114,7 @@ func ec2InstanceToInternalVirtualMachineObject(instance *ec2.Instance, vpcs map[
 		Status: *vmStatus,
 	}
 
-	return vmCrd
+	return vmObj
 }
 
 // extractVpcName function extracts tag by name "Name" and returns it as vpc name.

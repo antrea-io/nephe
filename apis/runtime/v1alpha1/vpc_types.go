@@ -25,7 +25,7 @@ type VpcStatus struct {
 	CloudId string `json:"cloudId,omitempty"`
 	// Provider specifies cloud provider of the VPC.
 	Provider CloudProvider `json:"provider,omitempty"`
-	// Region indicates the cloud region of the VPC
+	// Region indicates the cloud region of the VPC.
 	Region string `json:"region,omitempty"`
 	// Tags indicates tags associated with the VPC.
 	Tags map[string]string `json:"tags,omitempty"`
@@ -38,7 +38,7 @@ type VpcStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 
-// Vpc is the Schema for the Vpc API
+// Vpc is the Schema for the Vpc API.
 // A Vpc object is automatically created upon CloudProviderAccount CR add.
 type Vpc struct {
 	metav1.TypeMeta   `json:",inline"`

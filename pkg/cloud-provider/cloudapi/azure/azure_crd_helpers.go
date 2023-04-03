@@ -140,7 +140,7 @@ func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable
 		config.LabelCloudVpcUID:           strings.ToLower(vnetUid),
 	}
 
-	vmCrd := &runtimev1alpha1.VirtualMachine{
+	vmObj := &runtimev1alpha1.VirtualMachine{
 		TypeMeta: v1.TypeMeta{
 			Kind:       cloudcommon.VirtualMachineRuntimeObjectKind,
 			APIVersion: cloudcommon.RuntimeAPIVersion,
@@ -154,7 +154,7 @@ func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable
 		Status: *vmStatus,
 	}
 
-	return vmCrd
+	return vmObj
 }
 
 // ComputeVpcToInternalVpcObject converts vnet object from cloud format(network.VirtualNetwork) to vpc runtime object.
@@ -198,7 +198,7 @@ func ComputeVpcToInternalVpcObject(vnet *armnetwork.VirtualNetwork, accountNames
 		config.LabelCloudVpcUID:           uid,
 	}
 
-	vpc := &runtimev1alpha1.Vpc{
+	vpcObj := &runtimev1alpha1.Vpc{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      crdName,
 			Namespace: accountNamespace,
@@ -207,5 +207,5 @@ func ComputeVpcToInternalVpcObject(vnet *armnetwork.VirtualNetwork, accountNames
 		Status: *status,
 	}
 
-	return vpc
+	return vpcObj
 }

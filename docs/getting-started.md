@@ -424,7 +424,7 @@ labels:
 - `nephe.io/cloud-vm-name`: Select based on VM name in cloud.
 - `nephe.io/cloud-vpc-name`: Select based on VPC name in cloud.
 - `nephe.io/cloud-vpc-uid`: Select based on unique id(UID) of VPC in cloud. For AWS,
-  UID is VPC ID. For Azure, UID is resourceGuid.
+  UID is VPC ID. For Azure, UID is Resource GUID.
 - `nephe.io/tag-key`: Select based on cloud resource tag key/value pair,
   where `key` is the cloud resource `Key` tag (in lower case) and the `label`
   value is cloud resource tag `Value` in lower case.
