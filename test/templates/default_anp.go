@@ -16,6 +16,7 @@ package templates
 
 type DefaultANPParameters struct {
 	Namespace string
+	Entity    *EntitySelectorParameters
 }
 
 const DefaultANPSetup = `
@@ -29,7 +30,7 @@ spec:
   appliedTo:
     - externalEntitySelector:
         matchLabels:
-          kind.nephe: virtualmachine
+          {{.Entity.Kind}}
   ingress:
     - action: Drop
       ports:

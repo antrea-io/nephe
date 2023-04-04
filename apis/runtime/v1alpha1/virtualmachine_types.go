@@ -101,6 +101,8 @@ type VirtualMachineStatus struct {
 	CloudName string `json:"cloudName,omitempty"`
 	// CloudVpcId is the VPC ID this VirtualMachine belongs to.
 	CloudVpcId string `json:"cloudVpcId,omitempty"`
+	// CloudVpcName is the VPC Name this VirtualMachine belongs to.
+	CloudVpcName string `json:"cloudVpcName,omitempty"`
 }
 
 // +kubebuilder:object:root=true

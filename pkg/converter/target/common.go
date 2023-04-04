@@ -57,22 +57,28 @@ func genTargetEntityLabels(source interface{}, cl client.Client) map[string]stri
 	labels := make(map[string]string)
 	accessor, _ := meta.Accessor(vmSource)
 	labels[config.ExternalEntityLabelKeyKind] = GetExternalEntityLabelKind(vmSource.EmbedType())
-	labels[config.ExternalEntityLabelKeyVmName] = strings.ToLower(accessor.GetName())
+	labels[config.ExternalEntityLabelKeyOwnerVm] = strings.ToLower(accessor.GetName())
 	labels[config.ExternalEntityLabelKeyNamespace] = strings.ToLower(accessor.GetNamespace())
 	for key, val := range vmSource.GetLabelsFromClient(cl) {
 		labels[key] = val
 	}
 	for key, val := range vmSource.GetTags() {
-		reg, _ := regexp.Compile(LabelExpression)
-		fkey := reg.ReplaceAllString(key, "") + config.ExternalEntityLabelKeyTagPostfix
-		if len(fkey) > LabelSizeLimit {
-			fkey = fkey[:LabelSizeLimit]
-		}
-		fval := reg.ReplaceAllString(val, "")
-		if len(fval) > LabelSizeLimit {
-			fval = fval[:LabelSizeLimit]
-		}
-		labels[strings.ToLower(fkey)] = strings.ToLower(fval)
+		labelKey, labelVal := genTagLabel(key, val)
+		labels[strings.ToLower(labelKey)] = strings.ToLower(labelVal)
 	}
 	return labels
+}
+
+func genTagLabel(key, val string) (string, string) {
+	reg, _ := regexp.Compile(LabelExpression)
+	labelKey := config.LabelPrefixNephe + config.ExternalEntityLabelKeyTagPrefix + reg.ReplaceAllString(key, "")
+	if len(labelKey) > LabelSizeLimit {
+		labelKey = labelKey[:LabelSizeLimit]
+	}
+	labelVal := reg.ReplaceAllString(val, "")
+	if len(labelVal) > LabelSizeLimit {
+		labelVal = labelVal[:LabelSizeLimit]
+	}
+
+	return labelKey, labelVal
 }

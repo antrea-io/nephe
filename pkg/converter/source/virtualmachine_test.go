@@ -99,7 +99,7 @@ var _ = Describe("VirtualMachineConverter", func() {
 			labels := make(map[string]string)
 			accessor, _ := meta.Accessor(externalEntitySource)
 			labels[config.ExternalEntityLabelKeyKind] = target.GetExternalEntityLabelKind(externalEntitySource.EmbedType())
-			labels[config.ExternalEntityLabelKeyVmName] = strings.ToLower(accessor.GetName())
+			labels[config.ExternalEntityLabelKeyOwnerVm] = strings.ToLower(accessor.GetName())
 			labels[config.ExternalEntityLabelKeyNamespace] = strings.ToLower(accessor.GetNamespace())
 			for k, v := range externalEntitySource.GetLabelsFromClient(nil) {
 				labels[k] = v
@@ -107,7 +107,8 @@ var _ = Describe("VirtualMachineConverter", func() {
 			accessor, _ = meta.Accessor(externalEntitySource.EmbedType())
 			_ = controllerruntime.SetControllerReference(accessor, ee, scheme)
 			for k, v := range externalEntitySource.GetTags() {
-				labels[k+config.ExternalEntityLabelKeyTagPostfix] = v
+				labelKey, labelVal := genTagLabel(k, v)
+				labels[labelKey] = labelVal
 			}
 			ee.Labels = labels
 			ee.Spec.ExternalNode = config.ANPNepheController
@@ -125,10 +126,11 @@ var _ = Describe("VirtualMachineConverter", func() {
 			}
 			ee.Spec.Endpoints = eps
 			ee.Spec.Ports = externalEntitySourcePatch.GetEndPointPort(nil)
+
 			labels := make(map[string]string)
 			accessor, _ := meta.Accessor(externalEntitySourcePatch)
 			labels[config.ExternalEntityLabelKeyKind] = target.GetExternalEntityLabelKind(externalEntitySourcePatch.EmbedType())
-			labels[config.ExternalEntityLabelKeyVmName] = strings.ToLower(accessor.GetName())
+			labels[config.ExternalEntityLabelKeyOwnerVm] = strings.ToLower(accessor.GetName())
 			labels[config.ExternalEntityLabelKeyNamespace] = strings.ToLower(accessor.GetNamespace())
 			for k, v := range externalEntitySourcePatch.GetLabelsFromClient(nil) {
 				labels[k] = v
@@ -136,7 +138,8 @@ var _ = Describe("VirtualMachineConverter", func() {
 			accessor, _ = meta.Accessor(externalEntitySourcePatch.EmbedType())
 			_ = controllerruntime.SetControllerReference(accessor, ee, scheme)
 			for k, v := range externalEntitySourcePatch.GetTags() {
-				labels[k+config.ExternalEntityLabelKeyTagPostfix] = v
+				labelKey, labelVal := genTagLabel(k, v)
+				labels[labelKey] = labelVal
 			}
 			ee.Labels = labels
 			ee.Spec.ExternalNode = config.ANPNepheController
@@ -152,7 +155,7 @@ var _ = Describe("VirtualMachineConverter", func() {
 			labels := make(map[string]string)
 			accessor, _ := meta.Accessor(externalNodeSource)
 			labels[config.ExternalEntityLabelKeyKind] = target.GetExternalEntityLabelKind(externalNodeSource.EmbedType())
-			labels[config.ExternalEntityLabelKeyVmName] = strings.ToLower(accessor.GetName())
+			labels[config.ExternalEntityLabelKeyOwnerVm] = strings.ToLower(accessor.GetName())
 			labels[config.ExternalEntityLabelKeyNamespace] = strings.ToLower(accessor.GetNamespace())
 			for k, v := range externalNodeSource.GetLabelsFromClient(nil) {
 				labels[k] = v
@@ -160,7 +163,8 @@ var _ = Describe("VirtualMachineConverter", func() {
 			accessor, _ = meta.Accessor(externalNodeSource.EmbedType())
 			_ = controllerruntime.SetControllerReference(accessor, en, scheme)
 			for k, v := range externalNodeSource.GetTags() {
-				labels[k+config.ExternalEntityLabelKeyTagPostfix] = v
+				labelKey, labelVal := genTagLabel(k, v)
+				labels[labelKey] = labelVal
 			}
 			en.Labels = labels
 			// Currently only one NetworkInterface with multiple IPs is supported.
@@ -183,7 +187,7 @@ var _ = Describe("VirtualMachineConverter", func() {
 			labels := make(map[string]string)
 			accessor, _ := meta.Accessor(externalNodeSource)
 			labels[config.ExternalEntityLabelKeyKind] = target.GetExternalEntityLabelKind(externalNodeSource.EmbedType())
-			labels[config.ExternalEntityLabelKeyVmName] = strings.ToLower(accessor.GetName())
+			labels[config.ExternalEntityLabelKeyOwnerVm] = strings.ToLower(accessor.GetName())
 			labels[config.ExternalEntityLabelKeyNamespace] = strings.ToLower(accessor.GetNamespace())
 			for k, v := range externalNodeSource.GetLabelsFromClient(nil) {
 				labels[k] = v
@@ -191,7 +195,8 @@ var _ = Describe("VirtualMachineConverter", func() {
 			accessor, _ = meta.Accessor(externalNodeSource.EmbedType())
 			_ = controllerruntime.SetControllerReference(accessor, en, scheme)
 			for k, v := range externalNodeSource.GetTags() {
-				labels[k+config.ExternalEntityLabelKeyTagPostfix] = v
+				labelKey, labelVal := genTagLabel(k, v)
+				labels[labelKey] = labelVal
 			}
 			en.Labels = labels
 			// Currently only one NetworkInterface with multiple IPs is supported.
@@ -680,3 +685,7 @@ var _ = Describe("VirtualMachineConverter", func() {
 		})
 	})
 })
+
+func genTagLabel(key, value string) (string, string) {
+	return config.LabelPrefixNephe + config.ExternalEntityLabelKeyTagPrefix + key, value
+}
