@@ -66,7 +66,7 @@ Terraform state files and other runtime info will be stored under
 `~/tmp/terraform-eks/`. You can also create an EKS cluster in other ways and
 deploy prerequisites manually.
 
-This also deploys `cert-manager v1.8.2` and `Antrea v1.10`.
+This also deploys `cert-manager v1.8.2` and `Antrea v1.11.0`.
 
 ```bash
 ~/terraform/eks create

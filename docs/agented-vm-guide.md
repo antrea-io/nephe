@@ -233,7 +233,7 @@ curl https://raw.githubusercontent.com/antrea-io/nephe/main/hack/install-vm-agen
 To install `antrea-agent`, run the below command:
 
 ```bash
-./install-vm-agent-wrapper.sh --ns vm-ns --antrea-version v1.10.0 --kubeconfig ./antrea-agent.kubeconfig \
+./install-vm-agent-wrapper.sh --ns vm-ns --antrea-version v1.11.0 --kubeconfig ./antrea-agent.kubeconfig \
   --antrea-kubeconfig ./antrea-agent.antrea.kubeconfig
 ```
 
@@ -259,7 +259,7 @@ curl.exe "-s" "-L" "https://raw.githubusercontent.com/antrea-io/nephe/main/hack/
 To install `antrea-agent`, run the below command:
 
 ```powershell
-.\install-vm-agent-wrapper.ps1 -Namespace vm-ns -AntreaVersion v1.10.0 -KubeConfigPath .\antrea-agent.kubeconfig `
+.\install-vm-agent-wrapper.ps1 -Namespace vm-ns -AntreaVersion v1.11.0 -KubeConfigPath .\antrea-agent.kubeconfig `
   -AntreaKubeConfigPath .\antrea-agent.antrea.kubeconfig
 ```
 
