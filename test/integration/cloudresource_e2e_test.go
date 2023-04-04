@@ -220,7 +220,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			defaultANPParameters = k8stemplates.DefaultANPParameters{
 				Namespace: staticVMNS.Name,
 				Entity: &k8stemplates.EntitySelectorParameters{
-					Kind: config.ExternalEntityLabelKeyKind + ": " + reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name(),
+					Kind: config.ExternalEntityLabelKeyKind + ": " + strings.ToLower(reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
 				},
 			}
 			err := utils.ConfigureK8s(kubeCtl, defaultANPParameters, k8stemplates.DefaultANPSetup, false)
