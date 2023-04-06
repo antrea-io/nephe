@@ -22,6 +22,12 @@ coverage:
         threshold: 2%
         flags:
           - unit-tests
+    patch:
+      default:
+        target: '50'
+        informational: true
+        flags:
+          - unit-tests
 
 flag_management:
   default_rules:
