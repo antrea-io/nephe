@@ -30,7 +30,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
-	cloudutils "antrea.io/nephe/pkg/cloud-provider/utils"
+	cloudutils "antrea.io/nephe/pkg/cloudprovider/utils"
 	"antrea.io/nephe/test/utils"
 )
 
@@ -169,12 +169,12 @@ var _ = Describe(fmt.Sprintf("%s,%s: VPC Inventory", focusAws, focusAzure), func
 		err = verifyInventory(vpcObjectName, false, false, false, vpcID)
 		Expect(err).ToNot(HaveOccurred(), "timeout waiting to retrieve a VPC")
 	})
-	It("Restart Controller", func() {
+	It("RestartPoller Controller", func() {
 		accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account"+namespace.Name, namespace.Name)
 		err := utils.AddCloudAccount(kubeCtl, accountParams)
 		Expect(err).ToNot(HaveOccurred())
 
-		By("Restart Controller and verify VPC Inventory populates after restart")
+		By("RestartPoller Controller and verify VPC Inventory populates after restart")
 		err = utils.RestartOrWaitDeployment(k8sClient, "nephe-controller", "nephe-system", time.Second*200, true)
 		Expect(err).ToNot(HaveOccurred())
 		time.Sleep(time.Second * 45)

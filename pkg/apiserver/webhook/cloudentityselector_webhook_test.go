@@ -15,6 +15,7 @@
 package webhook
 
 import (
+	"antrea.io/nephe/pkg/util"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -32,8 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
-	"antrea.io/nephe/pkg/controllers/cloud"
-	"antrea.io/nephe/pkg/controllers/utils"
+	"antrea.io/nephe/pkg/controllers/sync"
 	"antrea.io/nephe/pkg/logging"
 )
 
@@ -118,8 +118,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			Expect(err).Should(BeNil())
 
 			// set CES sync status.
-			cloud.GetControllerSyncStatusInstance().Configure()
-			cloud.GetControllerSyncStatusInstance().SetControllerSyncStatus(cloud.ControllerTypeCES)
+			sync.GetControllerSyncStatusInstance().Configure()
+			sync.GetControllerSyncStatusInstance().SetControllerSyncStatus(sync.ControllerTypeCES)
 
 			mutator = &CESMutator{
 				Client: fakeClient,
@@ -1693,7 +1693,7 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			response := validator.Handle(context.Background(), selectorReq)
 			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 			Expect(response.AdmissionResponse.Allowed).To(BeFalse())
-			Expect(response.String()).Should(ContainSubstring(utils.ErrorMsgUnknownCloudProvider))
+			Expect(response.String()).Should(ContainSubstring(util.ErrorMsgUnknownCloudProvider))
 		})
 		It("Validate when owner account not found", func() {
 			encodedSelector, _ = json.Marshal(selector)
@@ -1803,11 +1803,11 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 
 			})
 			It("Validate create CES CR failure", func() {
-				cloud.GetControllerSyncStatusInstance().ResetControllerSyncStatus(cloud.ControllerTypeCES)
+				sync.GetControllerSyncStatusInstance().ResetControllerSyncStatus(sync.ControllerTypeCES)
 				response := validator.Handle(context.Background(), selectorReq)
 				_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 				Expect(response.AdmissionResponse.Allowed).To(BeFalse())
-				Expect(response.String()).Should(ContainSubstring(cloud.ErrorMsgControllerInitializing))
+				Expect(response.String()).Should(ContainSubstring(sync.ErrorMsgControllerInitializing))
 			})
 			It("Validate update CES CR failure", func() {
 				oldSelector := &v1alpha1.CloudEntitySelector{
@@ -1848,20 +1848,20 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 					Raw: oldEncodedSelector,
 				}
 
-				cloud.GetControllerSyncStatusInstance().ResetControllerSyncStatus(cloud.ControllerTypeCES)
+				sync.GetControllerSyncStatusInstance().ResetControllerSyncStatus(sync.ControllerTypeCES)
 				response := validator.Handle(context.Background(), selectorReq)
 				_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 				Expect(response.AdmissionResponse.Allowed).To(BeFalse())
-				Expect(response.String()).Should(ContainSubstring(cloud.ErrorMsgControllerInitializing))
+				Expect(response.String()).Should(ContainSubstring(sync.ErrorMsgControllerInitializing))
 			})
 			It("Validate delete CES CR failure", func() {
 				selectorReq.Operation = v1.Delete
 
-				cloud.GetControllerSyncStatusInstance().ResetControllerSyncStatus(cloud.ControllerTypeCES)
+				sync.GetControllerSyncStatusInstance().ResetControllerSyncStatus(sync.ControllerTypeCES)
 				response := validator.Handle(context.Background(), selectorReq)
 				_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 				Expect(response.AdmissionResponse.Allowed).To(BeFalse())
-				Expect(response.String()).Should(ContainSubstring(cloud.ErrorMsgControllerInitializing))
+				Expect(response.String()).Should(ContainSubstring(sync.ErrorMsgControllerInitializing))
 			})
 		})
 	})

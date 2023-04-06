@@ -15,6 +15,8 @@
 package vpc
 
 import (
+	"antrea.io/nephe/pkg/inventory/indexer"
+	"antrea.io/nephe/pkg/labels"
 	"context"
 	"strings"
 
@@ -31,10 +33,8 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
-	"antrea.io/nephe/pkg/controllers/config"
-	"antrea.io/nephe/pkg/controllers/inventory"
-	"antrea.io/nephe/pkg/controllers/inventory/common"
-	"antrea.io/nephe/pkg/controllers/inventory/store"
+	"antrea.io/nephe/pkg/inventory"
+	"antrea.io/nephe/pkg/inventory/store"
 )
 
 // REST implements rest.Storage for VPC Inventory.
@@ -73,7 +73,7 @@ func (r *REST) Get(ctx context.Context, name string, _ *metav1.GetOptions) (runt
 	}
 	namespacedName := ns + "/" + name
 
-	objs, err := r.cloudInventory.GetVpcsFromIndexer(common.IndexerByNamespacedName, namespacedName)
+	objs, err := r.cloudInventory.GetVpcsFromIndexer(indexer.ByNamespacedName, namespacedName)
 	if err != nil {
 		return nil, err
 	}
@@ -100,11 +100,11 @@ func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (
 		labelSelectorStrings := strings.Split(options.LabelSelector.String(), ",")
 		for _, labelSelectorString := range labelSelectorStrings {
 			labelKeyAndValue := strings.Split(labelSelectorString, "=")
-			if labelKeyAndValue[0] == config.LabelCloudAccountName {
+			if labelKeyAndValue[0] == labels.CloudAccountName {
 				accountName = labelKeyAndValue[1]
-			} else if labelKeyAndValue[0] == config.LabelCloudAccountNamespace {
+			} else if labelKeyAndValue[0] == labels.CloudAccountNamespace {
 				accountNamespace = labelKeyAndValue[1]
-			} else if labelKeyAndValue[0] == config.LabelCloudRegion {
+			} else if labelKeyAndValue[0] == labels.CloudRegion {
 				region = strings.ToLower(labelKeyAndValue[1])
 			} else {
 				return nil, errors.NewBadRequest("unsupported label selector, supported labels are: cpa.name and region")
@@ -152,21 +152,21 @@ func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (
 		if accountNamespace == "" {
 			accountNameSpacedName.Namespace = namespace
 		}
-		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.VpcIndexerByNameSpacedAccountName, accountNameSpacedName.String())
+		objs, _ = r.cloudInventory.GetVpcsFromIndexer(indexer.VpcByNamespacedAccountName, accountNameSpacedName.String())
 	} else if name != "" {
 		namespacedName := types.NamespacedName{
 			Namespace: namespace,
 			Name:      name,
 		}
-		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.IndexerByNamespacedName, namespacedName.String())
+		objs, _ = r.cloudInventory.GetVpcsFromIndexer(indexer.ByNamespacedName, namespacedName.String())
 	} else if region != "" {
 		namespacedRegion := types.NamespacedName{
 			Namespace: namespace,
 			Name:      region,
 		}
-		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.VpcIndexerByNamespacedRegion, namespacedRegion.String())
+		objs, _ = r.cloudInventory.GetVpcsFromIndexer(indexer.VpcByNamespacedRegion, namespacedRegion.String())
 	} else {
-		objs, _ = r.cloudInventory.GetVpcsFromIndexer(common.IndexerByNamespace, namespace)
+		objs, _ = r.cloudInventory.GetVpcsFromIndexer(indexer.ByNamespace, namespace)
 	}
 	vpcList := &runtimev1alpha1.VpcList{}
 	for _, obj := range objs {

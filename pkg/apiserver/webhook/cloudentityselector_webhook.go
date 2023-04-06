@@ -15,6 +15,7 @@
 package webhook
 
 import (
+	"antrea.io/nephe/pkg/util"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -32,8 +33,7 @@ import (
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
-	"antrea.io/nephe/pkg/controllers/cloud"
-	"antrea.io/nephe/pkg/controllers/utils"
+	"antrea.io/nephe/pkg/controllers/sync"
 )
 
 var (
@@ -89,7 +89,7 @@ func (v *CESMutator) Handle(_ context.Context, req admission.Request) admission.
 		v.Log.Error(err, errorMsgOwnerAccountNotFound, "account", *accountNameSpacedName)
 		return admission.Errored(http.StatusBadRequest, err)
 	}
-	cloudProviderType, err := utils.GetAccountProviderType(ownerAccount)
+	cloudProviderType, err := util.GetAccountProviderType(ownerAccount)
 	if err != nil {
 		v.Log.Error(err, errorMsgInvalidCloudType)
 		return admission.Errored(http.StatusBadRequest, err)
@@ -143,9 +143,9 @@ type CESValidator struct {
 // Handle handles validator admission requests for CES.
 func (v *CESValidator) Handle(_ context.Context, req admission.Request) admission.Response {
 	v.Log.V(1).Info("Received CES admission webhook request", "Name", req.Name, "Operation", req.Operation)
-	if !cloud.GetControllerSyncStatusInstance().IsControllerSynced(cloud.ControllerTypeCES) {
+	if !sync.GetControllerSyncStatusInstance().IsControllerSynced(sync.ControllerTypeCES) {
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("%v %v, retry after sometime",
-			cloud.ControllerTypeCES.String(), cloud.ErrorMsgControllerInitializing))
+			sync.ControllerTypeCES.String(), sync.ErrorMsgControllerInitializing))
 	}
 	switch req.Operation {
 	case admissionv1.Create:
@@ -288,7 +288,7 @@ func (v *CESValidator) validateMatchSections(selector *v1alpha1.CloudEntitySelec
 	if err != nil {
 		return err
 	}
-	cloudProviderType, err := utils.GetAccountProviderType(ownerAccount)
+	cloudProviderType, err := util.GetAccountProviderType(ownerAccount)
 	if err != nil {
 		v.Log.Error(err, errorMsgInvalidCloudType)
 		return err

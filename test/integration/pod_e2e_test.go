@@ -15,6 +15,7 @@
 package integration
 
 import (
+	"antrea.io/nephe/pkg/labels"
 	"context"
 	"fmt"
 	"math/rand"
@@ -30,7 +31,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
-	"antrea.io/nephe/pkg/controllers/config"
 	k8stemplates "antrea.io/nephe/test/templates"
 	"antrea.io/nephe/test/utils"
 )
@@ -114,17 +114,17 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Pods", focusAws, focusAzur
 		if len(kind) > 0 {
 			anpParams.To = &k8stemplates.ToFromParameters{
 				Entity: &k8stemplates.EntitySelectorParameters{
-					Kind: config.ExternalEntityLabelKeyKind + ": " + strings.ToLower(kind),
+					Kind: labels.ExternalEntityLabelKeyKind + ": " + strings.ToLower(kind),
 				},
 			}
 			if len(vpc) > 0 {
-				anpParams.To.Entity.VPC = config.ExternalEntityLabelKeyOwnerVmVpc + ": " + strings.ToLower(vpc)
+				anpParams.To.Entity.VPC = labels.ExternalEntityLabelKeyOwnerVmVpc + ": " + strings.ToLower(vpc)
 			}
 			if len(instanceName) > 0 {
-				anpParams.To.Entity.CloudInstanceName = config.ExternalEntityLabelKeyOwnerVm + ": " + strings.ToLower(instanceName)
+				anpParams.To.Entity.CloudInstanceName = labels.ExternalEntityLabelKeyOwnerVm + ": " + strings.ToLower(instanceName)
 			}
 			if len(tagKey) > 0 {
-				tagKey = config.LabelPrefixNephe + config.ExternalEntityLabelKeyTagPrefix + tagKey
+				tagKey = labels.LabelPrefixNephe + labels.ExternalEntityLabelKeyTagPrefix + tagKey
 				anpParams.To.Entity.Tags = map[string]string{tagKey: tagVal}
 			}
 			if diffNS {

@@ -15,6 +15,7 @@
 package webhook
 
 import (
+	"antrea.io/nephe/pkg/util"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -33,8 +34,7 @@ import (
 
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
-	"antrea.io/nephe/pkg/controllers/cloud"
-	"antrea.io/nephe/pkg/controllers/utils"
+	"antrea.io/nephe/pkg/controllers/sync"
 )
 
 const MinPollInterval = 30
@@ -107,9 +107,9 @@ type CPAValidator struct {
 // Handle handles validator admission requests for CPA.
 func (v *CPAValidator) Handle(_ context.Context, req admission.Request) admission.Response {
 	v.Log.V(1).Info("Received CPA admission webhook request", "Name", req.Name, "Operation", req.Operation)
-	if !cloud.GetControllerSyncStatusInstance().IsControllerSynced(cloud.ControllerTypeCPA) {
+	if !sync.GetControllerSyncStatusInstance().IsControllerSynced(sync.ControllerTypeCPA) {
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("%v %v, retry after sometime",
-			cloud.ControllerTypeCPA.String(), cloud.ErrorMsgControllerInitializing))
+			sync.ControllerTypeCPA.String(), sync.ErrorMsgControllerInitializing))
 	}
 	switch req.Operation {
 	case admissionv1.Create:
@@ -119,9 +119,9 @@ func (v *CPAValidator) Handle(_ context.Context, req admission.Request) admissio
 	case admissionv1.Delete:
 		// Since CPA CR is parent of CES CR, deletion of CPA CR would invoke delete of CES CR,
 		// which is not allowed, until CES sync is done.
-		if !cloud.GetControllerSyncStatusInstance().IsControllerSynced(cloud.ControllerTypeCES) {
+		if !sync.GetControllerSyncStatusInstance().IsControllerSynced(sync.ControllerTypeCES) {
 			return admission.Errored(http.StatusBadRequest, fmt.Errorf("%v %v, retry after sometime",
-				cloud.ControllerTypeCES.String(), cloud.ErrorMsgControllerInitializing))
+				sync.ControllerTypeCES.String(), sync.ErrorMsgControllerInitializing))
 		}
 		return v.validateDelete(req)
 	default:
@@ -144,7 +144,7 @@ func (v *CPAValidator) validateCreate(req admission.Request) admission.Response 
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
-	cloudProviderType, err := utils.GetAccountProviderType(cpa)
+	cloudProviderType, err := util.GetAccountProviderType(cpa)
 	if err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
@@ -183,7 +183,7 @@ func (v *CPAValidator) validateUpdate(req admission.Request) admission.Response 
 		}
 	}
 
-	cloudProviderType, err := utils.GetAccountProviderType(newCpa)
+	cloudProviderType, err := util.GetAccountProviderType(newCpa)
 	if err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
