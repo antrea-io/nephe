@@ -15,8 +15,6 @@
 package source_test
 
 import (
-	config2 "antrea.io/nephe/pkg/config"
-	"antrea.io/nephe/pkg/labels"
 	"context"
 	"strings"
 	"time"
@@ -36,8 +34,10 @@ import (
 
 	antreav1alpha1 "antrea.io/antrea/pkg/apis/crd/v1alpha1"
 	antreav1alpha2 "antrea.io/antrea/pkg/apis/crd/v1alpha2"
+	"antrea.io/nephe/pkg/config"
 	"antrea.io/nephe/pkg/converter/source"
 	"antrea.io/nephe/pkg/converter/target"
+	"antrea.io/nephe/pkg/labels"
 )
 
 var _ = Describe("VirtualMachineConverter", func() {
@@ -112,7 +112,7 @@ var _ = Describe("VirtualMachineConverter", func() {
 				eeLabels[labelKey] = labelVal
 			}
 			ee.Labels = eeLabels
-			ee.Spec.ExternalNode = config2.ANPNepheController
+			ee.Spec.ExternalNode = config.ANPNepheController
 			expectedExternalEntities[name] = ee
 		}
 
@@ -143,7 +143,7 @@ var _ = Describe("VirtualMachineConverter", func() {
 				eeLabels[labelKey] = labelVal
 			}
 			ee.Labels = eeLabels
-			ee.Spec.ExternalNode = config2.ANPNepheController
+			ee.Spec.ExternalNode = config.ANPNepheController
 			expectedExternalPatchEntities[name] = ee
 		}
 

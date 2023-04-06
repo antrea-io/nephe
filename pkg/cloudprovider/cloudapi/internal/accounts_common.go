@@ -22,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/pkg/logging"
 )
 
@@ -30,7 +30,7 @@ type CloudAccountInterface interface {
 	GetNamespacedName() *types.NamespacedName
 	GetServiceConfigs() map[CloudServiceName]*CloudServiceCommon
 	GetServiceConfigByName(name CloudServiceName) (CloudServiceInterface, error)
-	GetStatus() *cloudv1alpha1.CloudProviderAccountStatus
+	GetStatus() *crdv1alpha1.CloudProviderAccountStatus
 
 	performInventorySync() error
 	resetInventorySyncCache()
@@ -42,7 +42,7 @@ type cloudAccountConfig struct {
 	credentials    interface{}
 	serviceConfigs map[CloudServiceName]*CloudServiceCommon
 	logger         func() logging.Logger
-	Status         *cloudv1alpha1.CloudProviderAccountStatus
+	Status         *crdv1alpha1.CloudProviderAccountStatus
 }
 
 type CloudCredentialValidatorFunc func(client client.Client, credentials interface{}) (interface{}, error)
@@ -80,7 +80,7 @@ func (c *cloudCommon) newCloudAccountConfig(client client.Client, namespacedName
 		serviceConfigMap[serviceCfg.GetName()] = serviceConfig
 	}
 
-	status := &cloudv1alpha1.CloudProviderAccountStatus{}
+	status := &crdv1alpha1.CloudProviderAccountStatus{}
 	return &cloudAccountConfig{
 		logger:         loggerFunc,
 		namespacedName: namespacedName,
@@ -214,7 +214,7 @@ func (accCfg *cloudAccountConfig) GetServiceConfigByName(name CloudServiceName) 
 	return nil, fmt.Errorf("%v service not found for account %v", name, accCfg.namespacedName)
 }
 
-func (accCfg *cloudAccountConfig) GetStatus() *cloudv1alpha1.CloudProviderAccountStatus {
+func (accCfg *cloudAccountConfig) GetStatus() *crdv1alpha1.CloudProviderAccountStatus {
 	return accCfg.Status
 }
 

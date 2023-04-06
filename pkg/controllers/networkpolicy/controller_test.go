@@ -15,7 +15,6 @@
 package networkpolicy
 
 import (
-	"antrea.io/nephe/pkg/labels"
 	"context"
 	"fmt"
 	"net"
@@ -50,6 +49,7 @@ import (
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloudprovider/securitygroup"
 	"antrea.io/nephe/pkg/converter/target"
+	"antrea.io/nephe/pkg/labels"
 	cloudtest "antrea.io/nephe/pkg/testing/cloudsecurity"
 	"antrea.io/nephe/pkg/testing/controllerruntimeclient"
 	"antrea.io/nephe/pkg/testing/inventory"

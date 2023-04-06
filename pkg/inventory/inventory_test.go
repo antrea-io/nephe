@@ -15,8 +15,6 @@
 package inventory
 
 import (
-	"antrea.io/nephe/pkg/inventory/indexer"
-	"antrea.io/nephe/pkg/labels"
 	"fmt"
 	"testing"
 
@@ -25,6 +23,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/inventory/indexer"
+	"antrea.io/nephe/pkg/labels"
 )
 
 func TestInventory(t *testing.T) {

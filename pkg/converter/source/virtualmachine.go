@@ -15,15 +15,15 @@
 package source
 
 import (
-	config2 "antrea.io/nephe/pkg/config"
-	"antrea.io/nephe/pkg/labels"
-	"antrea.io/nephe/pkg/util"
 	"k8s.io/apimachinery/pkg/watch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	"antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/config"
 	"antrea.io/nephe/pkg/converter/target"
+	"antrea.io/nephe/pkg/labels"
+	"antrea.io/nephe/pkg/util"
 )
 
 // VirtualMachineSource says VirtualMachine is a source of converter targets.
@@ -71,7 +71,7 @@ func (v *VirtualMachineSource) GetLabelsFromClient(_ client.Client) map[string]s
 
 // GetExternalNodeName returns controller associated with VirtualMachine.
 func (v *VirtualMachineSource) GetExternalNodeName(_ client.Client) string {
-	return config2.ANPNepheController
+	return config.ANPNepheController
 }
 
 // Copy returns a duplicate of VirtualMachineSource.

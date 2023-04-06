@@ -15,8 +15,6 @@
 package cloudprovideraccount
 
 import (
-	"antrea.io/nephe/pkg/util"
-	"antrea.io/nephe/pkg/util/env"
 	"context"
 	"fmt"
 	"sync"
@@ -36,6 +34,8 @@ import (
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/pkg/accountmanager"
 	controllersync "antrea.io/nephe/pkg/controllers/sync"
+	"antrea.io/nephe/pkg/util"
+	"antrea.io/nephe/pkg/util/env"
 )
 
 // CloudProviderAccountReconciler reconciles a CloudProviderAccount object.

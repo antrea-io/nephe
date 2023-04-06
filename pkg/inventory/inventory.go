@@ -15,8 +15,6 @@
 package inventory
 
 import (
-	"antrea.io/nephe/pkg/inventory/indexer"
-	labels2 "antrea.io/nephe/pkg/labels"
 	"context"
 	"fmt"
 	"reflect"
@@ -29,7 +27,9 @@ import (
 
 	antreastorage "antrea.io/antrea/pkg/apiserver/storage"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
-	store "antrea.io/nephe/pkg/inventory/store"
+	"antrea.io/nephe/pkg/inventory/indexer"
+	"antrea.io/nephe/pkg/inventory/store"
+	nephelabels "antrea.io/nephe/pkg/labels"
 	"antrea.io/nephe/pkg/logging"
 )
 
@@ -61,7 +61,7 @@ func (inventory *Inventory) BuildVpcCache(discoveredVpcMap map[string]*runtimev1
 		vpc := i.(*runtimev1alpha1.Vpc)
 		if _, found := discoveredVpcMap[vpc.Status.CloudId]; !found {
 			if err := inventory.vpcStore.Delete(fmt.Sprintf("%v/%v-%v", vpc.Namespace,
-				vpc.Labels[labels2.CloudAccountName], vpc.Status.CloudId)); err != nil {
+				vpc.Labels[nephelabels.CloudAccountName], vpc.Status.CloudId)); err != nil {
 				inventory.log.Error(err, "failed to delete vpc from vpc cache",
 					"vpc id", vpc.Status.CloudId, "account", namespacedName.String())
 			} else {
@@ -73,7 +73,7 @@ func (inventory *Inventory) BuildVpcCache(discoveredVpcMap map[string]*runtimev1
 	for _, discoveredVpc := range discoveredVpcMap {
 		var err error
 		key := fmt.Sprintf("%v/%v-%v", discoveredVpc.Namespace,
-			discoveredVpc.Labels[labels2.CloudAccountName],
+			discoveredVpc.Labels[nephelabels.CloudAccountName],
 			discoveredVpc.Status.CloudId)
 		if cachedObj, found, _ := inventory.vpcStore.Get(key); !found {
 			err = inventory.vpcStore.Create(discoveredVpc)
@@ -111,7 +111,7 @@ func (inventory *Inventory) DeleteVpcsFromCache(namespacedName *types.Namespaced
 	var numVpcsToDelete int
 	for _, i := range vpcsInCache {
 		vpc := i.(*runtimev1alpha1.Vpc)
-		key := fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[labels2.CloudAccountName], vpc.Status.CloudId)
+		key := fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[nephelabels.CloudAccountName], vpc.Status.CloudId)
 		err := inventory.vpcStore.Delete(key)
 		if err != nil {
 			inventory.log.Error(err, "failed to delete vpc from vpc cache %s:%s",

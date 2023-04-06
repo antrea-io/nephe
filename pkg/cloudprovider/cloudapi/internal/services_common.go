@@ -20,7 +20,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/types"
 
-	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 )
 
@@ -46,7 +46,7 @@ type CloudServiceInterface interface {
 	UpdateServiceConfig(newServiceConfig CloudServiceInterface)
 	// SetResourceFilters will be used by service to get resources from cloud for the service. Each will convert
 	// CloudEntitySelector to service understandable filters.
-	SetResourceFilters(selector *cloudv1alpha1.CloudEntitySelector)
+	SetResourceFilters(selector *crdv1alpha1.CloudEntitySelector)
 	// RemoveResourceFilters will be used by service to remove configured filter.
 	RemoveResourceFilters(selectorName string)
 	// DoResourceInventory performs resource inventory for the cloud service based on configured filters. As part
@@ -73,7 +73,7 @@ func (cfg *CloudServiceCommon) updateServiceConfig(newConfig CloudServiceInterfa
 	cfg.serviceInterface.UpdateServiceConfig(newConfig)
 }
 
-func (cfg *CloudServiceCommon) setResourceFilters(selector *cloudv1alpha1.CloudEntitySelector) {
+func (cfg *CloudServiceCommon) setResourceFilters(selector *crdv1alpha1.CloudEntitySelector) {
 	cfg.mutex.Lock()
 	defer cfg.mutex.Unlock()
 

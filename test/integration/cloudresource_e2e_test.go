@@ -15,7 +15,6 @@
 package integration
 
 import (
-	"antrea.io/nephe/pkg/labels"
 	"context"
 	"fmt"
 	"math/rand"
@@ -33,6 +32,7 @@ import (
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	cpautils "antrea.io/nephe/pkg/cloudprovider/utils"
+	"antrea.io/nephe/pkg/labels"
 	k8stemplates "antrea.io/nephe/test/templates"
 	"antrea.io/nephe/test/utils"
 )

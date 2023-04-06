@@ -1,4 +1,4 @@
-// Copyright 2022 Antrea Authors.
+// Copyright 2023 Antrea Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 package accountmanager
 
 import (
-	"antrea.io/nephe/pkg/util"
 	"fmt"
 	"sync"
 	"time"
@@ -27,9 +26,10 @@ import (
 
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
-	cloudprovider "antrea.io/nephe/pkg/cloudprovider"
+	"antrea.io/nephe/pkg/cloudprovider"
 	"antrea.io/nephe/pkg/cloudprovider/cloudapi/common"
 	"antrea.io/nephe/pkg/inventory"
+	"antrea.io/nephe/pkg/util"
 )
 
 const (
@@ -120,7 +120,7 @@ func (a *AccountManager) AddAccount(namespacedName *types.NamespacedName, accoun
 			a.Log.Info("Ignoring start of account poller", "account", namespacedName)
 		}
 	} else {
-		accPoller.RestartPoller(namespacedName)
+		accPoller.restartPoller(namespacedName)
 	}
 	return nil
 }
@@ -180,15 +180,16 @@ func (a *AccountManager) AddResourceFiltersToAccount(accNamespacedName *types.Na
 	if !exists {
 		return false, fmt.Errorf(fmt.Sprintf("%v %v", ErrorMsgAccountPollerNotFound, accNamespacedName))
 	}
-	accPoller.AddOrUpdateSelector(selector)
-	accPoller.RestartPoller(accNamespacedName)
+	accPoller.addOrUpdateSelector(selector)
+	accPoller.restartPoller(accNamespacedName)
 
 	// wait for polling to complete after restart.
 	return false, accPoller.waitForPollDone(accNamespacedName)
 }
 
 // RemoveResourceFiltersFromAccount removes selector from cloud plugin and restart the poller.
-func (a *AccountManager) RemoveResourceFiltersFromAccount(accNamespacedName *types.NamespacedName, selectorNamespacedName *types.NamespacedName) {
+func (a *AccountManager) RemoveResourceFiltersFromAccount(accNamespacedName *types.NamespacedName,
+	selectorNamespacedName *types.NamespacedName) {
 	ok, cloudProviderType := a.getAccountProviderType(accNamespacedName)
 	if !ok {
 		// If we cannot find cloud provider type, that means CPA may not be added or it's already removed.
@@ -203,8 +204,8 @@ func (a *AccountManager) RemoveResourceFiltersFromAccount(accNamespacedName *typ
 	if !exists {
 		return
 	}
-	accPoller.RemoveSelector(accNamespacedName)
-	accPoller.RestartPoller(accNamespacedName)
+	accPoller.removeSelector(accNamespacedName)
+	accPoller.restartPoller(accNamespacedName)
 }
 
 // addAccountPoller creates an account poller for a given account.
@@ -242,8 +243,8 @@ func (a *AccountManager) removeAccountPoller(namespacedName *types.NamespacedNam
 	if !exists {
 		return nil
 	}
-	accPoller.RemoveSelector(namespacedName)
-	accPoller.StopPoller()
+	accPoller.removeSelector(namespacedName)
+	accPoller.stopPoller()
 
 	a.mutex.Lock()
 	defer a.mutex.Unlock()

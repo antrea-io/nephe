@@ -107,8 +107,10 @@ var _ = Describe("CloudEntitySelector Controller", func() {
 		})
 
 		It("CES Add and Delete workflow", func() {
-			mockAccManager.EXPECT().AddResourceFiltersToAccount(&testAccountNamespacedName, &testSelectorNamespacedName, selector).Return(true, nil).Times(1)
-			mockAccManager.EXPECT().RemoveResourceFiltersFromAccount(&testAccountNamespacedName, &testSelectorNamespacedName).Return().Times(1)
+			mockAccManager.EXPECT().AddResourceFiltersToAccount(&testAccountNamespacedName, &testSelectorNamespacedName,
+				selector).Return(true, nil).Times(1)
+			mockAccManager.EXPECT().RemoveResourceFiltersFromAccount(&testAccountNamespacedName,
+				&testSelectorNamespacedName).Return().Times(1)
 
 			err := cesReconciler.processCreateOrUpdate(selector, &testSelectorNamespacedName)
 			Expect(err).ShouldNot(HaveOccurred())
@@ -117,8 +119,10 @@ var _ = Describe("CloudEntitySelector Controller", func() {
 		})
 
 		It("CES Add failure", func() {
-			mockAccManager.EXPECT().AddResourceFiltersToAccount(&testAccountNamespacedName, &testSelectorNamespacedName, selector).Return(false, fmt.Errorf("dummy")).Times(1)
-			mockAccManager.EXPECT().RemoveResourceFiltersFromAccount(&testAccountNamespacedName, &testSelectorNamespacedName).Return().Times(1)
+			mockAccManager.EXPECT().AddResourceFiltersToAccount(&testAccountNamespacedName, &testSelectorNamespacedName,
+				selector).Return(false, fmt.Errorf("dummy")).Times(1)
+			mockAccManager.EXPECT().RemoveResourceFiltersFromAccount(&testAccountNamespacedName,
+				&testSelectorNamespacedName).Return().Times(1)
 			err := cesReconciler.processCreateOrUpdate(selector, &testSelectorNamespacedName)
 			Expect(err).Should(HaveOccurred())
 		})

@@ -15,7 +15,6 @@
 package integration
 
 import (
-	"antrea.io/nephe/pkg/config"
 	"context"
 	"fmt"
 	"math/rand"
@@ -33,6 +32,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
+	"antrea.io/nephe/pkg/config"
 	"antrea.io/nephe/pkg/converter/target"
 	"antrea.io/nephe/pkg/testing"
 	"antrea.io/nephe/test/utils"

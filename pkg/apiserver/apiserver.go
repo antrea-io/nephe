@@ -15,7 +15,6 @@
 package apiserver
 
 import (
-	"antrea.io/nephe/pkg/inventory"
 	"context"
 	"net"
 
@@ -34,6 +33,7 @@ import (
 	virtualmachineinventory "antrea.io/nephe/pkg/apiserver/registry/inventory/virtualmachine"
 	vpcinventory "antrea.io/nephe/pkg/apiserver/registry/inventory/vpc"
 	"antrea.io/nephe/pkg/apiserver/registry/virtualmachinepolicy"
+	"antrea.io/nephe/pkg/inventory"
 )
 
 var (

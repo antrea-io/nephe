@@ -15,8 +15,6 @@
 package store
 
 import (
-	"antrea.io/nephe/pkg/inventory/indexer"
-	labels2 "antrea.io/nephe/pkg/labels"
 	"fmt"
 	"reflect"
 
@@ -30,6 +28,8 @@ import (
 	antreastorage "antrea.io/antrea/pkg/apiserver/storage"
 	"antrea.io/antrea/pkg/apiserver/storage/ram"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/inventory/indexer"
+	nephelabels "antrea.io/nephe/pkg/labels"
 )
 
 // vpcInventoryEvent implements storage.InternalEvent.
@@ -128,7 +128,7 @@ func vpcKeyFunc(obj interface{}) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("object is not of type runtime/v1alpha1/Vpc: %v", obj)
 	}
-	return fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[labels2.CloudAccountName], vpc.Status.CloudId), nil
+	return fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[nephelabels.CloudAccountName], vpc.Status.CloudId), nil
 }
 
 // NewVPCInventoryStore creates a store of VPC.
@@ -136,7 +136,7 @@ func NewVPCInventoryStore() antreastorage.Interface {
 	indexers := cache.Indexers{
 		indexer.VpcByNamespacedAccountName: func(obj interface{}) ([]string, error) {
 			vpc := obj.(*runtimev1alpha1.Vpc)
-			return []string{vpc.Namespace + "/" + vpc.Labels[labels2.CloudAccountName]}, nil
+			return []string{vpc.Namespace + "/" + vpc.Labels[nephelabels.CloudAccountName]}, nil
 		},
 		indexer.ByNamespacedName: func(obj interface{}) ([]string, error) {
 			vpc := obj.(*runtimev1alpha1.Vpc)

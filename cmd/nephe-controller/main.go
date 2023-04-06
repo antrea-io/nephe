@@ -99,7 +99,6 @@ func main() {
 	// Initialize vpc inventory cache.
 	cloudInventory := inventory.InitInventory()
 
-	// Initialize Account poller map.
 	accountManager := &accountmanager.AccountManager{
 		Client:    mgr.GetClient(),
 		Log:       logging.GetLogger("accountManager"), // TODO: Check logging

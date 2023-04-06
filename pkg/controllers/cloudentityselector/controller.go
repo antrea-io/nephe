@@ -1,4 +1,4 @@
-// Copyright 2022 Antrea Authors.
+// Copyright 2023 Antrea Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,7 +50,8 @@ type CloudEntitySelectorReconciler struct {
 func (r *CloudEntitySelectorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = r.Log.WithValues("cloudentityselector", req.NamespacedName)
 	if !r.initialized {
-		if err := sync.GetControllerSyncStatusInstance().WaitTillControllerIsInitialized(&r.initialized, sync.InitTimeout, sync.ControllerTypeCES); err != nil {
+		if err := sync.GetControllerSyncStatusInstance().WaitTillControllerIsInitialized(&r.initialized,
+			sync.InitTimeout, sync.ControllerTypeCES); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
@@ -84,8 +85,10 @@ func (r *CloudEntitySelectorReconciler) SetupWithManager(mgr ctrl.Manager) error
 // A controller is said to be initialized only when the dependent controllers
 // are synced, and it keeps a count of pending CRs to be reconciled.
 func (r *CloudEntitySelectorReconciler) Start(_ context.Context) error {
-	if err := sync.GetControllerSyncStatusInstance().WaitForControllersToSync([]sync.ControllerType{sync.ControllerTypeCPA}, sync.SyncTimeout); err != nil {
-		r.Log.Error(err, "dependent controller sync failed", "controller", sync.ControllerTypeCPA.String())
+	if err := sync.GetControllerSyncStatusInstance().WaitForControllersToSync(
+		[]sync.ControllerType{sync.ControllerTypeCPA}, sync.SyncTimeout); err != nil {
+		r.Log.Error(err, "dependent controller sync failed", "controller",
+			sync.ControllerTypeCPA.String())
 		return err
 	}
 	cesList := &crdv1alpha1.CloudEntitySelectorList{}
@@ -122,7 +125,8 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *crdv1alp
 		Name:      selector.Spec.AccountName,
 	}
 	r.selectorToAccountMap[*selectorNamespacedName] = *accountNamespacedName
-	if ok, err := r.AccManager.AddResourceFiltersToAccount(accountNamespacedName, selectorNamespacedName, selector); err != nil {
+	if ok, err := r.AccManager.AddResourceFiltersToAccount(accountNamespacedName, selectorNamespacedName,
+		selector); err != nil {
 		if !ok {
 			_ = r.processDelete(selectorNamespacedName)
 		}

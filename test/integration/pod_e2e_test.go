@@ -15,7 +15,6 @@
 package integration
 
 import (
-	"antrea.io/nephe/pkg/labels"
 	"context"
 	"fmt"
 	"math/rand"
@@ -31,6 +30,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/labels"
 	k8stemplates "antrea.io/nephe/test/templates"
 	"antrea.io/nephe/test/utils"
 )

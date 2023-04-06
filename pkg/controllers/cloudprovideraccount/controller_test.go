@@ -15,7 +15,6 @@
 package cloudprovideraccount
 
 import (
-	"antrea.io/nephe/pkg/util"
 	"context"
 	"os"
 	"sync"
@@ -42,6 +41,7 @@ import (
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	cloud "antrea.io/nephe/apis/crd/v1alpha1"
 	mockaccmanager "antrea.io/nephe/pkg/testing/accountmanager"
+	"antrea.io/nephe/pkg/util"
 )
 
 var (
@@ -135,6 +135,7 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 		})
 		It("Account add and delete workflow", func() {
 			accountCloudType, err := util.GetAccountProviderType(account)
+			Expect(err).ShouldNot(HaveOccurred())
 			mockAccManager.EXPECT().AddAccount(&testAccountNamespacedName, accountCloudType, account).Return(nil).Times(1)
 			mockAccManager.EXPECT().RemoveAccount(&testAccountNamespacedName).Return(nil).Times(1)
 			err = reconciler.processCreateOrUpdate(&testAccountNamespacedName, account)

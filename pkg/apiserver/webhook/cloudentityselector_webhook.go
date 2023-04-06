@@ -15,7 +15,6 @@
 package webhook
 
 import (
-	"antrea.io/nephe/pkg/util"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -34,6 +33,7 @@ import (
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/controllers/sync"
+	"antrea.io/nephe/pkg/util"
 )
 
 var (

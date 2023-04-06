@@ -97,8 +97,8 @@ func (p *accountPoller) initVmSelectorCache() {
 		})
 }
 
-// AddOrUpdateSelector updates account poller with new selectors.
-func (p *accountPoller) AddOrUpdateSelector(selector *crdv1alpha1.CloudEntitySelector) {
+// addOrUpdateSelector updates account poller with new selectors.
+func (p *accountPoller) addOrUpdateSelector(selector *crdv1alpha1.CloudEntitySelector) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
@@ -130,11 +130,11 @@ func (p *accountPoller) AddOrUpdateSelector(selector *crdv1alpha1.CloudEntitySel
 	p.selector = selector.DeepCopy()
 }
 
-// RemoveSelector reset selector in account poller.
-func (p *accountPoller) RemoveSelector(accountNamespacedName *types.NamespacedName) {
+// removeSelector reset selector in account poller.
+func (p *accountPoller) removeSelector(accountNamespacedName *types.NamespacedName) {
 	p.selector = nil
 	// Remove VMs from the cache when selectors are removed.
-	p.inventory.DeleteVmsFromCache(accountNamespacedName)
+	_ = p.inventory.DeleteVmsFromCache(accountNamespacedName)
 }
 
 // doAccountPolling calls the cloud plugin and fetches the cloud inventory. Once successful poll, updates the cloud
@@ -287,8 +287,8 @@ func (p *accountPoller) waitForPollDone(accountNamespacedName *types.NamespacedN
 	return nil
 }
 
-// RestartPoller restarts account poller thread.
-func (p *accountPoller) RestartPoller(name *types.NamespacedName) {
+// restartPoller restarts account poller thread.
+func (p *accountPoller) restartPoller(name *types.NamespacedName) {
 	// Wait for existing thread to complete its execution.
 	p.mutex.Lock()
 	if p.ch != nil {
@@ -302,8 +302,8 @@ func (p *accountPoller) RestartPoller(name *types.NamespacedName) {
 	go wait.Until(p.doAccountPolling, time.Duration(p.PollIntvInSeconds)*time.Second, p.ch)
 }
 
-// StopPoller stops account poller thread if it's running.
-func (p *accountPoller) StopPoller() {
+// stopPoller stops account poller thread if it's running.
+func (p *accountPoller) stopPoller() {
 	// Wait for existing thread to complete its execution.
 	p.mutex.Lock()
 	defer p.mutex.Unlock()

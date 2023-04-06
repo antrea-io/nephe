@@ -15,10 +15,6 @@
 package virtualmachine
 
 import (
-	config2 "antrea.io/nephe/pkg/config"
-	"antrea.io/nephe/pkg/controllers/sync"
-	"antrea.io/nephe/pkg/inventory"
-	labels2 "antrea.io/nephe/pkg/labels"
 	"context"
 	"os"
 
@@ -33,7 +29,11 @@ import (
 	antreav1alpha1 "antrea.io/antrea/pkg/apis/crd/v1alpha1"
 	antreav1alpha2 "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/config"
+	"antrea.io/nephe/pkg/controllers/sync"
 	converter "antrea.io/nephe/pkg/converter/source"
+	"antrea.io/nephe/pkg/inventory"
+	nephelabels "antrea.io/nephe/pkg/labels"
 	"antrea.io/nephe/pkg/logging"
 )
 
@@ -126,11 +126,11 @@ func (r *VirtualMachineController) syncExternalEntities(vmNamespacedNameMap map[
 		return err
 	}
 	for _, ee := range eeList.Items {
-		if ee.Spec.ExternalNode != config2.ANPNepheController {
+		if ee.Spec.ExternalNode != config.ANPNepheController {
 			// Ignore EE objects that are not created by nephe.
 			continue
 		}
-		eeLabelKeyName, exists := ee.Labels[labels2.ExternalEntityLabelKeyOwnerVm]
+		eeLabelKeyName, exists := ee.Labels[nephelabels.ExternalEntityLabelKeyOwnerVm]
 		if !exists {
 			// Ignore EE objects not created by converter module.
 			continue
@@ -157,7 +157,7 @@ func (r *VirtualMachineController) syncExternalNodes(vmNamespacedNameMap map[typ
 		return err
 	}
 	for _, en := range enList.Items {
-		enLabelKeyName, exists := en.Labels[labels2.ExternalEntityLabelKeyOwnerVm]
+		enLabelKeyName, exists := en.Labels[nephelabels.ExternalEntityLabelKeyOwnerVm]
 		if !exists {
 			// Ignore EN objects not created by converter module.
 			continue

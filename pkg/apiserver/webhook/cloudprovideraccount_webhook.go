@@ -15,7 +15,6 @@
 package webhook
 
 import (
-	"antrea.io/nephe/pkg/util"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -35,6 +34,7 @@ import (
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/controllers/sync"
+	"antrea.io/nephe/pkg/util"
 )
 
 const MinPollInterval = 30

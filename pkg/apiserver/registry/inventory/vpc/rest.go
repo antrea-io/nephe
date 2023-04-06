@@ -15,8 +15,6 @@
 package vpc
 
 import (
-	"antrea.io/nephe/pkg/inventory/indexer"
-	"antrea.io/nephe/pkg/labels"
 	"context"
 	"strings"
 
@@ -34,7 +32,9 @@ import (
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/inventory"
+	"antrea.io/nephe/pkg/inventory/indexer"
 	"antrea.io/nephe/pkg/inventory/store"
+	"antrea.io/nephe/pkg/labels"
 )
 
 // REST implements rest.Storage for VPC Inventory.

@@ -27,7 +27,6 @@
 package webhook
 
 import (
-	"antrea.io/nephe/pkg/util"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -48,6 +47,7 @@ import (
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/pkg/controllers/sync"
 	"antrea.io/nephe/pkg/logging"
+	"antrea.io/nephe/pkg/util"
 )
 
 var _ = Describe("CloudProviderAccountWebhook", func() {

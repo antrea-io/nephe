@@ -15,7 +15,6 @@
 package networkpolicy
 
 import (
-	"antrea.io/nephe/pkg/labels"
 	"context"
 	"fmt"
 	"net"
@@ -33,6 +32,7 @@ import (
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloudprovider/securitygroup"
 	"antrea.io/nephe/pkg/cloudprovider/utils"
+	"antrea.io/nephe/pkg/labels"
 )
 
 // InProgress indicates a securityGroup operation is in progress.

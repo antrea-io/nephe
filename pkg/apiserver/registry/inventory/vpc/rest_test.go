@@ -15,7 +15,6 @@
 package vpc
 
 import (
-	labels2 "antrea.io/nephe/pkg/labels"
 	"sort"
 	"testing"
 
@@ -33,6 +32,7 @@ import (
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/inventory"
+	nephelabels "antrea.io/nephe/pkg/labels"
 	"antrea.io/nephe/pkg/logging"
 )
 
@@ -85,9 +85,9 @@ var _ = Describe("VPC", func() {
 			Namespace: "default",
 			Name:      "targetId2",
 			Labels: map[string]string{
-				labels2.CloudAccountNamespace: accountNamespacedName.Namespace,
-				labels2.CloudAccountName:      accountNamespacedName.Name,
-				labels2.CloudRegion:           "region",
+				nephelabels.CloudAccountNamespace: accountNamespacedName.Namespace,
+				nephelabels.CloudAccountName:      accountNamespacedName.Name,
+				nephelabels.CloudRegion:           "region",
 			},
 		},
 		Status: runtimev1alpha1.VpcStatus{
@@ -158,9 +158,9 @@ var _ = Describe("VPC", func() {
 						Namespace: "default",
 						Name:      "targetId2",
 						Labels: map[string]string{
-							labels2.CloudAccountNamespace: accountNamespacedName.Namespace,
-							labels2.CloudAccountName:      accountNamespacedName.Name,
-							labels2.CloudRegion:           "region",
+							nephelabels.CloudAccountNamespace: accountNamespacedName.Namespace,
+							nephelabels.CloudAccountName:      accountNamespacedName.Name,
+							nephelabels.CloudRegion:           "region",
 						},
 					},
 					Status: runtimev1alpha1.VpcStatus{
@@ -183,9 +183,9 @@ var _ = Describe("VPC", func() {
 						Namespace: "default",
 						Name:      "targetId2",
 						Labels: map[string]string{
-							labels2.CloudAccountNamespace: accountNamespacedName.Namespace,
-							labels2.CloudAccountName:      accountNamespacedName.Name,
-							labels2.CloudRegion:           "region",
+							nephelabels.CloudAccountNamespace: accountNamespacedName.Namespace,
+							nephelabels.CloudAccountName:      accountNamespacedName.Name,
+							nephelabels.CloudRegion:           "region",
 						},
 					},
 					Status: runtimev1alpha1.VpcStatus{
@@ -208,13 +208,13 @@ var _ = Describe("VPC", func() {
 			expectedPolicyList2,
 		}
 		// select vpcs based on account name.
-		req1, _ := labels.NewRequirement(labels2.CloudAccountName, selection.Equals,
+		req1, _ := labels.NewRequirement(nephelabels.CloudAccountName, selection.Equals,
 			[]string{accountNamespacedName.Name})
 		labelSelector1 := labels.NewSelector()
 		labelSelector1 = labelSelector1.Add(*req1)
 
 		// select vpcs based on region.
-		req2, _ := labels.NewRequirement(labels2.CloudRegion, selection.Equals, []string{"region"})
+		req2, _ := labels.NewRequirement(nephelabels.CloudRegion, selection.Equals, []string{"region"})
 		labelSelector2 := labels.NewSelector()
 		labelSelector2 = labelSelector2.Add(*req2)
 
@@ -231,7 +231,7 @@ var _ = Describe("VPC", func() {
 			vpcMap := make(map[string]*runtimev1alpha1.Vpc)
 			vpcMap[cachedVpc.Status.CloudId] = cachedVpc
 			namespacedName := types.NamespacedName{Namespace: cachedVpc.Namespace,
-				Name: cachedVpc.Labels[labels2.CloudAccountName]}
+				Name: cachedVpc.Labels[nephelabels.CloudAccountName]}
 			err := cloudInventory.BuildVpcCache(vpcMap, &namespacedName)
 			Expect(err).Should(BeNil())
 		}
@@ -328,9 +328,9 @@ var _ = Describe("VPC", func() {
 			Namespace: "default",
 			Name:      "targetId2",
 			Labels: map[string]string{
-				labels2.CloudAccountNamespace: accountNamespacedName.Namespace,
-				labels2.CloudAccountName:      accountNamespacedName.Name,
-				labels2.CloudRegion:           "region",
+				nephelabels.CloudAccountNamespace: accountNamespacedName.Namespace,
+				nephelabels.CloudAccountName:      accountNamespacedName.Name,
+				nephelabels.CloudRegion:           "region",
 			},
 		},
 		Status: runtimev1alpha1.VpcStatus{

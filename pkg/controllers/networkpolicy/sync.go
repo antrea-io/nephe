@@ -15,7 +15,6 @@
 package networkpolicy
 
 import (
-	"antrea.io/nephe/pkg/inventory/indexer"
 	"fmt"
 
 	"github.com/mohae/deepcopy"
@@ -23,6 +22,7 @@ import (
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloudprovider/securitygroup"
+	"antrea.io/nephe/pkg/inventory/indexer"
 )
 
 // syncImpl synchronizes securityGroup memberships with cloud.

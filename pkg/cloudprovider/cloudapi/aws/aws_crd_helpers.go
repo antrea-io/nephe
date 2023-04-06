@@ -15,7 +15,6 @@
 package aws
 
 import (
-	"antrea.io/nephe/pkg/labels"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -25,6 +24,7 @@ import (
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	cloudcommon "antrea.io/nephe/pkg/cloudprovider/cloudapi/common"
+	"antrea.io/nephe/pkg/labels"
 )
 
 const ResourceNameTagKey = "Name"

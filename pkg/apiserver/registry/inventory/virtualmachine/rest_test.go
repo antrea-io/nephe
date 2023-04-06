@@ -15,7 +15,6 @@
 package virtualmachine
 
 import (
-	"antrea.io/nephe/pkg/labels"
 	"context"
 	"sort"
 	"testing"
@@ -32,6 +31,7 @@ import (
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/inventory"
+	"antrea.io/nephe/pkg/labels"
 	"antrea.io/nephe/pkg/logging"
 )
 

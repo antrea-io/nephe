@@ -15,6 +15,6 @@
 package config
 
 const (
-	// Used to disperse NetworkPolicies.
+	// ANPNepheController used to disperse NetworkPolicies.
 	ANPNepheController = "nephe-controller"
 )
