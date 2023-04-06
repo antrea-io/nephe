@@ -15,7 +15,6 @@
 package azure
 
 import (
-	"antrea.io/nephe/pkg/labels"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
@@ -25,8 +24,9 @@ import (
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	cloudcommon "antrea.io/nephe/pkg/cloudprovider/cloudapi/common"
-	"antrea.io/nephe/pkg/cloudprovider/securitygroup"
 	"antrea.io/nephe/pkg/cloudprovider/utils"
+	"antrea.io/nephe/pkg/labels"
+	"antrea.io/nephe/pkg/util/k8s"
 )
 
 var azureStateMap = map[string]runtimev1alpha1.VMState{
@@ -43,17 +43,11 @@ var azureStateMap = map[string]runtimev1alpha1.VMState{
 func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable,
 	vnets map[string]armnetwork.VirtualNetwork, namespace string, account *types.NamespacedName,
 	region string) *runtimev1alpha1.VirtualMachine {
-	tags := make(map[string]string)
-
-	vmTags := instance.Tags
-	for key, value := range vmTags {
-		// skip any tags added by nephe for internal processing
-		_, hasAGPrefix, hasATPrefix := securitygroup.IsNepheControllerCreatedSG(key)
-		if hasAGPrefix || hasATPrefix {
-			continue
-		}
-		tags[key] = *value
+	vmTags := make(map[string]string)
+	for key, value := range instance.Tags {
+		vmTags[key] = *value
 	}
+	importedTags := k8s.ImportTags(vmTags)
 
 	// Network interfaces associated with Virtual machine
 	instNetworkInterfaces := instance.NetworkInterfaces
@@ -121,7 +115,7 @@ func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable
 
 	vmStatus := &runtimev1alpha1.VirtualMachineStatus{
 		Provider:          runtimev1alpha1.AzureCloudProvider,
-		Tags:              tags,
+		Tags:              importedTags,
 		State:             state,
 		NetworkInterfaces: networkInterfaces,
 		Region:            strings.ToLower(region),

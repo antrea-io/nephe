@@ -299,10 +299,10 @@ Labels:       nephe.io/cloud-region=us-west-1
               nephe.io/namespace=sample-ns
               nephe.io/owner-vm=i-0033eb4a6c846451d
               nephe.io/owner-vm-vpc=vpc-0d6bb6a4a880bd9ad
-              nephe.io/tag-environment=nephe
-              nephe.io/tag-login=ec2-user
-              nephe.io/tag-name=vpc-0d6bb6a4a880bd9ad-ubuntu1
-              nephe.io/tag-terraform=true
+              nephe.io/tag-Environment=nephe
+              nephe.io/tag-Login=ec2-user
+              nephe.io/tag-Name=vpc-0d6bb6a4a880bd9ad-ubuntu1
+              nephe.io/tag-Terraform=true
 Annotations:  <none>
 API Version:  crd.antrea.io/v1alpha2
 Kind:         ExternalEntity
@@ -426,5 +426,5 @@ labels:
 - `nephe.io/cloud-vpc-uid`: Select based on unique id(UID) of VPC in cloud. For AWS,
   UID is VPC ID. For Azure, UID is Resource GUID.
 - `nephe.io/tag-key`: Select based on cloud resource tag key/value pair,
-  where `key` is the cloud resource `Key` tag (in lower case) and the `label`
-  value is cloud resource tag `Value` in lower case.
+  where `key` is the cloud resource `Key` tag and the `label` value is
+  cloud resource tag `Value`.

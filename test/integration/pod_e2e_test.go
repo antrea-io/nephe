@@ -214,7 +214,10 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Pods", focusAws, focusAzur
 					oks[i] = false
 				}
 				oks[1] = true
-				podANPVerify(kind, "", "", "name", cloudVPC.GetTags()[1]["Name"], oks, pods[0], false, diffNS)
+				key := "Name"
+				if value, found := cloudVPC.GetTags()[1][key]; found {
+					podANPVerify(kind, "", "", key, value, oks, pods[0], false, diffNS)
+				}
 
 				By("K8s service reachable")
 				ip, port, err := utils.GetServiceClusterIPPort(k8sClient, httpServiceName, namespace.Name)
