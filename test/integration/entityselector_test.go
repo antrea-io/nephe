@@ -15,7 +15,6 @@
 package integration
 
 import (
-	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"context"
 	"errors"
 	"fmt"
@@ -34,6 +33,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/test/utils"
 )
 

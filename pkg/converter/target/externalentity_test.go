@@ -27,7 +27,7 @@ import (
 
 	antreav1alpha2 "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
-	target "antrea.io/nephe/pkg/converter/target"
+	"antrea.io/nephe/pkg/converter/target"
 	"antrea.io/nephe/pkg/testing"
 	"antrea.io/nephe/pkg/testing/controllerruntimeclient"
 )

@@ -31,10 +31,10 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
-	"antrea.io/nephe/pkg/controllers/config"
-	"antrea.io/nephe/pkg/controllers/inventory"
-	"antrea.io/nephe/pkg/controllers/inventory/common"
-	"antrea.io/nephe/pkg/controllers/inventory/store"
+	"antrea.io/nephe/pkg/inventory"
+	"antrea.io/nephe/pkg/inventory/indexer"
+	"antrea.io/nephe/pkg/inventory/store"
+	"antrea.io/nephe/pkg/labels"
 )
 
 // REST implements rest.Storage for VirtualMachine Inventory.
@@ -96,9 +96,9 @@ func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (
 		labelSelectorStrings := strings.Split(options.LabelSelector.String(), ",")
 		for _, labelSelectorString := range labelSelectorStrings {
 			labelKeyAndValue := strings.Split(labelSelectorString, "=")
-			if labelKeyAndValue[0] == config.LabelCloudAccountName {
+			if labelKeyAndValue[0] == labels.CloudAccountName {
 				accountName = labelKeyAndValue[1]
-			} else if labelKeyAndValue[0] == config.LabelCloudAccountNamespace {
+			} else if labelKeyAndValue[0] == labels.CloudAccountNamespace {
 				accountNamespace = labelKeyAndValue[1]
 			} else {
 				return nil, errors.NewBadRequest("unsupported label selector, supported labels are: cpa.name and cpa.namespace")
@@ -125,9 +125,9 @@ func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (
 			Name:      accountName,
 			Namespace: accountNamespace,
 		}
-		objs, _ = r.cloudInventory.GetVmFromIndexer(common.VirtualMachineIndexerByNameSpacedAccountName, accountNameSpacedName.String())
+		objs, _ = r.cloudInventory.GetVmFromIndexer(indexer.VirtualMachineByNamespacedAccountName, accountNameSpacedName.String())
 	} else {
-		objs, _ = r.cloudInventory.GetVmFromIndexer(common.IndexerByNamespace, namespace)
+		objs, _ = r.cloudInventory.GetVmFromIndexer(indexer.ByNamespace, namespace)
 	}
 
 	vmList := &runtimev1alpha1.VirtualMachineList{}
@@ -172,7 +172,7 @@ func (r *REST) ConvertToTable(_ context.Context, obj runtime.Object, _ runtime.O
 				return nil, nil
 			}
 			return []interface{}{vm.Name, vm.Status.Provider, vm.Status.Region,
-				vm.Labels[config.LabelVpcName], vm.Status.State, vm.Status.Agented}, nil
+				vm.Labels[labels.VpcName], vm.Status.State, vm.Status.Agented}, nil
 		})
 	return table, err
 }

@@ -16,6 +16,8 @@ package virtualmachinepolicy
 
 import (
 	"context"
+	"strings"
+
 	logger "github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -27,10 +29,9 @@ import (
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/client-go/tools/cache"
-	"strings"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
-	"antrea.io/nephe/pkg/controllers/cloud"
+	"antrea.io/nephe/pkg/controllers/networkpolicy"
 )
 
 // REST implements rest.Storage for VirtualMachinePolicy.
@@ -79,7 +80,7 @@ func (r *REST) Get(ctx context.Context, name string, _ *metav1.GetOptions) (runt
 	if !found {
 		return nil, errors.NewNotFound(runtimev1alpha1.Resource("virtualmachinepolicy"), name)
 	}
-	return r.convertToVMP(obj.(*cloud.NetworkPolicyStatus)), nil
+	return r.convertToVMP(obj.(*networkpolicy.NetworkPolicyStatus)), nil
 }
 
 func (r *REST) List(ctx context.Context, _ *internalversion.ListOptions) (runtime.Object, error) {
@@ -88,11 +89,11 @@ func (r *REST) List(ctx context.Context, _ *internalversion.ListOptions) (runtim
 	if ns == "" {
 		objs = r.vmpIndexer.List()
 	} else {
-		objs, _ = r.vmpIndexer.ByIndex(cloud.NetworkPolicyStatusIndexerByNamespace, ns)
+		objs, _ = r.vmpIndexer.ByIndex(networkpolicy.NetworkPolicyStatusIndexerByNamespace, ns)
 	}
 	vmpList := &runtimev1alpha1.VirtualMachinePolicyList{}
 	for _, obj := range objs {
-		vmp := r.convertToVMP(obj.(*cloud.NetworkPolicyStatus))
+		vmp := r.convertToVMP(obj.(*networkpolicy.NetworkPolicyStatus))
 		vmpList.Items = append(vmpList.Items, *vmp)
 	}
 	return vmpList, nil
@@ -128,13 +129,13 @@ func (r *REST) ConvertToTable(_ context.Context, obj runtime.Object, _ runtime.O
 	return table, err
 }
 
-func (r *REST) convertToVMP(internal *cloud.NetworkPolicyStatus) *runtimev1alpha1.VirtualMachinePolicy {
-	i := cloud.InProgress{}
+func (r *REST) convertToVMP(internal *networkpolicy.NetworkPolicyStatus) *runtimev1alpha1.VirtualMachinePolicy {
+	i := networkpolicy.InProgress{}
 	failed := false
 	inProgress := false
 	npStatusList := make(map[string]*runtimev1alpha1.NetworkPolicyStatus)
 	for anp, status := range internal.NPStatus {
-		if strings.Contains(status, cloud.NetworkPolicyStatusApplied) {
+		if strings.Contains(status, networkpolicy.NetworkPolicyStatusApplied) {
 			npStatusList[anp] = &runtimev1alpha1.NetworkPolicyStatus{Realization: runtimev1alpha1.Success, Reason: NoneString}
 		} else if strings.Contains(status, i.String()) {
 			npStatusList[anp] = &runtimev1alpha1.NetworkPolicyStatus{Realization: runtimev1alpha1.InProgress, Reason: NoneString}

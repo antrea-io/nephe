@@ -15,11 +15,11 @@
 package target
 
 import (
-	"antrea.io/nephe/pkg/controllers/config"
 	"reflect"
 	"regexp"
 	"strings"
 
+	"antrea.io/nephe/pkg/labels"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -54,24 +54,24 @@ func genTargetEntityLabels(source interface{}, cl client.Client) map[string]stri
 	// VirtualMachine source implements both ExternalNodeSource and ExternalEntitySource.
 	// Either ExternalEntitySource or ExternalNodeSource can be type cast.
 	vmSource, _ := source.(ExternalEntitySource)
-	labels := make(map[string]string)
+	entityLabels := make(map[string]string)
 	accessor, _ := meta.Accessor(vmSource)
-	labels[config.ExternalEntityLabelKeyKind] = GetExternalEntityLabelKind(vmSource.EmbedType())
-	labels[config.ExternalEntityLabelKeyOwnerVm] = strings.ToLower(accessor.GetName())
-	labels[config.ExternalEntityLabelKeyNamespace] = strings.ToLower(accessor.GetNamespace())
+	entityLabels[labels.ExternalEntityLabelKeyKind] = GetExternalEntityLabelKind(vmSource.EmbedType())
+	entityLabels[labels.ExternalEntityLabelKeyOwnerVm] = strings.ToLower(accessor.GetName())
+	entityLabels[labels.ExternalEntityLabelKeyNamespace] = strings.ToLower(accessor.GetNamespace())
 	for key, val := range vmSource.GetLabelsFromClient(cl) {
-		labels[key] = val
+		entityLabels[key] = val
 	}
 	for key, val := range vmSource.GetTags() {
 		labelKey, labelVal := genTagLabel(key, val)
-		labels[strings.ToLower(labelKey)] = strings.ToLower(labelVal)
+		entityLabels[strings.ToLower(labelKey)] = strings.ToLower(labelVal)
 	}
-	return labels
+	return entityLabels
 }
 
 func genTagLabel(key, val string) (string, string) {
 	reg, _ := regexp.Compile(LabelExpression)
-	labelKey := config.LabelPrefixNephe + config.ExternalEntityLabelKeyTagPrefix + reg.ReplaceAllString(key, "")
+	labelKey := labels.LabelPrefixNephe + labels.ExternalEntityLabelKeyTagPrefix + reg.ReplaceAllString(key, "")
 	if len(labelKey) > LabelSizeLimit {
 		labelKey = labelKey[:LabelSizeLimit]
 	}
