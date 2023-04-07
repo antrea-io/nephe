@@ -28,11 +28,16 @@ import (
 	antreav1alpha2 "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/accountmanager"
 	"antrea.io/nephe/pkg/apiserver"
 	nephewebhook "antrea.io/nephe/pkg/apiserver/webhook"
-	"antrea.io/nephe/pkg/cloud-provider/securitygroup"
-	controllers "antrea.io/nephe/pkg/controllers/cloud"
-	"antrea.io/nephe/pkg/controllers/inventory"
+	"antrea.io/nephe/pkg/cloudprovider/securitygroup"
+	"antrea.io/nephe/pkg/controllers/cloudentityselector"
+	"antrea.io/nephe/pkg/controllers/cloudprovideraccount"
+	"antrea.io/nephe/pkg/controllers/networkpolicy"
+	"antrea.io/nephe/pkg/controllers/sync"
+	"antrea.io/nephe/pkg/controllers/virtualmachine"
+	"antrea.io/nephe/pkg/inventory"
 	"antrea.io/nephe/pkg/logging"
 	// +kubebuilder:scaffold:imports
 )
@@ -94,14 +99,18 @@ func main() {
 	// Initialize vpc inventory cache.
 	cloudInventory := inventory.InitInventory()
 
-	// Initialize Account poller map.
-	poller := controllers.InitPollers()
+	accountManager := &accountmanager.AccountManager{
+		Client:    mgr.GetClient(),
+		Log:       logging.GetLogger("accountManager"), // TODO: Check logging
+		Inventory: cloudInventory,
+	}
+	accountManager.ConfigureAccountManager()
 
 	// Configure controller sync status.
-	controllers.GetControllerSyncStatusInstance().Configure()
+	sync.GetControllerSyncStatusInstance().Configure()
 
 	// Create a VM controller, configure converter, and start it in a separate thread.
-	vmController := &controllers.VirtualMachineController{
+	vmController := &virtualmachine.VirtualMachineController{
 		Client:    mgr.GetClient(),
 		Log:       logging.GetLogger("controllers").WithName("VirtualMachine"),
 		Scheme:    mgr.GetScheme(),
@@ -109,29 +118,28 @@ func main() {
 	}
 	vmController.ConfigureConverterAndStart()
 
-	if err = (&controllers.CloudEntitySelectorReconciler{
-		Client: mgr.GetClient(),
-		Log:    logging.GetLogger("controllers").WithName("CloudEntitySelector"),
-		Scheme: mgr.GetScheme(),
-		Poller: poller,
+	if err = (&cloudentityselector.CloudEntitySelectorReconciler{
+		Client:     mgr.GetClient(),
+		Log:        logging.GetLogger("controllers").WithName("CloudEntitySelector"),
+		Scheme:     mgr.GetScheme(),
+		AccManager: accountManager,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CloudEntitySelector")
 		os.Exit(1)
 	}
 
-	if err = (&controllers.CloudProviderAccountReconciler{
-		Client:    mgr.GetClient(),
-		Log:       logging.GetLogger("controllers").WithName("CloudProviderAccount"),
-		Scheme:    mgr.GetScheme(),
-		Inventory: cloudInventory,
-		Poller:    poller,
-		Mgr:       &mgr,
+	if err = (&cloudprovideraccount.CloudProviderAccountReconciler{
+		Client:     mgr.GetClient(),
+		Log:        logging.GetLogger("controllers").WithName("CloudProviderAccount"),
+		Scheme:     mgr.GetScheme(),
+		AccManager: accountManager,
+		Mgr:        &mgr,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CloudProviderAccount")
 		os.Exit(1)
 	}
 
-	npController := &controllers.NetworkPolicyReconciler{
+	npController := &networkpolicy.NetworkPolicyReconciler{
 		Client:            mgr.GetClient(),
 		Log:               logging.GetLogger("controllers").WithName("NetworkPolicy"),
 		Scheme:            mgr.GetScheme(),

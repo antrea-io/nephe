@@ -31,8 +31,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
-	cpautils "antrea.io/nephe/pkg/cloud-provider/utils"
-	"antrea.io/nephe/pkg/controllers/config"
+	cpautils "antrea.io/nephe/pkg/cloudprovider/utils"
+	"antrea.io/nephe/pkg/labels"
 	k8stemplates "antrea.io/nephe/test/templates"
 	"antrea.io/nephe/test/utils"
 )
@@ -116,16 +116,16 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 	configANPApplyTo = func(kind, instanceName, vpc, tagKey, tagVal string) *k8stemplates.EntitySelectorParameters {
 		ret := &k8stemplates.EntitySelectorParameters{}
 		if len(kind) > 0 {
-			ret.Kind = config.ExternalEntityLabelKeyKind + ": " + strings.ToLower(kind)
+			ret.Kind = labels.ExternalEntityLabelKeyKind + ": " + strings.ToLower(kind)
 		}
 		if len(vpc) > 0 {
-			ret.VPC = config.ExternalEntityLabelKeyOwnerVmVpc + ": " + strings.ToLower(vpc)
+			ret.VPC = labels.ExternalEntityLabelKeyOwnerVmVpc + ": " + strings.ToLower(vpc)
 		}
 		if len(instanceName) > 0 {
-			ret.CloudInstanceName = config.ExternalEntityLabelKeyOwnerVm + ": " + strings.ToLower(instanceName)
+			ret.CloudInstanceName = labels.ExternalEntityLabelKeyOwnerVm + ": " + strings.ToLower(instanceName)
 		}
 		if len(tagKey) > 0 {
-			tagKey = config.LabelPrefixNephe + config.ExternalEntityLabelKeyTagPrefix + tagKey
+			tagKey = labels.LabelPrefixNephe + labels.ExternalEntityLabelKeyTagPrefix + tagKey
 			ret.Tags = map[string]string{strings.ToLower(tagKey): strings.ToLower(tagVal)}
 		}
 		return ret
@@ -139,16 +139,16 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		}
 		if len(kind) > 0 {
 			ret.Entity = &k8stemplates.EntitySelectorParameters{
-				Kind: config.ExternalEntityLabelKeyKind + ": " + strings.ToLower(kind),
+				Kind: labels.ExternalEntityLabelKeyKind + ": " + strings.ToLower(kind),
 			}
 			if len(vpc) > 0 {
-				ret.Entity.VPC = config.ExternalEntityLabelKeyOwnerVmVpc + ": " + strings.ToLower(vpc)
+				ret.Entity.VPC = labels.ExternalEntityLabelKeyOwnerVmVpc + ": " + strings.ToLower(vpc)
 			}
 			if len(instanceName) > 0 {
-				ret.Entity.CloudInstanceName = config.ExternalEntityLabelKeyOwnerVm + ": " + strings.ToLower(instanceName)
+				ret.Entity.CloudInstanceName = labels.ExternalEntityLabelKeyOwnerVm + ": " + strings.ToLower(instanceName)
 			}
 			if len(tagKey) > 0 {
-				tagKey = config.LabelPrefixNephe + config.ExternalEntityLabelKeyTagPrefix + tagKey
+				tagKey = labels.LabelPrefixNephe + labels.ExternalEntityLabelKeyTagPrefix + tagKey
 				ret.Entity.Tags = map[string]string{strings.ToLower(tagKey): strings.ToLower(tagVal)}
 			}
 		}
@@ -220,7 +220,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			defaultANPParameters = k8stemplates.DefaultANPParameters{
 				Namespace: staticVMNS.Name,
 				Entity: &k8stemplates.EntitySelectorParameters{
-					Kind: config.ExternalEntityLabelKeyKind + ": " + strings.ToLower(reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
+					Kind: labels.ExternalEntityLabelKeyKind + ": " + strings.ToLower(reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
 				},
 			}
 			err := utils.ConfigureK8s(kubeCtl, defaultANPParameters, k8stemplates.DefaultANPSetup, false)
@@ -432,7 +432,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		}
 		By(fmt.Sprintf("Applied NetworkPolicy to %v by kind label selector using group", kind))
 		groupParameters.Entity = &k8stemplates.EntitySelectorParameters{
-			Kind: config.ExternalEntityLabelKeyKind + ": " + strings.ToLower(kind),
+			Kind: labels.ExternalEntityLabelKeyKind + ": " + strings.ToLower(kind),
 		}
 		err := utils.ConfigureK8s(kubeCtl, groupParameters, k8stemplates.CloudAntreaGroup, false)
 		Expect(err).ToNot(HaveOccurred())
@@ -452,7 +452,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 
 		// Update Group.
 		groupParameters.Entity = &k8stemplates.EntitySelectorParameters{
-			CloudInstanceName: config.ExternalEntityLabelKeyOwnerVm + ": " + strings.ToLower(ids[appliedIdx]),
+			CloudInstanceName: labels.ExternalEntityLabelKeyOwnerVm + ": " + strings.ToLower(ids[appliedIdx]),
 		}
 		err = utils.ConfigureK8s(kubeCtl, groupParameters, k8stemplates.CloudAntreaGroup, false)
 		Expect(err).ToNot(HaveOccurred())
@@ -705,7 +705,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	It("Controllers Restart", func() {
+	It("Controllers RestartPoller", func() {
 		ids := cloudVPC.GetVMs()
 		ips := cloudVPC.GetVMPrivateIPs()
 

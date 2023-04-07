@@ -45,9 +45,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
-	"antrea.io/nephe/pkg/controllers/cloud"
-	"antrea.io/nephe/pkg/controllers/utils"
+	"antrea.io/nephe/pkg/controllers/sync"
 	"antrea.io/nephe/pkg/logging"
+	"antrea.io/nephe/pkg/util"
 )
 
 var _ = Describe("CloudProviderAccountWebhook", func() {
@@ -133,8 +133,8 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 			Expect(err).Should(BeNil())
 
 			// set CPA sync status.
-			cloud.GetControllerSyncStatusInstance().Configure()
-			cloud.GetControllerSyncStatusInstance().SetControllerSyncStatus(cloud.ControllerTypeCPA)
+			sync.GetControllerSyncStatusInstance().Configure()
+			sync.GetControllerSyncStatusInstance().SetControllerSyncStatus(sync.ControllerTypeCPA)
 
 			mutator = &CPAMutator{
 				Client: fakeClient,
@@ -243,7 +243,7 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 			response := validator.Handle(context.Background(), accountReq)
 			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 			Expect(response.AdmissionResponse.Allowed).To(BeFalse())
-			Expect(response.String()).Should(ContainSubstring(utils.ErrorMsgUnknownCloudProvider))
+			Expect(response.String()).Should(ContainSubstring(util.ErrorMsgUnknownCloudProvider))
 		})
 		It("Validate when AWS secret not configured", func() {
 			encodedAccount, _ = json.Marshal(awsAccount)
@@ -1331,14 +1331,14 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 						},
 					},
 				}
-				cloud.GetControllerSyncStatusInstance().ResetControllerSyncStatus(cloud.ControllerTypeCPA)
+				sync.GetControllerSyncStatusInstance().ResetControllerSyncStatus(sync.ControllerTypeCPA)
 			})
 
 			It("Validate create CPA CR failure", func() {
 				response := validator.Handle(context.Background(), accountReq)
 				_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 				Expect(response.AdmissionResponse.Allowed).To(BeFalse())
-				Expect(response.String()).Should(ContainSubstring(cloud.ErrorMsgControllerInitializing))
+				Expect(response.String()).Should(ContainSubstring(sync.ErrorMsgControllerInitializing))
 			})
 			It("Validate update CPA CR failure", func() {
 				err = fakeClient.Create(context.Background(), s1)
@@ -1372,7 +1372,7 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 				response := validator.Handle(context.Background(), accountReq)
 				_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 				Expect(response.AdmissionResponse.Allowed).To(BeFalse())
-				Expect(response.String()).Should(ContainSubstring(cloud.ErrorMsgControllerInitializing))
+				Expect(response.String()).Should(ContainSubstring(sync.ErrorMsgControllerInitializing))
 			})
 			It("Validate delete CPA CR failure", func() {
 				accountReq.Operation = v1.Delete
@@ -1380,15 +1380,15 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 				_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 				Expect(response.AdmissionResponse.Allowed).To(BeFalse())
 				Expect(response.String()).Should(ContainSubstring(fmt.Sprintf("%s %s",
-					cloud.ControllerTypeCPA.String(), cloud.ErrorMsgControllerInitializing)))
+					sync.ControllerTypeCPA.String(), sync.ErrorMsgControllerInitializing)))
 				// CPA sync done, CES is not synced.
-				cloud.GetControllerSyncStatusInstance().SetControllerSyncStatus(cloud.ControllerTypeCPA)
-				cloud.GetControllerSyncStatusInstance().ResetControllerSyncStatus(cloud.ControllerTypeCES)
+				sync.GetControllerSyncStatusInstance().SetControllerSyncStatus(sync.ControllerTypeCPA)
+				sync.GetControllerSyncStatusInstance().ResetControllerSyncStatus(sync.ControllerTypeCES)
 				response = validator.Handle(context.Background(), accountReq)
 				_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 				Expect(response.AdmissionResponse.Allowed).To(BeFalse())
 				Expect(response.String()).Should(ContainSubstring(fmt.Sprintf("%s %s",
-					cloud.ControllerTypeCES.String(), cloud.ErrorMsgControllerInitializing)))
+					sync.ControllerTypeCES.String(), sync.ErrorMsgControllerInitializing)))
 			})
 		})
 	})

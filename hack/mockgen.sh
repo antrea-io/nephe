@@ -7,11 +7,11 @@ set -eo pipefail
 # First field is target package of mock;
 # second field is source to generate mock from.
 MOCKGEN_TARGETS=(
-  "common pkg/cloud-provider/cloudapi/common/cloud"
-  "aws pkg/cloud-provider/cloudapi/aws/aws_api_wrappers"
-  "aws pkg/cloud-provider/cloudapi/aws/aws_services"
-  "azure pkg/cloud-provider/cloudapi/azure/azure_api_wrappers"
-  "azure pkg/cloud-provider/cloudapi/azure/azure_services"
+  "common pkg/cloudprovider/cloudapi/common/cloud"
+  "aws pkg/cloudprovider/cloudapi/aws/aws_api_wrappers"
+  "aws pkg/cloudprovider/cloudapi/aws/aws_services"
+  "azure pkg/cloudprovider/cloudapi/azure/azure_api_wrappers"
+  "azure pkg/cloudprovider/cloudapi/azure/azure_services"
 )
 for target in "${MOCKGEN_TARGETS[@]}"; do
   read -r package name <<<"${target}"
@@ -29,9 +29,10 @@ done
 # the package name of generated mock.
 MOCKGEN_TARGETS=(
   "sigs.k8s.io/controller-runtime/pkg/client Client,StatusWriter controllerruntimeclient"
-  "antrea.io/nephe/pkg/cloud-provider/securitygroup CloudSecurityGroupAPI cloudsecurity"
-  "antrea.io/nephe/pkg/controllers/cloud NetworkPolicyController networkpolicy"
-  "antrea.io/nephe/pkg/controllers/inventory Interface inventory"
+  "antrea.io/nephe/pkg/cloudprovider/securitygroup CloudSecurityGroupAPI cloudsecurity"
+  "antrea.io/nephe/pkg/controllers/networkpolicy NetworkPolicyController networkpolicy"
+  "antrea.io/nephe/pkg/inventory Interface inventory"
+  "antrea.io/nephe/pkg/accountmanager Interface accountmanager"
 )
 
 for target in "${MOCKGEN_TARGETS[@]}"; do

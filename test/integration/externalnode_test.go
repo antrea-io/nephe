@@ -37,7 +37,7 @@ import (
 	antreav1alpha2 "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
-	"antrea.io/nephe/pkg/controllers/config"
+	"antrea.io/nephe/pkg/config"
 	"antrea.io/nephe/test/utils"
 )
 

@@ -20,9 +20,10 @@ import (
 
 	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	"antrea.io/nephe/apis/runtime/v1alpha1"
-	"antrea.io/nephe/pkg/controllers/config"
-	"antrea.io/nephe/pkg/controllers/utils"
+	"antrea.io/nephe/pkg/config"
 	"antrea.io/nephe/pkg/converter/target"
+	"antrea.io/nephe/pkg/labels"
+	"antrea.io/nephe/pkg/util"
 )
 
 // VirtualMachineSource says VirtualMachine is a source of converter targets.
@@ -33,7 +34,7 @@ type VirtualMachineSource struct {
 
 // GetEndPointAddresses returns VirtualMachine's IP addresses.
 func (v *VirtualMachineSource) GetEndPointAddresses() ([]string, error) {
-	ipAddrs := utils.GetVMIPAddresses(&v.VirtualMachine)
+	ipAddrs := util.GetVMIPAddresses(&v.VirtualMachine)
 	ip := make([]string, 0, len(ipAddrs))
 	for _, ipAddr := range ipAddrs {
 		ip = append(ip, ipAddr.Address)
@@ -59,12 +60,12 @@ func (v *VirtualMachineSource) GetTags() map[string]string {
 // GetLabelsFromClient returns VirtualMachine specific labels.
 func (v *VirtualMachineSource) GetLabelsFromClient(_ client.Client) map[string]string {
 	return map[string]string{
-		config.ExternalEntityLabelKeyOwnerVmVpc:   v.Labels[config.LabelVpcName],
-		config.ExternalEntityLabelKeyCloudVpcName: v.Status.CloudVpcName,
-		config.ExternalEntityLabelKeyCloudVpcUID:  v.Labels[config.LabelCloudVpcUID],
-		config.ExternalEntityLabelKeyCloudVmName:  v.Status.CloudName,
-		config.ExternalEntityLabelKeyCloudVmUID:   v.Labels[config.LabelCloudVmUID],
-		config.ExternalEntityLabelKeyCloudRegion:  v.Status.Region,
+		labels.ExternalEntityLabelKeyOwnerVmVpc:   v.Labels[labels.VpcName],
+		labels.ExternalEntityLabelKeyCloudVpcName: v.Status.CloudVpcName,
+		labels.ExternalEntityLabelKeyCloudVpcUID:  v.Labels[labels.CloudVpcUID],
+		labels.ExternalEntityLabelKeyCloudVmName:  v.Status.CloudName,
+		labels.ExternalEntityLabelKeyCloudVmUID:   v.Labels[labels.CloudVmUID],
+		labels.ExternalEntityLabelKeyCloudRegion:  v.Status.Region,
 	}
 }
 

@@ -25,8 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
-
-	cloudv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 )
 
 var (
@@ -37,7 +36,7 @@ var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 	_ = clientgoscheme.AddToScheme(scheme)
 	_ = antreatypes.AddToScheme(scheme)
-	_ = cloudv1alpha1.AddToScheme(scheme)
+	_ = crdv1alpha1.AddToScheme(scheme)
 })
 
 // Testing converter target generic functions and interface implementations

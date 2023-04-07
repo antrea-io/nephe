@@ -30,7 +30,7 @@ import (
 	cloud "antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/pkg/converter/source"
 	"antrea.io/nephe/pkg/converter/target"
-	testing2 "antrea.io/nephe/pkg/testing"
+	nephetesting "antrea.io/nephe/pkg/testing"
 	"antrea.io/nephe/pkg/testing/controllerruntimeclient"
 )
 
@@ -71,10 +71,10 @@ func commonInitTest() {
 	// common setup valid for all tests.
 	mockCtrl = mock.NewController(GinkgoT())
 	mockClient = controllerruntimeclient.NewMockClient(mockCtrl)
-	externalEntitySources = testing2.SetupExternalEntitySources(networkInterfaceIPAddresses, testNamespace)
-	externalEntitySourcesPatch = testing2.SetupExternalEntitySources(networkInterfaceIPAddressesPatch, testNamespace)
-	externalNodeSources = testing2.SetupExternalNodeSources(networkInterfaceIPAddresses, testNamespace)
-	externalNodeSourcesPatch = testing2.SetupExternalNodeSources(networkInterfaceIPAddressesPatch, testNamespace)
+	externalEntitySources = nephetesting.SetupExternalEntitySources(networkInterfaceIPAddresses, testNamespace)
+	externalEntitySourcesPatch = nephetesting.SetupExternalEntitySources(networkInterfaceIPAddressesPatch, testNamespace)
+	externalNodeSources = nephetesting.SetupExternalNodeSources(networkInterfaceIPAddresses, testNamespace)
+	externalNodeSourcesPatch = nephetesting.SetupExternalNodeSources(networkInterfaceIPAddressesPatch, testNamespace)
 }
 
 // Testing converting source crd to target crd

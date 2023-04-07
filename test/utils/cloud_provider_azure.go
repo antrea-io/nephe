@@ -26,7 +26,7 @@ import (
 
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
-	"antrea.io/nephe/pkg/cloud-provider/utils"
+	"antrea.io/nephe/pkg/cloudprovider/utils"
 	k8stemplates "antrea.io/nephe/test/templates"
 )
 
