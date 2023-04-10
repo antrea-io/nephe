@@ -269,7 +269,7 @@ func (vnet *azureVirtualNetworksWrapperImpl) listAllComplete(ctx context.Context
 	for pager.More() {
 		nextResult, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to iterate list of virtual networks: %q", err)
+			return nil, fmt.Errorf("error iterating over a list of virtual networks: %v", err)
 		}
 		for _, v := range nextResult.Value {
 			VNListResultIterators = append(VNListResultIterators, *v)
