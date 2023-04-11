@@ -46,13 +46,13 @@ func registerCloudProvider(providerType cloudcommon.ProviderType, cloud cloudcom
 	providersMutex.Lock()
 	defer providersMutex.Unlock()
 	if _, found := providers[providerType]; found {
-		corePluginLogger().V(0).Info("crd.v1alpha1 cloud provider already exists",
+		corePluginLogger().V(0).Info("Cloud provider crd.v1alpha1 already exists",
 			"type", providerType)
 		return
 	}
 	providers[providerType] = cloud
 
-	corePluginLogger().V(1).Info("registered crd.v1alpha1 cloud provider successfully",
+	corePluginLogger().V(1).Info("Registered crd.v1alpha1 cloud provider successfully",
 		"type", providerType)
 }
 

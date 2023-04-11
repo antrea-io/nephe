@@ -169,11 +169,6 @@ func main() {
 }
 
 func configureWebhooks(mgr ctrl.Manager) {
-	// Register webhook for secret.
-	mgr.GetWebhookServer().Register("/validate-v1-secret",
-		&webhook.Admission{Handler: &nephewebhook.SecretValidator{Client: mgr.GetClient(),
-			Log: logging.GetLogger("webhook").WithName("Secret")}})
-
 	// Register webhook for CloudProviderAccount Mutator.
 	mgr.GetWebhookServer().Register("/mutate-crd-cloud-antrea-io-v1alpha1-cloudprovideraccount",
 		&webhook.Admission{Handler: &nephewebhook.CPAMutator{Client: mgr.GetClient(),

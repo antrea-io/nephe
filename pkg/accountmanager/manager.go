@@ -33,8 +33,8 @@ import (
 )
 
 const (
-	ErrorMsgAccountAddFail        = "failed to add account"
-	ErrorMsgAccountPollerNotFound = "account poller not found"
+	ErrorMsgAddOrUpdateAccount    = "failed to add or update account"
+	errorMsgAccountPollerNotFound = "account poller not found"
 )
 
 const (
@@ -85,14 +85,14 @@ func (a *AccountManager) removeAccountProviderType(namespacedName *types.Namespa
 	delete(a.accountProviderType, *namespacedName)
 }
 
-func (a *AccountManager) getAccountProviderType(namespacedName *types.NamespacedName) (bool, common.ProviderType) {
+func (a *AccountManager) getAccountProviderType(namespacedName *types.NamespacedName) (common.ProviderType, bool) {
 	a.mutex.RLock()
 	defer a.mutex.RUnlock()
 
 	if providerType, ok := a.accountProviderType[*namespacedName]; ok {
-		return true, providerType
+		return providerType, true
 	}
-	return false, ""
+	return "", false
 }
 
 // AddAccount consumes CloudProviderAccount CR and calls cloud plugin to add account. It also creates and starts account
@@ -108,7 +108,7 @@ func (a *AccountManager) AddAccount(namespacedName *types.NamespacedName, accoun
 
 	// Call plugin to add cloud account.
 	if err = cloudInterface.AddProviderAccount(a.Client, account); err != nil {
-		return fmt.Errorf("%s, err: %v", ErrorMsgAccountAddFail, err)
+		return fmt.Errorf("%s: %v", ErrorMsgAddOrUpdateAccount, err)
 	}
 	// Create an account poller for polling cloud inventory.
 	accPoller, exists := a.addAccountPoller(cloudInterface, namespacedName, account)
@@ -129,20 +129,14 @@ func (a *AccountManager) AddAccount(namespacedName *types.NamespacedName, accoun
 func (a *AccountManager) RemoveAccount(namespacedName *types.NamespacedName) error {
 	// Stop and remove the poller.
 	a.Log.V(1).Info("Removing account poller", "account", namespacedName)
-	if err := a.removeAccountPoller(namespacedName); err != nil {
-		return err
-	}
+	_ = a.removeAccountPoller(namespacedName)
 
 	// Cleanup inventory data for this account.
-	if err := a.Inventory.DeleteVpcsFromCache(namespacedName); err != nil {
-		return err
-	}
-	if err := a.Inventory.DeleteVmsFromCache(namespacedName); err != nil {
-		return err
-	}
+	_ = a.Inventory.DeleteVpcsFromCache(namespacedName)
+	_ = a.Inventory.DeleteVmsFromCache(namespacedName)
 
 	// Clear state in cloud plugin.
-	ok, cloudProviderType := a.getAccountProviderType(namespacedName)
+	cloudProviderType, ok := a.getAccountProviderType(namespacedName)
 	if !ok {
 		// Couldn't find a provider type for this account. May not be deleted.
 		return nil
@@ -165,7 +159,7 @@ func (a *AccountManager) RemoveAccount(namespacedName *types.NamespacedName) err
 // restart poller once done.
 func (a *AccountManager) AddResourceFiltersToAccount(accNamespacedName *types.NamespacedName, selectorNamespacedName *types.NamespacedName,
 	selector *crdv1alpha1.CloudEntitySelector) (bool, error) {
-	ok, cloudProviderType := a.getAccountProviderType(accNamespacedName)
+	cloudProviderType, ok := a.getAccountProviderType(accNamespacedName)
 	if !ok {
 		return true, fmt.Errorf(fmt.Sprintf("failed to add selector, account %v not found", accNamespacedName))
 	}
@@ -178,7 +172,7 @@ func (a *AccountManager) AddResourceFiltersToAccount(accNamespacedName *types.Na
 	// Fetch and restart account poller as selector has changed.
 	accPoller, exists := a.getAccountPoller(accNamespacedName)
 	if !exists {
-		return false, fmt.Errorf(fmt.Sprintf("%v %v", ErrorMsgAccountPollerNotFound, accNamespacedName))
+		return false, fmt.Errorf(fmt.Sprintf("%v %v", errorMsgAccountPollerNotFound, accNamespacedName))
 	}
 	accPoller.addOrUpdateSelector(selector)
 	accPoller.restartPoller(accNamespacedName)
@@ -190,7 +184,7 @@ func (a *AccountManager) AddResourceFiltersToAccount(accNamespacedName *types.Na
 // RemoveResourceFiltersFromAccount removes selector from cloud plugin and restart the poller.
 func (a *AccountManager) RemoveResourceFiltersFromAccount(accNamespacedName *types.NamespacedName,
 	selectorNamespacedName *types.NamespacedName) {
-	ok, cloudProviderType := a.getAccountProviderType(accNamespacedName)
+	cloudProviderType, ok := a.getAccountProviderType(accNamespacedName)
 	if !ok {
 		// If we cannot find cloud provider type, that means CPA may not be added or it's already removed.
 		return
@@ -241,7 +235,7 @@ func (a *AccountManager) addAccountPoller(cloudInterface common.CloudInterface, 
 func (a *AccountManager) removeAccountPoller(namespacedName *types.NamespacedName) error {
 	accPoller, exists := a.getAccountPoller(namespacedName)
 	if !exists {
-		return nil
+		return fmt.Errorf(fmt.Sprintf("%v %v", errorMsgAccountPollerNotFound, namespacedName))
 	}
 	accPoller.removeSelector(namespacedName)
 	accPoller.stopPoller()

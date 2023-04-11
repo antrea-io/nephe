@@ -90,7 +90,7 @@ func GetControllerSyncStatusInstance() *controllerSyncStatus {
 
 // Configure configures controllerSyncStatus.
 func (c *controllerSyncStatus) Configure() *controllerSyncStatus {
-	c.log = logging.GetLogger("controllers").WithName("VirtualMachine")
+	c.log = logging.GetLogger("controllers").WithName("Sync")
 	return nil
 }
 

@@ -145,10 +145,8 @@ func (p *accountPoller) doAccountPolling() {
 	defer p.mutex.Unlock()
 
 	p.PollDone = false
-	err := p.cloudInterface.DoInventoryPoll(p.namespacedName)
-	if err != nil {
-		p.log.Error(err, "failed to poll cloud inventory", "account", p.namespacedName)
-	}
+	// Ignoring error since it is captured in the CloudProviderAccount CR's status field.
+	_ = p.cloudInterface.DoInventoryPoll(p.namespacedName)
 
 	defer func() {
 		p.PollDone = true
@@ -188,7 +186,6 @@ func (p *accountPoller) updateAccountStatus(cloudInterface common.CloudInterface
 	account := &crdv1alpha1.CloudProviderAccount{}
 	e := p.Get(context.TODO(), *p.namespacedName, account)
 	if e != nil {
-		p.log.Error(e, "failed to get account", "account", p.namespacedName)
 		return
 	}
 
