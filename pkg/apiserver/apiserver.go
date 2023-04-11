@@ -17,6 +17,7 @@ package apiserver
 import (
 	"context"
 	"net"
+	"os"
 
 	logger "github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,6 +28,7 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
 	controllerruntime "sigs.k8s.io/controller-runtime"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
@@ -72,6 +74,19 @@ func NewConfig(codecs serializer.CodecFactory, vmpIndexer cache.Indexer, cloudIn
 	if err := recommend.SecureServing.ApplyTo(&serverConfig.SecureServing, &serverConfig.LoopbackClientConfig); err != nil {
 		return nil, err
 	}
+
+	// Check if KUBECONFIG env is set. If so, point the api service kubeconfig to the path set in the env variable.
+	// This will override the default in cluster config used by the api service.
+	kubeConfigPath := os.Getenv(clientcmd.RecommendedConfigPathEnvVar)
+	if len(kubeConfigPath) > 0 {
+		recommend.CoreAPI = &genericoptions.CoreAPIOptions{CoreAPIKubeconfigPath: kubeConfigPath}
+		if err := recommend.CoreAPI.ApplyTo(serverConfig); err != nil {
+			return nil, err
+		}
+		recommend.Authentication.RemoteKubeConfigFile = kubeConfigPath
+		recommend.Authorization.RemoteKubeConfigFile = kubeConfigPath
+	}
+
 	if err := recommend.Authentication.ApplyTo(&serverConfig.Authentication, serverConfig.SecureServing,
 		serverConfig.OpenAPIConfig); err != nil {
 		return nil, err
