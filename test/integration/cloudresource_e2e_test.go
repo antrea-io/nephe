@@ -23,8 +23,7 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -68,11 +67,11 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 	AfterEach(func() {
 		var err error
 		bundleCollected := false
-		result := CurrentGinkgoTestDescription()
-		if result.Failed {
+		result := CurrentSpecReport()
+		if result.Failed() {
 			if len(supportBundleDir) > 0 {
 				logf.Log.Info("Collect support bundles for test failure.")
-				fileName := utils.GenerateNameFromText(result.FullTestText, testFocus)
+				fileName := utils.GenerateNameFromText(result.FullText(), testFocus)
 				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName), cloudVPC, withAgent, withWindows)
 				bundleCollected = true
 			}
@@ -85,7 +84,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		defer func() {
 			if !bundleCollected && err != nil && len(supportBundleDir) > 0 {
 				logf.Log.Info("Collect support bundles for clean-up failure.")
-				fileName := utils.GenerateNameFromText(result.FullTestText, testFocus)
+				fileName := utils.GenerateNameFromText(result.FullText(), testFocus)
 				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName), cloudVPC, withAgent, withWindows)
 			}
 
@@ -560,8 +559,8 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		for i := range oks {
 			oks[i] = true
 		}
-		anpParams.From = configANPToFrom(kind, "", cloudVPC.GetCRDVPCID(), "", "", "", dstNsName,
-			[]string{apachePort}, false)
+		anpParams.From = configANPToFrom(kind, "", cloudVPC.GetCRDVPCID(), "", "", "",
+			dstNsName, []string{apachePort}, false)
 		verifyIngress(kind, ids[appliedIdx], ips[appliedIdx], srcVMs, oks, false)
 
 		By(fmt.Sprintf("Ingress NetworkPolicy on %v by tag label selector", kind))
@@ -579,35 +578,35 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		verifyIngress(kind, ids[appliedIdx], ips[appliedIdx], srcVMs, oks, false)
 	}
 
-	table.DescribeTable("AppliedTo",
+	DescribeTable("AppliedTo",
 		func(kind string) {
 			testAppliedTo(kind)
 		},
-		table.Entry(fmt.Sprintf("%s %s: VM In Same Namespace", focusAzure, focusAgent),
+		Entry(fmt.Sprintf("%s %s: VM In Same Namespace", focusAzure, focusAgent),
 			reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
 	)
 
-	table.DescribeTable("AppliedToUsingGroup",
+	DescribeTable("AppliedToUsingGroup",
 		func(kind string) {
 			testAppliedToUsingGroup(kind)
 		},
-		table.Entry(fmt.Sprintf("%s: VM In Same Namespace", focusAws),
+		Entry(fmt.Sprintf("%s: VM In Same Namespace", focusAws),
 			reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
 	)
 
-	table.DescribeTable("Egress",
+	DescribeTable("Egress",
 		func(kind string) {
 			testEgress(kind)
 		},
-		table.Entry(fmt.Sprintf("%s: VM In Same Namespace", focusAgent),
+		Entry(fmt.Sprintf("%s: VM In Same Namespace", focusAgent),
 			reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
 	)
 
-	table.DescribeTable("Ingress",
+	DescribeTable("Ingress",
 		func(kind string) {
 			testIngress(kind)
 		},
-		table.Entry(fmt.Sprintf("%s %s: VM In Same Namespace", focusAzure, focusAgent),
+		Entry(fmt.Sprintf("%s %s: VM In Same Namespace", focusAzure, focusAgent),
 			reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
 	)
 
@@ -616,27 +615,27 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			importAfterANP = true
 			abbreviated = true
 		})
-		table.DescribeTable("AppliedTo",
+		DescribeTable("AppliedTo",
 			func(kind string) {
 				testAppliedTo(kind)
 			},
-			table.Entry(fmt.Sprintf("%s %s: VM In Same Namespace", focusAzure, focusAgent),
+			Entry(fmt.Sprintf("%s %s: VM In Same Namespace", focusAzure, focusAgent),
 				reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
 		)
 
-		table.DescribeTable("Egress",
+		DescribeTable("Egress",
 			func(kind string) {
 				testEgress(kind)
 			},
-			table.Entry(fmt.Sprintf("%s: VM In Same Namespace", focusAgent),
+			Entry(fmt.Sprintf("%s: VM In Same Namespace", focusAgent),
 				reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
 		)
 
-		table.DescribeTable("Ingress",
+		DescribeTable("Ingress",
 			func(kind string) {
 				testIngress(kind)
 			},
-			table.Entry(fmt.Sprintf("%s %s: VM In Same Namespace", focusAzure, focusAgent),
+			Entry(fmt.Sprintf("%s %s: VM In Same Namespace", focusAzure, focusAgent),
 				reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
 		)
 	})

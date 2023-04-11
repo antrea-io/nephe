@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -113,11 +113,11 @@ var _ = Describe(fmt.Sprintf("%s,%s: VPC Inventory", focusAws, focusAzure), func
 	})
 
 	AfterEach(func() {
-		result := CurrentGinkgoTestDescription()
-		if result.Failed {
+		result := CurrentSpecReport()
+		if result.Failed() {
 			if len(supportBundleDir) > 0 {
 				logf.Log.Info("Collect support bundles for test failure.")
-				fileName := utils.GenerateNameFromText(result.FullTestText, testFocus)
+				fileName := utils.GenerateNameFromText(result.FullText(), testFocus)
 				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName), cloudVPC, withAgent, withWindows)
 			}
 			if preserveSetupOnFail {

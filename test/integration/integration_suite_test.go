@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -92,7 +92,7 @@ func TestIntegration(t *testing.T) {
 	RunSpecs(t, "Integration Suite")
 }
 
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), logging.UseDevMode()))
 
 	var err error
@@ -208,19 +208,16 @@ var _ = BeforeSuite(func(done Done) {
 		provider := strings.Split(cloudProviders, ",")[0]
 		cloudVPC = cloudVPCs[provider]
 	}
-	close(done)
-}, 1200)
+})
 
-var _ = AfterSuite(func(done Done) {
+var _ = AfterSuite(func() {
 	if preserveSetup {
 		logf.Log.Info("Preserve setup after tests")
-		close(done)
 		return
 	}
 
 	if kubeCtl == nil {
 		logf.Log.Info("No cluster found")
-		close(done)
 		return
 	}
 
@@ -246,7 +243,6 @@ var _ = AfterSuite(func(done Done) {
 	if controllersCored != nil {
 		if preserveSetupOnFail {
 			logf.Log.Info("Preserve setup, restart detected")
-			close(done)
 			return
 		}
 		if len(supportBundleDir) > 0 {
@@ -292,5 +288,4 @@ var _ = AfterSuite(func(done Done) {
 
 	// Last, consider controller core as failure.
 	Expect(controllersCored).To(BeNil(), "Controller restart detected")
-	close(done)
-}, 600)
+})

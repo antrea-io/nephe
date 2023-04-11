@@ -22,7 +22,7 @@ import (
 
 	network "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/golang/mock/gomock"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/seancfoley/ipaddress-go/ipaddr"
 	corev1 "k8s.io/api/core/v1"

@@ -19,8 +19,7 @@ import (
 	"reflect"
 
 	mock "github.com/golang/mock/gomock"
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -90,22 +89,22 @@ var _ = Describe("ExternalNode", func() {
 	}
 
 	Context("Source has required information", func() {
-		table.DescribeTable("GetTags",
+		DescribeTable("GetTags",
 			func(name string, hasTags bool) {
 				getTagsTester(name, hasTags)
 			},
-			table.Entry("VirtualMachine", "VirtualMachine", true))
+			Entry("VirtualMachine", "VirtualMachine", true))
 
-		table.DescribeTable("GetLabels",
+		DescribeTable("GetLabels",
 			func(name string, hasLabels bool) {
 				getLabelsTester(name, hasLabels)
 			},
-			table.Entry("VirtualMachine", "VirtualMachine", true))
+			Entry("VirtualMachine", "VirtualMachine", true))
 
-		table.DescribeTable("EmbedType",
+		DescribeTable("EmbedType",
 			func(name string, expType interface{}) {
 				embedTypeTester(name, expType)
 			},
-			table.Entry("VirtualMachine", "VirtualMachine", &runtimev1alpha1.VirtualMachine{}))
+			Entry("VirtualMachine", "VirtualMachine", &runtimev1alpha1.VirtualMachine{}))
 	})
 })

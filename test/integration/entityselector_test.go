@@ -24,8 +24,7 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
@@ -291,11 +290,11 @@ var _ = Describe(fmt.Sprintf("%s: Entity selector test", focusAws), func() {
 	})
 
 	AfterEach(func() {
-		result := CurrentGinkgoTestDescription()
-		if result.Failed {
+		result := CurrentSpecReport()
+		if result.Failed() {
 			if len(supportBundleDir) > 0 {
 				logf.Log.Info("Collect support bundles for test failure.")
-				fileName := utils.GenerateNameFromText(result.FullTestText, testFocus)
+				fileName := utils.GenerateNameFromText(result.FullText(), testFocus)
 				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName), cloudVPC, withAgent, withWindows)
 			}
 			if preserveSetupOnFail {
@@ -308,7 +307,7 @@ var _ = Describe(fmt.Sprintf("%s: Entity selector test", focusAws), func() {
 		deleteNS()
 	})
 
-	table.DescribeTable("Testing entity selector",
+	DescribeTable("Testing entity selector",
 		func(matchKey string) {
 			var matchValue string
 			var expectedResult []string
@@ -344,10 +343,10 @@ var _ = Describe(fmt.Sprintf("%s: Entity selector test", focusAws), func() {
 			By("Change match key back to valid value again")
 			tester(matchKey, matchValue, true, 2, expectedResult)
 		},
-		table.Entry(focusAzure+":"+"VPC id match", vpcIDMatch),
-		table.Entry(focusAzure+":"+"VM id match", vmIDMatch),
-		table.Entry(focusAzure+":"+"VM name match", vmNameMatch),
+		Entry(focusAzure+":"+"VPC id match", vpcIDMatch),
+		Entry(focusAzure+":"+"VM id match", vmIDMatch),
+		Entry(focusAzure+":"+"VM name match", vmNameMatch),
 		// vpcNameMatch test apply only to aws for now
-		table.Entry("VPC name match", vpcNameMatch),
+		Entry("VPC name match", vpcNameMatch),
 	)
 })
