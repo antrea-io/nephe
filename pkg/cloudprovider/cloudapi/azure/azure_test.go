@@ -77,6 +77,7 @@ var _ = Describe("Azure", func() {
 			mockazureVirtualNetworksWrapper *MockazureVirtualNetworksWrapper
 			mockazureResourceGraph          *MockazureResourceGraphWrapper
 			mockazureService                *MockazureServiceClientCreateInterface
+			testSelectorNamespacedName      = &types.NamespacedName{Namespace: "namespace01", Name: "selector-VnetID"}
 
 			subIDs    []string
 			tenantIDs []string
@@ -127,7 +128,7 @@ var _ = Describe("Azure", func() {
 			selector = &v1alpha1.CloudEntitySelector{
 				ObjectMeta: v1.ObjectMeta{
 					Name:      "selector-VnetID",
-					Namespace: testAccountNamespacedName.Namespace,
+					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
 					AccountName: testAccountNamespacedName.Name,
@@ -215,7 +216,7 @@ var _ = Describe("Azure", func() {
 
 				errPolAdd := c.DoInventoryPoll(testAccountNamespacedName)
 				Expect(errPolAdd).Should(BeNil())
-				errPolDel := c.DeleteInventoryPollCache(testAccountNamespacedName)
+				errPolDel := c.ResetInventoryCache(testAccountNamespacedName)
 				Expect(errPolDel).Should(BeNil())
 				mockazureVirtualNetworksWrapper.EXPECT().listAllComplete(gomock.Any()).Return(createVnetObject(vnetIDs), nil).MinTimes(0)
 			})
@@ -242,15 +243,16 @@ var _ = Describe("Azure", func() {
 				Expect(providerType).Should(Equal(common.ProviderType(azureProvideType)))
 				selector.Name = "single-vpcIDOnly"
 				selector.Spec.VMSelector = vmSelector
+				testSelectorNamespacedName = &types.NamespacedName{Namespace: "namespace01", Name: selector.Name}
 				err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
 				Expect(err).Should(BeNil())
 
-				filters := getFilters(c, selector.Name)
+				filters := getFilters(c, testSelectorNamespacedName.String())
 				Expect(filters).To(Equal(expectedQueryStrs))
 
-				c.RemoveAccountResourcesSelector(testAccountNamespacedName, selector.Name)
+				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName)
 				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
-				filters = getFilters(c, selector.Name)
+				filters = getFilters(c, testSelectorNamespacedName.String())
 				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
 
 				_, err = c.InstancesGivenProviderAccount(testAccountNamespacedName)
@@ -278,15 +280,16 @@ var _ = Describe("Azure", func() {
 
 				selector.Spec.VMSelector = vmSelector
 				selector.Name = "multiple-vpcIDOnly"
+				testSelectorNamespacedName = &types.NamespacedName{Namespace: "namespace01", Name: selector.Name}
 				err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
 				Expect(err).Should(BeNil())
 
-				filters := getFilters(c, selector.Name)
+				filters := getFilters(c, testSelectorNamespacedName.String())
 				Expect(filters).To(Equal(expectedQueryStrs))
 
-				c.RemoveAccountResourcesSelector(testAccountNamespacedName, selector.Name)
+				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName)
 				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
-				filters = getFilters(c, selector.Name)
+				filters = getFilters(c, testSelectorNamespacedName.String())
 				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
 			})
 
@@ -303,10 +306,11 @@ var _ = Describe("Azure", func() {
 				}
 				selector.Spec.VMSelector = vmSelector
 				selector.Name = "multiple-with-one-all"
+				testSelectorNamespacedName = &types.NamespacedName{Namespace: "namespace01", Name: selector.Name}
 				err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
 				Expect(err).Should(BeNil())
 
-				filters := getFilters(c, selector.Name)
+				filters := getFilters(c, testSelectorNamespacedName.String())
 				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
 			})
 
@@ -324,15 +328,16 @@ var _ = Describe("Azure", func() {
 
 				selector.Spec.VMSelector = vmSelector
 				selector.Name = "VMIDOnly"
+				testSelectorNamespacedName = &types.NamespacedName{Namespace: "namespace01", Name: selector.Name}
 				err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
 				Expect(err).Should(BeNil())
 
-				filters := getFilters(c, selector.Name)
+				filters := getFilters(c, testSelectorNamespacedName.String())
 				Expect(filters).To(Equal(expectedQueryStrs))
 
-				c.RemoveAccountResourcesSelector(testAccountNamespacedName, selector.Name)
+				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName)
 				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
-				filters = getFilters(c, selector.Name)
+				filters = getFilters(c, testSelectorNamespacedName.String())
 				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
 			})
 
@@ -351,15 +356,16 @@ var _ = Describe("Azure", func() {
 
 				selector.Spec.VMSelector = vmSelector
 				selector.Name = "VMNameOnly"
+				testSelectorNamespacedName = &types.NamespacedName{Namespace: "namespace01", Name: selector.Name}
 				err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
 				Expect(err).Should(BeNil())
 
-				filters := getFilters(c, selector.Name)
+				filters := getFilters(c, testSelectorNamespacedName.String())
 				Expect(filters).To(Equal(expectedQueryStrs))
 
-				c.RemoveAccountResourcesSelector(testAccountNamespacedName, selector.Name)
+				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName)
 				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
-				filters = getFilters(c, selector.Name)
+				filters = getFilters(c, testSelectorNamespacedName.String())
 				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
 			})
 
@@ -380,15 +386,16 @@ var _ = Describe("Azure", func() {
 
 				selector.Spec.VMSelector = vmSelector
 				selector.Name = "vpcID-VMID"
+				testSelectorNamespacedName = &types.NamespacedName{Namespace: "namespace01", Name: selector.Name}
 				err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
 				Expect(err).Should(BeNil())
 
-				filters := getFilters(c, selector.Name)
+				filters := getFilters(c, testSelectorNamespacedName.String())
 				Expect(filters).To(Equal(expectedQueryStrs))
 
-				c.RemoveAccountResourcesSelector(testAccountNamespacedName, selector.Name)
+				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName)
 				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
-				filters = getFilters(c, selector.Name)
+				filters = getFilters(c, testSelectorNamespacedName.String())
 				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
 			})
 
@@ -410,15 +417,16 @@ var _ = Describe("Azure", func() {
 
 				selector.Spec.VMSelector = vmSelector
 				selector.Name = "vpcID-VMName"
+				testSelectorNamespacedName = &types.NamespacedName{Namespace: "namespace01", Name: selector.Name}
 				err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
 				Expect(err).Should(BeNil())
 
-				filters := getFilters(c, selector.Name)
+				filters := getFilters(c, testSelectorNamespacedName.String())
 				Expect(filters).To(Equal(expectedQueryStrs))
 
-				c.RemoveAccountResourcesSelector(testAccountNamespacedName, selector.Name)
+				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName)
 				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
-				filters = getFilters(c, selector.Name)
+				filters = getFilters(c, testSelectorNamespacedName.String())
 				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
 			})
 
@@ -473,10 +481,10 @@ func getResourceGraphResult() resourcegraph.ClientResourcesResponse {
 	return result
 }
 
-func getFilters(c *azureCloud, selectorName string) []*string {
+func getFilters(c *azureCloud, selectorNamespacedName string) []*string {
 	accCfg, _ := c.cloudCommon.GetCloudAccountByName(&types.NamespacedName{Namespace: "namespace01", Name: "account01"})
 	serviceConfig, _ := accCfg.GetServiceConfigByName(azureComputeServiceNameCompute)
-	filters := serviceConfig.(*computeServiceConfig).computeFilters[selectorName]
+	filters := serviceConfig.(*computeServiceConfig).computeFilters[selectorNamespacedName]
 	return filters
 }
 func setupClientAndCloud(mockAzureServiceHelper *MockazureServicesHelper, account *v1alpha1.CloudProviderAccount, secret *corev1.Secret) (
