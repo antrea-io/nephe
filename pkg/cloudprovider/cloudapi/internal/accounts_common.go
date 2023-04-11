@@ -33,7 +33,7 @@ type CloudAccountInterface interface {
 	GetStatus() *crdv1alpha1.CloudProviderAccountStatus
 
 	performInventorySync() error
-	resetInventorySyncCache()
+	resetInventoryCache()
 }
 
 type cloudAccountConfig struct {
@@ -106,7 +106,7 @@ func (c *cloudCommon) updateCloudAccountConfig(client client.Client, credentials
 
 	credentialsComparatorFunc := c.commonHelper.GetCloudCredentialsComparatorFunc()
 	if credentialsComparatorFunc == nil {
-		c.logger().Info("cloud credentials comparator func nil. credentials not updated. existing credentials will be used.",
+		c.logger().Info("Cloud credentials comparator func nil. credentials not updated. existing credentials will be used.",
 			"account", currentConfig.GetNamespacedName())
 		return nil
 	}
@@ -124,24 +124,22 @@ func (c *cloudCommon) updateCloudAccountConfig(client client.Client, credentials
 		serviceConfigMap[serviceCfg.GetName()] = serviceCfg
 	}
 
-	currentConfig.update(credentialsComparatorFunc, cloudConvertedNewCredential, serviceConfigMap, c.logger())
-
-	return nil
+	return currentConfig.update(credentialsComparatorFunc, cloudConvertedNewCredential, serviceConfigMap, c.logger())
 }
 
 func (accCfg *cloudAccountConfig) update(credentialComparator CloudCredentialComparatorFunc, newCredentials interface{},
-	newSvcConfigMap map[CloudServiceName]CloudServiceInterface, logger logging.Logger) {
+	newSvcConfigMap map[CloudServiceName]CloudServiceInterface, logger logging.Logger) error {
 	accCfg.mutex.Lock()
 	defer accCfg.mutex.Unlock()
 
 	credentialsChanged := credentialComparator(accCfg.namespacedName.String(), newCredentials, accCfg.credentials)
 	if !credentialsChanged {
-		logger.Info("credentials not changed.", "account", accCfg.namespacedName)
-		return
+		logger.Info("Credentials not changed.", "account", accCfg.namespacedName)
+		return nil
 	}
 
 	accCfg.credentials = newCredentials
-	logger.Info("credentials updated.", "account", accCfg.namespacedName)
+	logger.Info("Credentials updated.", "account", accCfg.namespacedName)
 
 	existingSvcConfigMap := accCfg.serviceConfigs
 	for name, svcConfig := range existingSvcConfigMap {
@@ -150,10 +148,13 @@ func (accCfg *cloudAccountConfig) update(credentialComparator CloudCredentialCom
 			// should not happen
 			continue
 		}
-		svcConfig.updateServiceConfig(newSvcCfg)
-		logger.Info("service config updated (api-clients to use new creds)", "account", accCfg.namespacedName,
+		if err := svcConfig.updateServiceConfig(newSvcCfg); err != nil {
+			return err
+		}
+		logger.Info("Service config updated (api-clients to use new creds)", "account", accCfg.namespacedName,
 			"serviceName", name)
 	}
+	return nil
 }
 
 func (accCfg *cloudAccountConfig) performInventorySync() error {
@@ -218,8 +219,8 @@ func (accCfg *cloudAccountConfig) GetStatus() *crdv1alpha1.CloudProviderAccountS
 	return accCfg.Status
 }
 
-func (accCfg *cloudAccountConfig) resetInventorySyncCache() {
+func (accCfg *cloudAccountConfig) resetInventoryCache() {
 	for _, serviceConfig := range accCfg.serviceConfigs {
-		serviceConfig.resetCachedState()
+		serviceConfig.resetInventoryCache()
 	}
 }
