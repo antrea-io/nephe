@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -95,18 +96,22 @@ func extractSecret(c client.Client, s *crdv1alpha1.SecretReference) (*crdv1alpha
 		Version: "v1",
 	})
 	if err := c.Get(context.Background(), client.ObjectKey{Namespace: s.Namespace, Name: s.Name}, u); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error fetching Secret: %v/%v", s.Name, s.Namespace)
 	}
 
-	data := u.Object["data"].(map[string]interface{})
+	data, ok := u.Object["data"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("error missing Secret config data: %v/%v", s.Name, s.Namespace)
+	}
+
 	decode, err := base64.StdEncoding.DecodeString(data[s.Key].(string))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error decoding Secret: %v/%v", s.Name, s.Namespace)
 	}
 
 	cred := &crdv1alpha1.AwsAccountCredential{}
 	if err = json.Unmarshal(decode, cred); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error unmarshalling credentials: %v/%v", s.Name, s.Namespace)
 	}
 
 	return cred, nil

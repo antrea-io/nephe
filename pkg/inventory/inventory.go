@@ -112,10 +112,8 @@ func (inventory *Inventory) DeleteVpcsFromCache(namespacedName *types.Namespaced
 	for _, i := range vpcsInCache {
 		vpc := i.(*runtimev1alpha1.Vpc)
 		key := fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[nephelabels.CloudAccountName], vpc.Status.CloudId)
-		err := inventory.vpcStore.Delete(key)
-		if err != nil {
-			inventory.log.Error(err, "failed to delete vpc from vpc cache %s:%s",
-				*namespacedName, vpc.Status.CloudId, err)
+		if err := inventory.vpcStore.Delete(key); err != nil {
+			inventory.log.Error(err, "failed to delete vpc from vpc cache, account: %v", *namespacedName)
 		} else {
 			numVpcsToDelete++
 		}
@@ -212,9 +210,8 @@ func (inventory *Inventory) DeleteVmsFromCache(namespacedName *types.NamespacedN
 	for _, cachedObject := range vmsInCache {
 		cachedVm := cachedObject.(*runtimev1alpha1.VirtualMachine)
 		key := fmt.Sprintf("%v/%v", cachedVm.Namespace, cachedVm.Name)
-		err := inventory.vmStore.Delete(key)
-		if err != nil {
-			inventory.log.Error(err, "failed to delete vm from vm cache %s:%s", *namespacedName, cachedVm.Name)
+		if err := inventory.vmStore.Delete(key); err != nil {
+			inventory.log.Error(err, "failed to delete vm from vm cache, account: %v vm: %v", *namespacedName, cachedVm.Name)
 		} else {
 			numVmsToDelete++
 		}

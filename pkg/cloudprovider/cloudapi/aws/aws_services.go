@@ -65,7 +65,7 @@ func (h *awsServicesHelperImpl) newServiceSdkConfigProvider(accConfig *awsAccoun
 				Credentials:                   tempCreds,
 				CredentialsChainVerboseErrors: aws.Bool(true),
 			}); err != nil {
-				return nil, fmt.Errorf("unable to initialize AWS session: %v", err)
+				return nil, fmt.Errorf("error initializing AWS session: %v", err)
 			}
 		} else {
 			// use role base access if role provided
@@ -74,7 +74,7 @@ func (h *awsServicesHelperImpl) newServiceSdkConfigProvider(accConfig *awsAccoun
 				Region:                        &accConfig.region,
 				CredentialsChainVerboseErrors: aws.Bool(true),
 			}); err != nil {
-				return nil, fmt.Errorf("unable to initialize AWS session: %v", err)
+				return nil, fmt.Errorf("error initializing AWS session: %v", err)
 			}
 		}
 
@@ -103,7 +103,7 @@ func (h *awsServicesHelperImpl) newServiceSdkConfigProvider(accConfig *awsAccoun
 
 	sess, err := session.NewSession(awsConfig)
 	if err != nil {
-		return nil, fmt.Errorf("unable to initialize AWS session: %v", err)
+		return nil, fmt.Errorf("error initializing AWS session: %v", err)
 	}
 	configProvider := &awsServiceSdkConfigProvider{
 		session: sess,

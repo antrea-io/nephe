@@ -209,9 +209,8 @@ func (c *cloudCommon) DoInventoryPoll(accountNamespacedName *types.NamespacedNam
 		return fmt.Errorf("unable to find cloud account: %v", *accountNamespacedName)
 	}
 
-	err := accCfg.performInventorySync()
-	if err != nil {
-		return fmt.Errorf("failed to sync inventory, account: %v, err: %v", *accountNamespacedName, err)
+	if err := accCfg.performInventorySync(); err != nil {
+		return err
 	}
 
 	return nil
