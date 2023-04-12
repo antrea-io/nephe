@@ -261,7 +261,7 @@ var _ = Describe("AWS Cloud Security", func() {
 					FromSrcIP:          []*net.IPNet{},
 					FromSecurityGroups: []*securitygroup.CloudResourceID{&webSgIdentifier.CloudResourceID},
 					Protocol:           aws.Int(6),
-				}, NetworkPolicy: testAnpNamespacedName.String()},
+				}, NpNamespacedName: testAnpNamespacedName.String()},
 			}
 			output := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier.CloudResourceID, true, false)
 			outputAt := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier.CloudResourceID, false, false)
@@ -339,7 +339,7 @@ var _ = Describe("AWS Cloud Security", func() {
 					ToDstIP:          []*net.IPNet{},
 					ToSecurityGroups: []*securitygroup.CloudResourceID{&webSgIdentifier.CloudResourceID},
 					Protocol:         aws.Int(6),
-				}, NetworkPolicy: testAnpNamespacedName.String()}}
+				}, NpNamespacedName: testAnpNamespacedName.String()}}
 			output := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier.CloudResourceID, true, false)
 			outputAt := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier.CloudResourceID, false, false)
 			output.SecurityGroups = append(output.SecurityGroups, outputAt.SecurityGroups...)
@@ -462,7 +462,7 @@ var _ = Describe("AWS Cloud Security", func() {
 				}
 			}
 		})
-		It("Should sync cloud security groups and rules with an invalid description", func() {
+		It("Should sync cloud security groups and user rules with an invalid description", func() {
 			// Description does not contain an ATGroup name.
 			desc := securitygroup.CloudRuleDescription{Name: testAnpNamespacedName.Name, Namespace: testAnpNamespacedName.Namespace}
 			descString := desc.String()
@@ -493,6 +493,7 @@ var _ = Describe("AWS Cloud Security", func() {
 				ToPort:           aws.Int64(22),
 				UserIdGroupPairs: []*ec2.UserIdGroupPair{{GroupId: agOutput.SecurityGroups[0].GroupId, Description: &descString}},
 			}
+			expectedIRuleLength := len(irule.IpRanges) + len(irule.UserIdGroupPairs)
 			erule := &ec2.IpPermission{
 				FromPort:   aws.Int64(80),
 				IpProtocol: aws.String("tcp"),
@@ -503,6 +504,7 @@ var _ = Describe("AWS Cloud Security", func() {
 				ToPort:           aws.Int64(80),
 				UserIdGroupPairs: []*ec2.UserIdGroupPair{{GroupId: agOutput.SecurityGroups[0].GroupId, Description: &descString}},
 			}
+			expectedERuleLength := len(erule.IpRanges) + len(erule.UserIdGroupPairs)
 			output := constructEc2DescribeSecurityGroupsOutput(&webAddressGroupIdentifier.CloudResourceID, false, false)
 			for _, sg := range output.SecurityGroups {
 				sg.IpPermissions = append(sg.IpPermissions, irule)
@@ -516,12 +518,12 @@ var _ = Describe("AWS Cloud Security", func() {
 			Expect(len(syncContent)).To(Equal(2))
 			for _, c := range syncContent {
 				if !c.MembershipOnly {
-					Expect(len(c.IngressRules)).To(Equal(0))
-					Expect(len(c.EgressRules)).To(Equal(0))
+					Expect(len(c.IngressRules)).To(Equal(expectedIRuleLength))
+					Expect(len(c.EgressRules)).To(Equal(expectedERuleLength))
 				}
 			}
 		})
-		It("Should sync cloud security groups and ignore rules without description", func() {
+		It("Should sync cloud security groups and user rules without description", func() {
 			webAddressGroupIdentifier := &securitygroup.CloudResource{
 				Type: securitygroup.CloudResourceTypeVM,
 				CloudResourceID: securitygroup.CloudResourceID{
@@ -548,6 +550,7 @@ var _ = Describe("AWS Cloud Security", func() {
 				ToPort:           aws.Int64(22),
 				UserIdGroupPairs: []*ec2.UserIdGroupPair{{GroupId: agOutput.SecurityGroups[0].GroupId}},
 			}
+			expectedIRuleLength := len(irule.IpRanges) + len(irule.UserIdGroupPairs)
 			erule := &ec2.IpPermission{
 				FromPort:         aws.Int64(80),
 				IpProtocol:       aws.String("tcp"),
@@ -557,6 +560,7 @@ var _ = Describe("AWS Cloud Security", func() {
 				ToPort:           aws.Int64(80),
 				UserIdGroupPairs: []*ec2.UserIdGroupPair{{GroupId: agOutput.SecurityGroups[0].GroupId}},
 			}
+			expectedERuleLength := len(erule.IpRanges) + len(erule.UserIdGroupPairs)
 			output := constructEc2DescribeSecurityGroupsOutput(&webAddressGroupIdentifier.CloudResourceID, false, false)
 			for _, sg := range output.SecurityGroups {
 				sg.IpPermissions = append(sg.IpPermissions, irule)
@@ -570,8 +574,8 @@ var _ = Describe("AWS Cloud Security", func() {
 			Expect(len(syncContent)).To(Equal(2))
 			for _, c := range syncContent {
 				if !c.MembershipOnly {
-					Expect(len(c.IngressRules)).To(Equal(0))
-					Expect(len(c.EgressRules)).To(Equal(0))
+					Expect(len(c.IngressRules)).To(Equal(expectedIRuleLength))
+					Expect(len(c.EgressRules)).To(Equal(expectedERuleLength))
 				}
 			}
 		})

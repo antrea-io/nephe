@@ -40,28 +40,29 @@ import (
 
 var _ = Describe("Azure Cloud Security", func() {
 	var (
-		testAccountNamespacedName               = &types.NamespacedName{Namespace: "namespace01", Name: "account01"}
-		testAccountNamespacedNameNotExist       = &types.NamespacedName{Namespace: "notexist01", Name: "notexist01"}
-		testAnpNamespace                        = &types.NamespacedName{Namespace: "test-anp-ns", Name: "test-anp"}
-		testSubID                               = "SubID"
-		credentials                             = "credentials"
-		testClientID                            = "ClientID"
-		testClientKey                           = "ClientKey"
-		testTenantID                            = "TenantID"
-		testRegion                              = "eastus"
-		testRG                                  = "testRG"
-		nsgID                                   = "nephe-ag-nsgID"
-		atAsgID                                 = "nephe-at-atapplicationsgID"
-		atAsgName                               = "atapplicationsgID"
-		agAsgID                                 = "nephe-ag-agapplicationsgID"
-		testPriority                      int32 = 100
-		testSourcePortRange                     = "*"
-		testDestinationPortRange                = "*"
-		testPrivateIP                           = "0.0.0.0"
-		testProtocol                            = 6
-		testFromPort                            = 22
-		testToPort                              = 23
-		testCidrStr                             = "192.168.1.1/24"
+		testAccountNamespacedName         = &types.NamespacedName{Namespace: "namespace01", Name: "account01"}
+		testAccountNamespacedNameNotExist = &types.NamespacedName{Namespace: "notexist01", Name: "notexist01"}
+		testAnpNamespace                  = &types.NamespacedName{Namespace: "test-anp-ns", Name: "test-anp"}
+		testSubID                         = "SubID"
+		credentials                       = "credentials"
+		testClientID                      = "ClientID"
+		testClientKey                     = "ClientKey"
+		testTenantID                      = "TenantID"
+		testRegion                        = "eastus"
+		testRG                            = "testRG"
+		nsgID                             = "nephe-ag-nsgID"
+		atAsgID                           = "nephe-at-atapplicationsgID"
+		atAsgName                         = "atapplicationsgID"
+		agAsgID                           = "nephe-ag-agapplicationsgID"
+		testPriority                      = int32(100)
+		testDirection                     = network.SecurityRuleDirectionInbound
+		testSourcePortRange               = "*"
+		testDestinationPortRange          = "*"
+		testPrivateIP                     = "0.0.0.0"
+		testProtocol                      = 6
+		testFromPort                      = 22
+		testToPort                        = 23
+		testCidrStr                       = "192.168.1.1/24"
 
 		testVnet01   = "testVnet01"
 		testVnetID01 = fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Network/virtualNetworks/%v",
@@ -191,6 +192,7 @@ var _ = Describe("Azure Cloud Security", func() {
 					Priority:                             &testPriority,
 					SourcePortRange:                      &testSourcePortRange,
 					DestinationPortRange:                 &testDestinationPortRange,
+					Direction:                            &testDirection,
 				},
 			}
 
@@ -396,7 +398,7 @@ var _ = Describe("Azure Cloud Security", func() {
 						Protocol:  &testProtocol,
 						FromPort:  &testFromPort,
 						FromSrcIP: fromSrcIP,
-					}, NetworkPolicy: testAnpNamespace.String()},
+					}, NpNamespacedName: testAnpNamespace.String()},
 					{
 						Rule: &securitygroup.EgressRule{
 							Protocol: &testProtocol,
@@ -405,7 +407,7 @@ var _ = Describe("Azure Cloud Security", func() {
 							ToSecurityGroups: []*securitygroup.CloudResourceID{
 								&webAddressGroupIdentifier03.CloudResourceID,
 							},
-						}, NetworkPolicy: testAnpNamespace.String()},
+						}, NpNamespacedName: testAnpNamespace.String()},
 				}
 
 				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*securitygroup.CloudRule{}, addRules)
@@ -465,7 +467,7 @@ var _ = Describe("Azure Cloud Security", func() {
 						Protocol:  &testProtocol,
 						FromPort:  &testFromPort,
 						FromSrcIP: fromSrcIP,
-					}, NetworkPolicy: testAnpNamespace.String()},
+					}, NpNamespacedName: testAnpNamespace.String()},
 					{
 						Rule: &securitygroup.EgressRule{
 							Protocol: &testProtocol,
@@ -474,7 +476,7 @@ var _ = Describe("Azure Cloud Security", func() {
 							ToSecurityGroups: []*securitygroup.CloudResourceID{
 								&webAddressGroupIdentifier03.CloudResourceID,
 							},
-						}, NetworkPolicy: testAnpNamespace.String()},
+						}, NpNamespacedName: testAnpNamespace.String()},
 				}
 
 				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*securitygroup.CloudRule{}, addRules)
@@ -507,7 +509,7 @@ var _ = Describe("Azure Cloud Security", func() {
 						Protocol:  &testProtocol,
 						FromPort:  &testFromPort,
 						FromSrcIP: fromSrcIP,
-					}, NetworkPolicy: testAnpNamespace.String()},
+					}, NpNamespacedName: testAnpNamespace.String()},
 					{
 						Rule: &securitygroup.EgressRule{
 							Protocol: &testProtocol,
@@ -516,7 +518,7 @@ var _ = Describe("Azure Cloud Security", func() {
 							ToSecurityGroups: []*securitygroup.CloudResourceID{
 								&webAddressGroupIdentifier03.CloudResourceID,
 							},
-						}, NetworkPolicy: testAnpNamespace.String()},
+						}, NpNamespacedName: testAnpNamespace.String()},
 				}
 
 				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*securitygroup.CloudRule{}, addRules)

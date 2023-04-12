@@ -208,7 +208,7 @@ func (ec2Cfg *ec2ServiceConfig) realizeIngressIPPermissions(cloudSgObj *ec2.Secu
 		if rule == nil {
 			continue
 		}
-		description, err := securitygroup.GenerateCloudDescription(obj.NetworkPolicy, *cloudSgObj.GroupName)
+		description, err := securitygroup.GenerateCloudDescription(obj.NpNamespacedName, *cloudSgObj.GroupName)
 		if err != nil {
 			return fmt.Errorf("unable to generate rule description, err: %v", err)
 		}
@@ -257,7 +257,7 @@ func (ec2Cfg *ec2ServiceConfig) realizeEgressIPPermissions(cloudSgObj *ec2.Secur
 		if rule == nil {
 			continue
 		}
-		description, err := securitygroup.GenerateCloudDescription(obj.NetworkPolicy, *cloudSgObj.GroupName)
+		description, err := securitygroup.GenerateCloudDescription(obj.NpNamespacedName, *cloudSgObj.GroupName)
 		if err != nil {
 			return fmt.Errorf("unable to generate rule description, err: %v", err)
 		}
@@ -568,17 +568,22 @@ func (ec2Cfg *ec2ServiceConfig) getNepheControllerManagedSecurityGroupsCloudView
 		}
 	}
 
-	// build sync objects for managed security groups
+	// build sync objects for managed security groups.
 	var enforcedSecurityCloudView []securitygroup.SynchronizationContent
 	for sgID, cloudSgObj := range managedSgIDToCloudSGObj {
 		cloudSgName := *cloudSgObj.GroupName
 		vpcID := *cloudSgObj.VpcId
 
-		// find AT or AG
+		// find AT or AG.
 		isMembershipOnly := false
 		SgName, isAG, _ := securitygroup.IsNepheControllerCreatedSG(cloudSgName)
 		if isAG {
 			isMembershipOnly = true
+		}
+
+		cloudResourceID := securitygroup.CloudResourceID{
+			Name: SgName,
+			Vpc:  vpcID,
 		}
 
 		// find members and membersAttachedToOtherSGs
@@ -588,20 +593,19 @@ func (ec2Cfg *ec2ServiceConfig) getNepheControllerManagedSecurityGroupsCloudView
 			membersWithOtherSGAttached = getMemberNicCloudResourcesAttachedToOtherSGs(members, memberCloudResourcesWithOtherSGsAttachedMap)
 		}
 
-		// build ingress and egress rules
-		inRules := convertFromIPPermissionToIngressRule(cloudSgObj.IpPermissions, managedSgIDToCloudSGObj, unmanagedSgIDToCloudSGObj)
-		egRules := convertFromIPPermissionToEgressRule(cloudSgObj.IpPermissionsEgress, managedSgIDToCloudSGObj, unmanagedSgIDToCloudSGObj)
+		// build ingress and egress rules.
+		inRules := convertFromIngressIpPermissionToCloudRule(cloudResourceID.String(), cloudSgObj.IpPermissions, managedSgIDToCloudSGObj,
+			unmanagedSgIDToCloudSGObj)
+		egRules := convertFromEgressIpPermissionToCloudRule(cloudResourceID.String(), cloudSgObj.IpPermissionsEgress, managedSgIDToCloudSGObj,
+			unmanagedSgIDToCloudSGObj)
 
-		// build sync object
+		// build sync object.
 		groupSyncObj := securitygroup.SynchronizationContent{
 			Resource: securitygroup.CloudResource{
-				Type: securitygroup.CloudResourceTypeVM,
-				CloudResourceID: securitygroup.CloudResourceID{
-					Name: SgName,
-					Vpc:  vpcID,
-				},
-				AccountID:     ec2Cfg.accountNamespacedName.String(),
-				CloudProvider: string(runtimev1alpha1.AWSCloudProvider),
+				Type:            securitygroup.CloudResourceTypeVM,
+				CloudResourceID: cloudResourceID,
+				AccountID:       ec2Cfg.accountNamespacedName.String(),
+				CloudProvider:   string(runtimev1alpha1.AWSCloudProvider),
 			},
 			MembershipOnly:             isMembershipOnly,
 			Members:                    members,

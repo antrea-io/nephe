@@ -215,10 +215,10 @@ type EgressRule struct {
 func (e *EgressRule) isRule() {}
 
 type CloudRule struct {
-	Hash          string `json:"-"`
-	Rule          Rule
-	NetworkPolicy string `json:"-"`
-	AppliedToGrp  string
+	Hash             string `json:"-"`
+	Rule             Rule
+	NpNamespacedName string `json:"-"`
+	AppliedToGrp     string
 }
 
 func (c *CloudRule) GetHash() string {
@@ -235,8 +235,8 @@ type SynchronizationContent struct {
 	MembershipOnly             bool
 	Members                    []CloudResource
 	MembersWithOtherSGAttached []CloudResource
-	IngressRules               []IngressRule
-	EgressRules                []EgressRule
+	IngressRules               []CloudRule
+	EgressRules                []CloudRule
 }
 
 // CloudSecurityGroupAPI declares interface to program cloud security groups.

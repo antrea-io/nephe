@@ -110,6 +110,17 @@ contains Ingress and Egress rules.
 - SecurityGroups - a list of securityGroups to which outgoing traffic is
   permitted.
 
+Nephe supports creating user custom rules in NSGs created by Nephe, and these
+custom rules will be preserved regardless of NetworkPolicy configuration.
+However, there are certain limitations on user rules:
+
+- Nephe does not actively maintain user rules. Therefore, changes to
+  NetworkPolicies can result in changes to NSG members and the deletion of NSGs,
+  which may result in changes or deletion of user rules.
+- Nephe uses rule descriptions to track information, so users should not modify
+  Nephe rule descriptions and should not create custom rules with descriptions
+  in the same format.
+
 ## Implementation
 
 The `Nephe Controller` creates two types of network security groups (NSGs) to
