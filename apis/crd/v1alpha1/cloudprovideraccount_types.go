@@ -38,14 +38,14 @@ type CloudProviderAccountAWSConfig struct {
 	// Reference to k8s secret which has cloud provider credentials.
 	SecretRef *SecretReference `json:"secretRef,omitempty"`
 	// Cloud provider account region.
-	Region string `json:"region,omitempty"`
+	Region []string `json:"region"`
 	// Endpoint URL that overrides the default AWS generated endpoint.
 	Endpoint string `json:"endpoint,omitempty"`
 }
 
 type CloudProviderAccountAzureConfig struct {
 	SecretRef *SecretReference `json:"secretRef,omitempty"`
-	Region    string           `json:"region,omitempty"`
+	Region    []string         `json:"region"`
 }
 
 // SecretReference is a reference to a k8s secret resource in an arbitrary namespace.

@@ -117,7 +117,7 @@ var _ = Describe("Azure Cloud Security", func() {
 				Spec: crdv1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
 					AzureConfig: &crdv1alpha1.CloudProviderAccountAzureConfig{
-						Region: testRegion,
+						Region: []string{testRegion},
 						SecretRef: &crdv1alpha1.SecretReference{
 							Name:      testAccountNamespacedName.Name,
 							Namespace: testAccountNamespacedName.Namespace,

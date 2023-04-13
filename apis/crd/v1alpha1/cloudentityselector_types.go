@@ -44,12 +44,20 @@ type VirtualMachineSelector struct {
 
 // CloudEntitySelectorSpec defines the desired state of CloudEntitySelector.
 type CloudEntitySelectorSpec struct {
-	// AccountName specifies cloud account in this CloudProvider.
+	// AccountName specifies the name of CloudProviderAccount.
 	AccountName string `json:"accountName,omitempty"`
+	// AccountNamespace specifies the namespace of CloudProviderAccount.
+	AccountNamespace string `json:"accountNamespace,omitempty"`
 	// VMSelector selects the VirtualMachines the user has modify privilege.
 	// VMSelector is mandatory, at least one selector under VMSelector is required.
 	// It is an array, VirtualMachines satisfying any item on VMSelector are selected(ORed).
 	VMSelector []VirtualMachineSelector `json:"vmSelector"`
+}
+
+// CloudEntitySelectorStatus defines the observed state of CloudEntitySelector.
+type CloudEntitySelectorStatus struct {
+	// Error is current error, if any, of the CloudEntitySelector.
+	Error string `json:"error,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -59,7 +67,9 @@ type CloudEntitySelectorSpec struct {
 type CloudEntitySelector struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              CloudEntitySelectorSpec `json:"spec,omitempty"`
+
+	Spec   CloudEntitySelectorSpec   `json:"spec,omitempty"`
+	Status CloudEntitySelectorStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true

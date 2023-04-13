@@ -103,7 +103,7 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
 					AWSConfig: &v1alpha1.CloudProviderAccountAWSConfig{
-						Region: "us-east-1",
+						Region: []string{"us-east-1"},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      testSecretNamespacedName.Name,
 							Namespace: testSecretNamespacedName.Namespace,
