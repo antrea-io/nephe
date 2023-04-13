@@ -33,7 +33,6 @@ import (
 )
 
 const (
-	ErrorMsgAddOrUpdateAccount    = "failed to add or update account"
 	errorMsgAccountPollerNotFound = "account poller not found"
 )
 
@@ -108,7 +107,7 @@ func (a *AccountManager) AddAccount(namespacedName *types.NamespacedName, accoun
 
 	// Call plugin to add cloud account.
 	if err = cloudInterface.AddProviderAccount(a.Client, account); err != nil {
-		return fmt.Errorf("%s: %v", ErrorMsgAddOrUpdateAccount, err)
+		return err
 	}
 	// Create an account poller for polling cloud inventory.
 	accPoller, exists := a.addAccountPoller(cloudInterface, namespacedName, account)
