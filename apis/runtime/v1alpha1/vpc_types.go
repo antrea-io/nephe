@@ -32,7 +32,7 @@ type VpcStatus struct {
 	// Cidrs is the IPv4 CIDR block associated with the VPC.
 	Cidrs []string `json:"cidrs,omitempty"`
 	// Managed flag indicates if the VPC is managed by Nephe.
-	Managed bool `json:"managed,omitempty"`
+	Managed bool `json:"managed"`
 }
 
 // +kubebuilder:object:root=true

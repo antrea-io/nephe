@@ -16,6 +16,7 @@ package vpc
 
 import (
 	"context"
+	"sort"
 	"strings"
 
 	logger "github.com/go-logr/logr"
@@ -168,12 +169,25 @@ func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (
 	} else {
 		objs, _ = r.cloudInventory.GetVpcsFromIndexer(indexer.ByNamespace, namespace)
 	}
+
+	sort.Slice(objs, func(i, j int) bool {
+		vpcI := objs[i].(*runtimev1alpha1.Vpc)
+		vpcJ := objs[j].(*runtimev1alpha1.Vpc)
+		// First Sort with Namespace.
+		if vpcI.Namespace < vpcJ.Namespace {
+			return true
+		} else if vpcI.Namespace > vpcJ.Namespace {
+			return false
+		}
+		// Second Sort with Name.
+		return vpcI.Name < vpcJ.Name
+	})
+
 	vpcList := &runtimev1alpha1.VpcList{}
 	for _, obj := range objs {
 		vpc := obj.(*runtimev1alpha1.Vpc)
 		vpcList.Items = append(vpcList.Items, *vpc)
 	}
-
 	return vpcList, nil
 }
 

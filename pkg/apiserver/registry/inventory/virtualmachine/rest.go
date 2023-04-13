@@ -16,6 +16,7 @@ package virtualmachine
 
 import (
 	"context"
+	"sort"
 	"strings"
 
 	logger "github.com/go-logr/logr"
@@ -129,6 +130,19 @@ func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (
 	} else {
 		objs, _ = r.cloudInventory.GetVmFromIndexer(indexer.ByNamespace, namespace)
 	}
+
+	sort.Slice(objs, func(i, j int) bool {
+		vmI := objs[i].(*runtimev1alpha1.VirtualMachine)
+		vmJ := objs[j].(*runtimev1alpha1.VirtualMachine)
+		// First Sort with Namespace.
+		if vmI.Namespace < vmJ.Namespace {
+			return true
+		} else if vmI.Namespace > vmJ.Namespace {
+			return false
+		}
+		// Second Sort with Name.
+		return vmI.Name < vmJ.Name
+	})
 
 	vmList := &runtimev1alpha1.VirtualMachineList{}
 	for _, obj := range objs {
