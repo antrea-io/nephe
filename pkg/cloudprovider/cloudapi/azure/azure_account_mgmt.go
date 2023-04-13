@@ -56,23 +56,23 @@ func compareAccountCredentials(accountName string, existing interface{}, new int
 	credsChanged := false
 	if strings.Compare(existingConfig.SubscriptionID, newConfig.SubscriptionID) != 0 {
 		credsChanged = true
-		azurePluginLogger().Info("subscription ID updated", "account", accountName)
+		azurePluginLogger().Info("Subscription ID updated", "account", accountName)
 	}
 	if strings.Compare(existingConfig.ClientID, newConfig.ClientID) != 0 {
 		credsChanged = true
-		azurePluginLogger().Info("client ID updated", "account", accountName)
+		azurePluginLogger().Info("Client ID updated", "account", accountName)
 	}
 	if strings.Compare(existingConfig.TenantID, newConfig.TenantID) != 0 {
 		credsChanged = true
-		azurePluginLogger().Info("account tenant ID updated", "account", accountName)
+		azurePluginLogger().Info("Account tenant ID updated", "account", accountName)
 	}
 	if strings.Compare(existingConfig.ClientKey, newConfig.ClientKey) != 0 {
 		credsChanged = true
-		azurePluginLogger().Info("account client key updated", "account", accountName)
+		azurePluginLogger().Info("Account client key updated", "account", accountName)
 	}
 	if strings.Compare(existingConfig.region, newConfig.region) != 0 {
 		credsChanged = true
-		azurePluginLogger().Info("account region updated", "account", accountName)
+		azurePluginLogger().Info("Account region updated", "account", accountName)
 	}
 	return credsChanged
 }

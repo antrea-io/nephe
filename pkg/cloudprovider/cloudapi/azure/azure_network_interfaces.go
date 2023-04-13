@@ -47,7 +47,7 @@ func updateNetworkInterfaceAsg(nwIntfAPIClient azureNwIntfWrapper, nwIntfObj *ar
 	nwIntfObj.Properties.IPConfigurations = ipConfigurations
 
 	_, err := nwIntfAPIClient.createOrUpdate(context.Background(), rgName, resName, *nwIntfObj)
-	azurePluginLogger().Info("updated network-interface", "ID", *nwIntfObj.ID, "err", err)
+	azurePluginLogger().Info("Updated network-interface", "ID", *nwIntfObj.ID, "err", err)
 	return err
 }
 
@@ -72,7 +72,7 @@ func updateNetworkInterfaceNsg(nwIntfAPIClient azureNwIntfWrapper, nwIntfObj *ar
 	nwIntfObj.Properties.NetworkSecurityGroup = nsg
 	nwIntfObj.Tags = tags
 	_, err := nwIntfAPIClient.createOrUpdate(context.Background(), rgName, resName, *nwIntfObj)
-	azurePluginLogger().Info("updated network-interface", "ID", *nwIntfObj.ID, "err", err)
+	azurePluginLogger().Info("Updated network-interface", "ID", *nwIntfObj.ID, "err", err)
 
 	return err
 }

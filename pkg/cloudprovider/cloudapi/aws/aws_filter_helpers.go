@@ -140,7 +140,7 @@ func buildEc2Filters(vmSelector []crdv1alpha1.VirtualMachineSelector) [][]*ec2.F
 		}
 	}
 
-	awsPluginLogger().Info("selector stats", "VpcIdOnlyMatch", len(vpcIDsWithVpcIDOnlyMatches),
+	awsPluginLogger().Info("Selector stats", "VpcIdOnlyMatch", len(vpcIDsWithVpcIDOnlyMatches),
 		"VpcIdWithOtherMatches", len(vpcIDWithOtherMatches), "VmIdOnlyMatches", len(vmIDOnlyMatches),
 		"VmNameOnlyMatches", len(vmNameOnlyMatches), "VpcNameOnlyMatches", len(vpcNameOnlyMatches))
 
