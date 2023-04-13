@@ -100,7 +100,7 @@ func (a *appliedToSecurityGroup) sync(syncContent *securitygroup.Synchronization
 		np := i.(*networkPolicy)
 		if !np.rulesReady {
 			if !np.computeRules(r) {
-				log.V(1).Info("np not ready", "Name", np.Name, "Namespace", np.Namespace)
+				log.V(1).Info("NetworkPolicy is not ready", "Name", np.Name, "Namespace", np.Namespace)
 			}
 		}
 		for _, iRule := range np.ingressRules {

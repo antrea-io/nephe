@@ -230,7 +230,7 @@ func (ec2Cfg *ec2ServiceConfig) realizeIngressIPPermissions(cloudSgObj *ec2.Secu
 	}
 
 	if isDelete {
-		awsPluginLogger().V(1).Info("delete ingress rules", "rules", newIpPermissions)
+		awsPluginLogger().V(1).Info("Delete ingress rules", "rules", newIpPermissions)
 		request := &ec2.RevokeSecurityGroupIngressInput{
 			GroupId:       cloudSgObj.GroupId,
 			IpPermissions: newIpPermissions,
@@ -238,7 +238,7 @@ func (ec2Cfg *ec2ServiceConfig) realizeIngressIPPermissions(cloudSgObj *ec2.Secu
 		_, err := ec2Cfg.apiClient.revokeSecurityGroupIngress(request)
 		return err
 	} else {
-		awsPluginLogger().V(1).Info("add ingress rules", "rules", newIpPermissions)
+		awsPluginLogger().V(1).Info("Add ingress rules", "rules", newIpPermissions)
 		request := &ec2.AuthorizeSecurityGroupIngressInput{
 			GroupId:       cloudSgObj.GroupId,
 			IpPermissions: newIpPermissions,
@@ -280,7 +280,7 @@ func (ec2Cfg *ec2ServiceConfig) realizeEgressIPPermissions(cloudSgObj *ec2.Secur
 	}
 
 	if isDelete {
-		awsPluginLogger().V(1).Info("delete egress rules", "rule", newIpPermissions)
+		awsPluginLogger().V(1).Info("Delete egress rules", "rule", newIpPermissions)
 		request := &ec2.RevokeSecurityGroupEgressInput{
 			GroupId:       cloudSgObj.GroupId,
 			IpPermissions: newIpPermissions,
@@ -288,7 +288,7 @@ func (ec2Cfg *ec2ServiceConfig) realizeEgressIPPermissions(cloudSgObj *ec2.Secur
 		_, err := ec2Cfg.apiClient.revokeSecurityGroupEgress(request)
 		return err
 	} else {
-		awsPluginLogger().V(1).Info("add egress rules", "rule", newIpPermissions)
+		awsPluginLogger().V(1).Info("Add egress rules", "rule", newIpPermissions)
 		request := &ec2.AuthorizeSecurityGroupEgressInput{
 			GroupId:       cloudSgObj.GroupId,
 			IpPermissions: newIpPermissions,
@@ -900,19 +900,19 @@ func (c *awsCloud) GetEnforcedSecurity() []securitygroup.SynchronizationContent 
 
 			accCfg, found := c.cloudCommon.GetCloudAccountByName(name)
 			if !found {
-				awsPluginLogger().Info("enforced-security-cloud-view GET for account skipped (account no longer exists)", "account", name)
+				awsPluginLogger().Info("Enforced-security-cloud-view GET for account skipped (account no longer exists)", "account", name)
 				return
 			}
 
 			serviceCfg, err := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
 			if err != nil {
-				awsPluginLogger().Error(err, "enforced-security-cloud-view GET for account skipped", "account", accCfg.GetNamespacedName())
+				awsPluginLogger().Error(err, "Enforced-security-cloud-view GET for account skipped", "account", accCfg.GetNamespacedName())
 				return
 			}
 			ec2Service := serviceCfg.(*ec2ServiceConfig)
 			err = ec2Service.waitForInventoryInit(inventoryInitWaitDuration)
 			if err != nil {
-				awsPluginLogger().Error(err, "enforced-security-cloud-view GET for account skipped", "account", accCfg.GetNamespacedName())
+				awsPluginLogger().Error(err, "Enforced-security-cloud-view GET for account skipped", "account", accCfg.GetNamespacedName())
 				return
 			}
 			sendCh <- ec2Service.getNepheControllerManagedSecurityGroupsCloudView()

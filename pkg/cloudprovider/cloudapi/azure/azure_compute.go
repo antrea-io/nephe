@@ -117,7 +117,7 @@ func (computeCfg *computeServiceConfig) waitForInventoryInit(duration time.Durat
 func (computeCfg *computeServiceConfig) getCachedVirtualMachines() []*virtualMachineTable {
 	snapshot := computeCfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
-		azurePluginLogger().V(4).Info("compute service cache snapshot nil", "type", providerType, "account", computeCfg.account)
+		azurePluginLogger().V(4).Info("Compute service cache snapshot nil", "type", providerType, "account", computeCfg.account)
 		return []*virtualMachineTable{}
 	}
 	virtualMachines := snapshot.(*computeResourcesCacheSnapshot).virtualMachines
@@ -126,7 +126,7 @@ func (computeCfg *computeServiceConfig) getCachedVirtualMachines() []*virtualMac
 		instancesToReturn = append(instancesToReturn, virtualMachine)
 	}
 
-	azurePluginLogger().V(1).Info("cached vm instances", "service", azureComputeServiceNameCompute, "account", computeCfg.account,
+	azurePluginLogger().V(1).Info("Cached vm instances", "service", azureComputeServiceNameCompute, "account", computeCfg.account,
 		"instances", len(instancesToReturn))
 	return instancesToReturn
 }
@@ -136,7 +136,7 @@ func (computeCfg *computeServiceConfig) getManagedVnetIDs() map[string]struct{} 
 	vnetIDsCopy := make(map[string]struct{})
 	snapshot := computeCfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
-		azurePluginLogger().Info("compute service cache snapshot nil", "type", providerType, "account", computeCfg.account)
+		azurePluginLogger().Info("Compute service cache snapshot nil", "type", providerType, "account", computeCfg.account)
 		return vnetIDsCopy
 	}
 	vnetIDsSet := snapshot.(*computeResourcesCacheSnapshot).vnetIDs
@@ -153,7 +153,7 @@ func (computeCfg *computeServiceConfig) getManagedVnets() map[string]armnetwork.
 	vnetCopy := make(map[string]armnetwork.VirtualNetwork)
 	snapshot := computeCfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
-		azurePluginLogger().Info("compute service cache snapshot nil", "type", providerType, "account", computeCfg.account)
+		azurePluginLogger().Info("Compute service cache snapshot nil", "type", providerType, "account", computeCfg.account)
 		return vnetCopy
 	}
 
@@ -167,7 +167,7 @@ func (computeCfg *computeServiceConfig) getManagedVnets() map[string]armnetwork.
 func (computeCfg *computeServiceConfig) getVnetPeers(vnetID string) [][]string {
 	snapshot := computeCfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
-		azurePluginLogger().V(4).Info("compute service cache snapshot nil", "type", providerType, "account", computeCfg.account)
+		azurePluginLogger().V(4).Info("Compute service cache snapshot nil", "type", providerType, "account", computeCfg.account)
 		return nil
 	}
 	vnetPeersCopy := make([][]string, 0)
@@ -180,16 +180,16 @@ func (computeCfg *computeServiceConfig) getVnetPeers(vnetID string) [][]string {
 func (computeCfg *computeServiceConfig) getVirtualMachines() ([]*virtualMachineTable, error) {
 	filters, hasFilters := computeCfg.getComputeResourceFilters()
 	if !hasFilters {
-		azurePluginLogger().V(1).Info("fetching vm resources from cloud skipped",
+		azurePluginLogger().V(1).Info("Fetching vm resources from cloud skipped",
 			"account", computeCfg.account, "resource-filters", "not-configured")
 		return nil, nil
 	}
 
 	if filters == nil {
-		azurePluginLogger().V(1).Info("fetching vm resources from cloud",
+		azurePluginLogger().V(1).Info("Fetching vm resources from cloud",
 			"account", computeCfg.account, "resource-filters", "all(nil)")
 	} else {
-		azurePluginLogger().V(1).Info("fetching vm resources from cloud",
+		azurePluginLogger().V(1).Info("Fetching vm resources from cloud",
 			"account", computeCfg.account, "resource-filters", "configured")
 	}
 	var subscriptions []*string
@@ -204,7 +204,7 @@ func (computeCfg *computeServiceConfig) getVirtualMachines() ([]*virtualMachineT
 		virtualMachines = append(virtualMachines, virtualMachineRows...)
 	}
 
-	azurePluginLogger().V(1).Info("vm instances from cloud",
+	azurePluginLogger().V(1).Info("Vm instances from cloud",
 		"service", azureComputeServiceNameCompute, "account", computeCfg.account, "instances", len(virtualMachines))
 
 	return virtualMachines, nil
@@ -377,7 +377,7 @@ func (computeCfg *computeServiceConfig) buildMapVpcPeers(results []armnetwork.Vi
 func (computeCfg *computeServiceConfig) GetVpcInventory() map[string]*runtimev1alpha1.Vpc {
 	snapshot := computeCfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
-		azurePluginLogger().Info("compute service cache snapshot nil",
+		azurePluginLogger().Info("Compute service cache snapshot nil",
 			"type", providerType, "account", computeCfg.account)
 		return nil
 	}
@@ -397,7 +397,7 @@ func (computeCfg *computeServiceConfig) GetVpcInventory() map[string]*runtimev1a
 			vpcMap[strings.ToLower(*vpc.ID)] = vpcObj
 		}
 	}
-	azurePluginLogger().V(1).Info("cached vpcs", "service", azureComputeServiceNameCompute,
+	azurePluginLogger().V(1).Info("Cached vpcs", "service", azureComputeServiceNameCompute,
 		"account", computeCfg.account, "vpc objects", len(vpcMap))
 
 	return vpcMap

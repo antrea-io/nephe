@@ -119,7 +119,7 @@ func buildQueries(vmSelector []crdv1alpha1.VirtualMachineSelector, subscriptionI
 		}
 	}
 
-	azurePluginLogger().Info("selector stats", "VpcIdOnlyMatch", len(vpcIDsWithVpcIDOnlyMatches),
+	azurePluginLogger().Info("Selector stats", "VpcIdOnlyMatch", len(vpcIDsWithVpcIDOnlyMatches),
 		"VpcIdWithOtherMatches", len(vpcIDWithOtherMatches), "VmIdOnlyMatches", len(vmIDOnlyMatches),
 		"VmIdAndVmNameMatches", len(vmIDAndVMNameMatches), "VmNameOnlyMatches", len(vmNameOnlyMatches))
 

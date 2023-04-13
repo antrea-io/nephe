@@ -58,31 +58,31 @@ func compareAccountCredentials(accountName string, existing interface{}, new int
 	credsChanged := false
 	if strings.Compare(existingConfig.AccessKeyID, newConfig.AccessKeyID) != 0 {
 		credsChanged = true
-		awsPluginLogger().Info("account access key ID updated", "account", accountName)
+		awsPluginLogger().Info("Account access key ID updated", "account", accountName)
 	}
 	if strings.Compare(existingConfig.AccessKeySecret, newConfig.AccessKeySecret) != 0 {
 		credsChanged = true
-		awsPluginLogger().Info("account access key secret updated", "account", accountName)
+		awsPluginLogger().Info("Account access key secret updated", "account", accountName)
 	}
 	if strings.Compare(existingConfig.SessionToken, newConfig.SessionToken) != 0 {
 		credsChanged = true
-		awsPluginLogger().Info("account session token updated", "account", accountName)
+		awsPluginLogger().Info("Account session token updated", "account", accountName)
 	}
 	if strings.Compare(existingConfig.RoleArn, newConfig.RoleArn) != 0 {
 		credsChanged = true
-		awsPluginLogger().Info("account IAM role updated", "account", accountName)
+		awsPluginLogger().Info("Account IAM role updated", "account", accountName)
 	}
 	if strings.Compare(existingConfig.ExternalID, newConfig.ExternalID) != 0 {
 		credsChanged = true
-		awsPluginLogger().Info("account IAM external id updated", "account", accountName)
+		awsPluginLogger().Info("Account IAM external id updated", "account", accountName)
 	}
 	if strings.Compare(existingConfig.region, newConfig.region) != 0 {
 		credsChanged = true
-		awsPluginLogger().Info("account region updated", "account", accountName)
+		awsPluginLogger().Info("Account region updated", "account", accountName)
 	}
 	if strings.Compare(existingConfig.endpoint, newConfig.endpoint) != 0 {
 		credsChanged = true
-		awsPluginLogger().Info("endpoint url updated", "account", accountName)
+		awsPluginLogger().Info("Endpoint url updated", "account", accountName)
 	}
 	return credsChanged
 }

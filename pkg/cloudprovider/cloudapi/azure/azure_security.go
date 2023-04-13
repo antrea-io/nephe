@@ -318,7 +318,7 @@ func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(ap
 	var currentNsgEgressRules []armnetwork.SecurityRule
 	currentNsgSecurityRules := nsgObj.Properties.SecurityRules
 	appliedToGroupNepheControllerName := appliedToGroupID.GetCloudName(false)
-	azurePluginLogger().Info("building security rules", "applied to security group", appliedToGroupNepheControllerName)
+	azurePluginLogger().Info("Building security rules", "applied to security group", appliedToGroupNepheControllerName)
 	for _, rule := range currentNsgSecurityRules {
 		if rule.Properties == nil {
 			continue
@@ -397,7 +397,7 @@ func (computeCfg *computeServiceConfig) buildEffectivePeerNSGSecurityRulesToAppl
 	var currentNsgEgressRules []armnetwork.SecurityRule
 	currentNsgSecurityRules := nsgObj.Properties.SecurityRules
 	appliedToGroupNepheControllerName := appliedToGroupID.GetCloudName(false)
-	azurePluginLogger().Info("building peering security rules", "applied to security group", appliedToGroupNepheControllerName)
+	azurePluginLogger().Info("Building peering security rules", "applied to security group", appliedToGroupNepheControllerName)
 	for _, rule := range currentNsgSecurityRules {
 		if rule.Properties == nil {
 			continue
@@ -867,7 +867,7 @@ func (c *azureCloud) CreateSecurityGroup(securityGroupIdentifier *securitygroup.
 	vnetID := securityGroupIdentifier.Vpc
 	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
 	if !found {
-		azurePluginLogger().Info("azure account not found managing virtual network", vnetID, "vnetID")
+		azurePluginLogger().Info("Azure account not found managing virtual network", vnetID, "vnetID")
 		return nil, fmt.Errorf("azure account not found managing virtual network [%v]", vnetID)
 	}
 
@@ -1096,13 +1096,13 @@ func (c *azureCloud) GetEnforcedSecurity() []securitygroup.SynchronizationConten
 
 			accCfg, found := c.cloudCommon.GetCloudAccountByName(name)
 			if !found {
-				azurePluginLogger().Info("enforced-security-cloud-view GET for account skipped (account no longer exists)", "account", name)
+				azurePluginLogger().Info("Enforced-security-cloud-view GET for account skipped (account no longer exists)", "account", name)
 				return
 			}
 
 			serviceCfg, err := accCfg.GetServiceConfigByName(azureComputeServiceNameCompute)
 			if err != nil {
-				azurePluginLogger().Error(err, "enforced-security-cloud-view GET for account skipped", "account", accCfg.GetNamespacedName())
+				azurePluginLogger().Error(err, "nforced-security-cloud-view GET for account skipped", "account", accCfg.GetNamespacedName())
 				return
 			}
 			computeService := serviceCfg.(*computeServiceConfig)
