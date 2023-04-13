@@ -30,10 +30,6 @@ import (
 	"antrea.io/nephe/pkg/cloudprovider/securitygroup"
 )
 
-const (
-	appliedToSecurityGroupNamePerVnet = "per-vnet-default"
-)
-
 var (
 	mutex sync.Mutex
 )
@@ -41,6 +37,11 @@ var (
 type networkInterfaceInternal struct {
 	armnetwork.Interface
 	vnetID string
+}
+
+// getPerVnetDefaultNsgName returns default NSG name for a given VNET.
+func getPerVnetDefaultNsgName(vnetName string) string {
+	return securitygroup.ControllerPrefix + "-at-default-" + vnetName
 }
 
 // getNetworkInterfacesOfVnet fetch network interfaces for a set of VNET-IDs.
@@ -93,17 +94,12 @@ func (computeCfg *computeServiceConfig) processAppliedToMembership(appliedToGrou
 	memberNetworkInterfaces map[string]struct{}, isPeer bool) error {
 	// appliedTo sg has asg as well as nsg created corresponding to it. Hence, update membership for both asg and nsg.
 	appliedToGroupOriginalNameToBeUsedAsTag := appliedToGroupIdentifier.GetCloudName(false)
-	appliedToSG := securitygroup.CloudResourceID{
-		Name: appliedToSecurityGroupNamePerVnet,
-		Vpc:  appliedToGroupIdentifier.Vpc,
-	}
 	tokens := strings.Split(appliedToGroupIdentifier.Vpc, "/")
-	suffix := tokens[len(tokens)-1]
-	perVnetNsgNameLowercase := appliedToSG.GetCloudName(false) + "-" + suffix
+	vnetName := tokens[len(tokens)-1]
 	cloudSgNameLowercase := appliedToGroupIdentifier.GetCloudName(isPeer)
 
 	// get NSG and ASG details corresponding to applied to group.
-	nsgObj, err := computeCfg.nsgAPIClient.get(context.Background(), rgName, perVnetNsgNameLowercase, "")
+	nsgObj, err := computeCfg.nsgAPIClient.get(context.Background(), rgName, getPerVnetDefaultNsgName(vnetName), "")
 	if err != nil {
 		return err
 	}
@@ -144,7 +140,7 @@ func (computeCfg *computeServiceConfig) processAppliedToMembership(appliedToGrou
 					}
 					_, _, isAT := securitygroup.IsNepheControllerCreatedSG(asgName)
 					if isAT {
-						if strings.Compare(nsgNameLowercase, perVnetNsgNameLowercase) == 0 &&
+						if strings.Compare(nsgNameLowercase, getPerVnetDefaultNsgName(vnetName)) == 0 &&
 							strings.Compare(cloudSgNameLowercase, asgName) == 0 {
 							isNsgAttached = true
 							break
@@ -495,15 +491,9 @@ func (computeCfg *computeServiceConfig) updateSecurityGroupMembers(securityGroup
 // removeReferencesToSecurityGroup removes rules attached to nsg which reference the ASG which is getting deleted.
 func (computeCfg *computeServiceConfig) removeReferencesToSecurityGroup(id *securitygroup.CloudResourceID, rgName string,
 	location string, membershiponly bool) error {
-	appliedToSG := securitygroup.CloudResourceID{
-		Name: appliedToSecurityGroupNamePerVnet,
-		Vpc:  id.Vpc,
-	}
 	tokens := strings.Split(id.Vpc, "/")
-	suffix := tokens[len(tokens)-1]
-	perVnetNsgNepheControllerName := appliedToSG.GetCloudName(false) + "-" + suffix
-
-	nsgObj, err := computeCfg.nsgAPIClient.get(context.Background(), rgName, perVnetNsgNepheControllerName, "")
+	vnetName := tokens[len(tokens)-1]
+	nsgObj, err := computeCfg.nsgAPIClient.get(context.Background(), rgName, getPerVnetDefaultNsgName(vnetName), "")
 	if err != nil {
 		return err
 	}
@@ -559,7 +549,7 @@ func (computeCfg *computeServiceConfig) removeReferencesToSecurityGroup(id *secu
 	if !nsgUpdateRequired {
 		return nil
 	}
-	err = updateNetworkSecurityGroupRules(computeCfg.nsgAPIClient, location, rgName, perVnetNsgNepheControllerName, rulesToKeep)
+	err = updateNetworkSecurityGroupRules(computeCfg.nsgAPIClient, location, rgName, getPerVnetDefaultNsgName(vnetName), rulesToKeep)
 
 	return err
 }
@@ -632,50 +622,49 @@ func (computeCfg *computeServiceConfig) processAndBuildATSgView(networkInterface
 		if err != nil {
 			continue
 		}
-		sgName, _, isAT := securitygroup.IsNepheControllerCreatedSG(nsgName)
+		_, _, isAT := securitygroup.IsNepheControllerCreatedSG(nsgName)
 		if !isAT {
 			continue
 		}
 
 		vnetIDLowerCase := strings.ToLower(networkInterface.vnetID)
 		nsgIDToVnetIDMap[nsgIDLowerCase] = vnetIDLowerCase
-		if strings.Contains(strings.ToLower(sgName), appliedToSecurityGroupNamePerVnet) {
-			// from ASGs attached to network interface find nephe AT SG(s) and build membership map
-			newNepheControllerAppliedToSGNameSet := make(map[string]struct{})
-			for _, ipConfigs := range networkInterface.Properties.IPConfigurations {
-				if ipConfigs.Properties == nil {
+
+		// from ASGs attached to network interface find nephe AT SG(s) and build membership map
+		newNepheControllerAppliedToSGNameSet := make(map[string]struct{})
+		for _, ipConfigs := range networkInterface.Properties.IPConfigurations {
+			if ipConfigs.Properties == nil {
+				continue
+			}
+			for _, asg := range ipConfigs.Properties.ApplicationSecurityGroups {
+				asgID := asg.ID
+				asgName, isValidATSg := computeCfg.isValidAppliedToSg(strings.ToLower(*asgID), vnetIDLowerCase)
+				if !isValidATSg {
 					continue
 				}
-				for _, asg := range ipConfigs.Properties.ApplicationSecurityGroups {
-					asgID := asg.ID
-					asgName, isValidATSg := computeCfg.isValidAppliedToSg(strings.ToLower(*asgID), vnetIDLowerCase)
-					if !isValidATSg {
-						continue
-					}
 
-					cloudResource := securitygroup.CloudResource{
-						Type: securitygroup.CloudResourceTypeNIC,
-						CloudResourceID: securitygroup.CloudResourceID{
-							Name: strings.ToLower(*networkInterface.ID),
-							Vpc:  vnetIDLowerCase,
-						},
-						AccountID:     computeCfg.account.String(),
-						CloudProvider: string(runtimev1alpha1.AzureCloudProvider),
-					}
-					cloudResources := nepheControllerATSgNameToMemberCloudResourcesMap[asgName]
-					cloudResources = append(cloudResources, cloudResource)
-					nepheControllerATSgNameToMemberCloudResourcesMap[asgName] = cloudResources
-
-					newNepheControllerAppliedToSGNameSet[asgName] = struct{}{}
+				cloudResource := securitygroup.CloudResource{
+					Type: securitygroup.CloudResourceTypeNIC,
+					CloudResourceID: securitygroup.CloudResourceID{
+						Name: strings.ToLower(*networkInterface.ID),
+						Vpc:  vnetIDLowerCase,
+					},
+					AccountID:     computeCfg.account.String(),
+					CloudProvider: string(runtimev1alpha1.AzureCloudProvider),
 				}
-				break
-			}
+				cloudResources := nepheControllerATSgNameToMemberCloudResourcesMap[asgName]
+				cloudResources = append(cloudResources, cloudResource)
+				nepheControllerATSgNameToMemberCloudResourcesMap[asgName] = cloudResources
 
-			if len(newNepheControllerAppliedToSGNameSet) > 0 {
-				existingNepheControllerAppliedToSGNameSet := perVnetNsgIDToNepheControllerAppliedToSGNameSet[nsgIDLowerCase]
-				completeSet := mergeSet(existingNepheControllerAppliedToSGNameSet, newNepheControllerAppliedToSGNameSet)
-				perVnetNsgIDToNepheControllerAppliedToSGNameSet[nsgIDLowerCase] = completeSet
+				newNepheControllerAppliedToSGNameSet[asgName] = struct{}{}
 			}
+			break
+		}
+
+		if len(newNepheControllerAppliedToSGNameSet) > 0 {
+			existingNepheControllerAppliedToSGNameSet := perVnetNsgIDToNepheControllerAppliedToSGNameSet[nsgIDLowerCase]
+			completeSet := mergeSet(existingNepheControllerAppliedToSGNameSet, newNepheControllerAppliedToSGNameSet)
+			perVnetNsgIDToNepheControllerAppliedToSGNameSet[nsgIDLowerCase] = completeSet
 		}
 	}
 
@@ -887,16 +876,12 @@ func (c *azureCloud) CreateSecurityGroup(securityGroupIdentifier *securitygroup.
 
 	if !membershipOnly {
 		// per vnet only one appliedTo SG will be created. Hence, always use the same pre-assigned name.
-		appliedToAddrID := securitygroup.CloudResourceID{
-			Name: appliedToSecurityGroupNamePerVnet,
-			Vpc:  securityGroupIdentifier.Vpc,
-		}
 		tokens := strings.Split(securityGroupIdentifier.Vpc, "/")
-		suffix := tokens[len(tokens)-1]
-		cloudNsgName := appliedToAddrID.GetCloudName(false) + "-" + suffix
+		vnetName := tokens[len(tokens)-1]
+		cloudNsgName := getPerVnetDefaultNsgName(vnetName)
 		cloudSecurityGroupID, err = createOrGetNetworkSecurityGroup(computeService.nsgAPIClient, location, rgName, cloudNsgName)
 		if err != nil {
-			return nil, fmt.Errorf("azure per vnet nsg %v create failed for AT sg %v, reason: %w", cloudNsgName, appliedToAddrID.Name, err)
+			return nil, fmt.Errorf("azure per vnet nsg %v create failed for AT sg %v, reason: %w", cloudNsgName, securityGroupIdentifier.Name, err)
 		}
 
 		// create azure asg corresponding to AT sg.
@@ -960,13 +945,9 @@ func (c *azureCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *security
 	vnetVMs, _ := computeService.getVirtualMachines()
 	// ruleIP := vnetVMs[len(vnetVMs)-1].NetworkInterfaces[0].PrivateIps[0]
 	// AT sg name per vnet is fixed and predefined. Get azure nsg name for it.
-	appliedToSgID := securitygroup.CloudResourceID{
-		Name: appliedToSecurityGroupNamePerVnet,
-		Vpc:  vnetID,
-	}
 	tokens := strings.Split(appliedToGroupIdentifier.Vpc, "/")
-	suffix := tokens[len(tokens)-1]
-	appliedToGroupPerVnetNsgNepheControllerName := appliedToSgID.GetCloudName(false) + "-" + suffix
+	vnetName := tokens[len(tokens)-1]
+	appliedToGroupPerVnetNsgName := getPerVnetDefaultNsgName(vnetName)
 	// convert to azure security rules and build effective rules to be applied to AT sg azure NSG
 	var rules []*armnetwork.SecurityRule
 	flag := 0
@@ -984,7 +965,7 @@ func (c *azureCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *security
 				break
 			}
 			rules, err = computeService.buildEffectivePeerNSGSecurityRulesToApply(&appliedToGroupIdentifier.CloudResourceID, ingressRules,
-				egressRules, appliedToGroupPerVnetNsgNepheControllerName, rgName, ruleIP)
+				egressRules, appliedToGroupPerVnetNsgName, rgName, ruleIP)
 			if err != nil {
 				azurePluginLogger().Error(err, "fail to build effective rules to be applied")
 				return err
@@ -994,14 +975,14 @@ func (c *azureCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *security
 	}
 	if flag == 0 {
 		rules, err = computeService.buildEffectiveNSGSecurityRulesToApply(&appliedToGroupIdentifier.CloudResourceID, ingressRules,
-			egressRules, appliedToGroupPerVnetNsgNepheControllerName, rgName)
+			egressRules, appliedToGroupPerVnetNsgName, rgName)
 		if err != nil {
 			azurePluginLogger().Error(err, "fail to build effective rules to be applied")
 			return err
 		}
 	}
 	// update network security group with rules
-	return updateNetworkSecurityGroupRules(computeService.nsgAPIClient, location, rgName, appliedToGroupPerVnetNsgNepheControllerName, rules)
+	return updateNetworkSecurityGroupRules(computeService.nsgAPIClient, location, rgName, appliedToGroupPerVnetNsgName, rules)
 }
 
 // UpdateSecurityGroupMembers invokes cloud api and attaches/detaches nics to/from the cloud security group.

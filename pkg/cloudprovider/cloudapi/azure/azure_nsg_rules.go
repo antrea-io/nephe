@@ -27,11 +27,10 @@ import (
 )
 
 const (
-	ruleStartPriority             = 1000
-	vnetToVnetDenyRulePriority    = 4096
-	vnetToVnetDenyRuleDescription = "nephe-at-" + appliedToSecurityGroupNamePerVnet
-	emptyPort                     = "*"
-	virtualnetworkAddressPrefix   = "VirtualNetwork"
+	ruleStartPriority           = 2000
+	vnetToVnetDenyRulePriority  = 4096
+	emptyPort                   = "*"
+	virtualnetworkAddressPrefix = "VirtualNetwork"
 )
 
 var protoNumAzureNameMap = map[int]armnetwork.SecurityRuleProtocol{
@@ -44,6 +43,10 @@ var azureProtoNameToNumMap = map[armnetwork.SecurityRuleProtocol]int{
 	armnetwork.SecurityRuleProtocolIcmp: 1,
 	armnetwork.SecurityRuleProtocolTCP:  6,
 	armnetwork.SecurityRuleProtocolUDP:  17,
+}
+
+func getDefaultDenyRuleName() string {
+	return securitygroup.ControllerPrefix + "-default-deny"
 }
 
 // updateSecurityRuleNameAndPriority updates rule name and priority from existing
@@ -146,7 +149,7 @@ func convertIngressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResou
 	// add vnet to vnet deny all rule
 	securityRule := buildSecurityRule(to.Int32Ptr(vnetToVnetDenyRulePriority), armnetwork.SecurityRuleProtocolAsterisk,
 		armnetwork.SecurityRuleDirectionInbound, to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil,
-		to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil, to.StringPtr(vnetToVnetDenyRuleDescription),
+		to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil, to.StringPtr(getDefaultDenyRuleName()),
 		armnetwork.SecurityRuleAccessDeny)
 	securityRules = append(securityRules, securityRule)
 
@@ -215,7 +218,7 @@ func convertIngressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudR
 	// add vnet to vnet deny all rule
 	securityRule := buildPeerSecurityRule(to.Int32Ptr(vnetToVnetDenyRulePriority), armnetwork.SecurityRuleProtocolAsterisk,
 		armnetwork.SecurityRuleDirectionInbound, to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil,
-		to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil, to.StringPtr(vnetToVnetDenyRuleDescription),
+		to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil, to.StringPtr(getDefaultDenyRuleName()),
 		armnetwork.SecurityRuleAccessDeny, appliedToGroupID.Name)
 	securityRules = append(securityRules, securityRule)
 
@@ -274,7 +277,7 @@ func convertEgressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResour
 	// add vnet to vnet deny all rule
 	securityRule := buildSecurityRule(to.Int32Ptr(vnetToVnetDenyRulePriority), armnetwork.SecurityRuleProtocolAsterisk,
 		armnetwork.SecurityRuleDirectionOutbound, to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil,
-		to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil, to.StringPtr(vnetToVnetDenyRuleDescription),
+		to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil, to.StringPtr(getDefaultDenyRuleName()),
 		armnetwork.SecurityRuleAccessDeny)
 	securityRules = append(securityRules, securityRule)
 
@@ -341,7 +344,7 @@ func convertEgressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudRe
 	// add vnet to vnet deny all rule
 	securityRule := buildPeerSecurityRule(to.Int32Ptr(vnetToVnetDenyRulePriority), armnetwork.SecurityRuleProtocolAsterisk,
 		armnetwork.SecurityRuleDirectionOutbound, to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil,
-		to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil, to.StringPtr(vnetToVnetDenyRuleDescription),
+		to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil, to.StringPtr(getDefaultDenyRuleName()),
 		armnetwork.SecurityRuleAccessDeny, appliedToGroupID.Name)
 	securityRules = append(securityRules, securityRule)
 
