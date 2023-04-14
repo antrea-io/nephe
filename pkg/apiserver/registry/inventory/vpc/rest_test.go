@@ -18,7 +18,7 @@ import (
 	"sort"
 	"testing"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/internalversion"
@@ -115,7 +115,6 @@ var _ = Describe("VPC", func() {
 	}
 
 	Describe("Test Get function of Rest", func() {
-		By("Test Get function of Rest")
 		for i, cachedVpc := range cachedVpcs {
 			vpcMap := make(map[string]*runtimev1alpha1.Vpc)
 			vpcMap[cachedVpc.Status.CloudId] = cachedVpc
@@ -135,7 +134,6 @@ var _ = Describe("VPC", func() {
 	})
 
 	Describe("Test List function of Rest", func() {
-		By("Test List function of Rest")
 		expectedPolicyList1 := &runtimev1alpha1.VpcList{
 			Items: []runtimev1alpha1.Vpc{
 				{
@@ -310,7 +308,6 @@ var _ = Describe("VPC", func() {
 		},
 	}
 	Describe("Test Convert table function of Rest", func() {
-		By("Test Convert table function of Rest")
 		vpcMap := make(map[string]*runtimev1alpha1.Vpc)
 		vpcMap[cacheTest4.Status.CloudId] = cacheTest4
 		namespacedName := types.NamespacedName{Namespace: cacheTest4.Namespace, Name: accountNamespacedName.Name}
@@ -350,7 +347,6 @@ var _ = Describe("VPC", func() {
 	}
 
 	Describe("Test Watch function of Rest", func() {
-		By("Test Watch function of Rest")
 		cloudInventory1 := inventory.InitInventory()
 		vpcMap := make(map[string]*runtimev1alpha1.Vpc)
 		namespacedName := types.NamespacedName{Namespace: accountNamespacedName.Namespace, Name: accountNamespacedName.Name}

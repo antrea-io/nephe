@@ -19,8 +19,7 @@ import (
 	"reflect"
 
 	mock "github.com/golang/mock/gomock"
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -124,41 +123,41 @@ var _ = Describe("Externalentity", func() {
 	}
 
 	Context("Source has required information", func() {
-		table.DescribeTable("GetEndPointAddresses",
+		DescribeTable("GetEndPointAddresses",
 			func(name string) {
 				getEndPointAddressesTester(name)
 			},
-			table.Entry("VirtualMachine", "VirtualMachine"))
+			Entry("VirtualMachine", "VirtualMachine"))
 
-		table.DescribeTable("GetEndPointPort",
+		DescribeTable("GetEndPointPort",
 			func(name string, hasPort bool) {
 				getEndPointPortTester(name, hasPort)
 			},
-			table.Entry("VirtualMachine", "VirtualMachine", false))
+			Entry("VirtualMachine", "VirtualMachine", false))
 
-		table.DescribeTable("GetTags",
+		DescribeTable("GetTags",
 			func(name string, hasTags bool) {
 				getTagsTester(name, hasTags)
 			},
-			table.Entry("VirtualMachine", "VirtualMachine", true))
+			Entry("VirtualMachine", "VirtualMachine", true))
 
-		table.DescribeTable("GetLabels",
+		DescribeTable("GetLabels",
 			func(name string, hasLabels bool) {
 				getLabelsTester(name, hasLabels)
 			},
-			table.Entry("VirtualMachine", "VirtualMachine", true))
+			Entry("VirtualMachine", "VirtualMachine", true))
 
-		table.DescribeTable("Copy",
+		DescribeTable("Copy",
 			func(name string) {
 				copyTester(name)
 			},
-			table.Entry("VirtualMachine", "VirtualMachine"))
+			Entry("VirtualMachine", "VirtualMachine"))
 
-		table.DescribeTable("EmbedType",
+		DescribeTable("EmbedType",
 			func(name string, expType interface{}) {
 				embedTypeTester(name, expType)
 			},
-			table.Entry("VirtualMachine", "VirtualMachine", &runtimev1alpha1.VirtualMachine{}))
+			Entry("VirtualMachine", "VirtualMachine", &runtimev1alpha1.VirtualMachine{}))
 	})
 
 	Context("Source does not have required information", func() {
@@ -168,17 +167,17 @@ var _ = Describe("Externalentity", func() {
 			externalEntitySources = testing.SetupExternalEntitySources([]string{}, namespace)
 		})
 
-		table.DescribeTable("GetEndPointAddresses",
+		DescribeTable("GetEndPointAddresses",
 			func(name string) {
 				getEndPointAddressesTester(name)
 			},
-			table.Entry("VirtualMachine", "VirtualMachine"))
+			Entry("VirtualMachine", "VirtualMachine"))
 
-		table.DescribeTable("GetEndPointPort",
+		DescribeTable("GetEndPointPort",
 			func(name string, hasPort bool) {
 				getEndPointPortTester(name, hasPort)
 			},
-			table.Entry("VirtualMachine", "VirtualMachine", false))
+			Entry("VirtualMachine", "VirtualMachine", false))
 	})
 
 })

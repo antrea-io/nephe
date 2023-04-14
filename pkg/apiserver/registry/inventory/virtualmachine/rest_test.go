@@ -19,7 +19,7 @@ import (
 	"sort"
 	"testing"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/internalversion"
@@ -113,7 +113,6 @@ var _ = Describe("Virtual Machine", func() {
 	}
 
 	Describe("Test Get function of Rest", func() {
-		By("Test Get function of Rest")
 		for i, cachedVM := range cachedVMs {
 			vmMap := make(map[string]*runtimev1alpha1.VirtualMachine)
 			vmMap[cachedVM.Name] = cachedVM
@@ -132,7 +131,6 @@ var _ = Describe("Virtual Machine", func() {
 	})
 
 	Describe("Test List function of Rest", func() {
-		By("Test List function of Rest")
 		expectedVMList1 := &runtimev1alpha1.VirtualMachineList{
 			Items: []runtimev1alpha1.VirtualMachine{
 				*cacheTest1,
@@ -187,7 +185,6 @@ var _ = Describe("Virtual Machine", func() {
 	})
 
 	Describe("Test Convert table function of Rest", func() {
-		By("Test Convert table function of Rest")
 		cacheTest4 := &runtimev1alpha1.VirtualMachine{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: "non-default1",
@@ -260,7 +257,6 @@ var _ = Describe("Virtual Machine", func() {
 		{Type: watch.Deleted, Object: cacheTest5},
 	}
 	Describe("Test Watch function of Rest", func() {
-		By("Test Watch function of Rest")
 		cloudInventory1 := inventory.InitInventory()
 		vmMap := make(map[string]*runtimev1alpha1.VirtualMachine)
 		namespacedName := types.NamespacedName{Namespace: accountNamespacedName.Namespace, Name: accountNamespacedName.Name}

@@ -21,8 +21,7 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
@@ -68,11 +67,11 @@ var _ = Describe(fmt.Sprintf("%s,%s: Basic CRD Read-Write", focusAws, focusAzure
 	)
 
 	AfterEach(func() {
-		result := CurrentGinkgoTestDescription()
-		if result.Failed {
+		result := CurrentSpecReport()
+		if result.Failed() {
 			if len(supportBundleDir) > 0 {
 				logf.Log.Info("Collect support bundles for test failure.")
-				fileName := utils.GenerateNameFromText(result.FullTestText, testFocus)
+				fileName := utils.GenerateNameFromText(result.FullText(), testFocus)
 				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName), cloudVPC, withAgent, withWindows)
 			}
 		}
@@ -160,7 +159,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: Basic CRD Read-Write", focusAws, focusAzure
 		time.Sleep(1 * time.Second)
 	}
 
-	table.DescribeTable("Modifying CRDs",
+	DescribeTable("Modifying CRDs",
 		func(crd client.Object, createNS, deleteNS, createAccount, deleteAccount func()) {
 			if createNS != nil {
 				createNS()
@@ -197,7 +196,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: Basic CRD Read-Write", focusAws, focusAzure
 				deleteNS()
 			}
 		},
-		table.Entry("CloudEntitySelector", selector, createNS, nil, createAccount, deleteAccount),
-		table.Entry("ExternalEntity", &antreatypes.ExternalEntity{}, nil, deleteNS, nil, nil),
+		Entry("CloudEntitySelector", selector, createNS, nil, createAccount, deleteAccount),
+		Entry("ExternalEntity", &antreatypes.ExternalEntity{}, nil, deleteNS, nil, nil),
 	)
 })

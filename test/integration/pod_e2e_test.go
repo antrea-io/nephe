@@ -23,8 +23,7 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -88,11 +87,11 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Pods", focusAws, focusAzur
 	})
 
 	AfterEach(func() {
-		result := CurrentGinkgoTestDescription()
-		if result.Failed {
+		result := CurrentSpecReport()
+		if result.Failed() {
 			if len(supportBundleDir) > 0 {
 				logf.Log.Info("Collect support bundles for test failure.")
-				fileName := utils.GenerateNameFromText(result.FullTestText, testFocus)
+				fileName := utils.GenerateNameFromText(result.FullText(), testFocus)
 				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName), cloudVPC, withAgent, withWindows)
 			}
 			if preserveSetupOnFail {
@@ -153,7 +152,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Pods", focusAws, focusAzur
 		Expect(err).ToNot(HaveOccurred())
 	}
 
-	table.DescribeTable("Egress",
+	DescribeTable("Egress",
 		func(kind string, importFirst, diffNS bool) {
 			if !diffNS {
 				vmNamespace = namespace
@@ -224,13 +223,13 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Pods", focusAws, focusAzur
 				Expect(err).ToNot(HaveOccurred())
 			}
 		},
-		table.Entry("To VM In Same Namespace",
+		Entry("To VM In Same Namespace",
 			reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name(), true, false),
-		table.Entry("To VM In Different Namespace",
+		Entry("To VM In Different Namespace",
 			reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name(), true, true),
-		table.Entry("To VM In Same Namespace Before Import",
+		Entry("To VM In Same Namespace Before Import",
 			reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name(), false, false),
-		table.Entry("To VM In Different Namespace Before Import",
+		Entry("To VM In Different Namespace Before Import",
 			reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name(), false, true),
 	)
 })

@@ -26,8 +26,7 @@ import (
 
 	mock "github.com/golang/mock/gomock"
 	"github.com/mohae/deepcopy"
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1246,7 +1245,7 @@ var _ = Describe("NetworkPolicy", func() {
 			},
 		}
 	)
-	table.DescribeTable("NetworkPolicy groups operation failures",
+	DescribeTable("NetworkPolicy groups operation failures",
 		func(op string, retries int) {
 			if op == "K8sGet" {
 				// Use single member per SG to avoid expectation ambiguity.
@@ -1279,21 +1278,21 @@ var _ = Describe("NetworkPolicy", func() {
 			}
 			Expect(len(reconciler.retryQueue.items)).To(BeZero())
 		},
-		table.Entry("K8sGet failure count 1", "K8sGet", 1),
-		table.Entry("K8sGet failure count 3", "K8sGet", 3),
-		table.Entry("K8sGet failure count exceeds limits", "K8sGet", operationCount+2),
-		table.Entry("Create failure count 1", securityGroupOperationAdd.String(), 1),
-		table.Entry("Create failure count 3", securityGroupOperationAdd.String(), 3),
-		table.Entry("Create failure count exceeds limits", securityGroupOperationAdd.String(), operationCount+2),
-		table.Entry("Update failure count 1", securityGroupOperationUpdateMembers.String(), 1),
-		table.Entry("Update failure count 3", securityGroupOperationUpdateMembers.String(), 3),
-		table.Entry("Update failure count exceeds limits", securityGroupOperationUpdateMembers.String(), operationCount+2),
-		table.Entry("Update rule failure count 1", securityGroupOperationUpdateRules.String(), 1),
-		table.Entry("Update rule failure count 3", securityGroupOperationUpdateRules.String(), 3),
-		table.Entry("Update rule failure count exceeds limits", securityGroupOperationUpdateRules.String(), operationCount+2),
+		Entry("K8sGet failure count 1", "K8sGet", 1),
+		Entry("K8sGet failure count 3", "K8sGet", 3),
+		Entry("K8sGet failure count exceeds limits", "K8sGet", operationCount+2),
+		Entry("Create failure count 1", securityGroupOperationAdd.String(), 1),
+		Entry("Create failure count 3", securityGroupOperationAdd.String(), 3),
+		Entry("Create failure count exceeds limits", securityGroupOperationAdd.String(), operationCount+2),
+		Entry("Update failure count 1", securityGroupOperationUpdateMembers.String(), 1),
+		Entry("Update failure count 3", securityGroupOperationUpdateMembers.String(), 3),
+		Entry("Update failure count exceeds limits", securityGroupOperationUpdateMembers.String(), operationCount+2),
+		Entry("Update rule failure count 1", securityGroupOperationUpdateRules.String(), 1),
+		Entry("Update rule failure count 3", securityGroupOperationUpdateRules.String(), 3),
+		Entry("Update rule failure count exceeds limits", securityGroupOperationUpdateRules.String(), operationCount+2),
 	)
 
-	table.DescribeTable("NetworkPolicy groups delete operation failures",
+	DescribeTable("NetworkPolicy groups delete operation failures",
 		func(op string, retries int) {
 			itemCnt := len(anp.Rules) + len(anp.AppliedToGroups)
 			createAndVerifyNP(false)
@@ -1317,12 +1316,12 @@ var _ = Describe("NetworkPolicy", func() {
 			}
 			Expect(len(reconciler.retryQueue.items)).To(BeZero())
 		},
-		table.Entry("Delete failure count 1", securityGroupOperationDelete.String(), 1),
-		table.Entry("Delete failure count 3", securityGroupOperationDelete.String(), 3),
-		table.Entry("Delete failure count exceeds limits", securityGroupOperationDelete.String(), operationCount+2),
+		Entry("Delete failure count 1", securityGroupOperationDelete.String(), 1),
+		Entry("Delete failure count 3", securityGroupOperationDelete.String(), 3),
+		Entry("Delete failure count exceeds limits", securityGroupOperationDelete.String(), operationCount+2),
 	)
 
-	table.DescribeTable("NetworkPolicy group deletion cancels retrying operation",
+	DescribeTable("NetworkPolicy group deletion cancels retrying operation",
 		func(op string) {
 			if op == "K8sGet" {
 				// Use single member per SG to avoid expectation ambiguity.
@@ -1340,10 +1339,10 @@ var _ = Describe("NetworkPolicy", func() {
 			Expect(len(reconciler.addrSGIndexer.ListKeys())).To(BeZero())
 			Expect(len(reconciler.networkPolicyIndexer.ListKeys())).To(BeZero())
 		},
-		table.Entry("K8sGet", "K8sGet"),
-		table.Entry("Create", securityGroupOperationAdd.String()),
-		table.Entry("Update", securityGroupOperationUpdateMembers.String()),
-		table.Entry("Update rule", securityGroupOperationUpdateRules.String()),
+		Entry("K8sGet", "K8sGet"),
+		Entry("Create", securityGroupOperationAdd.String()),
+		Entry("Update", securityGroupOperationUpdateMembers.String()),
+		Entry("Update rule", securityGroupOperationUpdateRules.String()),
 	)
 
 	const (
@@ -1389,7 +1388,7 @@ var _ = Describe("NetworkPolicy", func() {
 		}
 	)
 
-	table.DescribeTable("NetworkPolicy synchronize with cloud",
+	DescribeTable("NetworkPolicy synchronize with cloud",
 		func(cloudRet int) {
 			extraSG := securitygroup.SynchronizationContent{
 				Resource: securitygroup.CloudResource{
@@ -1445,10 +1444,10 @@ var _ = Describe("NetworkPolicy", func() {
 			reconciler.syncWithCloud()
 			wait()
 		},
-		table.Entry("Cloud has no security group", cloudReturnNoSG),
-		table.Entry("Cloud has matching security group", cloudReturnSameSG),
-		table.Entry("Cloud has mismatch security group member", cloudReturnDiffMemberSG),
-		table.Entry("Cloud has mismatch security group rule", cloudReturnDiffRuleSG),
-		table.Entry("Cloud has extra security group", cloudReturnExtraSG),
+		Entry("Cloud has no security group", cloudReturnNoSG),
+		Entry("Cloud has matching security group", cloudReturnSameSG),
+		Entry("Cloud has mismatch security group member", cloudReturnDiffMemberSG),
+		Entry("Cloud has mismatch security group rule", cloudReturnDiffRuleSG),
+		Entry("Cloud has extra security group", cloudReturnExtraSG),
 	)
 })

@@ -20,8 +20,7 @@ import (
 	"time"
 
 	mock "github.com/golang/mock/gomock"
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -348,29 +347,29 @@ var _ = Describe("VirtualMachineConverter", func() {
 			JustBeforeEach(func() {
 				externalEntityGetErr = errors.NewNotFound(schema.GroupResource{}, "")
 			})
-			table.DescribeTable("When source is",
+			DescribeTable("When source is",
 				func(name string) {
 					tester(name, "create")
 				},
-				table.Entry("VirtualMachineSource", "VirtualMachine"),
+				Entry("VirtualMachineSource", "VirtualMachine"),
 			)
 		})
 
 		Context("Should patch when ExternalEntity is found", func() {
-			table.DescribeTable("When source is",
+			DescribeTable("When source is",
 				func(name string) {
 					tester(name, "patchAddon")
 				},
-				table.Entry("VirtualMachineSource", "VirtualMachine"),
+				Entry("VirtualMachineSource", "VirtualMachine"),
 			)
 		})
 
 		Context("Should patch back when ExternalEntity is found", func() {
-			table.DescribeTable("When source is",
+			DescribeTable("When source is",
 				func(name string) {
 					tester(name, "patch")
 				},
-				table.Entry("VirtualMachineSource", "VirtualMachine"),
+				Entry("VirtualMachineSource", "VirtualMachine"),
 			)
 		})
 
@@ -378,11 +377,11 @@ var _ = Describe("VirtualMachineConverter", func() {
 			JustBeforeEach(func() {
 				isEmptyEvent = true
 			})
-			table.DescribeTable("When source is",
+			DescribeTable("When source is",
 				func(name string) {
 					tester(name, "delete")
 				},
-				table.Entry("VirtualMachineSource", "VirtualMachine"),
+				Entry("VirtualMachineSource", "VirtualMachine"),
 			)
 		})
 
@@ -391,11 +390,11 @@ var _ = Describe("VirtualMachineConverter", func() {
 				externalEntityGetErr = errors.NewNotFound(schema.GroupResource{}, "")
 				isEmptyEvent = true
 			})
-			table.DescribeTable("When source is",
+			DescribeTable("When source is",
 				func(name string) {
 					tester(name, "")
 				},
-				table.Entry("VirtualMachineSource", "VirtualMachine"),
+				Entry("VirtualMachineSource", "VirtualMachine"),
 			)
 		})
 
@@ -409,7 +408,7 @@ var _ = Describe("VirtualMachineConverter", func() {
 				JustBeforeEach(func() {
 					externalEntityGetErr = errors.NewNotFound(schema.GroupResource{}, "")
 				})
-				table.DescribeTable("When source is",
+				DescribeTable("When source is",
 					func(name string) {
 						tester(name, "create")
 						tester(name, "create")
@@ -421,12 +420,12 @@ var _ = Describe("VirtualMachineConverter", func() {
 						expectWaiTime = source.RetryInterval + time.Second*10
 						tester(name, "create")
 					},
-					table.Entry("VirtualMachineSource", "VirtualMachine"),
+					Entry("VirtualMachineSource", "VirtualMachine"),
 				)
 			})
 
 			Context("Should patch when ExternalEntity is found", func() {
-				table.DescribeTable("When source is",
+				DescribeTable("When source is",
 					func(name string) {
 						tester(name, "patch")
 
@@ -435,7 +434,7 @@ var _ = Describe("VirtualMachineConverter", func() {
 						expectWaiTime = source.RetryInterval + time.Second*10
 						tester(name, "patch")
 					},
-					table.Entry("VirtualMachineSource", "VirtualMachine"),
+					Entry("VirtualMachineSource", "VirtualMachine"),
 				)
 			})
 
@@ -443,7 +442,7 @@ var _ = Describe("VirtualMachineConverter", func() {
 				JustBeforeEach(func() {
 					isEmptyEvent = true
 				})
-				table.DescribeTable("When source is",
+				DescribeTable("When source is",
 					func(name string) {
 						tester(name, "delete")
 
@@ -452,7 +451,7 @@ var _ = Describe("VirtualMachineConverter", func() {
 						expectWaiTime = source.RetryInterval + time.Second*10
 						tester(name, "delete")
 					},
-					table.Entry("VirtualMachineSource", "VirtualMachine"),
+					Entry("VirtualMachineSource", "VirtualMachine"),
 				)
 			})
 		})
@@ -593,29 +592,29 @@ var _ = Describe("VirtualMachineConverter", func() {
 			JustBeforeEach(func() {
 				externalNodeGetErr = errors.NewNotFound(schema.GroupResource{}, "")
 			})
-			table.DescribeTable("When source is",
+			DescribeTable("When source is",
 				func(name string) {
 					tester(name, "create")
 				},
-				table.Entry("VirtualMachineSource", "VirtualMachine"),
+				Entry("VirtualMachineSource", "VirtualMachine"),
 			)
 		})
 
 		Context("Should patch when ExternalNode is found", func() {
-			table.DescribeTable("When source is",
+			DescribeTable("When source is",
 				func(name string) {
 					tester(name, "patch")
 				},
-				table.Entry("VirtualMachineSource", "VirtualMachine"),
+				Entry("VirtualMachineSource", "VirtualMachine"),
 			)
 		})
 
 		Context("Should patch when ExternalNode is found", func() {
-			table.DescribeTable("When source is",
+			DescribeTable("When source is",
 				func(name string) {
 					tester(name, "patchAddon")
 				},
-				table.Entry("VirtualMachineSource", "VirtualMachine"),
+				Entry("VirtualMachineSource", "VirtualMachine"),
 			)
 		})
 
@@ -623,11 +622,11 @@ var _ = Describe("VirtualMachineConverter", func() {
 			JustBeforeEach(func() {
 				isEmptyEvent = true
 			})
-			table.DescribeTable("When source is",
+			DescribeTable("When source is",
 				func(name string) {
 					tester(name, "delete")
 				},
-				table.Entry("VirtualMachineSource", "VirtualMachine"),
+				Entry("VirtualMachineSource", "VirtualMachine"),
 			)
 		})
 
@@ -636,11 +635,11 @@ var _ = Describe("VirtualMachineConverter", func() {
 				externalNodeGetErr = errors.NewNotFound(schema.GroupResource{}, "")
 				isEmptyEvent = true
 			})
-			table.DescribeTable("When source is",
+			DescribeTable("When source is",
 				func(name string) {
 					tester(name, "")
 				},
-				table.Entry("VirtualMachineSource", "VirtualMachine"),
+				Entry("VirtualMachineSource", "VirtualMachine"),
 			)
 		})
 
@@ -654,7 +653,7 @@ var _ = Describe("VirtualMachineConverter", func() {
 				JustBeforeEach(func() {
 					externalNodeGetErr = errors.NewNotFound(schema.GroupResource{}, "")
 				})
-				table.DescribeTable("When source is",
+				DescribeTable("When source is",
 					func(name string) {
 						tester(name, "create")
 						tester(name, "create")
@@ -666,12 +665,12 @@ var _ = Describe("VirtualMachineConverter", func() {
 						expectWaiTime = source.RetryInterval + time.Second*10
 						tester(name, "create")
 					},
-					table.Entry("VirtualMachineSource", "VirtualMachine"),
+					Entry("VirtualMachineSource", "VirtualMachine"),
 				)
 			})
 
 			Context("Should patch when ExternalNode is found", func() {
-				table.DescribeTable("When source is",
+				DescribeTable("When source is",
 					func(name string) {
 						tester(name, "patch")
 
@@ -680,7 +679,7 @@ var _ = Describe("VirtualMachineConverter", func() {
 						expectWaiTime = source.RetryInterval + time.Second*10
 						tester(name, "patch")
 					},
-					table.Entry("VirtualMachineSource", "VirtualMachine"),
+					Entry("VirtualMachineSource", "VirtualMachine"),
 				)
 			})
 		})

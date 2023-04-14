@@ -41,10 +41,10 @@ if this test spec should be run in zero or more test suites.
 
 ### Dependencies
 
-1. Install [ginkgo v1.16.5](https://onsi.github.io/ginkgo/).
+1. Install [ginkgo v2.5.0](https://onsi.github.io/ginkgo/).
 
    ```bash
-   go install github.com/onsi/ginkgo/ginkgo@v1.16.5
+   go install github.com/onsi/ginkgo/v2@v2.5.0
    export PATH=$PATH:$(go env GOPATH)/bin
    ```
 

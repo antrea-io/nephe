@@ -22,8 +22,7 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -73,11 +72,11 @@ var _ = Describe(fmt.Sprintf("%s,%s: ExternalEntity", focusAws, focusAzure), fun
 	})
 
 	AfterEach(func() {
-		result := CurrentGinkgoTestDescription()
-		if result.Failed {
+		result := CurrentSpecReport()
+		if result.Failed() {
 			if len(supportBundleDir) > 0 {
 				logf.Log.Info("Collect support bundles for test failure.")
-				fileName := utils.GenerateNameFromText(result.FullTestText, testFocus)
+				fileName := utils.GenerateNameFromText(result.FullText(), testFocus)
 				utils.CollectSupportBundle(kubeCtl, path.Join(supportBundleDir, fileName), cloudVPC, withAgent, withWindows)
 			}
 			if preserveSetupOnFail {
@@ -182,14 +181,14 @@ var _ = Describe(fmt.Sprintf("%s,%s: ExternalEntity", focusAws, focusAzure), fun
 		Expect(err).ToNot(HaveOccurred())
 		checkRemoved(eeFetchKey, externalEntity)
 	}
-	table.DescribeTable("Test ExternalEntity Life cycle",
+	DescribeTable("Test ExternalEntity Life cycle",
 		func(kind string, hasNic, hasPort bool) {
 			// TODO: VM CRD is no longer present
 			Skip("Change logic of the test")
 			tester(kind, len(expectedEndpoints), hasNic, hasPort)
 		},
 		//
-		table.Entry("VirtualMachine", "VirtualMachine", true, false),
+		Entry("VirtualMachine", "VirtualMachine", true, false),
 	)
 
 	Context("After reboot", func() {
@@ -197,13 +196,13 @@ var _ = Describe(fmt.Sprintf("%s,%s: ExternalEntity", focusAws, focusAzure), fun
 			restartController = true
 		})
 
-		table.DescribeTable("Test ExternalEntity Life cycle",
+		DescribeTable("Test ExternalEntity Life cycle",
 			func(kind string, hasNic, hasPort bool) {
 				// TODO: VM CRD is no longer present
 				Skip("Change logic of the test")
 				tester(kind, len(expectedEndpoints), hasNic, hasPort)
 			},
-			table.Entry("VirtualMachine", "VirtualMachine", true, false),
+			Entry("VirtualMachine", "VirtualMachine", true, false),
 		)
 	})
 })
