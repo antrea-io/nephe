@@ -95,9 +95,11 @@ func (mr *MockInterfaceMockRecorder) RemoveAccount(arg0 interface{}) *gomock.Cal
 }
 
 // RemoveResourceFiltersFromAccount mocks base method.
-func (m *MockInterface) RemoveResourceFiltersFromAccount(arg0, arg1 *types.NamespacedName) {
+func (m *MockInterface) RemoveResourceFiltersFromAccount(arg0, arg1 *types.NamespacedName) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "RemoveResourceFiltersFromAccount", arg0, arg1)
+	ret := m.ctrl.Call(m, "RemoveResourceFiltersFromAccount", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // RemoveResourceFiltersFromAccount indicates an expected call of RemoveResourceFiltersFromAccount.
