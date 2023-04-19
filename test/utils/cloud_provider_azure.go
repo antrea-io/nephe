@@ -217,7 +217,7 @@ func (p *azureVPC) Reapply(timeout time.Duration, withAgent bool) error {
 	return err
 }
 
-func (p *azureVPC) GetCloudAccountParameters(name, namespace string) k8stemplates.CloudAccountParameters {
+func (p *azureVPC) GetCloudAccountParameters(name, namespace string, useInvalidCred bool) k8stemplates.CloudAccountParameters {
 	p.currentAccountName = name
 	out := k8stemplates.CloudAccountParameters{
 		Name:      name,
@@ -231,11 +231,17 @@ func (p *azureVPC) GetCloudAccountParameters(name, namespace string) k8stemplate
 	}
 	out.Azure.Location = strings.ReplaceAll(p.output["location"].(map[string]interface{})["value"].(string), " ", "")
 
-	cred := crdv1alpha1.AzureAccountCredential{
-		SubscriptionID: os.Getenv("TF_VAR_azure_client_subscription_id"),
-		ClientID:       os.Getenv("TF_VAR_azure_client_id"),
-		TenantID:       os.Getenv("TF_VAR_azure_client_tenant_id"),
-		ClientKey:      os.Getenv("TF_VAR_azure_client_secret"),
+	cred := crdv1alpha1.AzureAccountCredential{}
+	if useInvalidCred {
+		cred.SubscriptionID = "dummySubscriptionId"
+		cred.ClientID = "dummyClientId"
+		cred.TenantID = "dummyTenantId"
+		cred.ClientKey = "dummyClientKey"
+	} else {
+		cred.SubscriptionID = os.Getenv("TF_VAR_azure_client_subscription_id")
+		cred.ClientID = os.Getenv("TF_VAR_azure_client_id")
+		cred.TenantID = os.Getenv("TF_VAR_azure_client_tenant_id")
+		cred.ClientKey = os.Getenv("TF_VAR_azure_client_secret")
 	}
 	secretString, _ := json.Marshal(cred)
 	out.SecretRef.Credential = string(secretString)

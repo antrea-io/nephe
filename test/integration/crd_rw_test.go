@@ -78,7 +78,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: Basic CRD Read-Write", focusAws, focusAzure
 	})
 
 	setCloudAccount := func() {
-		accountParameters := cloudVPC.GetCloudAccountParameters(testAccountName, nameSpaceName)
+		accountParameters := cloudVPC.GetCloudAccountParameters(testAccountName, nameSpaceName, false)
 		cloudProvider = strings.Split(cloudProviders, ",")[0]
 		switch cloudProvider {
 		case string(runtimev1alpha1.AWSCloudProvider):
@@ -140,7 +140,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: Basic CRD Read-Write", focusAws, focusAzure
 	}
 	createAccount := func() {
 		setCloudAccount()
-		logf.Log.Info("Create", "secret", secret)
+		logf.Log.Info("Create", "secret", secret.Name)
 		err := k8sClient.Create(context.TODO(), secret)
 		Expect(err).ToNot(HaveOccurred())
 		logf.Log.Info("Create", "account", account)

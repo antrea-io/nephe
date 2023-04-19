@@ -15,6 +15,7 @@
 package cloudentityselector
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -34,6 +35,7 @@ import (
 	antreanetworking "antrea.io/antrea/pkg/apis/controlplane/v1beta2"
 	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	ctrlsync "antrea.io/nephe/pkg/controllers/sync"
 	mockaccmanager "antrea.io/nephe/pkg/testing/accountmanager"
 )
 
@@ -62,7 +64,7 @@ var _ = Describe("CloudEntitySelector Controller", func() {
 			testAccountNamespacedName  = types.NamespacedName{Namespace: "namespace01", Name: "account01"}
 			testSelectorNamespacedName = types.NamespacedName{Namespace: "namespace01", Name: "selector01"}
 			selector                   *crdv1alpha1.CloudEntitySelector
-			cesReconciler              *CloudEntitySelectorReconciler
+			reconciler                 *CloudEntitySelectorReconciler
 			fakeClient                 client.WithWatch
 		)
 		BeforeEach(func() {
@@ -73,7 +75,7 @@ var _ = Describe("CloudEntitySelector Controller", func() {
 			fakeClient = fake.NewClientBuilder().WithScheme(newScheme).Build()
 			mockCtrl = mock.NewController(GinkgoT())
 			mockAccManager = mockaccmanager.NewMockInterface(mockCtrl)
-			cesReconciler = &CloudEntitySelectorReconciler{
+			reconciler = &CloudEntitySelectorReconciler{
 				Log:                  logf.Log,
 				Client:               fakeClient,
 				Scheme:               scheme,
@@ -112,24 +114,80 @@ var _ = Describe("CloudEntitySelector Controller", func() {
 			mockAccManager.EXPECT().RemoveResourceFiltersFromAccount(&testAccountNamespacedName,
 				&testSelectorNamespacedName).Return().Times(1)
 
-			err := cesReconciler.processCreateOrUpdate(selector, &testSelectorNamespacedName)
+			err := reconciler.processCreateOrUpdate(selector, &testSelectorNamespacedName)
 			Expect(err).ShouldNot(HaveOccurred())
-			err = cesReconciler.processDelete(&testSelectorNamespacedName)
+			err = reconciler.processDelete(&testSelectorNamespacedName)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
-
 		It("CES Add failure", func() {
 			mockAccManager.EXPECT().AddResourceFiltersToAccount(&testAccountNamespacedName, &testSelectorNamespacedName,
 				selector).Return(false, fmt.Errorf("dummy")).Times(1)
 			mockAccManager.EXPECT().RemoveResourceFiltersFromAccount(&testAccountNamespacedName,
 				&testSelectorNamespacedName).Return().Times(1)
-			err := cesReconciler.processCreateOrUpdate(selector, &testSelectorNamespacedName)
+			err := reconciler.processCreateOrUpdate(selector, &testSelectorNamespacedName)
+			Expect(err).Should(HaveOccurred())
+		})
+		It("CES Delete failure", func() {
+			err := reconciler.processDelete(&testSelectorNamespacedName)
 			Expect(err).Should(HaveOccurred())
 		})
 
-		It("CES Delete failure", func() {
-			err := cesReconciler.processDelete(&testSelectorNamespacedName)
-			Expect(err).Should(HaveOccurred())
+		It("CloudEntitySelector start with no CRs", func() {
+			reconciler := &CloudEntitySelectorReconciler{
+				Log:    logf.Log,
+				Client: fakeClient,
+				Scheme: scheme,
+			}
+			ctrlsync.GetControllerSyncStatusInstance().Configure()
+			ctrlsync.GetControllerSyncStatusInstance().SetControllerSyncStatus(ctrlsync.ControllerTypeCPA)
+			// Start CES reconciler with 0 CRs, and verify sync status, pendingSyncCount and initialization status.
+			err := reconciler.Start(context.TODO())
+			Expect(err).Should(BeNil())
+			Expect(reconciler.pendingSyncCount).Should(Equal(0))
+			Expect(reconciler.initialized).Should(BeTrue())
+			val := ctrlsync.GetControllerSyncStatusInstance().IsControllerSynced(ctrlsync.ControllerTypeCES)
+			Expect(val).Should(BeTrue())
+		})
+		It("CloudEntitySelector start with one CR", func() {
+			testSelectorNamespacedName := types.NamespacedName{Namespace: "namespace01", Name: "selector01"}
+			selector := &crdv1alpha1.CloudEntitySelector{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
+				},
+			}
+			reconciler := &CloudEntitySelectorReconciler{
+				Log:    logf.Log,
+				Client: fakeClient,
+				Scheme: scheme,
+			}
+			_ = fakeClient.Create(context.Background(), selector)
+			ctrlsync.GetControllerSyncStatusInstance().Configure()
+			ctrlsync.GetControllerSyncStatusInstance().ResetControllerSyncStatus(ctrlsync.ControllerTypeCES)
+			ctrlsync.GetControllerSyncStatusInstance().SetControllerSyncStatus(ctrlsync.ControllerTypeCPA)
+			// Start CES reconciler with one CR and verify sync status, pendingSyncCount and initialization status.
+			err := reconciler.Start(context.TODO())
+			Expect(err).Should(BeNil())
+			Expect(reconciler.pendingSyncCount).Should(Equal(1))
+			Expect(reconciler.initialized).Should(BeTrue())
+			val := ctrlsync.GetControllerSyncStatusInstance().IsControllerSynced(ctrlsync.ControllerTypeCES)
+			Expect(val).Should(BeFalse())
+		})
+		It("CloudEntitySelector set pending sync count to 1", func() {
+			ctrlsync.GetControllerSyncStatusInstance().Configure()
+			ctrlsync.GetControllerSyncStatusInstance().ResetControllerSyncStatus(ctrlsync.ControllerTypeCES)
+			reconciler.pendingSyncCount = 1
+			reconciler.updatePendingSyncCountAndStatus()
+			val := ctrlsync.GetControllerSyncStatusInstance().IsControllerSynced(ctrlsync.ControllerTypeCES)
+			Expect(val).Should(BeTrue())
+		})
+		It("CloudEntitySelector set pending sync count to 2", func() {
+			ctrlsync.GetControllerSyncStatusInstance().Configure()
+			ctrlsync.GetControllerSyncStatusInstance().ResetControllerSyncStatus(ctrlsync.ControllerTypeCES)
+			reconciler.pendingSyncCount = 2
+			reconciler.updatePendingSyncCountAndStatus()
+			val := ctrlsync.GetControllerSyncStatusInstance().IsControllerSynced(ctrlsync.ControllerTypeCES)
+			Expect(val).Should(BeFalse())
 		})
 	})
 })

@@ -163,8 +163,8 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Pods", focusAws, focusAzur
 				err := k8sClient.Create(context.TODO(), vmNamespace)
 				Expect(err).ToNot(HaveOccurred())
 			}
-			accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account", vmNamespace.Name)
-			err := utils.AddCloudAccount(kubeCtl, accountParams)
+			accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account", vmNamespace.Name, false)
+			err := utils.AddOrRemoveCloudAccount(kubeCtl, accountParams, false)
 			Expect(err).ToNot(HaveOccurred())
 
 			if importFirst {
@@ -222,6 +222,8 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Pods", focusAws, focusAzur
 				err = utils.ExecuteCurlCmds(nil, kubeCtl, []string{pods[0]}, namespace.Name, []string{ip}, fmt.Sprint(port), []bool{true}, 2)
 				Expect(err).ToNot(HaveOccurred())
 			}
+			err = utils.AddOrRemoveCloudAccount(kubeCtl, accountParams, true)
+			Expect(err).ToNot(HaveOccurred())
 		},
 		Entry("To VM In Same Namespace",
 			reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name(), true, false),
