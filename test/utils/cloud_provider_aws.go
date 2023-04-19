@@ -185,7 +185,7 @@ func (p *awsVPC) Reapply(timeout time.Duration, withAgent bool) error {
 	return err
 }
 
-func (p *awsVPC) GetCloudAccountParameters(name, namespace string) k8stemplates.CloudAccountParameters {
+func (p *awsVPC) GetCloudAccountParameters(name, namespace string, useInvalidCred bool) k8stemplates.CloudAccountParameters {
 	p.currentAccountName = name
 	out := k8stemplates.CloudAccountParameters{
 		Name:      name,
@@ -200,16 +200,22 @@ func (p *awsVPC) GetCloudAccountParameters(name, namespace string) k8stemplates.
 	out.Aws.Region = p.output["region"].(map[string]interface{})["value"].(string)
 
 	cred := v1alpha1.AwsAccountCredential{}
-	// use role access if cloud cluster and the role is set in env variable
-	nepheCi := os.Getenv("NEPHE_CI")
-	if len(nepheCi) != 0 {
-		cred.RoleArn = os.Getenv("NEPHE_CI_AWS_ROLE_ARN")
-		cred.AccessKeyID = os.Getenv("NEPHE_CI_AWS_ACCESS_KEY_ID")
-		cred.AccessKeySecret = os.Getenv("NEPHE_CI_AWS_SECRET_ACCESS_KEY")
+	if useInvalidCred {
+		cred.RoleArn = "dummyRoleArn"
+		cred.AccessKeyID = "dummyAccessKeyId"
+		cred.AccessKeySecret = "dummySecretAccessKey"
 	} else {
-		cred.RoleArn = os.Getenv("TF_VAR_nephe_controller_role_arn")
-		cred.AccessKeyID = os.Getenv("AWS_ACCESS_KEY_ID")
-		cred.AccessKeySecret = os.Getenv("AWS_SECRET_ACCESS_KEY")
+		// use role access if cloud cluster and the role is set in env variable
+		nepheCi := os.Getenv("NEPHE_CI")
+		if len(nepheCi) != 0 {
+			cred.RoleArn = os.Getenv("NEPHE_CI_AWS_ROLE_ARN")
+			cred.AccessKeyID = os.Getenv("NEPHE_CI_AWS_ACCESS_KEY_ID")
+			cred.AccessKeySecret = os.Getenv("NEPHE_CI_AWS_SECRET_ACCESS_KEY")
+		} else {
+			cred.RoleArn = os.Getenv("TF_VAR_nephe_controller_role_arn")
+			cred.AccessKeyID = os.Getenv("AWS_ACCESS_KEY_ID")
+			cred.AccessKeySecret = os.Getenv("AWS_SECRET_ACCESS_KEY")
+		}
 	}
 	secretString, _ := json.Marshal(cred)
 	out.SecretRef.Credential = string(secretString)

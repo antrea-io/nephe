@@ -188,8 +188,8 @@ func GetServiceClusterIPPort(k8sClient client.Client, name, namespace string) (s
 	return service.Spec.ClusterIP, service.Spec.Ports[0].Port, nil
 }
 
-// AddCloudAccount adds cloud account name to namespace.
-func AddCloudAccount(kubeCtl *KubeCtl, params k8stemplates.CloudAccountParameters) error {
+// AddOrRemoveCloudAccount adds or removes CloudProviderAccount CR and Secret from a namespace.
+func AddOrRemoveCloudAccount(kubeCtl *KubeCtl, params k8stemplates.CloudAccountParameters, delete bool) error {
 	var t string
 	switch params.Provider {
 	case string(runtimev1alpha1.AWSCloudProvider):
@@ -200,50 +200,19 @@ func AddCloudAccount(kubeCtl *KubeCtl, params k8stemplates.CloudAccountParameter
 		return fmt.Errorf("unknown cloud provider %v", params.Provider)
 	}
 
-	// apply secret
+	// apply secret.
 	s := k8stemplates.AccountSecretParameters{
 		Name:       params.SecretRef.Name,
 		Namespace:  params.SecretRef.Namespace,
 		Key:        params.SecretRef.Key,
 		Credential: base64.StdEncoding.EncodeToString([]byte(params.SecretRef.Credential)),
 	}
-	if err := ConfigureK8s(kubeCtl, s, k8stemplates.AccountSecret, false); err != nil {
+	if err := ConfigureK8s(kubeCtl, s, k8stemplates.AccountSecret, delete); err != nil {
 		return err
 	}
 
-	// apply CloudProviderAccount
-	if err := ConfigureK8s(kubeCtl, params, t, false); err != nil {
-		return err
-	}
-	return nil
-}
-
-// DeleteCloudAccount deletes cloud account name from namespace.
-func DeleteCloudAccount(kubeCtl *KubeCtl, params k8stemplates.CloudAccountParameters) error {
-	var t string
-	switch params.Provider {
-	case string(runtimev1alpha1.AWSCloudProvider):
-		t = k8stemplates.AWSCloudAccount
-	case string(runtimev1alpha1.AzureCloudProvider):
-		t = k8stemplates.AzureCloudAccount
-	default:
-		return fmt.Errorf("unknown cloud provider %v", params.Provider)
-	}
-
-	// secret
-	s := k8stemplates.AccountSecretParameters{
-		Name:       params.SecretRef.Name,
-		Namespace:  params.SecretRef.Namespace,
-		Key:        params.SecretRef.Key,
-		Credential: base64.StdEncoding.EncodeToString([]byte(params.SecretRef.Credential)),
-	}
-
-	// delete CloudProviderAccount
-	if err := ConfigureK8s(kubeCtl, params, t, true); err != nil {
-		return err
-	}
-
-	if err := ConfigureK8s(kubeCtl, s, k8stemplates.AccountSecret, true); err != nil {
+	// apply CloudProviderAccount.
+	if err := ConfigureK8s(kubeCtl, params, t, delete); err != nil {
 		return err
 	}
 	return nil

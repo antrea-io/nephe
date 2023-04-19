@@ -48,6 +48,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 	)
 	var (
 		namespace            *v1.Namespace
+		accountParams        k8stemplates.CloudAccountParameters
 		anpParams            k8stemplates.ANPParameters
 		anpSetupParams       k8stemplates.ANPParameters
 		defaultANPParameters k8stemplates.DefaultANPParameters
@@ -109,6 +110,8 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		Expect(err).ToNot(HaveOccurred())
 		err = utils.CheckCloudResourceNetworkPolicies(kubeCtl, k8sClient, reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name(), namespace.Name,
 			cloudVPC.GetVMs(), nil, withAgent)
+		Expect(err).ToNot(HaveOccurred())
+		err = utils.AddOrRemoveCloudAccount(kubeCtl, accountParams, true)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -184,8 +187,8 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 				Expect(err).ToNot(HaveOccurred())
 				logf.Log.V(1).Info("Created namespace", "ns", ns.Name)
 			}
-			accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account"+ns.Name, ns.Name)
-			err = utils.AddCloudAccount(kubeCtl, accountParams)
+			accountParams = cloudVPC.GetCloudAccountParameters("test-cloud-account"+ns.Name, ns.Name, false)
+			err = utils.AddOrRemoveCloudAccount(kubeCtl, accountParams, false)
 			Expect(err).ToNot(HaveOccurred())
 
 			if !importAfterANP {
@@ -264,7 +267,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 				if ns == nil {
 					continue
 				}
-				_ = cloudVPC.GetCloudAccountParameters("test-cloud-account"+ns.Name, ns.Name)
+				_ = cloudVPC.GetCloudAccountParameters("test-cloud-account"+ns.Name, ns.Name, false)
 				entityParams := cloudVPC.GetEntitySelectorParameters("test-entity-selector"+ns.Name, ns.Name, kind, nil)
 				entityParams.Agented = withAgent
 				err = utils.ConfigureEntitySelectorAndWait(kubeCtl, k8sClient, entityParams, kind, num, ns.Name, false)

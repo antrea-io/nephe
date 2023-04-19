@@ -86,6 +86,22 @@ var _ = Describe(fmt.Sprintf("%s,%s: VPC Inventory", focusAws, focusAzure), func
 		return err
 	}
 
+	verifyCpaStatus := func(accountName string, expectError bool) error {
+		err := wait.Poll(time.Second*5, time.Second*30, func() (bool, error) {
+			cmd := fmt.Sprintf("get cpa %v -n %v -o json -o=jsonpath={.status.error}", accountName, namespace.Name)
+			errorMsg, err := kubeCtl.Cmd(cmd)
+			if err != nil {
+				logf.Log.V(1).Info("Failed to get CloudProviderAccount", "namespace", namespace.Name, "err", err)
+				return false, nil
+			}
+			if expectError {
+				Expect(len(errorMsg)).ToNot(BeZero())
+			}
+			return true, nil
+		})
+		return err
+	}
+
 	BeforeEach(func() {
 		if preserveSetupOnFail {
 			preserveSetup = true
@@ -132,8 +148,8 @@ var _ = Describe(fmt.Sprintf("%s,%s: VPC Inventory", focusAws, focusAzure), func
 
 	It("CPA Add/Delete", func() {
 		By("Configure CPA and verify VPC inventory")
-		accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account"+namespace.Name, namespace.Name)
-		err := utils.AddCloudAccount(kubeCtl, accountParams)
+		accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account"+namespace.Name, namespace.Name, false)
+		err := utils.AddOrRemoveCloudAccount(kubeCtl, accountParams, false)
 		Expect(err).ToNot(HaveOccurred())
 
 		logf.Log.V(1).Info("Get VpcID from VPC inventory", "VpcID", vpcID)
@@ -144,14 +160,40 @@ var _ = Describe(fmt.Sprintf("%s,%s: VPC Inventory", focusAws, focusAzure), func
 		Expect(err).ToNot(HaveOccurred(), "timeout waiting to get vm list")
 
 		By("Delete CPA and verify VPC inventory is not imported")
-		err = utils.DeleteCloudAccount(kubeCtl, accountParams)
+		err = utils.AddOrRemoveCloudAccount(kubeCtl, accountParams, true)
+		Expect(err).ToNot(HaveOccurred())
+		err = verifyInventory("", true, false, true, "")
+		Expect(err).ToNot(HaveOccurred(), "timeout waiting to get VPC list")
+	})
+	It("CPA Add invalid/valid credentials", func() {
+		By("Add Secret with invalid credentials")
+		accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account"+namespace.Name, namespace.Name, true)
+		// Add CPA account.
+		err := utils.AddOrRemoveCloudAccount(kubeCtl, accountParams, false)
+		Expect(err).ToNot(HaveOccurred())
+
+		// Verify error is captured in CPA status field.
+		err = verifyCpaStatus(accountParams.Name, true)
+		Expect(err).ToNot(HaveOccurred(), "timeout waiting to retrieve a VPC")
+
+		By("Update Secret with valid credentials")
+		// Update CPA account.
+		accountParams = cloudVPC.GetCloudAccountParameters("test-cloud-account"+namespace.Name, namespace.Name, false)
+		err = utils.AddOrRemoveCloudAccount(kubeCtl, accountParams, false)
+		Expect(err).ToNot(HaveOccurred())
+		logf.Log.V(1).Info("Get VpcID from VPC inventory", "VpcID", vpcID)
+		err = verifyInventory(vpcObjectName, false, false, false, vpcID)
+		Expect(err).ToNot(HaveOccurred(), "timeout waiting to retrieve a VPC")
+
+		By("Delete CPA and verify VPC inventory is not imported")
+		err = utils.AddOrRemoveCloudAccount(kubeCtl, accountParams, true)
 		Expect(err).ToNot(HaveOccurred())
 		err = verifyInventory("", true, false, true, "")
 		Expect(err).ToNot(HaveOccurred(), "timeout waiting to get VPC list")
 	})
 	It("CES Add/Delete", func() {
-		accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account"+namespace.Name, namespace.Name)
-		err := utils.AddCloudAccount(kubeCtl, accountParams)
+		accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account"+namespace.Name, namespace.Name, false)
+		err := utils.AddOrRemoveCloudAccount(kubeCtl, accountParams, false)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Configure CES and verify VM inventory")
@@ -168,10 +210,12 @@ var _ = Describe(fmt.Sprintf("%s,%s: VPC Inventory", focusAws, focusAzure), func
 		logf.Log.V(1).Info("Verify VPC inventory exists after CES delete", "VpcID", vpcID)
 		err = verifyInventory(vpcObjectName, false, false, false, vpcID)
 		Expect(err).ToNot(HaveOccurred(), "timeout waiting to retrieve a VPC")
+		err = utils.AddOrRemoveCloudAccount(kubeCtl, accountParams, true)
+		Expect(err).ToNot(HaveOccurred())
 	})
-	It("RestartPoller Controller", func() {
-		accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account"+namespace.Name, namespace.Name)
-		err := utils.AddCloudAccount(kubeCtl, accountParams)
+	It("Restart Controller", func() {
+		accountParams := cloudVPC.GetCloudAccountParameters("test-cloud-account"+namespace.Name, namespace.Name, false)
+		err := utils.AddOrRemoveCloudAccount(kubeCtl, accountParams, false)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("RestartPoller Controller and verify VPC Inventory populates after restart")
@@ -181,5 +225,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: VPC Inventory", focusAws, focusAzure), func
 		logf.Log.V(1).Info("Get vpcID from VPC inventory", "VpcID", vpcID)
 		err = verifyInventory(vpcObjectName, false, false, false, vpcID)
 		Expect(err).ToNot(HaveOccurred(), "timeout waiting to retrieve a VPC")
+		err = utils.AddOrRemoveCloudAccount(kubeCtl, accountParams, true)
+		Expect(err).ToNot(HaveOccurred())
 	})
 })
