@@ -35,6 +35,7 @@ const (
 const (
 	CloudAccountName      = LabelPrefixNephe + "cpa-name"
 	CloudAccountNamespace = LabelPrefixNephe + "cpa-namespace"
+	CloudSelectorName     = LabelPrefixNephe + "ces-name"
 	VpcName               = LabelPrefixNephe + "vpc-name"
 	CloudVpcUID           = LabelPrefixNephe + "cloud-vpc-uid"
 	CloudVmUID            = LabelPrefixNephe + "cloud-vm-uid"

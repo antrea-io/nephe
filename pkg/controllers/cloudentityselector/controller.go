@@ -30,7 +30,7 @@ import (
 
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/pkg/accountmanager"
-	"antrea.io/nephe/pkg/controllers/sync"
+	sync2 "antrea.io/nephe/pkg/controllers/sync"
 )
 
 // CloudEntitySelectorReconciler reconciles a CloudEntitySelector object.
@@ -39,6 +39,7 @@ type CloudEntitySelectorReconciler struct {
 	client.Client
 	Log    logr.Logger
 	Scheme *runtime.Scheme
+	//mutex  sync.Mutex
 
 	selectorToAccountMap map[types.NamespacedName]types.NamespacedName
 	AccManager           accountmanager.Interface
@@ -53,11 +54,19 @@ type CloudEntitySelectorReconciler struct {
 func (r *CloudEntitySelectorReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = r.Log.WithValues("cloudentityselector", req.NamespacedName)
 	if !r.initialized {
-		if err := sync.GetControllerSyncStatusInstance().WaitTillControllerIsInitialized(&r.initialized,
-			sync.InitTimeout, sync.ControllerTypeCES); err != nil {
+		if err := sync2.GetControllerSyncStatusInstance().WaitTillControllerIsInitialized(&r.initialized,
+			sync2.InitTimeout, sync2.ControllerTypeCES); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
+	/*
+		r.Log.Info("Test: acquiring lock")
+		r.mutex.Lock()
+		defer func() {
+			r.Log.Info("Test: releaseing lock")
+			r.mutex.Unlock()
+		}()
+	*/
 
 	entitySelector := &crdv1alpha1.CloudEntitySelector{}
 	err := r.Get(ctx, req.NamespacedName, entitySelector)
@@ -93,10 +102,10 @@ func (r *CloudEntitySelectorReconciler) SetupWithManager(mgr ctrl.Manager) error
 // A controller is said to be initialized only when the dependent controllers
 // are synced, and it keeps a count of pending CRs to be reconciled.
 func (r *CloudEntitySelectorReconciler) Start(_ context.Context) error {
-	if err := sync.GetControllerSyncStatusInstance().WaitForControllersToSync(
-		[]sync.ControllerType{sync.ControllerTypeCPA}, sync.SyncTimeout); err != nil {
+	if err := sync2.GetControllerSyncStatusInstance().WaitForControllersToSync(
+		[]sync2.ControllerType{sync2.ControllerTypeCPA}, sync2.SyncTimeout); err != nil {
 		r.Log.Error(err, "dependent controller sync failed", "controller",
-			sync.ControllerTypeCPA.String())
+			sync2.ControllerTypeCPA.String())
 		return err
 	}
 	cesList := &crdv1alpha1.CloudEntitySelectorList{}
@@ -106,10 +115,10 @@ func (r *CloudEntitySelectorReconciler) Start(_ context.Context) error {
 
 	r.pendingSyncCount = len(cesList.Items)
 	if r.pendingSyncCount == 0 {
-		sync.GetControllerSyncStatusInstance().SetControllerSyncStatus(sync.ControllerTypeCES)
+		sync2.GetControllerSyncStatusInstance().SetControllerSyncStatus(sync2.ControllerTypeCES)
 	}
 	r.initialized = true
-	r.Log.Info("Init done", "controller", sync.ControllerTypeCES.String())
+	r.Log.Info("Init done", "controller", sync2.ControllerTypeCES.String())
 	return nil
 }
 
@@ -119,7 +128,7 @@ func (r *CloudEntitySelectorReconciler) updatePendingSyncCountAndStatus() {
 	if r.pendingSyncCount > 0 {
 		r.pendingSyncCount--
 		if r.pendingSyncCount == 0 {
-			sync.GetControllerSyncStatusInstance().SetControllerSyncStatus(sync.ControllerTypeCES)
+			sync2.GetControllerSyncStatusInstance().SetControllerSyncStatus(sync2.ControllerTypeCES)
 		}
 	}
 }
@@ -129,7 +138,7 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *crdv1alp
 	r.Log.Info("Received request", "selector", selectorNamespacedName, "operation", "create/update")
 
 	accountNamespacedName := &types.NamespacedName{
-		Namespace: selector.Namespace,
+		Namespace: selector.Spec.AccountNamespace,
 		Name:      selector.Spec.AccountName,
 	}
 	r.selectorToAccountMap[*selectorNamespacedName] = *accountNamespacedName

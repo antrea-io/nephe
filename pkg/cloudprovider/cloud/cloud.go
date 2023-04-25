@@ -65,7 +65,8 @@ type AccountMgmtInterface interface {
 type ComputeInterface interface {
 	// InstancesGivenProviderAccount returns all VM instances of a given cloud provider account, as a map of
 	// runtime VirtualMachine objects.
-	InstancesGivenProviderAccount(namespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.VirtualMachine, error)
+	InstancesGivenProviderAccount(accountNamespacedName *types.NamespacedName,
+		selectorNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.VirtualMachine, error)
 }
 
 type SecurityInterface interface {

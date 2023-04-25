@@ -22,4 +22,6 @@ const (
 
 	VirtualMachineByCloudId               = "cloud-assigned-id"
 	VirtualMachineByNamespacedAccountName = "namespaced-cloud-account-name"
+
+	VirtualMachineByNamespacedSelectorName = "namespaced-cloud-selector-name"
 )

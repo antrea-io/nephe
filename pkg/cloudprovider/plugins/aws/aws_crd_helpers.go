@@ -31,8 +31,9 @@ import (
 const ResourceNameTagKey = "Name"
 
 // ec2InstanceToInternalVirtualMachineObject converts ec2 instance to VirtualMachine runtime object.
-func ec2InstanceToInternalVirtualMachineObject(instance *ec2.Instance, vpcs map[string]*ec2.Vpc, namespace string,
-	account *types.NamespacedName, region string) *runtimev1alpha1.VirtualMachine {
+func ec2InstanceToInternalVirtualMachineObject(instance *ec2.Instance, vpcs map[string]*ec2.Vpc,
+	selectorNamespacedName *types.NamespacedName, accountNamespacedName *types.NamespacedName,
+	region string) *runtimev1alpha1.VirtualMachine {
 	vmTags := make(map[string]string)
 	if len(instance.Tags) > 0 {
 		for _, tag := range instance.Tags {
@@ -105,8 +106,9 @@ func ec2InstanceToInternalVirtualMachineObject(instance *ec2.Instance, vpcs map[
 	}
 
 	labelsMap := map[string]string{
-		labels.CloudAccountName:      account.Name,
-		labels.CloudAccountNamespace: account.Namespace,
+		labels.CloudAccountName:      accountNamespacedName.Name,
+		labels.CloudAccountNamespace: accountNamespacedName.Namespace,
+		labels.CloudSelectorName:     selectorNamespacedName.Name,
 		labels.VpcName:               strings.ToLower(cloudNetwork),
 		labels.CloudVmUID:            strings.ToLower(cloudID),
 		labels.CloudVpcUID:           strings.ToLower(cloudNetwork),
@@ -120,7 +122,7 @@ func ec2InstanceToInternalVirtualMachineObject(instance *ec2.Instance, vpcs map[
 		ObjectMeta: v1.ObjectMeta{
 			UID:       uuid.NewUUID(),
 			Name:      cloudID,
-			Namespace: namespace,
+			Namespace: selectorNamespacedName.Namespace,
 			Labels:    labelsMap,
 		},
 		Status: *vmStatus,

@@ -33,24 +33,27 @@ func TestInventory(t *testing.T) {
 }
 
 var (
-	testVpcID01           = "testVpcID01"
-	testVpcName01         = "testVpcName01"
-	testVpcID02           = "testVpcID02"
-	testVpcName02         = "testVpcName02"
-	namespace             = "testNS"
-	accountName           = "account01"
-	namespacedAccountName = types.NamespacedName{Namespace: namespace, Name: accountName}
-	vpcCacheKey1          = fmt.Sprintf("%s-%s", namespacedAccountName, testVpcID01)
-	testVmID01            = "testVmID01"
-	testVmName01          = "testVmName01"
-	testVmID02            = "testVmID02"
-	vmCacheKey1           = fmt.Sprintf("%s/%s", namespace, testVmID01)
-	vmCacheKey2           = fmt.Sprintf("%s/%s", namespace, testVmID02)
-	networkInterfaceID    = "networkInterface01"
-	macAddress            = "00-01-02-03-04-05"
-	ipAddress             = "10.10.10.10"
-	ipAddressCRDs         []runtimev1alpha1.IPAddress
-	cloudInventory        *Inventory
+	testVpcID01            = "testVpcID01"
+	testVpcName01          = "testVpcName01"
+	testVpcID02            = "testVpcID02"
+	testVpcName02          = "testVpcName02"
+	namespace              = "testNS"
+	accountName            = "account01"
+	selectorNS             = "selectorNS"
+	namespacedAccountName  = types.NamespacedName{Namespace: namespace, Name: accountName}
+	selectorName           = "selector01"
+	selectorNamespacedName = types.NamespacedName{Namespace: selectorNS, Name: selectorName}
+	vpcCacheKey1           = fmt.Sprintf("%s-%s", namespacedAccountName, testVpcID01)
+	testVmID01             = "testVmID01"
+	testVmName01           = "testVmName01"
+	testVmID02             = "testVmID02"
+	vmCacheKey1            = fmt.Sprintf("%s/%s", selectorNS, testVmID01)
+	vmCacheKey2            = fmt.Sprintf("%s/%s", selectorNS, testVmID02)
+	networkInterfaceID     = "networkInterface01"
+	macAddress             = "00-01-02-03-04-05"
+	ipAddress              = "10.10.10.10"
+	ipAddressCRDs          []runtimev1alpha1.IPAddress
+	cloudInventory         *Inventory
 )
 
 var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
@@ -130,6 +133,7 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 	})
 	Context("VM Inventory Test", func() {
 		vmLabelsMap := map[string]string{
+			labels.CloudSelectorName:     selectorNamespacedName.Name,
 			labels.CloudAccountName:      namespacedAccountName.Name,
 			labels.CloudAccountNamespace: namespacedAccountName.Namespace,
 			labels.CloudVmUID:            testVmID01,
@@ -168,18 +172,18 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 		vmList := make(map[string]*runtimev1alpha1.VirtualMachine)
 		vmObj := new(runtimev1alpha1.VirtualMachine)
 		vmObj.Name = testVmID01
-		vmObj.Namespace = namespace
+		vmObj.Namespace = selectorNS
 		vmObj.Labels = vmLabelsMap
 		vmObj.Status = *vmStatus
 		vmList[testVmID01] = vmObj
 
 		It("Add VMs to VM inventory", func() {
-			cloudInventory.BuildVmCache(vmList, &namespacedAccountName)
+			cloudInventory.BuildVmCache(vmList, &selectorNamespacedName)
 			allVmList := cloudInventory.GetAllVms()
 			Expect(allVmList).Should(HaveLen(len(vmList)))
 
-			vmListByIndex, err := cloudInventory.GetVmFromIndexer(indexer.VirtualMachineByNamespacedAccountName,
-				namespacedAccountName.String())
+			vmListByIndex, err := cloudInventory.GetVmFromIndexer(indexer.VirtualMachineByNamespacedSelectorName,
+				selectorNamespacedName.String())
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(vmListByIndex).Should(HaveLen(len(vmList)))
 			for _, i := range vmListByIndex {
@@ -188,10 +192,10 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			}
 		})
 		It("Delete a VM from VM inventory", func() {
-			cloudInventory.BuildVmCache(vmList, &namespacedAccountName)
+			cloudInventory.BuildVmCache(vmList, &selectorNamespacedName)
 
-			vmListByIndex, err := cloudInventory.GetVmFromIndexer(indexer.VirtualMachineByNamespacedAccountName,
-				namespacedAccountName.String())
+			vmListByIndex, err := cloudInventory.GetVmFromIndexer(indexer.VirtualMachineByNamespacedSelectorName,
+				selectorNamespacedName.String())
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(vmListByIndex).Should(HaveLen(len(vmList)))
 			for _, i := range vmListByIndex {
@@ -203,11 +207,11 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			vmList2 := make(map[string]*runtimev1alpha1.VirtualMachine)
 			vmObj := new(runtimev1alpha1.VirtualMachine)
 			vmObj.Name = testVmID02
-			vmObj.Namespace = namespace
+			vmObj.Namespace = selectorNS
 			vmObj.Labels = vmLabelsMap
 			vmObj.Status = *vmStatus
 			vmList2[testVmID02] = vmObj
-			cloudInventory.BuildVmCache(vmList2, &namespacedAccountName)
+			cloudInventory.BuildVmCache(vmList2, &selectorNamespacedName)
 
 			_, exist := cloudInventory.GetVmByKey(vmCacheKey2)
 			Expect(exist).Should(BeTrue())
@@ -216,7 +220,7 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			Expect(exist).Should(BeFalse())
 		})
 		It("Update Agented field in Status and add to VM inventory", func() {
-			cloudInventory.BuildVmCache(vmList, &namespacedAccountName)
+			cloudInventory.BuildVmCache(vmList, &selectorNamespacedName)
 
 			vm, exist := cloudInventory.GetVmByKey(vmCacheKey1)
 			Expect(exist).Should(BeTrue())
@@ -233,11 +237,11 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			vmListUpdate := make(map[string]*runtimev1alpha1.VirtualMachine)
 			vmObjUpdate := new(runtimev1alpha1.VirtualMachine)
 			vmObjUpdate.Name = testVmID01
-			vmObjUpdate.Namespace = namespace
+			vmObjUpdate.Namespace = selectorNS
 			vmObjUpdate.Labels = vmLabelsMap
 			vmObjUpdate.Status = *vmStatusUpdate
 			vmListUpdate[testVmID01] = vmObjUpdate
-			cloudInventory.BuildVmCache(vmListUpdate, &namespacedAccountName)
+			cloudInventory.BuildVmCache(vmListUpdate, &selectorNamespacedName)
 
 			// Vm object should be updated the latest Status field.
 			vm, exist = cloudInventory.GetVmByKey(vmCacheKey1)
@@ -245,7 +249,7 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			Expect(vm.Status.Agented).To(BeTrue())
 		})
 		It("Update State field in Status and add to VM inventory", func() {
-			cloudInventory.BuildVmCache(vmList, &namespacedAccountName)
+			cloudInventory.BuildVmCache(vmList, &selectorNamespacedName)
 
 			vm, exist := cloudInventory.GetVmByKey(vmCacheKey1)
 			Expect(exist).Should(BeTrue())
@@ -262,7 +266,7 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			vmListUpdate := make(map[string]*runtimev1alpha1.VirtualMachine)
 			vmObjUpdate := new(runtimev1alpha1.VirtualMachine)
 			vmObjUpdate.Name = testVmID01
-			vmObjUpdate.Namespace = namespace
+			vmObjUpdate.Namespace = selectorNS
 			vmObjUpdate.Labels = vmLabelsMap
 			vmObjUpdate.Status = *vmStatusUpdate
 			vmListUpdate[testVmID01] = vmObjUpdate
@@ -274,15 +278,15 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			Expect(vm.Status.State).To(Equal(runtimev1alpha1.Stopped))
 		})
 		It("Delete VM inventory", func() {
-			cloudInventory.BuildVmCache(vmList, &namespacedAccountName)
+			cloudInventory.BuildVmCache(vmList, &selectorNamespacedName)
 
-			vmListByIndex, err := cloudInventory.GetVmFromIndexer(indexer.VirtualMachineByNamespacedAccountName,
-				namespacedAccountName.String())
+			vmListByIndex, err := cloudInventory.GetVmFromIndexer(indexer.VirtualMachineByNamespacedSelectorName,
+				selectorNamespacedName.String())
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(vmListByIndex).Should(HaveLen(len(vmList)))
 
 			// Delete vm cache.
-			err = cloudInventory.DeleteVmsFromCache(&namespacedAccountName)
+			err = cloudInventory.DeleteVmsFromCache(&selectorNamespacedName)
 			Expect(err).ShouldNot(HaveOccurred())
 			_, exist := cloudInventory.GetVmByKey(vmCacheKey1)
 			Expect(exist).Should(BeFalse())

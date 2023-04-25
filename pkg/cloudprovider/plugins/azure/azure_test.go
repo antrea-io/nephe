@@ -131,7 +131,8 @@ var _ = Describe("Azure", func() {
 					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 				},
 			}
 			mockCtrl = gomock.NewController(GinkgoT())
@@ -255,7 +256,7 @@ var _ = Describe("Azure", func() {
 				filters = getFilters(c, testSelectorNamespacedName.String())
 				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
 
-				_, err = c.InstancesGivenProviderAccount(testAccountNamespacedName)
+				_, err = c.InstancesGivenProviderAccount(testAccountNamespacedName, testSelectorNamespacedName)
 				Expect(err).Should(BeNil())
 
 				_ = c.GetEnforcedSecurity()
@@ -483,8 +484,11 @@ func getResourceGraphResult() resourcegraph.ClientResourcesResponse {
 
 func getFilters(c *azureCloud, selectorNamespacedName string) []*string {
 	accCfg, _ := c.cloudCommon.GetCloudAccountByName(&types.NamespacedName{Namespace: "namespace01", Name: "account01"})
-	filters := accCfg.GetServiceConfig().(*computeServiceConfig).computeFilters[selectorNamespacedName]
-	return filters
+	serviceConfig := accCfg.GetServiceConfig()
+	if obj, found := serviceConfig.(*computeServiceConfig).selectorConfigMap[selectorNamespacedName]; found {
+		return obj.instanceFilters
+	}
+	return nil
 }
 func setupClientAndCloud(mockAzureServiceHelper *MockazureServicesHelper, account *v1alpha1.CloudProviderAccount, secret *corev1.Secret) (
 	client.WithWatch, *azureCloud) {

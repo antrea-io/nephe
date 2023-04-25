@@ -43,8 +43,9 @@ var (
 
 var _ = Describe("AWS cloud", func() {
 	var (
-		testAccountNamespacedName = types.NamespacedName{Namespace: "namespace01", Name: "account01"}
-		credentials               = "credentials"
+		testAccountNamespacedName  = types.NamespacedName{Namespace: "namespace01", Name: "account01"}
+		testSelectorNamespacedName = types.NamespacedName{Namespace: "namespace02", Name: "selector01"}
+		credentials                = "credentials"
 	)
 
 	Context("AddProviderAccount", func() {
@@ -108,8 +109,9 @@ var _ = Describe("AWS cloud", func() {
 						Namespace: testAccountNamespacedName.Namespace,
 					},
 					Spec: v1alpha1.CloudEntitySelectorSpec{
-						AccountName: testAccountNamespacedName.Name,
-						VMSelector:  []v1alpha1.VirtualMachineSelector{},
+						AccountName:      testAccountNamespacedName.Name,
+						AccountNamespace: testAccountNamespacedName.Namespace,
+						VMSelector:       []v1alpha1.VirtualMachineSelector{},
 					},
 				}
 
@@ -268,6 +270,56 @@ var _ = Describe("AWS cloud", func() {
 				err = checkAccountAddSuccessCondition(c, testAccountNamespacedName, instanceIds)
 				Expect(err).Should(BeNil())
 			})
+			It("Should discover instances when selector is in different namespace from account", func() {
+				instanceIds := []string{"i-01", "i-02"}
+				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret"}`
+
+				secret = &corev1.Secret{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      testAccountNamespacedName.Name,
+						Namespace: testAccountNamespacedName.Namespace,
+					},
+					Data: map[string][]byte{
+						"credentials": []byte(credential),
+					},
+				}
+
+				selector = &v1alpha1.CloudEntitySelector{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      testSelectorNamespacedName.Name,
+						Namespace: testSelectorNamespacedName.Namespace,
+					},
+					Spec: v1alpha1.CloudEntitySelectorSpec{
+						AccountName:      testAccountNamespacedName.Name,
+						AccountNamespace: testAccountNamespacedName.Namespace,
+						VMSelector:       []v1alpha1.VirtualMachineSelector{},
+					},
+				}
+
+				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).AnyTimes()
+				mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).AnyTimes()
+				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(&ec2.DescribeVpcsOutput{}, nil).AnyTimes()
+				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
+					nil).AnyTimes()
+
+				_ = fakeClient.Create(context.Background(), secret)
+				c := newAWSCloud(mockawsCloudHelper)
+				err := c.AddProviderAccount(fakeClient, account)
+
+				Expect(err).Should(BeNil())
+				accCfg, found := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
+				Expect(found).To(BeTrue())
+				Expect(accCfg).To(Not(BeNil()))
+
+				errSelAdd := c.AddAccountResourceSelector(&testAccountNamespacedName, selector)
+				Expect(errSelAdd).Should(BeNil())
+
+				err = c.DoInventoryPoll(&testAccountNamespacedName)
+				Expect(err).Should(BeNil())
+
+				err = checkAccountAddSuccessCondition(c, testAccountNamespacedName, instanceIds)
+				Expect(err).Should(BeNil())
+			})
 			It("Should discover few instances with get ALL selector using roleArn", func() {
 				instanceIds := []string{"i-01", "i-02"}
 				credential := `{"roleArn" : "roleArn","externalID" : "" }`
@@ -382,7 +434,8 @@ var _ = Describe("AWS cloud", func() {
 					Namespace: testAccountNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VpcMatch: &v1alpha1.EntityMatch{

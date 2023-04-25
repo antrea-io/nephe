@@ -42,7 +42,7 @@ type CloudServiceInterface interface {
 	// GetInventoryStats returns Inventory statistics for the service.
 	GetInventoryStats() *CloudServiceStats
 	// GetInternalResourceObjects returns VM instances saved in CloudServiceResourcesCache in terms of runtimev1alpha1.VirtualMachine.
-	GetInternalResourceObjects(namespace string, accountId *types.NamespacedName) map[string]*runtimev1alpha1.VirtualMachine
+	GetInternalResourceObjects(accountId *types.NamespacedName, selector *types.NamespacedName) map[string]*runtimev1alpha1.VirtualMachine
 	// ResetInventoryCache clears any internal state built by the service as part of cloud resource discovery.
 	ResetInventoryCache()
 	// GetVpcInventory copies VPCs stored in internal snapshot(in cloud specific format) to runtimev1alpha1.Vpc format.

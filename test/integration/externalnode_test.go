@@ -444,8 +444,9 @@ var _ = Describe(fmt.Sprintf("%s,%s: ExternalNode", focusAws, focusAzure), func(
 				Namespace: namespace.Name,
 			},
 			Spec: v1alpha1.CloudEntitySelectorSpec{
-				AccountName: testAccountName,
-				VMSelector:  []v1alpha1.VirtualMachineSelector{},
+				AccountName:      testAccountName,
+				AccountNamespace: namespace.Name,
+				VMSelector:       []v1alpha1.VirtualMachineSelector{},
 			},
 		}
 		// SDK call will automatically base64 encode data.

@@ -56,8 +56,8 @@ type CloudCommonInterface interface {
 	GetCloudAccountByAccountId(accountID *string) (CloudAccountInterface, bool)
 	GetCloudAccounts() map[types.NamespacedName]CloudAccountInterface
 
-	GetCloudAccountComputeInternalResourceObjects(namespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.VirtualMachine,
-		error)
+	GetCloudAccountComputeInternalResourceObjects(accountNamespacedName *types.NamespacedName,
+		selectorNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.VirtualMachine, error)
 
 	AddCloudAccount(client client.Client, account *crdv1alpha1.CloudProviderAccount, credentials interface{}) error
 	RemoveCloudAccount(namespacedName *types.NamespacedName)
@@ -118,7 +118,6 @@ func (c *cloudCommon) AddCloudAccount(client client.Client, account *crdv1alpha1
 	}
 
 	c.accountConfigs[*config.GetNamespacedName()] = config
-
 	return nil
 }
 
@@ -167,15 +166,18 @@ func (c *cloudCommon) GetCloudAccounts() map[types.NamespacedName]CloudAccountIn
 	return accountConfigs
 }
 
-func (c *cloudCommon) GetCloudAccountComputeInternalResourceObjects(accountNamespacedName *types.NamespacedName) (
-	map[string]*runtimev1alpha1.VirtualMachine, error) {
+func (c *cloudCommon) GetCloudAccountComputeInternalResourceObjects(accountNamespacedName *types.NamespacedName,
+	selectorNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.VirtualMachine, error) {
 	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
 	if !found {
 		return nil, fmt.Errorf("unable to find cloud account config")
 	}
+	computeCRs := map[string]*runtimev1alpha1.VirtualMachine{}
 	accCfg.LockMutex()
 	defer accCfg.UnlockMutex()
-	return accCfg.GetServiceConfig().GetInternalResourceObjects(accCfg.GetNamespacedName().Namespace, accCfg.GetNamespacedName()), nil
+	return accCfg.GetServiceConfig().GetInternalResourceObjects(accCfg.GetNamespacedName().Namespace, selectorNamespacedName), nil
+
+	return computeCRs, nil
 }
 
 func (c *cloudCommon) AddResourceFilters(accountNamespacedName *types.NamespacedName, selector *crdv1alpha1.CloudEntitySelector) error {

@@ -169,18 +169,18 @@ func (mr *MockCloudInterfaceMockRecorder) GetVpcInventory(arg0 interface{}) *gom
 }
 
 // InstancesGivenProviderAccount mocks base method.
-func (m *MockCloudInterface) InstancesGivenProviderAccount(arg0 *types.NamespacedName) (map[string]*v1alpha10.VirtualMachine, error) {
+func (m *MockCloudInterface) InstancesGivenProviderAccount(arg0, arg1 *types.NamespacedName) (map[string]*v1alpha10.VirtualMachine, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InstancesGivenProviderAccount", arg0)
+	ret := m.ctrl.Call(m, "InstancesGivenProviderAccount", arg0, arg1)
 	ret0, _ := ret[0].(map[string]*v1alpha10.VirtualMachine)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // InstancesGivenProviderAccount indicates an expected call of InstancesGivenProviderAccount.
-func (mr *MockCloudInterfaceMockRecorder) InstancesGivenProviderAccount(arg0 interface{}) *gomock.Call {
+func (mr *MockCloudInterfaceMockRecorder) InstancesGivenProviderAccount(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstancesGivenProviderAccount", reflect.TypeOf((*MockCloudInterface)(nil).InstancesGivenProviderAccount), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstancesGivenProviderAccount", reflect.TypeOf((*MockCloudInterface)(nil).InstancesGivenProviderAccount), arg0, arg1)
 }
 
 // ProviderType mocks base method.

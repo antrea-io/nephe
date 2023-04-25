@@ -142,8 +142,8 @@ func (r *CloudProviderAccountReconciler) processCreateOrUpdate(namespacedName *t
 		return fmt.Errorf("failed to add or update account: %v", err)
 	}
 
-	retry, err := r.AccManager.AddAccount(namespacedName, accountCloudType, account)
-	if err != nil && retry {
+	retryAdd, err := r.AccManager.AddAccount(namespacedName, accountCloudType, account)
+	if err != nil && retryAdd {
 		return err
 	}
 	r.updateStatus(namespacedName, err)
@@ -151,7 +151,24 @@ func (r *CloudProviderAccountReconciler) processCreateOrUpdate(namespacedName *t
 }
 
 func (r *CloudProviderAccountReconciler) processDelete(namespacedName *types.NamespacedName) error {
-	return r.AccManager.RemoveAccount(namespacedName)
+	if err := r.AccManager.RemoveAccount(namespacedName); err != nil {
+		return err
+	}
+
+	// Delete dependent CES.
+	cesList := &crdv1alpha1.CloudEntitySelectorList{}
+	if err := r.Client.List(context.TODO(), cesList, &client.ListOptions{}); err != nil {
+		return err
+	}
+	for _, ces := range cesList.Items {
+		if ces.Spec.AccountName == namespacedName.Name && ces.Spec.AccountNamespace == namespacedName.Namespace {
+			r.Log.Info("Deleting selector", "selector", types.NamespacedName{Namespace: ces.Namespace, Name: ces.Name})
+			if err := r.Client.Delete(context.TODO(), &ces); err != nil {
+				return fmt.Errorf("failed to delete selector %v/%v err %v", ces.Namespace, ces.Name, err)
+			}
+		}
+	}
+	return nil
 }
 
 // updatePendingSyncCountAndStatus decrements the pendingSyncCount and when

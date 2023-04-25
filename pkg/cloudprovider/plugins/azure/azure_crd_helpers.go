@@ -41,7 +41,7 @@ var azureStateMap = map[string]runtimev1alpha1.VMState{
 
 // computeInstanceToInternalVirtualMachineObject converts compute instance to VirtualMachine runtime object.
 func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable,
-	vnets map[string]armnetwork.VirtualNetwork, namespace string, account *types.NamespacedName,
+	vnets map[string]armnetwork.VirtualNetwork, selectorNamespacedName *types.NamespacedName, accountNamespacedName *types.NamespacedName,
 	region string) *runtimev1alpha1.VirtualMachine {
 	vmTags := make(map[string]string)
 	for key, value := range instance.Tags {
@@ -127,8 +127,9 @@ func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable
 	}
 
 	labelsMap := map[string]string{
-		labels.CloudAccountName:      account.Name,
-		labels.CloudAccountNamespace: account.Namespace,
+		labels.CloudAccountName:      accountNamespacedName.Name,
+		labels.CloudAccountNamespace: accountNamespacedName.Namespace,
+		labels.CloudSelectorName:     selectorNamespacedName.Name,
 		labels.VpcName:               cloudNetworkShortID,
 		labels.CloudVmUID:            strings.ToLower(vmUid),
 		labels.CloudVpcUID:           strings.ToLower(vnetUid),
@@ -142,7 +143,7 @@ func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable
 		ObjectMeta: v1.ObjectMeta{
 			UID:       uuid.NewUUID(),
 			Name:      crdName,
-			Namespace: namespace,
+			Namespace: selectorNamespacedName.Namespace,
 			Labels:    labelsMap,
 		},
 		Status: *vmStatus,

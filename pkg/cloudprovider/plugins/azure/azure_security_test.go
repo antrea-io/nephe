@@ -151,7 +151,8 @@ var _ = Describe("Azure Cloud Security", func() {
 					Namespace: testAccountNamespacedName.Namespace,
 				},
 				Spec: crdv1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []crdv1alpha1.VirtualMachineSelector{
 						{
 							VpcMatch: &crdv1alpha1.EntityMatch{
@@ -263,8 +264,17 @@ var _ = Describe("Azure Cloud Security", func() {
 			vnet.Name = &testVnet01
 			vnet.ID = &testVnetID01
 			vnetList = append(vnetList, *vnet)
-			serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{
-				vmIDToInfoMap, vnetList, vnetIDs, vpcPeers})
+			selectorSnapshot := make(map[string]*selectorLevelCacheSnapshot)
+			serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(&cacheSnapshot{
+				selectorSnapshot,
+				&accountLevelCacheSnapshot{vnetList, vnetIDs, vpcPeers}})
+			selectorNamespacedName := types.NamespacedName{Namespace: selector.Namespace, Name: selector.Name}
+			vmSnapshot := selectorLevelCacheSnapshot{virtualMachines: vmIDToInfoMap}
+			snapshot := serviceConfig.(*computeServiceConfig).resourcesCache.GetSnapshot()
+			selectorSnapshot = snapshot.(*cacheSnapshot).vmSnapshot
+			selectorSnapshot[selectorNamespacedName.String()] = &vmSnapshot
+			serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(
+				&cacheSnapshot{selectorSnapshot, snapshot.(*cacheSnapshot).vpcSnapshot})
 		})
 
 		AfterEach(func() {
@@ -622,9 +632,14 @@ var _ = Describe("Azure Cloud Security", func() {
 
 				accCfg, _ := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
 				serviceConfig := accCfg.GetServiceConfig()
-				serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{vmToUpdateMap, nil, nil, nil})
-
-				serviceConfig.(*computeServiceConfig).GetInternalResourceObjects(testAccountNamespacedName.Namespace, testAccountNamespacedName)
+				selectorNamespacedName := types.NamespacedName{Namespace: selector.Namespace, Name: selector.Name}
+				vmSnapshot := selectorLevelCacheSnapshot{virtualMachines: vmToUpdateMap}
+				snapshot := serviceConfig.(*computeServiceConfig).resourcesCache.GetSnapshot()
+				selectorSnapshot := snapshot.(*cacheSnapshot).vmSnapshot
+				selectorSnapshot[selectorNamespacedName.String()] = &vmSnapshot
+				serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(
+					&cacheSnapshot{selectorSnapshot, snapshot.(*cacheSnapshot).vpcSnapshot})
+				serviceConfig.(*computeServiceConfig).GetInternalResourceObjects(testAccountNamespacedName, &selectorNamespacedName)
 			})
 		})
 

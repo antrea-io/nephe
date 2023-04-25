@@ -49,7 +49,7 @@ type VPCStore interface {
 
 type VMStore interface {
 	// BuildVmCache builds the vm cache using discoveredVmMap.
-	BuildVmCache(discoveredVmMap map[string]*runtimev1alpha1.VirtualMachine, namespacedName *types.NamespacedName)
+	BuildVmCache(discoveredVmMap map[string]*runtimev1alpha1.VirtualMachine, selectorNamespacedName *types.NamespacedName)
 
 	// DeleteVmsFromCache deletes all vms from the cache.
 	DeleteVmsFromCache(namespacedName *types.NamespacedName) error

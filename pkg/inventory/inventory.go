@@ -145,19 +145,19 @@ func (i *Inventory) WatchVpcs(ctx context.Context, key string, labelSelector lab
 
 // BuildVmCache builds vm cache for given account using vm list fetched from cloud.
 func (i *Inventory) BuildVmCache(discoveredVmMap map[string]*runtimev1alpha1.VirtualMachine,
-	namespacedName *types.NamespacedName) {
+	selectorNamespacedName *types.NamespacedName) {
 	var numVmsToAdd, numVmsToUpdate, numVmsToDelete int
 
 	// Fetch all vms for a given account from the cache and check if it exists in the discovered vm list.
-	vmsInCache, _ := i.vmStore.GetByIndex(indexer.VirtualMachineByNamespacedAccountName, namespacedName.String())
+	vmsInCache, _ := i.vmStore.GetByIndex(indexer.VirtualMachineByNamespacedSelectorName, selectorNamespacedName.String())
 	// Remove vm from vm cache which are not found in vm map fetched from cloud.
 	for _, cachedObject := range vmsInCache {
 		cachedVm := cachedObject.(*runtimev1alpha1.VirtualMachine)
 		if _, found := discoveredVmMap[cachedVm.Name]; !found {
 			key := fmt.Sprintf("%v/%v", cachedVm.Namespace, cachedVm.Name)
 			if err := i.vmStore.Delete(key); err != nil {
-				i.log.Error(err, "failed to delete vm from vm cache", "vm", cachedVm.Name, "account",
-					namespacedName.String())
+				i.log.Error(err, "failed to delete vm from vm cache", "vm", cachedVm.Name, "selector",
+					selectorNamespacedName.String())
 			} else {
 				numVmsToDelete++
 			}
@@ -192,19 +192,19 @@ func (i *Inventory) BuildVmCache(discoveredVmMap map[string]*runtimev1alpha1.Vir
 		}
 		if err != nil {
 			i.log.Error(err, "failed to update vm in vm cache", "vm", discoveredVm.Name,
-				"account", namespacedName.String())
+				"selector", selectorNamespacedName.String())
 		}
 	}
 
 	if numVmsToAdd != 0 || numVmsToUpdate != 0 || numVmsToDelete != 0 {
-		i.log.Info("Vm poll statistics", "account", namespacedName, "added", numVmsToAdd,
+		i.log.Info("Vm poll statistics", "selector", selectorNamespacedName, "added", numVmsToAdd,
 			"update", numVmsToUpdate, "delete", numVmsToDelete)
 	}
 }
 
 // DeleteVmsFromCache deletes all entries from vm cache for a given account.
 func (i *Inventory) DeleteVmsFromCache(namespacedName *types.NamespacedName) error {
-	vmsInCache, err := i.vmStore.GetByIndex(indexer.VirtualMachineByNamespacedAccountName, namespacedName.String())
+	vmsInCache, err := i.vmStore.GetByIndex(indexer.VirtualMachineByNamespacedSelectorName, namespacedName.String())
 	if err != nil {
 		return err
 	}

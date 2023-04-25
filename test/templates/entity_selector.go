@@ -15,12 +15,13 @@
 package templates
 
 type CloudEntitySelectorParameters struct {
-	Name             string
-	Namespace        string
-	CloudAccountName string
-	Selector         *SelectorParameters
-	Kind             string
-	Agented          bool
+	Name                  string
+	Namespace             string
+	CloudAccountName      string
+	CloudAccountNamespace string
+	Selector              *SelectorParameters
+	Kind                  string
+	Agented               bool
 }
 
 type SelectorParameters struct {
@@ -36,6 +37,7 @@ metadata:
   namespace: {{.Namespace}}
 spec:
   accountName: {{.CloudAccountName}}
+  accountNamespace: {{.CloudAccountNamespace}}
   vmSelector:
 {{- if .Selector.VPC }}
     - vpcMatch:

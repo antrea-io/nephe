@@ -61,11 +61,12 @@ func TestCloud(t *testing.T) {
 var _ = Describe("CloudEntitySelector Controller", func() {
 	Context("CES workflow", func() {
 		var (
-			testAccountNamespacedName  = types.NamespacedName{Namespace: "namespace01", Name: "account01"}
-			testSelectorNamespacedName = types.NamespacedName{Namespace: "namespace01", Name: "selector01"}
-			selector                   *crdv1alpha1.CloudEntitySelector
-			reconciler                 *CloudEntitySelectorReconciler
-			fakeClient                 client.WithWatch
+			testAccountNamespacedName      = types.NamespacedName{Namespace: "namespace01", Name: "account01"}
+			testSelectorNamespacedName     = types.NamespacedName{Namespace: "namespace01", Name: "selector01"}
+			testSelectorDifferentNamespace = types.NamespacedName{Namespace: "namespace02", Name: "selector02"}
+			selector                       *crdv1alpha1.CloudEntitySelector
+			reconciler                     *CloudEntitySelectorReconciler
+			fakeClient                     client.WithWatch
 		)
 		BeforeEach(func() {
 			newScheme := runtime.NewScheme()
@@ -87,16 +88,10 @@ var _ = Describe("CloudEntitySelector Controller", func() {
 				ObjectMeta: v1.ObjectMeta{
 					Name:      testSelectorNamespacedName.Name,
 					Namespace: testSelectorNamespacedName.Namespace,
-					OwnerReferences: []v1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/crdv1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       testAccountNamespacedName.Name,
-						},
-					},
 				},
 				Spec: crdv1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []crdv1alpha1.VirtualMachineSelector{
 						{
 							VpcMatch: &crdv1alpha1.EntityMatch{
@@ -117,6 +112,34 @@ var _ = Describe("CloudEntitySelector Controller", func() {
 			err := reconciler.processCreateOrUpdate(selector, &testSelectorNamespacedName)
 			Expect(err).ShouldNot(HaveOccurred())
 			err = reconciler.processDelete(&testSelectorNamespacedName)
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+		It("CES Add and Delete when CES and CPA are in different namespace", func() {
+			selector = &crdv1alpha1.CloudEntitySelector{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      testSelectorDifferentNamespace.Name,
+					Namespace: testSelectorDifferentNamespace.Namespace,
+				},
+				Spec: crdv1alpha1.CloudEntitySelectorSpec{
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
+					VMSelector: []crdv1alpha1.VirtualMachineSelector{
+						{
+							VpcMatch: &crdv1alpha1.EntityMatch{
+								MatchID: "xyz",
+							},
+						},
+					},
+				},
+			}
+
+			mockAccManager.EXPECT().AddResourceFiltersToAccount(&testAccountNamespacedName, &testSelectorDifferentNamespace,
+				selector, false).Return(true, nil).Times(1)
+			mockAccManager.EXPECT().RemoveResourceFiltersFromAccount(&testAccountNamespacedName,
+				&testSelectorDifferentNamespace).Return(nil).Times(1)
+			err := reconciler.processCreateOrUpdate(selector, &testSelectorDifferentNamespace)
+			Expect(err).ShouldNot(HaveOccurred())
+			err = reconciler.processDelete(&testSelectorDifferentNamespace)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 		It("CES Add failure without retry", func() {
