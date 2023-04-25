@@ -6,6 +6,7 @@ metadata:
   namespace: sample-ns
 spec:
   accountName: cloudprovideraccount-sample
+  accountNamespace: sample-ns
   vmSelector:
       - vpcMatch:
           matchID: "<VPC_ID>"
@@ -19,6 +20,7 @@ metadata:
   namespace: sample-ns
 spec:
   accountName: cloudprovideraccount-sample
+  accountNamespace: sample-ns
   vmSelector:
     - vpcMatch:
         matchID: "<VPC_ID>"

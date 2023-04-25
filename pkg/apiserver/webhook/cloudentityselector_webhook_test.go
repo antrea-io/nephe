@@ -69,7 +69,7 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
 					AWSConfig: &v1alpha1.CloudProviderAccountAWSConfig{
-						Region: "us-east-1",
+						Region: []string{"us-east-1"},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      testSecretNamespacedName.Name,
 							Namespace: testSecretNamespacedName.Namespace,
@@ -344,7 +344,7 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
 					AzureConfig: &v1alpha1.CloudProviderAccountAzureConfig{
-						Region: "us-east-1",
+						Region: []string{"us-east-1"},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      testSecretNamespacedName.Name,
 							Namespace: testSecretNamespacedName.Namespace,
@@ -1165,7 +1165,7 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
 					AzureConfig: &v1alpha1.CloudProviderAccountAzureConfig{
-						Region: "us-east-1",
+						Region: []string{"us-east-1"},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      testSecretNamespacedName.Name,
 							Namespace: testSecretNamespacedName.Namespace,

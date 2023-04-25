@@ -45,6 +45,7 @@ metadata:
   namespace: vm-ns
 spec:
   accountName: cloudprovideraccount-aws-sample
+  accountNamespace: vm-ns
   vmSelector:
     - vmMatch:
         - matchID: "i-0a20bae92ddcdb60b"
@@ -86,59 +87,23 @@ kubectl describe vm i-019459b33d951b62e -n vm-ns
 # Output
 Name:         i-019459b33d951b62e
 Namespace:    vm-ns
-Labels:       <none>
-Annotations:  cloud-assigned-id: i-019459b33d951b62e
-              cloud-assigned-name: ubuntu2004
-              cloud-assigned-vpc-id: vpc-0d6bb6a4a880bd9ad
-API Version:  crd.cloud.antrea.io/v1alpha1
+Labels:       nephe.io/cloud-vm-uid=i-019459b33d951b62e
+              nephe.io/cloud-vpc-uid=vpc-0d6bb6a4a880bd9ad
+              nephe.io/cpa-name=cloudprovideraccount-aws-sample
+              nephe.io/cpa-namespace=vm-ns
+              nephe.io/vpc-name=vpc-0d6bb6a4a880bd9ad
+Annotations:  <none>
+API Version:  runtime.cloud.antrea.io/v1alpha1
 Kind:         VirtualMachine
 Metadata:
-  Creation Timestamp:  2022-09-27T12:18:23Z
-  Generation:          1
-  Managed Fields:
-    API Version:  crd.cloud.antrea.io/v1alpha1
-    Fields Type:  FieldsV1
-    fieldsV1:
-      f:metadata:
-        f:annotations:
-          .:
-          f:cloud-assigned-id:
-          f:cloud-assigned-name:
-          f:cloud-assigned-vpc-id:
-        f:ownerReferences:
-          .:
-          k:{"uid":"42467d8c-9ae7-433b-879c-fdd7b2b843e1"}:
-    Manager:      nephe-controller
-    Operation:    Update
-    Time:         2022-09-27T12:18:23Z
-    API Version:  crd.cloud.antrea.io/v1alpha1
-    Fields Type:  FieldsV1
-    fieldsV1:
-      f:status:
-        .:
-        f:agented:
-        f:networkInterfaces:
-        f:provider:
-        f:state:
-        f:tags:
-          .:
-          f:Name:
-        f:virtualPrivateCloud:
-    Manager:      nephe-controller
-    Operation:    Update
-    Subresource:  status
-    Time:         2022-09-27T12:18:23Z
-  Owner References:
-    API Version:           crd.cloud.antrea.io/v1alpha1
-    Block Owner Deletion:  true
-    Controller:            true
-    Kind:                  CloudEntitySelector
-    Name:                  cloudentityselector-aws-sample
-    UID:                   42467d8c-9ae7-433b-879c-fdd7b2b843e1
-  Resource Version:        7908985
-  UID:                     da9c4826-e9d6-43d7-87e0-44743f881fb1
+  Creation Timestamp:  <nil>
+  UID:                 938d3805-faa9-48f3-9e54-20a19c1f3d55
 Status:
-  Agented:  true
+  Agented:         true
+  Cloud Id:        i-019459b33d951b62e
+  Cloud Name:      ubuntu2004
+  Cloud Vpc Id:    vpc-0d6bb6a4a880bd9ad
+  Cloud Vpc Name:  test-vpc
   Network Interfaces:
     Ips:
       Address:       10.0.1.45
@@ -151,9 +116,8 @@ Status:
   Region:            us-west-1
   State:             running
   Tags:
-    Name:                 ubuntu2004
-  Virtual Private Cloud:  vpc-0d6bb6a4a880bd9ad
-Events:                   <none>
+    Name:  ubuntu2004
+Events:    <none>
 ```
 
 ## ExternalNode CR Creation

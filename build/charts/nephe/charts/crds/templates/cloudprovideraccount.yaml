@@ -60,7 +60,9 @@ spec:
                     type: string
                   region:
                     description: Cloud provider account region.
-                    type: string
+                    items:
+                      type: string
+                    type: array
                   secretRef:
                     description: Reference to k8s secret which has cloud provider
                       credentials.
@@ -84,7 +86,9 @@ spec:
                 description: Cloud provider account config.
                 properties:
                   region:
-                    type: string
+                    items:
+                      type: string
+                    type: array
                   secretRef:
                     description: SecretReference is a reference to a k8s secret resource
                       in an arbitrary namespace.

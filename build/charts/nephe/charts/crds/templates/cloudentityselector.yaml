@@ -54,6 +54,9 @@ spec:
               accountName:
                 description: AccountName specifies cloud account in this CloudProvider.
                 type: string
+              accountNamespace:
+                description: AccountNamespace specifies the namespace of CloudProviderAccount.
+                type: string
               vmSelector:
                 description: VMSelector selects the VirtualMachines the user has modify
                   privilege. VMSelector is mandatory, at least one selector under
@@ -107,6 +110,13 @@ spec:
                 type: array
             required:
             - vmSelector
+            type: object
+          status:
+            description: CloudEntitySelectorStatus defines the observed state of CloudEntitySelector.
+            properties:
+              error:
+                description: Error is current error, if any, of the CloudEntitySelector.
+                type: string
             type: object
         type: object
     served: true

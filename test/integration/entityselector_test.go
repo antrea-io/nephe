@@ -237,7 +237,7 @@ var _ = Describe(fmt.Sprintf("%s: Entity selector test", focusAws), func() {
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollInterval,
 					AWSConfig: &v1alpha1.CloudProviderAccountAWSConfig{
-						Region: accountParameters.Aws.Region,
+						Region: []string{accountParameters.Aws.Region},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      accountParameters.SecretRef.Name,
 							Namespace: accountParameters.SecretRef.Namespace,
@@ -255,7 +255,7 @@ var _ = Describe(fmt.Sprintf("%s: Entity selector test", focusAws), func() {
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollInterval,
 					AzureConfig: &v1alpha1.CloudProviderAccountAzureConfig{
-						Region: accountParameters.Azure.Location,
+						Region: []string{accountParameters.Azure.Location},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      accountParameters.SecretRef.Name,
 							Namespace: accountParameters.SecretRef.Namespace,

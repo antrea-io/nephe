@@ -17,7 +17,8 @@ metadata:
   namespace: sample-ns
 spec:
   azureConfig:
-    region: "<REPLACE_ME>"
+    region:
+      - "<REPLACE_ME>"
     secretRef:
       name: azure-account-creds
       namespace: nephe-system
@@ -30,6 +31,7 @@ metadata:
   namespace: sample-ns
 spec:
   accountName: cloudprovideraccount-azure-sample
+  accountNamespace: sample-ns
   vmSelector:
     - vpcMatch:
         matchID: "<VNET_ID>"

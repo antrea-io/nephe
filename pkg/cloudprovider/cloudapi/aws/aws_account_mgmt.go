@@ -42,9 +42,10 @@ func setAccountCredentials(client client.Client, credentials interface{}) (inter
 		return nil, err
 	}
 
+	// As only single region is supported right now, use 0th index in awsProviderConfig.Region as the configured region.
 	awsConfig := &awsAccountConfig{
 		AwsAccountCredential: *accCred,
-		region:               strings.TrimSpace(awsProviderConfig.Region),
+		region:               strings.TrimSpace(awsProviderConfig.Region[0]),
 		endpoint:             strings.TrimSpace(awsProviderConfig.Endpoint),
 	}
 
