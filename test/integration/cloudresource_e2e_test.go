@@ -199,23 +199,6 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			}
 		}
 
-		verifyAntreaAgentConnection := func(vm string) {
-			err := wait.Poll(time.Second*20, time.Second*600, func() (bool, error) {
-				cmd := fmt.Sprintf("get aai virtualmachine-%s -o json -o=jsonpath={.agentConditions[0].status}", vm)
-				out, err := kubeCtl.Cmd(cmd)
-				if err != nil {
-					logf.Log.V(1).Info("Failed to get AntreaAgentInfo", "err", err)
-					return false, nil
-				}
-				if strings.Compare(out, "True") != 0 {
-					logf.Log.V(1).Info("Waiting for antrea-agent connection update", "vm", vm)
-					return false, nil
-				}
-				return true, nil
-			})
-			Expect(err).ToNot(HaveOccurred(), "timeout waiting for antrea-agent connection")
-		}
-
 		if withAgent {
 			// To Keep tests happy, add default ingress/egress deny rule
 			// TODO: Update the tests later to remove this rule
@@ -227,17 +210,6 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			}
 			err := utils.ConfigureK8s(kubeCtl, defaultANPParameters, k8stemplates.DefaultANPSetup, false)
 			Expect(err).ToNot(HaveOccurred(), "failed to add default ANP rule")
-
-			// Check antrea-agent has connected to antrea-controller.
-			for _, vpc := range cloudVPCs {
-				for i, vm := range vpc.GetVMIDs() {
-					if cloudProviders == "Azure" {
-						vmName := cpautils.GenerateShortResourceIdentifier(strings.ToLower(vm), vpc.GetVMNames()[i])
-						vm = vmName
-					}
-					verifyAntreaAgentConnection(vm)
-				}
-			}
 		}
 
 		anpParams = k8stemplates.ANPParameters{
@@ -274,6 +246,37 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 				Expect(err).ToNot(HaveOccurred())
 			}
 		}
+
+		verifyAntreaAgentConnection := func(vm string) {
+			err := wait.Poll(time.Second*20, time.Second*600, func() (bool, error) {
+				cmd := fmt.Sprintf("get aai virtualmachine-%s -o json -o=jsonpath={.agentConditions[0].status}", vm)
+				out, err := kubeCtl.Cmd(cmd)
+				if err != nil {
+					logf.Log.V(1).Info("Failed to get AntreaAgentInfo", "err", err)
+					return false, nil
+				}
+				if strings.Compare(out, "True") != 0 {
+					logf.Log.V(1).Info("Waiting for antrea-agent connection update", "vm", vm)
+					return false, nil
+				}
+				return true, nil
+			})
+			Expect(err).ToNot(HaveOccurred(), "timeout waiting for antrea-agent connection")
+		}
+
+		// Check antrea-agent has connected to antrea-controller.
+		if withAgent {
+			for _, vpc := range cloudVPCs {
+				for i, vm := range vpc.GetVMIDs() {
+					if cloudProviders == "Azure" {
+						vmName := cpautils.GenerateShortResourceIdentifier(strings.ToLower(vm), vpc.GetVMNames()[i])
+						vm = vmName
+					}
+					verifyAntreaAgentConnection(vm)
+				}
+			}
+		}
+
 		err = utils.CheckCloudResourceNetworkPolicies(
 			kubeCtl, k8sClient, vmKind, namespace.Name, cloudVPC.GetVMs(), []string{anpSetupParams.Name}, withAgent,
 		)

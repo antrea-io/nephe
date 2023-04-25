@@ -66,7 +66,7 @@ var _ = Describe("AWS cloud", func() {
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
 					AWSConfig: &v1alpha1.CloudProviderAccountAWSConfig{
-						Region: "us-east-1",
+						Region: []string{"us-east-1"},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      testAccountNamespacedName.Name,
 							Namespace: testAccountNamespacedName.Namespace,
@@ -367,7 +367,7 @@ var _ = Describe("AWS cloud", func() {
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
 					AWSConfig: &v1alpha1.CloudProviderAccountAWSConfig{
-						Region: "us-east-1",
+						Region: []string{"us-east-1"},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      testAccountNamespacedName.Name,
 							Namespace: testAccountNamespacedName.Namespace,

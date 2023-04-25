@@ -42,7 +42,8 @@ metadata:
   namespace: {{.Namespace}}
 spec:
   awsConfig:
-    region: {{.Aws.Region}}
+    region:
+      - {{.Aws.Region}}
     secretRef:
       name: {{.SecretRef.Name}}
       namespace: {{.SecretRef.Namespace}}
@@ -57,7 +58,8 @@ metadata:
   namespace: {{.Namespace}}
 spec:
   azureConfig:
-    region:    {{.Azure.Location}}
+    region:
+      - {{.Azure.Location}}
     secretRef:
       name: {{.SecretRef.Name}}
       namespace: {{.SecretRef.Namespace}}

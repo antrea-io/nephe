@@ -247,14 +247,14 @@ func (v *CPAValidator) validateAWSAccount(account *crdv1alpha1.CloudProviderAcco
 		return fmt.Errorf(errorMsgMissingCredential)
 	}
 
-	if len(strings.TrimSpace(awsConfig.Region)) == 0 {
+	if len(awsConfig.Region) == 0 || len(strings.TrimSpace(awsConfig.Region[0])) == 0 {
 		return fmt.Errorf(errorMsgMissingRegion)
 	}
 
 	// NOTE: currently only AWS standard partition regions supported (aws-cn, aws-us-gov etc are not
 	// supported). As we add support for other partitions, validation needs to be updated.
 	regions := endpoints.AwsPartition().Regions()
-	_, found := regions[awsConfig.Region]
+	_, found := regions[awsConfig.Region[0]]
 	if !found {
 		var supportedRegions []string
 		for key := range regions {
@@ -308,7 +308,7 @@ func (v *CPAValidator) validateAzureAccount(account *crdv1alpha1.CloudProviderAc
 	}
 
 	// validate region
-	if len(strings.TrimSpace(azureConfig.Region)) == 0 {
+	if len(azureConfig.Region) == 0 || len(strings.TrimSpace(azureConfig.Region[0])) == 0 {
 		return fmt.Errorf(errorMsgMissingRegion)
 	}
 

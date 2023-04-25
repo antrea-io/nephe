@@ -70,7 +70,7 @@ var _ = Describe("AWS Cloud Security", func() {
 			Spec: crdv1alpha1.CloudProviderAccountSpec{
 				PollIntervalInSeconds: &pollIntv,
 				AWSConfig: &crdv1alpha1.CloudProviderAccountAWSConfig{
-					Region: "us-west-2",
+					Region: []string{"us-west-2"},
 					SecretRef: &crdv1alpha1.SecretReference{
 						Name:      testAccountNamespacedName.Name,
 						Namespace: testAccountNamespacedName.Namespace,

@@ -80,7 +80,7 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
 					AWSConfig: &v1alpha1.CloudProviderAccountAWSConfig{
-						Region: "us-east-1",
+						Region: []string{"us-east-1"},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      testSecretNamespacedName.Name,
 							Namespace: testSecretNamespacedName.Namespace,
@@ -98,7 +98,7 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
 					AzureConfig: &v1alpha1.CloudProviderAccountAzureConfig{
-						Region: "us-east-1",
+						Region: []string{"us-east-1"},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      testSecretNamespacedName.Name,
 							Namespace: testSecretNamespacedName.Namespace,
@@ -151,7 +151,7 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 				},
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					AWSConfig: &v1alpha1.CloudProviderAccountAWSConfig{
-						Region: "us-east-1",
+						Region: []string{"us-east-1"},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      testSecretNamespacedName.Name,
 							Namespace: testSecretNamespacedName.Namespace,
@@ -286,7 +286,7 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollInterval,
 					AWSConfig: &v1alpha1.CloudProviderAccountAWSConfig{
-						Region: "us-east-1",
+						Region: []string{"us-east-1"},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      testSecretNamespacedName.Name,
 							Namespace: testSecretNamespacedName.Namespace,
@@ -422,7 +422,7 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
 					AWSConfig: &v1alpha1.CloudProviderAccountAWSConfig{
-						Region: "us-xxx",
+						Region: []string{"us-xxx"},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      testSecretNamespacedName.Name,
 							Namespace: testSecretNamespacedName.Namespace,
@@ -480,7 +480,7 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
 					AWSConfig: &v1alpha1.CloudProviderAccountAWSConfig{
-						Region: "us-west-1",
+						Region: []string{"us-west-1"},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      testSecretNamespacedName.Name,
 							Namespace: testSecretNamespacedName.Namespace,
@@ -537,7 +537,7 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
 					AWSConfig: &v1alpha1.CloudProviderAccountAWSConfig{
-						Region: "us-west-1",
+						Region: []string{"us-west-1"},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      testSecretNamespacedName.Name,
 							Namespace: testSecretNamespacedName.Namespace,
@@ -594,7 +594,7 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
 					AWSConfig: &v1alpha1.CloudProviderAccountAWSConfig{
-						Region: "us-west-1",
+						Region: []string{"us-west-1"},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      testSecretNamespacedName.Name,
 							Namespace: testSecretNamespacedName.Namespace,
@@ -941,7 +941,7 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
 					AWSConfig: &v1alpha1.CloudProviderAccountAWSConfig{
-						Region: "us-east-2",
+						Region: []string{"us-east-2"},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      testSecretNamespacedName.Name,
 							Namespace: testSecretNamespacedName.Namespace,
@@ -991,7 +991,7 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
 					AWSConfig: &v1alpha1.CloudProviderAccountAWSConfig{
-						Region: "us-east-2",
+						Region: []string{"us-east-2"},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      testSecretNamespacedName.Name,
 							Namespace: testSecretNamespacedName.Namespace,
@@ -1130,7 +1130,7 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
 					AWSConfig: &v1alpha1.CloudProviderAccountAWSConfig{
-						Region: "us-east-2",
+						Region: []string{"us-east-2"},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      testSecretNamespacedName.Name,
 							Namespace: testSecretNamespacedName.Namespace,
@@ -1182,7 +1182,7 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollInterval,
 					AWSConfig: &v1alpha1.CloudProviderAccountAWSConfig{
-						Region: "us-east-1",
+						Region: []string{"us-east-1"},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      testSecretNamespacedName.Name,
 							Namespace: testSecretNamespacedName.Namespace,
@@ -1233,7 +1233,7 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
 					AzureConfig: &v1alpha1.CloudProviderAccountAzureConfig{
-						Region: "us-east-1",
+						Region: []string{"us-east-1"},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      testSecretNamespacedName.Name,
 							Namespace: testSecretNamespacedName.Namespace,
@@ -1351,7 +1351,7 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 					Spec: v1alpha1.CloudProviderAccountSpec{
 						PollIntervalInSeconds: &pollIntv,
 						AWSConfig: &v1alpha1.CloudProviderAccountAWSConfig{
-							Region: "us-east-2",
+							Region: []string{"us-east-2"},
 							SecretRef: &v1alpha1.SecretReference{
 								Name:      testSecretNamespacedName.Name,
 								Namespace: testSecretNamespacedName.Namespace,

@@ -56,7 +56,10 @@ spec:
             description: CloudEntitySelectorSpec defines the desired state of CloudEntitySelector.
             properties:
               accountName:
-                description: AccountName specifies cloud account in this CloudProvider.
+                description: AccountName specifies the name of CloudProviderAccount.
+                type: string
+              accountNamespace:
+                description: AccountNamespace specifies the namespace of CloudProviderAccount.
                 type: string
               vmSelector:
                 description: VMSelector selects the VirtualMachines the user has modify
@@ -111,6 +114,13 @@ spec:
                 type: array
             required:
             - vmSelector
+            type: object
+          status:
+            description: CloudEntitySelectorStatus defines the observed state of CloudEntitySelector.
+            properties:
+              error:
+                description: Error is current error, if any, of the CloudEntitySelector.
+                type: string
             type: object
         type: object
     served: true
@@ -183,7 +193,9 @@ spec:
                     type: string
                   region:
                     description: Cloud provider account region.
-                    type: string
+                    items:
+                      type: string
+                    type: array
                   secretRef:
                     description: Reference to k8s secret which has cloud provider
                       credentials.
@@ -202,12 +214,16 @@ spec:
                     - name
                     - namespace
                     type: object
+                required:
+                - region
                 type: object
               azureConfig:
                 description: Cloud provider account config.
                 properties:
                   region:
-                    type: string
+                    items:
+                      type: string
+                    type: array
                   secretRef:
                     description: SecretReference is a reference to a k8s secret resource
                       in an arbitrary namespace.
@@ -226,6 +242,8 @@ spec:
                     - name
                     - namespace
                     type: object
+                required:
+                - region
                 type: object
               pollIntervalInSeconds:
                 description: PollIntervalInSeconds defines account poll interval (default

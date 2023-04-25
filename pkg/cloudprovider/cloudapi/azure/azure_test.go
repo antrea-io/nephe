@@ -99,7 +99,7 @@ var _ = Describe("Azure", func() {
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
 					AzureConfig: &v1alpha1.CloudProviderAccountAzureConfig{
-						Region: testRegion,
+						Region: []string{testRegion},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      testAccountNamespacedName.Name,
 							Namespace: testAccountNamespacedName.Namespace,

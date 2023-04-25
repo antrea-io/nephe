@@ -115,7 +115,8 @@ metadata:
   namespace: sample-ns
 spec:
   awsConfig:
-    region: "<REPLACE_ME>"
+    region:
+      - "<REPLACE_ME>"
     secretRef:
       name: aws-account-creds
       namespace: nephe-system
@@ -156,7 +157,8 @@ metadata:
   namespace: sample-ns
 spec:
   azureConfig:
-    region: "<REPLACE_ME>"
+    region:
+      - "<REPLACE_ME>"
     secretRef:
       name: azure-account-creds
       namespace: nephe-system
@@ -180,6 +182,7 @@ metadata:
   namespace: sample-ns
 spec:
   accountName: cloudprovideraccount-aws-sample
+  accountNamespace: sample-ns
   vmSelector:
       - vpcMatch:
           matchID: "<VPC_ID>"
