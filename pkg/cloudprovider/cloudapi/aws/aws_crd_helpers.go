@@ -25,6 +25,7 @@ import (
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	cloudcommon "antrea.io/nephe/pkg/cloudprovider/cloudapi/common"
 	"antrea.io/nephe/pkg/labels"
+	"antrea.io/nephe/pkg/util/k8s"
 )
 
 const ResourceNameTagKey = "Name"
@@ -32,13 +33,13 @@ const ResourceNameTagKey = "Name"
 // ec2InstanceToInternalVirtualMachineObject converts ec2 instance to VirtualMachine runtime object.
 func ec2InstanceToInternalVirtualMachineObject(instance *ec2.Instance, vpcs map[string]*ec2.Vpc, namespace string,
 	account *types.NamespacedName, region string) *runtimev1alpha1.VirtualMachine {
-	tags := make(map[string]string)
-	vmTags := instance.Tags
-	if len(vmTags) > 0 {
-		for _, tag := range vmTags {
-			tags[*tag.Key] = *tag.Value
+	vmTags := make(map[string]string)
+	if len(instance.Tags) > 0 {
+		for _, tag := range instance.Tags {
+			vmTags[*tag.Key] = *tag.Value
 		}
 	}
+	importedTags := k8s.ImportTags(vmTags)
 
 	// Network interfaces associated with Virtual machine
 	instNetworkInterfaces := instance.NetworkInterfaces
@@ -73,7 +74,7 @@ func ec2InstanceToInternalVirtualMachineObject(instance *ec2.Instance, vpcs map[
 		networkInterfaces = append(networkInterfaces, networkInterface)
 	}
 
-	cloudName := tags[ResourceNameTagKey]
+	cloudName := importedTags[ResourceNameTagKey]
 	cloudID := *instance.InstanceId
 	cloudNetwork := *instance.VpcId
 
@@ -81,7 +82,7 @@ func ec2InstanceToInternalVirtualMachineObject(instance *ec2.Instance, vpcs map[
 
 	vmStatus := &runtimev1alpha1.VirtualMachineStatus{
 		Provider:          runtimev1alpha1.CloudProvider(providerType),
-		Tags:              tags,
+		Tags:              importedTags,
 		State:             runtimev1alpha1.VMState(*instance.State.Name),
 		NetworkInterfaces: networkInterfaces,
 		Region:            strings.ToLower(region),
