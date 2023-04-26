@@ -142,6 +142,6 @@ func (r *CloudEntitySelectorReconciler) processDelete(selectorNamespacedName *ty
 		return fmt.Errorf("failed to find account for selector %s", selectorNamespacedName.String())
 	}
 	delete(r.selectorToAccountMap, *selectorNamespacedName)
-	r.AccManager.RemoveResourceFiltersFromAccount(&accountNamespacedName, selectorNamespacedName)
+	_ = r.AccManager.RemoveResourceFiltersFromAccount(&accountNamespacedName, selectorNamespacedName)
 	return nil
 }

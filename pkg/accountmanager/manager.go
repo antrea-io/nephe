@@ -47,7 +47,7 @@ type Interface interface {
 	AddAccount(*types.NamespacedName, runtimev1alpha1.CloudProvider, *crdv1alpha1.CloudProviderAccount) error
 	RemoveAccount(*types.NamespacedName) error
 	AddResourceFiltersToAccount(*types.NamespacedName, *types.NamespacedName, *crdv1alpha1.CloudEntitySelector) (bool, error)
-	RemoveResourceFiltersFromAccount(*types.NamespacedName, *types.NamespacedName)
+	RemoveResourceFiltersFromAccount(*types.NamespacedName, *types.NamespacedName) error
 }
 
 type AccountManager struct {
@@ -183,11 +183,11 @@ func (a *AccountManager) AddResourceFiltersToAccount(accNamespacedName *types.Na
 
 // RemoveResourceFiltersFromAccount removes selector from cloud plugin and restart the poller.
 func (a *AccountManager) RemoveResourceFiltersFromAccount(accNamespacedName *types.NamespacedName,
-	selectorNamespacedName *types.NamespacedName) {
+	selectorNamespacedName *types.NamespacedName) error {
 	cloudProviderType, ok := a.getAccountProviderType(accNamespacedName)
 	if !ok {
 		// If we cannot find cloud provider type, that means CPA may not be added or it's already removed.
-		return
+		return fmt.Errorf(fmt.Sprintf("failed to delete selector, account %v not found", accNamespacedName))
 	}
 	cloudInterface, _ := cloudprovider.GetCloudInterface(cloudProviderType)
 	a.Log.V(1).Info("Removing selectors for account", "name", accNamespacedName)
@@ -196,10 +196,11 @@ func (a *AccountManager) RemoveResourceFiltersFromAccount(accNamespacedName *typ
 	// Restart account poller after removing the selector.
 	accPoller, exists := a.getAccountPoller(accNamespacedName)
 	if !exists {
-		return
+		return fmt.Errorf(fmt.Sprintf("%v %v", errorMsgAccountPollerNotFound, accNamespacedName))
 	}
 	accPoller.removeSelector(accNamespacedName)
 	accPoller.restartPoller(accNamespacedName)
+	return nil
 }
 
 // addAccountPoller creates an account poller for a given account.

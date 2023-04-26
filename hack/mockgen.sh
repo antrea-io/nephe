@@ -33,6 +33,7 @@ MOCKGEN_TARGETS=(
   "antrea.io/nephe/pkg/controllers/networkpolicy NetworkPolicyController networkpolicy"
   "antrea.io/nephe/pkg/inventory Interface inventory"
   "antrea.io/nephe/pkg/accountmanager Interface accountmanager"
+  "antrea.io/nephe/pkg/cloudprovider/cloudapi/common CloudInterface cloud"
 )
 
 for target in "${MOCKGEN_TARGETS[@]}"; do
