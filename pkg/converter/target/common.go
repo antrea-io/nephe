@@ -16,7 +16,6 @@ package target
 
 import (
 	"reflect"
-	"regexp"
 	"strings"
 
 	"antrea.io/nephe/pkg/labels"
@@ -63,22 +62,8 @@ func genTargetEntityLabels(source interface{}, cl client.Client) map[string]stri
 		entityLabels[key] = val
 	}
 	for key, val := range vmSource.GetTags() {
-		labelKey, labelVal := genTagLabel(key, val)
-		entityLabels[strings.ToLower(labelKey)] = strings.ToLower(labelVal)
+		labelKey := labels.LabelPrefixNephe + labels.ExternalEntityLabelKeyTagPrefix + key
+		entityLabels[labelKey] = val
 	}
 	return entityLabels
-}
-
-func genTagLabel(key, val string) (string, string) {
-	reg, _ := regexp.Compile(LabelExpression)
-	labelKey := labels.LabelPrefixNephe + labels.ExternalEntityLabelKeyTagPrefix + reg.ReplaceAllString(key, "")
-	if len(labelKey) > LabelSizeLimit {
-		labelKey = labelKey[:LabelSizeLimit]
-	}
-	labelVal := reg.ReplaceAllString(val, "")
-	if len(labelVal) > LabelSizeLimit {
-		labelVal = labelVal[:LabelSizeLimit]
-	}
-
-	return labelKey, labelVal
 }
