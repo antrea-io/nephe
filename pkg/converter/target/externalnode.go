@@ -20,9 +20,6 @@ import (
 	"strings"
 
 	"golang.org/x/exp/slices"
-	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/runtime"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	antreav1alpha1 "antrea.io/antrea/pkg/apis/crd/v1alpha1"
@@ -48,16 +45,11 @@ type ExternalNodeSource interface {
 
 // NewExternalNodeFrom generate a new ExternalNode from source.
 func NewExternalNodeFrom(
-	source ExternalNodeSource, name, namespace string, cl client.Client, scheme *runtime.Scheme) *antreav1alpha1.ExternalNode {
+	source ExternalNodeSource, name, namespace string, cl client.Client) *antreav1alpha1.ExternalNode {
 	externalNode := &antreav1alpha1.ExternalNode{}
 	populateExternalNodeFrom(source, externalNode, cl)
 	externalNode.SetName(name)
 	externalNode.SetNamespace(namespace)
-	accessor, _ := meta.Accessor(source.EmbedType())
-	if err := ctrl.SetControllerReference(accessor, externalNode, scheme); err != nil {
-		externalNode.SetName(name)
-		externalNode.SetNamespace(namespace)
-	}
 	return externalNode
 }
 
