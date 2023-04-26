@@ -62,6 +62,7 @@ type CloudEntitySelectorStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:shortName="ces"
+// +kubebuilder:subresource:status
 
 // CloudEntitySelector is the Schema for the cloudentityselectors API.
 type CloudEntitySelector struct {
