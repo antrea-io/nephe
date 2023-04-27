@@ -19,7 +19,6 @@ import (
 	"sort"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
@@ -46,8 +45,7 @@ type ExternalEntitySource interface {
 
 // NewExternalEntityFrom generate a new ExternalEntity from source.
 func NewExternalEntityFrom(
-	source ExternalEntitySource, name, namespace string, cl client.Client,
-	scheme *runtime.Scheme) *antreatypes.ExternalEntity {
+	source ExternalEntitySource, name, namespace string, cl client.Client) *antreatypes.ExternalEntity {
 	externalEntity := &antreatypes.ExternalEntity{}
 	_ = populateExternalEntityFrom(source, externalEntity, cl)
 	externalEntity.SetName(name)

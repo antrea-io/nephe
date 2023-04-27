@@ -182,10 +182,10 @@ func (v VMConverter) processEvent(vm *VirtualMachineSource, failedUpdates map[st
 
 	// TODO: Split Add/Create/Delete is new functions
 	if isExternalNode {
-		externNode = target.NewExternalNodeFrom(vm, fetchKey.Name, fetchKey.Namespace, v.Client, v.Scheme)
+		externNode = target.NewExternalNodeFrom(vm, fetchKey.Name, fetchKey.Namespace, v.Client)
 		err = v.Client.Create(ctx, externNode)
 	} else {
-		externEntity = target.NewExternalEntityFrom(vm, fetchKey.Name, fetchKey.Namespace, v.Client, v.Scheme)
+		externEntity = target.NewExternalEntityFrom(vm, fetchKey.Name, fetchKey.Namespace, v.Client)
 		err = v.Client.Create(ctx, externEntity)
 	}
 	if err != nil {
