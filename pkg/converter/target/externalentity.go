@@ -24,12 +24,6 @@ import (
 	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 )
 
-const (
-	// LabelSizeLimit K8s label requirements, https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/.
-	LabelSizeLimit  = 64
-	LabelExpression = "[^a-zA-Z0-9_-]+"
-)
-
 type ExternalEntitySource interface {
 	client.Object
 	// GetEndPointAddresses returns IP addresses of ExternalEntitySource.

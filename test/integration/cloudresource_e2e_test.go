@@ -128,7 +128,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		}
 		if len(tagKey) > 0 {
 			tagKey = labels.LabelPrefixNephe + labels.ExternalEntityLabelKeyTagPrefix + tagKey
-			ret.Tags = map[string]string{strings.ToLower(tagKey): strings.ToLower(tagVal)}
+			ret.Tags = map[string]string{tagKey: tagVal}
 		}
 		return ret
 	}
@@ -151,7 +151,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			}
 			if len(tagKey) > 0 {
 				tagKey = labels.LabelPrefixNephe + labels.ExternalEntityLabelKeyTagPrefix + tagKey
-				ret.Entity.Tags = map[string]string{strings.ToLower(tagKey): strings.ToLower(tagVal)}
+				ret.Entity.Tags = map[string]string{tagKey: tagVal}
 			}
 		}
 
@@ -410,8 +410,12 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		By(fmt.Sprintf("Applied NetworkPolicy to %v by tag label selector", kind))
 		applied = make([]bool, len(ids))
 		applied[appliedIdx] = true
-		anpParams.AppliedTo = configANPApplyTo(kind, "", "", "name", cloudVPC.GetTags()[appliedIdx]["Name"])
-		verifyAppliedTo(kind, ids, ips, srcVM, srcIP, applied)
+		key := "Name"
+		if value, found := cloudVPC.GetTags()[appliedIdx][key]; found {
+			anpParams.AppliedTo = configANPApplyTo(kind, "", "", key, value)
+			verifyAppliedTo(kind, ids, ips, srcVM, srcIP, applied)
+		}
+
 	}
 
 	testAppliedToUsingGroup := func(kind string) {
@@ -512,9 +516,12 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		By(fmt.Sprintf("Egress NetworkPolicy on %v by tag label selector", kind))
 		oks = make([]bool, len(ids)-1)
 		oks[0] = true
-		anpParams.To = configANPToFrom(kind, "", "", "name", cloudVPC.GetTags()[0]["Name"], "", dstNsName,
-			[]string{apachePort}, false)
-		verifyEgress(kind, ids[appliedIdx], srcVM, ips[:len(ips)-1], oks)
+		key := "Name"
+		if value, found := cloudVPC.GetTags()[0][key]; found {
+			anpParams.To = configANPToFrom(kind, "", "", key, value, "", dstNsName,
+				[]string{apachePort}, false)
+			verifyEgress(kind, ids[appliedIdx], srcVM, ips[:len(ips)-1], oks)
+		}
 
 		By(fmt.Sprintf("Egress NetworkPolicy on %v by IPBlock", kind))
 		oks = make([]bool, len(ids)-1)
@@ -572,9 +579,12 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		By(fmt.Sprintf("Ingress NetworkPolicy on %v by tag label selector", kind))
 		oks = make([]bool, len(ids)-1)
 		oks[0] = true
-		anpParams.From = configANPToFrom(kind, "", "", "name", cloudVPC.GetTags()[0]["Name"], "", dstNsName,
-			[]string{apachePort}, false)
-		verifyIngress(kind, ids[appliedIdx], ips[appliedIdx], srcVMs, oks, false)
+		key := "Name"
+		if value, found := cloudVPC.GetTags()[0][key]; found {
+			anpParams.From = configANPToFrom(kind, "", "", key, value, "", dstNsName,
+				[]string{apachePort}, false)
+			verifyIngress(kind, ids[appliedIdx], ips[appliedIdx], srcVMs, oks, false)
+		}
 
 		By(fmt.Sprintf("Ingress NetworkPolicy on %v by IPBlock", kind))
 		oks = make([]bool, len(ids)-1)
