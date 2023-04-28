@@ -1,47 +1,74 @@
+# Onboard
 
+## Table of Contents
 
-### VirtualMachine Import
-Based on the `CloudEntitySelector` configured, virtual machines are polled
-from cloud and imported as `VirtualMachine` objects in `CloudEntitySelector`
-namespace.
+<!-- toc -->
+- [VirtualMachines](#virtualmachines)
+    - [Labels](#labels)
+    - [Cloud Tags](#cloud-tags)
+    - [Sample VirtualMachine Output](#sample-virtualmachine-output)
+        - [AWS](#aws)
+        - [Azure](#azure)
+- [ExternalEntity](#externalentity)
+    - [Sample ExternalEntity Output](#sample-externalentity-output)
+        - [Azure](#azure-1)
+    - [Labels](#labels-1)
+    - [Cloud Tags](#cloud-tags-1)
+        - [Usage](#usage)
+<!-- /toc -->
 
-`VirtualMachine` object `Name` is a unique resource name within the kubernetes cluster.
-In Azure, ascii sum of the characters in VM Resource ID added as suffix to name of Virtual Machine and 
-in AWS, `instance ID` of Virtual Machine is used as `Name`.
+## VirtualMachines
 
-#### labels
+VirtualMachines are onboarded by specifying the matching criteria in `CloudEntitySelector` CR. The virtual machines from
+cloud are imported as `VirtualMachine` objects in `CloudEntitySelector` namespace. `VirtualMachine` object `Name` is a
+unique resource name within the kubernetes cluster. In Azure, ascii sum of the characters in VM Resource ID added as
+suffix to name of Virtual Machine and in AWS, `instance ID` of Virtual Machine is used as `Name`.
+
+### Labels
+
 Meaning of some label fields in `VirtualMachine` objects differ based on the cloud provider type.
 
-| VM object label | Meaning of label                              | Azure                                                                                   | AWS                         |
-|-----------------|-----------------------------------------------|-----------------------------------------------------------------------------------------|-----------------------------|
-| cloud-vm-uid    | unique id identifying the VM                  | vmId field on cloud                                                   | VM instance ID  on cloud    |
-| cloud-vpc-id    | unique id identifying the VPC                 | resourceGuid field on cloud                                                             | VPC ID field of VPC in cloud |
- | vpc-name        | Unique name of vpc within kuebernetes cluster | ascii sum of the characters in VPC Resource ID are added as a suffix to name of VPC     | VPC ID on cloud   |
+| Label        | Description                               | Azure                                    | AWS                          |
+|--------------|-------------------------------------------|------------------------------------------|------------------------------|
+| cloud-vm-uid | Unique identifier of VM                   | `vmId` field on cloud                    | `Instance ID` of VM on cloud |
+| cloud-vpc-id | Unique identifier of VPC                  | `resourceGuid` field on cloud            | `VPC ID` of VPC in cloud     |
+| vpc-name     | VPC object Name within Kubernetes cluster | vpc `Name` and hash of vpc resource `id` | `VPC ID` of VPC in cloud     |
 
 Following labels are generic and related to user configuration.
 
-- `cpa-name`: It is the name of CloudProviderAccount CR to which the imported vm belongs to.
-- `cpa-namespace`: It is the namespace of CloudProviderAccount CR to which
-the imported vm belongs to.
+1. `cpa-name`: Name of `CloudProviderAccount` CR to which the imported vm belongs to.
+2. `cpa-namespace`: Namespace of `CloudProviderAccount` CR to which the imported vm belongs to.
 
-#### Tags in Status field:
-`VirtualMachine` object tags are converted to labels in `ExternalEntity` CR, hence only the tags which comply to kubernetes label format are imported as tags in vm object.
+### Cloud Tags
 
-Key field specifications:
+`VirtualMachine` object tags are converted to labels in `ExternalEntity` CR, hence only the tags which comply to
+Kubernetes labels format are imported as tags in vm object.
 
- - required field
- - must be 63 characters or fewer(4 characters are allocated to the prefix "tag-" in labels, hence only 59 characters can be used in key)
- - beginning and ending with an alphanumeric character ([a-z0-9A-Z]) with dashes (-), underscores (_), dots (.), and alphanumerics between.
+*Key field specifications*:
 
-Value field specifications:
+- Required field
+- Must be 63 characters or fewer(4 characters are allocated to the prefix "tag-" in labels, hence only 59 characters
+  can be used in key)
+- First and last character must be an alphanumeric character ([a-z0-9A-Z]), with dashes (-), underscores (_), dots (.),
+  and alphanumerics in between.
 
- - optional field
- - must be 63 characters or fewer
- - unless empty, must begin and end with an alphanumeric character, could contain dashes (-), underscores (_), dots (.), and alphanumerics between.
+*Value field specifications*:
 
-#### `VirtualMachine` describe output on AWS
+- Optional field
+- Must be 63 characters or fewer
+- Unless empty, must begin and end with an alphanumeric character, could contain dashes (-), underscores (_), dots (.),
+  and alphanumerics between.
+
+### Sample VirtualMachine Output
+
+#### AWS
+
 ```bash
 kubectl describe vm i-0c2e4054f435927a9 -n sample-ns
+```
+
+```text
+# Output
 Name:         i-0c2e4054f435927a9
 Namespace:    sample-ns
 Labels:       nephe.io/cloud-vm-uid=i-0c2e4054f435927a9
@@ -77,10 +104,14 @@ Status:
 Events:    <none>
 ```
 
-#### `VirtualMachine` describe output on Azure
+#### Azure
 
 ```bash
 kubectl describe vm vm1-11610 -n sample-ns
+```
+
+```text
+# Output
 Name:         vm1-11610
 Namespace:    sample-ns
 Labels:       nephe.io/cloud-vm-uid=d33fa6ce-9a12-48bd-ac0e-d842a2f24838
@@ -117,12 +148,21 @@ Status:
 Events:              <none>
 ```
 
-### External Entity
-For each imported `VirtualMachine`, External Entity is created. Labels in `ExternalEntity` can be used in
-ANPs as source or destination.
+## ExternalEntity
 
-#### External Entity describe output on Azure:
+For each imported `VirtualMachine`, an `ExternalEntity` CR is created. All the labels and tags from the `VirtualMachine`
+objects are imported on to `ExternalEntity` CR as labels, which can be used to configure ANPs.
+
+### Sample ExternalEntity Output
+
+#### Azure
+
 ```bash
+kubectl describe ee virtualmachine-vm1-11610 -n sample-ns
+```
+
+```text
+# Output
 Name:         virtualmachine-vm1-11610
 Namespace:    sample-ns
 Labels:       nephe.io/cloud-region=westus
@@ -175,28 +215,33 @@ Spec:
 Events:           <none>
 ```
 
-#### labels
-label name with a prefix "cloud-" are the values imported directly from cloud.
+### Labels
 
-| VM object field name    | Meaning of field                                         | Azure                                                                         | AWS                         |
-|-------------------------|----------------------------------------------------------|-------------------------------------------------------------------------------|-----------------------------|
-| nephe.io/cloud-vm-uid   | unique id identifying the VM                             | vmId field on cloud                                                           | VM instance ID  on cloud    |
-| nephe.io/cloud-vpc-uid  | unique id identifying the VPC                            | resourceGuid field on cloud                                                   | VPC ID field of VPC in cloud |
-| nephe.io/cloud-vpc-name | User assigned name on the cloud for the VPC              | name field on cloud                                                           | `name` tag                  |
- | nephe.io/cloud-vm-name | User assigned name on the cloud for the VM               | name field on cloud                                                           | `name` tag                  |
- | nephe.io/owner-vm      | unique resource name of vm within the kubernetes cluster | ascii sum of the characters in VM Resource ID added as suffix to name of VM   | VM Instance ID              | 
- | nephe.io/owner-vm-vpc | unique resource name of vpc(vm belongs) within the kubernetes cluster | ascii sum of the characters in VPC Resource ID added as suffix to name of VPC | VPC ID | 
+Labels with a `cloud-` prefix reflect the values fetched from cloud.
+
+| Label                   | Description                                              | Azure                                    | AWS                          |
+|-------------------------|----------------------------------------------------------|------------------------------------------|------------------------------|
+| nephe.io/cloud-vm-uid   | Unique identifier of VM                                  | `vmId` field on cloud                    | `Instance ID` of VM on cloud |
+| nephe.io/cloud-vpc-uid  | Unique identifier of VPC                                 | `resourceGuid` field on cloud            | `VPC ID` of VPC in cloud     |
+| nephe.io/cloud-vpc-name | User assigned VPC name on the cloud                      | `Name` field on cloud                    | `Name` tag                   |
+| nephe.io/cloud-vm-name  | User assigned VM name on the cloud                       | `Name` field on cloud                    | `Name` tag                   |
+| nephe.io/owner-vm       | VM object Name within Kubernetes cluster                 | vm `Name` and hash of vm resource `id`   | `Instance ID` of VM on cloud | 
+| nephe.io/owner-vm-vpc   | VPC object(belongs to VM) Name within Kubernetes cluster | vpc `Name` and hash of vpc resource `id` | `VPC ID` of VPC in cloud     | 
 
 
 nephe.io/cloud-region: Region configured in CPA and VMs are imported from this region.
 
-Label name starting with a prefix "tag-" are the `tags` from imported
-`vm` objects. In the above EE describe output nephe.io/tag-Cloud and nephe.io/tag-Name labels correspond to
-`Tags` in VM objects.
+### Cloud Tags
 
-Labels in `EE` can be directly used in To, From, AppliedTo section as externalEntitySelectors in `ANPs`.
+The tags on the `VirtualMachine` object are imported as labels in `ExternalEntity` CR. Label name starting with a prefix
+"tag-" are the `tags` from imported `VirtualMachine` objects. In the above example, `nephe.io/tag-Cloud` and
+`nephe.io/tag-Name` labels correspond to tags in `VirtualMachine` objects.
 
-Following ANP uses "nephe.io/tag-Name" in appliedTo.
+#### Usage
+
+Labels in `ExternalEntity` can be directly used in To, From, AppliedTo section as externalEntitySelectors in Antrea
+`NetworkPolicys`. Following ANP demonstrates use of the label `nephe.io/tag-Name` in an `appliedTo` field.
+
 ```bash
 cat <<EOF | kubectl apply -f -
 apiVersion: crd.antrea.io/v1alpha1
@@ -220,7 +265,3 @@ appliedTo:
 
 EOF
 ```
-
-
-
-
