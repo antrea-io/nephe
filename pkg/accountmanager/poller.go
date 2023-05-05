@@ -161,10 +161,7 @@ func (p *accountPoller) doAccountPolling() {
 			p.namespacedName.String())
 		return
 	}
-
-	if err := p.inventory.BuildVpcCache(vpcMap, p.namespacedName); err != nil {
-		p.log.Error(err, "failed to build vpc cache", "account", p.namespacedName.String())
-	}
+	_ = p.inventory.BuildVpcCache(vpcMap, p.namespacedName)
 
 	// Perform VM Operations only when CES is added.
 	vmCount := 0
@@ -184,24 +181,23 @@ func (p *accountPoller) doAccountPolling() {
 // updateAccountStatus updates status of a CPA object when it's changed.
 func (p *accountPoller) updateAccountStatus(cloudInterface common.CloudInterface) {
 	account := &crdv1alpha1.CloudProviderAccount{}
-	e := p.Get(context.TODO(), *p.namespacedName, account)
-	if e != nil {
+	err := p.Get(context.TODO(), *p.namespacedName, account)
+	if err != nil {
 		return
 	}
 
 	discoveredStatus := crdv1alpha1.CloudProviderAccountStatus{}
-	status, e := cloudInterface.GetAccountStatus(p.namespacedName)
-	if e != nil {
-		discoveredStatus.Error = fmt.Sprintf("failed to get status, err %v", e)
+	status, err := cloudInterface.GetAccountStatus(p.namespacedName)
+	if err != nil {
+		discoveredStatus.Error = fmt.Sprintf("failed to get status, err %v", err)
 	} else if status != nil {
 		discoveredStatus = *status
 	}
 
 	if account.Status != discoveredStatus {
 		account.Status.Error = discoveredStatus.Error
-		e = p.Client.Status().Update(context.TODO(), account)
-		if e != nil {
-			p.log.Error(e, "failed to update account status", "account", p.namespacedName)
+		if err = p.Client.Status().Update(context.TODO(), account); err != nil {
+			p.log.Error(err, "failed to update account status", "account", p.namespacedName)
 		}
 	}
 }

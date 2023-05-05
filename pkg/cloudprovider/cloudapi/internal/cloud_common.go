@@ -107,7 +107,6 @@ func (c *cloudCommon) AddCloudAccount(client client.Client, account *crdv1alpha1
 func (c *cloudCommon) RemoveCloudAccount(namespacedName *types.NamespacedName) {
 	_, found := c.GetCloudAccountByName(namespacedName)
 	if !found {
-		c.logger().V(0).Info("unable to find cloud account", "account", *namespacedName)
 		return
 	}
 	c.mutex.Lock()

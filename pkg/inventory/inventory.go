@@ -90,8 +90,8 @@ func (inventory *Inventory) BuildVpcCache(discoveredVpcMap map[string]*runtimev1
 			}
 		}
 		if err != nil {
-			return fmt.Errorf("failed to add vpc into vpc cache, vpc id: %s, error: %v",
-				discoveredVpc.Status.CloudId, err)
+			inventory.log.Error(err, "failed to update vpc in vpc cache", "vpc", discoveredVpc.Status.CloudId,
+				"account", namespacedName.String())
 		}
 	}
 

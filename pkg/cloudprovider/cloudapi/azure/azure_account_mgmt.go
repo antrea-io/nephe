@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	"antrea.io/nephe/pkg/util"
 )
 
 type azureAccountConfig struct {
@@ -87,21 +88,25 @@ func extractSecret(c client.Client, s *crdv1alpha1.SecretReference) (*crdv1alpha
 		Version: "v1",
 	})
 	if err := c.Get(context.Background(), client.ObjectKey{Namespace: s.Namespace, Name: s.Name}, u); err != nil {
-		return nil, fmt.Errorf("error fetching Secret: %v/%v", s.Name, s.Namespace)
+		return nil, fmt.Errorf("%v: %v/%v", util.ErrorMsgSecretDoesNotExist, s.Namespace, s.Name)
 	}
 
 	data, ok := u.Object["data"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("error missing Secret config: %v/%v", s.Name, s.Namespace)
+		return nil, fmt.Errorf("error missing Secret config: %v/%v", s.Namespace, s.Name)
 	}
-	decode, err := base64.StdEncoding.DecodeString(data[s.Key].(string))
+	key, ok := data[s.Key].(string)
+	if !ok {
+		return nil, fmt.Errorf("error decoding Secret: %v/%v, key: %v", s.Namespace, s.Name, s.Key)
+	}
+	decode, err := base64.StdEncoding.DecodeString(key)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding Secret: %v/%v", s.Name, s.Namespace)
+		return nil, fmt.Errorf("error decoding Secret: %v/%v", s.Namespace, s.Name)
 	}
 
 	cred := &crdv1alpha1.AzureAccountCredential{}
 	if err = json.Unmarshal(decode, cred); err != nil {
-		return nil, fmt.Errorf("error unmarshalling credentials: %v/%v", s.Name, s.Namespace)
+		return nil, fmt.Errorf("error unmarshalling credentials: %v/%v", s.Namespace, s.Name)
 	}
 
 	return cred, nil

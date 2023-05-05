@@ -25,7 +25,10 @@ import (
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 )
 
-var ErrorMsgUnknownCloudProvider = "missing cloud provider config. Please add AWS or Azure Config"
+var (
+	ErrorMsgUnknownCloudProvider = "missing cloud provider config. Please add AWS or Azure Config"
+	ErrorMsgSecretDoesNotExist   = "error Secret does not exist"
+)
 
 // GetVMIPAddresses returns IP addresses of all network interfaces attached to the vm.
 func GetVMIPAddresses(vm *runtimev1alpha1.VirtualMachine) []runtimev1alpha1.IPAddress {

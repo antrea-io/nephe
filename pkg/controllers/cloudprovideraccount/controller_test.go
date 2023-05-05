@@ -16,6 +16,7 @@ package cloudprovideraccount
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sync"
 	"testing"
@@ -40,6 +41,7 @@ import (
 	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	cloud "antrea.io/nephe/apis/crd/v1alpha1"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	ctrlsync "antrea.io/nephe/pkg/controllers/sync"
 	mockaccmanager "antrea.io/nephe/pkg/testing/accountmanager"
 	"antrea.io/nephe/pkg/util"
@@ -165,65 +167,108 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 			val := ctrlsync.GetControllerSyncStatusInstance().IsControllerSynced(ctrlsync.ControllerTypeCPA)
 			Expect(val).Should(BeTrue())
 		})
-		It("Secret watcher update/delete", func() {
-			var err error
-			reconciler.clientset = fakewatch.NewSimpleClientset()
-			err = os.Setenv(env.PodNamespaceEnvKey, testSecretNamespacedName.Namespace)
-			Expect(err).ShouldNot(HaveOccurred())
-			go func() {
-				reconciler.setupSecretWatcher()
-			}()
-			accountCloudType, err := util.GetAccountProviderType(account)
-			Expect(err).ShouldNot(HaveOccurred())
-			mockAccManager.EXPECT().AddAccount(&testAccountNamespacedName, accountCloudType, account).Return(nil).Times(2)
-
+		Context("Secret watcher", func() {
+			var (
+				accountCloudType runtimev1alpha1.CloudProvider
+				err              error
+			)
+			BeforeEach(func() {
+				reconciler.clientset = fakewatch.NewSimpleClientset()
+				err = os.Setenv(env.PodNamespaceEnvKey, testSecretNamespacedName.Namespace)
+				Expect(err).ShouldNot(HaveOccurred())
+				go func() {
+					reconciler.setupSecretWatcher()
+				}()
+				accountCloudType, err = util.GetAccountProviderType(account)
+				Expect(err).ShouldNot(HaveOccurred())
+			})
 			// Create a Secret using both fakeClient and clientset, since Secret watcher uses clientset
 			// while reconciler using client from controller run-time. Both Secret watcher and reconciler
 			// should be able to retrieve the Secret object.
-			_, err = reconciler.clientset.CoreV1().Secrets(testSecretNamespacedName.Namespace).
-				Create(context.Background(), secret, v1.CreateOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-			time.Sleep(1 * time.Second)
-			_ = fakeClient.Create(context.Background(), secret)
-			// Create CPA.
-			_ = fakeClient.Create(context.Background(), account)
+			It("Update", func() {
+				mockAccManager.EXPECT().AddAccount(&testAccountNamespacedName, accountCloudType, account).Return(nil).Times(2)
+				By("Add the Secret")
+				_ = fakeClient.Create(context.Background(), secret)
+				// Create CPA.
+				_ = fakeClient.Create(context.Background(), account)
+				_, err = reconciler.clientset.CoreV1().Secrets(testSecretNamespacedName.Namespace).
+					Create(context.Background(), secret, v1.CreateOptions{})
+				time.Sleep(1 * time.Second)
+				Expect(err).ShouldNot(HaveOccurred())
 
-			By("Update the Secret with valid credentials")
-			credential := `{"accessKeyId": "keyId","accessKeySecret": "Secret"}`
-			secret = &corev1.Secret{
-				ObjectMeta: v1.ObjectMeta{
-					Name:      testSecretNamespacedName.Name,
-					Namespace: testSecretNamespacedName.Namespace,
-				},
-				Data: map[string][]byte{
-					"credentials": []byte(credential),
-				},
-			}
-			_, err = reconciler.clientset.CoreV1().Secrets(testSecretNamespacedName.Namespace).
-				Update(context.Background(), secret, v1.UpdateOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-			time.Sleep(1 * time.Second)
+				By("Update the Secret with invalid credentials")
+				secret = &corev1.Secret{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      testSecretNamespacedName.Name,
+						Namespace: testSecretNamespacedName.Namespace,
+					},
+					Data: map[string][]byte{
+						credentials: []byte("credentialg"),
+					},
+				}
+				_ = fakeClient.Update(context.Background(), secret)
+				_, err = reconciler.clientset.CoreV1().Secrets(testSecretNamespacedName.Namespace).
+					Update(context.Background(), secret, v1.UpdateOptions{})
+				time.Sleep(1 * time.Second)
+				Expect(err).ShouldNot(HaveOccurred())
 
-			By("Update the Secret with invalid credentials")
-			secret = &corev1.Secret{
-				ObjectMeta: v1.ObjectMeta{
-					Name:      testSecretNamespacedName.Name,
-					Namespace: testSecretNamespacedName.Namespace,
-				},
-				Data: map[string][]byte{
-					"credentials": []byte("credentialg"),
-				},
-			}
-			_ = fakeClient.Update(context.Background(), secret)
-			_, err = reconciler.clientset.CoreV1().Secrets(testSecretNamespacedName.Namespace).
-				Update(context.Background(), secret, v1.UpdateOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-			time.Sleep(1 * time.Second)
-			By("Delete the Secret")
-			err = reconciler.clientset.CoreV1().Secrets(testSecretNamespacedName.Namespace).
-				Delete(context.Background(), testSecretNamespacedName.Name, v1.DeleteOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-			time.Sleep(1 * time.Second)
+				By("Update the Secret with valid credentials")
+				credential := `{"accessKeyId": "keyId","accessKeySecret": "Secret"}`
+				secret = &corev1.Secret{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      testSecretNamespacedName.Name,
+						Namespace: testSecretNamespacedName.Namespace,
+					},
+					Data: map[string][]byte{
+						credentials: []byte(credential),
+					},
+				}
+				_, err := reconciler.clientset.CoreV1().Secrets(testSecretNamespacedName.Namespace).
+					Update(context.Background(), secret, v1.UpdateOptions{})
+				time.Sleep(1 * time.Second)
+				Expect(err).ShouldNot(HaveOccurred())
+
+			})
+			It("Delete", func() {
+				mockAccManager.EXPECT().AddAccount(&testAccountNamespacedName, accountCloudType, account).
+					Return(fmt.Errorf(util.ErrorMsgSecretDoesNotExist)).Times(1)
+				mockAccManager.EXPECT().RemoveAccount(&testAccountNamespacedName).Return(nil).Times(1)
+				By("Add the Secret")
+				_ = fakeClient.Create(context.Background(), secret)
+				// Create CPA.
+				_ = fakeClient.Create(context.Background(), account)
+				_, err = reconciler.clientset.CoreV1().Secrets(testSecretNamespacedName.Namespace).
+					Create(context.Background(), secret, v1.CreateOptions{})
+				time.Sleep(1 * time.Second)
+				Expect(err).ShouldNot(HaveOccurred())
+
+				By("Delete the Secret")
+				_ = fakeClient.Delete(context.Background(), secret)
+				err = reconciler.clientset.CoreV1().Secrets(testSecretNamespacedName.Namespace).
+					Delete(context.Background(), testSecretNamespacedName.Name, v1.DeleteOptions{})
+				time.Sleep(1 * time.Second)
+				Expect(err).ShouldNot(HaveOccurred())
+			})
+			It("Add for AzureAccount", func() {
+				credential := `{"subscriptionId": "subId", "clientId": "clientId", "tenantId": "tenantId", "clientKey": "clientKey"}`
+				secret.Data = map[string][]byte{credentials: []byte(credential)}
+				account.Spec.AWSConfig = nil
+				account.Spec.AzureConfig = &v1alpha1.CloudProviderAccountAzureConfig{
+					Region: []string{"us-east-1"},
+					SecretRef: &v1alpha1.SecretReference{
+						Name:      testSecretNamespacedName.Name,
+						Namespace: testSecretNamespacedName.Namespace,
+						Key:       credentials,
+					},
+				}
+				_ = fakeClient.Create(context.Background(), secret)
+				_ = fakeClient.Create(context.Background(), account)
+				time.Sleep(1 * time.Second)
+				_, err = reconciler.clientset.CoreV1().Secrets(testSecretNamespacedName.Namespace).
+					Create(context.Background(), secret, v1.CreateOptions{})
+				time.Sleep(1 * time.Second)
+				Expect(err).ShouldNot(HaveOccurred())
+			})
 		})
 	})
 })

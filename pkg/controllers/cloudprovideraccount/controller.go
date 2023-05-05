@@ -17,6 +17,7 @@ package cloudprovideraccount
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -137,7 +138,7 @@ func (r *CloudProviderAccountReconciler) processCreateOrUpdate(namespacedName *t
 	r.Log.Info("Received request", "account", namespacedName, "operation", "create/update")
 	accountCloudType, err := util.GetAccountProviderType(account)
 	if err != nil {
-		return fmt.Errorf("%s: %v", accountmanager.ErrorMsgAddOrUpdateAccount, err)
+		return fmt.Errorf("failed to add or update account: %v", err)
 	}
 	if err = r.AccManager.AddAccount(namespacedName, accountCloudType, account); err != nil {
 		account.Status.Error = err.Error()
@@ -145,6 +146,7 @@ func (r *CloudProviderAccountReconciler) processCreateOrUpdate(namespacedName *t
 		if err = r.Client.Status().Update(context.TODO(), account); err != nil {
 			return fmt.Errorf("failed to update account status, account %v err %v", namespacedName, err)
 		}
+		_ = r.AccManager.RemoveAccount(namespacedName)
 	}
 	return nil
 }
@@ -175,70 +177,66 @@ func (r *CloudProviderAccountReconciler) setSyncStatusAndSecretWatcher() {
 
 // getCpaBySecret returns nil only when the Secret is not used by any CloudProvideAccount CR,
 // otherwise the dependent CloudProvideAccount CRs will be returned.
-func (r *CloudProviderAccountReconciler) getCpaBySecret(s types.NamespacedName) ([]crdv1alpha1.CloudProviderAccount, error) {
+func (r *CloudProviderAccountReconciler) getCpaBySecret(s *types.NamespacedName) ([]*crdv1alpha1.CloudProviderAccount, error) {
 	cpaList := &crdv1alpha1.CloudProviderAccountList{}
 	if err := r.Client.List(context.TODO(), cpaList, &client.ListOptions{}); err != nil {
 		return nil, fmt.Errorf("failed to get CloudProviderAccount list, err %v", err)
 	}
-	var cpaItems []crdv1alpha1.CloudProviderAccount
+	var cpaItems []*crdv1alpha1.CloudProviderAccount
 	for _, cpa := range cpaList.Items {
 		if cpa.Spec.AWSConfig != nil {
 			if cpa.Spec.AWSConfig.SecretRef.Name == s.Name &&
 				cpa.Spec.AWSConfig.SecretRef.Namespace == s.Namespace {
-				cpaItems = append(cpaItems, cpa)
+				cpaItems = append(cpaItems, &cpa)
 			}
 		}
-
 		if cpa.Spec.AzureConfig != nil {
 			if cpa.Spec.AzureConfig.SecretRef.Name == s.Name &&
 				cpa.Spec.AzureConfig.SecretRef.Namespace == s.Namespace {
-				cpaItems = append(cpaItems, cpa)
+				cpaItems = append(cpaItems, &cpa)
 			}
 		}
 	}
 	return cpaItems, nil
 }
 
-// watchSecret watch the Secret objects.
+// processSecretUpdateEvent updates all dependent accounts for a given Secret Namespace.
+func (r *CloudProviderAccountReconciler) processSecretUpdateEvent(secretNamespacedName *types.NamespacedName,
+	eventType watch.EventType) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	cpaItems, err := r.getCpaBySecret(secretNamespacedName)
+	if err != nil {
+		r.Log.WithName("Secret").Error(err, "error getting CPA by Secret", "Secret", secretNamespacedName)
+	}
+
+	for _, cpa := range cpaItems {
+		accountNamespacedName := &types.NamespacedName{Namespace: cpa.Namespace, Name: cpa.Name}
+		// For add operation, update CPA only when status contains an error ErrorMsgSecretDoesNotExist.
+		if eventType == watch.Added {
+			if !strings.Contains(cpa.Status.Error, util.ErrorMsgSecretDoesNotExist) {
+				r.Log.WithName("Secret").Info("Secret exists, skip updating account", "account", accountNamespacedName)
+				continue
+			}
+		}
+		if err := r.processCreateOrUpdate(accountNamespacedName, cpa); err != nil {
+			r.Log.WithName("Secret").Error(err, "error updating account", "account", *accountNamespacedName)
+		}
+	}
+}
+
+// watchSecret watch the Secret objects and update dependent CPA objects.
 func (r *CloudProviderAccountReconciler) watchSecret() {
-	logWithSecret := r.Log.WithName("Secret")
 	for {
 		event, ok := <-r.watcher.ResultChan()
-		if !ok {
+		if !ok || event.Type == watch.Error {
 			r.resetSecretWatcher()
 		} else {
 			secret := event.Object.(*v1.Secret)
-			namespacedName := types.NamespacedName{Namespace: secret.Namespace, Name: secret.Name}
-			switch event.Type {
-			case watch.Modified:
-				r.mutex.Lock()
-				logWithSecret.Info("Received request", "Secret", namespacedName, "operation", "update")
-				cpaItems, err := r.getCpaBySecret(namespacedName)
-				if err != nil {
-					r.Log.WithName("Secret").Error(err, "error getting CPA by Secret", "account", namespacedName)
-				}
-				for _, cpa := range cpaItems {
-					accountNamespacedName := types.NamespacedName{Namespace: cpa.Namespace, Name: cpa.Name}
-					if err := r.processCreateOrUpdate(&accountNamespacedName, &cpa); err != nil {
-						logWithSecret.Error(err, "error updating account", "account", accountNamespacedName)
-					} else {
-						logWithSecret.Info("Done processing Secret update", "account", accountNamespacedName)
-					}
-				}
-				r.mutex.Unlock()
-			case watch.Deleted:
-				logWithSecret.Info("Received request", "Secret", namespacedName, "operation", "delete")
-				cpaItems, err := r.getCpaBySecret(namespacedName)
-				if err != nil {
-					logWithSecret.Error(err, "error getting CPA by Secret", "account", namespacedName)
-				}
-				for _, cpa := range cpaItems {
-					accountNamespacedName := types.NamespacedName{Namespace: cpa.Namespace, Name: cpa.Name}
-					logWithSecret.Info("Done processing Secret delete, update/delete stale account", "account", accountNamespacedName)
-				}
-			case watch.Error:
-				r.resetSecretWatcher()
-			}
+			namespacedName := &types.NamespacedName{Namespace: secret.Namespace, Name: secret.Name}
+			r.Log.WithName("Secret").Info("Received request", "Secret", namespacedName, "operation", event.Type)
+			r.processSecretUpdateEvent(namespacedName, event.Type)
 		}
 	}
 }

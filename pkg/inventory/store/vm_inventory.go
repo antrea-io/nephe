@@ -15,8 +15,6 @@
 package store
 
 import (
-	"antrea.io/nephe/pkg/inventory/indexer"
-	labels2 "antrea.io/nephe/pkg/labels"
 	"fmt"
 	"reflect"
 
@@ -30,6 +28,8 @@ import (
 	antreastorage "antrea.io/antrea/pkg/apiserver/storage"
 	"antrea.io/antrea/pkg/apiserver/storage/ram"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/inventory/indexer"
+	nephelabels "antrea.io/nephe/pkg/labels"
 )
 
 // vpcInventoryEvent implements storage.InternalEvent.
@@ -141,8 +141,8 @@ func NewVmInventoryStore() antreastorage.Interface {
 		},
 		indexer.VirtualMachineByNamespacedAccountName: func(obj interface{}) ([]string, error) {
 			vm := obj.(*runtimev1alpha1.VirtualMachine)
-			return []string{vm.Labels[labels2.CloudAccountNamespace] + "/" +
-				vm.Labels[labels2.CloudAccountName]}, nil
+			return []string{vm.Labels[nephelabels.CloudAccountNamespace] + "/" +
+				vm.Labels[nephelabels.CloudAccountName]}, nil
 		},
 	}
 	return ram.NewStore(vmKeyFunc, indexers, genVmEvent, keyAndSpanSelectFuncVm,
