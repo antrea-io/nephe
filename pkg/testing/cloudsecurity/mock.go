@@ -106,15 +106,15 @@ func (mr *MockCloudSecurityGroupAPIMockRecorder) UpdateSecurityGroupMembers(arg0
 }
 
 // UpdateSecurityGroupRules mocks base method.
-func (m *MockCloudSecurityGroupAPI) UpdateSecurityGroupRules(arg0 *securitygroup.CloudResource, arg1, arg2, arg3 []*securitygroup.CloudRule) <-chan error {
+func (m *MockCloudSecurityGroupAPI) UpdateSecurityGroupRules(arg0 *securitygroup.CloudResource, arg1, arg2 []*securitygroup.CloudRule) <-chan error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateSecurityGroupRules", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "UpdateSecurityGroupRules", arg0, arg1, arg2)
 	ret0, _ := ret[0].(<-chan error)
 	return ret0
 }
 
 // UpdateSecurityGroupRules indicates an expected call of UpdateSecurityGroupRules.
-func (mr *MockCloudSecurityGroupAPIMockRecorder) UpdateSecurityGroupRules(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+func (mr *MockCloudSecurityGroupAPIMockRecorder) UpdateSecurityGroupRules(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSecurityGroupRules", reflect.TypeOf((*MockCloudSecurityGroupAPI)(nil).UpdateSecurityGroupRules), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSecurityGroupRules", reflect.TypeOf((*MockCloudSecurityGroupAPI)(nil).UpdateSecurityGroupRules), arg0, arg1, arg2)
 }

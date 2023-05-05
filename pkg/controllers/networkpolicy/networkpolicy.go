@@ -813,12 +813,9 @@ func (a *appliedToSecurityGroup) updateANPRules(r *NetworkPolicyReconciler, np *
 	}
 
 	a.cloudOpInProgress = true
-
-	// get full set of current rules for this security group.
-	allRules := a.getCloudRulesFromNps(nps)
 	r.Log.V(1).Info("Updating AppliedToSecurityGroup rules for anp", "anp", np.Name, "name", a.id.Name,
-		"added", addRules, "removed", rmRules, "allRules", allRules)
-	ch := securitygroup.CloudSecurityGroup.UpdateSecurityGroupRules(&a.id, addRules, rmRules, allRules)
+		"added", addRules, "removed", rmRules)
+	ch := securitygroup.CloudSecurityGroup.UpdateSecurityGroupRules(&a.id, addRules, rmRules)
 
 	go func() {
 		err = <-ch

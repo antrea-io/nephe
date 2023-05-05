@@ -17,6 +17,7 @@ package azure
 import (
 	"fmt"
 	"net"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -67,29 +68,33 @@ func isAzureRuleAttachedToAtSg(rule *armnetwork.SecurityRule, asg string) bool {
 	return false
 }
 
-// updateSecurityRuleNameAndPriority updates rule name and priority from existing
-// and new security rules and returns all the security rules.
-func updateSecurityRuleNameAndPriority(existingRules []armnetwork.SecurityRule,
-	newRules []armnetwork.SecurityRule) []armnetwork.SecurityRule {
-	var rules []armnetwork.SecurityRule
-	defaultAndUserCreatedRules := make([]armnetwork.SecurityRule, 0)
+// getUnusedPriority finds and returns the first unused priority starting from startPriority.
+func getUnusedPriority(existingRulePriority map[int32]struct{}, startPriority int32) int32 {
+	_, ok := existingRulePriority[startPriority]
+	for ok {
+		startPriority++
+		_, ok = existingRulePriority[startPriority]
+	}
+	return startPriority
+}
 
+// updateSecurityRuleNameAndPriority updates rule name and priority for new security rules based on existing security rules
+// and returns them combined.
+func updateSecurityRuleNameAndPriority(existingRules []*armnetwork.SecurityRule,
+	newRules []*armnetwork.SecurityRule) []*armnetwork.SecurityRule {
+	var rules []*armnetwork.SecurityRule
+	existingRulePriority := make(map[int32]struct{})
 	rulePriority := int32(ruleStartPriority)
+
 	for _, rule := range existingRules {
 		if rule.Properties == nil {
 			continue
 		}
-		// skip priority update for user created custom rules outside Nephe priority range.
-		if *rule.Properties.Priority < ruleStartPriority {
-			defaultAndUserCreatedRules = append(defaultAndUserCreatedRules, rule)
-			continue
+		// record priority for existing rules in Nephe priority range.
+		if *rule.Properties.Priority >= ruleStartPriority {
+			existingRulePriority[*rule.Properties.Priority] = struct{}{}
 		}
-		ruleName := fmt.Sprintf("%v-%v", rulePriority, *rule.Properties.Direction)
-		rule.Name = &ruleName
-		rule.Properties.Priority = to.Int32Ptr(rulePriority)
-
 		rules = append(rules, rule)
-		rulePriority++
 	}
 
 	for _, rule := range newRules {
@@ -97,19 +102,20 @@ func updateSecurityRuleNameAndPriority(existingRules []armnetwork.SecurityRule,
 			continue
 		}
 		// skip priority update for default 4096 deny rule. newRules consists of only Nephe rules.
-		if *rule.Properties.Priority == vnetToVnetDenyRulePriority {
-			defaultAndUserCreatedRules = append(defaultAndUserCreatedRules, rule)
+		if rule.Properties.Priority != nil && *rule.Properties.Priority == vnetToVnetDenyRulePriority {
+			rules = append(rules, rule)
 			continue
 		}
+
+		// update priority for new rules.
+		rulePriority = getUnusedPriority(existingRulePriority, rulePriority)
+		rule.Properties.Priority = to.Int32Ptr(rulePriority)
 		ruleName := fmt.Sprintf("%v-%v", rulePriority, *rule.Properties.Direction)
 		rule.Name = &ruleName
-		rule.Properties.Priority = to.Int32Ptr(rulePriority)
 
 		rules = append(rules, rule)
 		rulePriority++
 	}
-
-	rules = append(rules, defaultAndUserCreatedRules...)
 
 	return rules
 }
@@ -117,15 +123,16 @@ func updateSecurityRuleNameAndPriority(existingRules []armnetwork.SecurityRule,
 // convertIngressToNsgSecurityRules converts ingress rules from securitygroup.CloudRule to azure rules.
 func convertIngressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.CloudRule,
 	agAsgMapByNepheControllerName map[string]armnetwork.ApplicationSecurityGroup,
-	atAsgMapByNepheControllerName map[string]armnetwork.ApplicationSecurityGroup) ([]armnetwork.SecurityRule, error) {
-	var securityRules []armnetwork.SecurityRule
+	atAsgMapByNepheControllerName map[string]armnetwork.ApplicationSecurityGroup) ([]*armnetwork.SecurityRule, error) {
+	var securityRules []*armnetwork.SecurityRule
 
-	dstAsgObj, found := atAsgMapByNepheControllerName[strings.ToLower(appliedToGroupID.Name)]
+	asg, found := atAsgMapByNepheControllerName[strings.ToLower(appliedToGroupID.Name)]
 	if !found {
-		return []armnetwork.SecurityRule{}, fmt.Errorf("asg not found for applied to SG %v", appliedToGroupID.Name)
+		return []*armnetwork.SecurityRule{}, fmt.Errorf("asg not found for applied to SG %v", appliedToGroupID.Name)
 	}
+	// only resource id is needed. other fields are ignored to match Azure returned format so rules can be compared.
+	dstAsgObj := armnetwork.ApplicationSecurityGroup{ID: asg.ID}
 
-	rulePriority := int32(ruleStartPriority)
 	for _, obj := range rules {
 		rule := obj.Rule.(*securitygroup.IngressRule)
 		if rule == nil {
@@ -133,11 +140,11 @@ func convertIngressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResou
 		}
 		description, err := securitygroup.GenerateCloudDescription(obj.NpNamespacedName)
 		if err != nil {
-			return []armnetwork.SecurityRule{}, fmt.Errorf("unable to generate rule description, err: %v", err)
+			return []*armnetwork.SecurityRule{}, fmt.Errorf("unable to generate rule description, err: %v", err)
 		}
 		protoName, err := convertToAzureProtocolName(rule.Protocol)
 		if err != nil {
-			return []armnetwork.SecurityRule{}, err
+			return []*armnetwork.SecurityRule{}, err
 		}
 
 		srcPort := convertToAzurePortRange(rule.FromPort)
@@ -145,23 +152,21 @@ func convertIngressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResou
 		if len(rule.FromSrcIP) != 0 || len(rule.FromSecurityGroups) == 0 {
 			srcAddrPrefix, srcAddrPrefixes := convertToAzureAddressPrefix(rule.FromSrcIP)
 			if srcAddrPrefix != nil || srcAddrPrefixes != nil {
-				securityRule := buildSecurityRule(to.Int32Ptr(rulePriority), protoName, armnetwork.SecurityRuleDirectionInbound,
+				securityRule := buildSecurityRule(nil, protoName, armnetwork.SecurityRuleDirectionInbound,
 					to.StringPtr(emptyPort), srcAddrPrefix, srcAddrPrefixes, nil,
 					&srcPort, nil, nil, []*armnetwork.ApplicationSecurityGroup{&dstAsgObj}, &description,
 					armnetwork.SecurityRuleAccessAllow)
-				securityRules = append(securityRules, securityRule)
-				rulePriority++
+				securityRules = append(securityRules, &securityRule)
 			}
 		}
 
 		srcApplicationSecurityGroups := convertToAzureApplicationSecurityGroups(rule.FromSecurityGroups, agAsgMapByNepheControllerName)
 		if len(srcApplicationSecurityGroups) != 0 {
-			securityRule := buildSecurityRule(to.Int32Ptr(rulePriority), protoName, armnetwork.SecurityRuleDirectionInbound,
+			securityRule := buildSecurityRule(nil, protoName, armnetwork.SecurityRuleDirectionInbound,
 				to.StringPtr(emptyPort), nil, nil, srcApplicationSecurityGroups,
 				&srcPort, nil, nil, []*armnetwork.ApplicationSecurityGroup{&dstAsgObj}, &description,
 				armnetwork.SecurityRuleAccessAllow)
-			securityRules = append(securityRules, securityRule)
-			rulePriority++
+			securityRules = append(securityRules, &securityRule)
 		}
 	}
 	// add vnet to vnet deny all rule
@@ -169,7 +174,7 @@ func convertIngressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResou
 		armnetwork.SecurityRuleDirectionInbound, to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil,
 		to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil, to.StringPtr(getDefaultDenyRuleName()),
 		armnetwork.SecurityRuleAccessDeny)
-	securityRules = append(securityRules, securityRule)
+	securityRules = append(securityRules, &securityRule)
 
 	return securityRules, nil
 }
@@ -177,10 +182,9 @@ func convertIngressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResou
 // convertIngressToPeerNsgSecurityRules converts ingress rules that require peering from securitygroup.CloudRule to azure rules.
 func convertIngressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.CloudRule,
 	agAsgMapByNepheControllerName map[string]armnetwork.ApplicationSecurityGroup,
-	ruleIP *string) ([]armnetwork.SecurityRule, error) {
-	var securityRules []armnetwork.SecurityRule
+	ruleIP *string) ([]*armnetwork.SecurityRule, error) {
+	var securityRules []*armnetwork.SecurityRule
 
-	rulePriority := int32(ruleStartPriority)
 	for _, obj := range rules {
 		rule := obj.Rule.(*securitygroup.IngressRule)
 		if rule == nil {
@@ -188,11 +192,11 @@ func convertIngressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudR
 		}
 		description, err := securitygroup.GenerateCloudDescription(obj.NpNamespacedName)
 		if err != nil {
-			return []armnetwork.SecurityRule{}, fmt.Errorf("unable to generate rule description, err: %v", err)
+			return []*armnetwork.SecurityRule{}, fmt.Errorf("unable to generate rule description, err: %v", err)
 		}
 		protoName, err := convertToAzureProtocolName(rule.Protocol)
 		if err != nil {
-			return []armnetwork.SecurityRule{}, err
+			return []*armnetwork.SecurityRule{}, err
 		}
 
 		srcPort := convertToAzurePortRange(rule.FromPort)
@@ -200,12 +204,11 @@ func convertIngressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudR
 		if len(rule.FromSrcIP) != 0 || len(rule.FromSecurityGroups) == 0 {
 			srcAddrPrefix, srcAddrPrefixes := convertToAzureAddressPrefix(rule.FromSrcIP)
 			if srcAddrPrefix != nil || srcAddrPrefixes != nil {
-				securityRule := buildPeerSecurityRule(to.Int32Ptr(rulePriority), protoName, armnetwork.SecurityRuleDirectionInbound,
+				securityRule := buildSecurityRule(nil, protoName, armnetwork.SecurityRuleDirectionInbound,
 					to.StringPtr(emptyPort), srcAddrPrefix, srcAddrPrefixes, nil,
 					&srcPort, to.StringPtr(emptyPort), nil, nil, &description,
-					armnetwork.SecurityRuleAccessAllow, appliedToGroupID.Name)
-				securityRules = append(securityRules, securityRule)
-				rulePriority++
+					armnetwork.SecurityRuleAccessAllow)
+				securityRules = append(securityRules, &securityRule)
 			}
 		}
 		flag := 0
@@ -213,32 +216,30 @@ func convertIngressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudR
 			if fromSecurityGroup.Vpc == appliedToGroupID.Vpc {
 				srcApplicationSecurityGroups := convertToAzureApplicationSecurityGroups(rule.FromSecurityGroups, agAsgMapByNepheControllerName)
 				if len(srcApplicationSecurityGroups) != 0 {
-					securityRule := buildPeerSecurityRule(to.Int32Ptr(rulePriority), protoName, armnetwork.SecurityRuleDirectionInbound,
+					securityRule := buildSecurityRule(nil, protoName, armnetwork.SecurityRuleDirectionInbound,
 						to.StringPtr(emptyPort), nil, nil, srcApplicationSecurityGroups,
 						&srcPort, to.StringPtr(emptyPort), nil, nil, &description,
-						armnetwork.SecurityRuleAccessAllow, appliedToGroupID.Name)
-					securityRules = append(securityRules, securityRule)
-					rulePriority++
+						armnetwork.SecurityRuleAccessAllow)
+					securityRules = append(securityRules, &securityRule)
 					flag = 1
 					break
 				}
 			}
 		}
 		if flag == 0 {
-			securityRule := buildPeerSecurityRule(to.Int32Ptr(rulePriority), protoName, armnetwork.SecurityRuleDirectionInbound,
+			securityRule := buildSecurityRule(nil, protoName, armnetwork.SecurityRuleDirectionInbound,
 				to.StringPtr(emptyPort), ruleIP, nil, nil,
 				&srcPort, to.StringPtr(emptyPort), nil, nil, &description,
-				armnetwork.SecurityRuleAccessAllow, appliedToGroupID.Name)
-			securityRules = append(securityRules, securityRule)
-			rulePriority++
+				armnetwork.SecurityRuleAccessAllow)
+			securityRules = append(securityRules, &securityRule)
 		}
 	}
 	// add vnet to vnet deny all rule
-	securityRule := buildPeerSecurityRule(to.Int32Ptr(vnetToVnetDenyRulePriority), armnetwork.SecurityRuleProtocolAsterisk,
+	securityRule := buildSecurityRule(to.Int32Ptr(vnetToVnetDenyRulePriority), armnetwork.SecurityRuleProtocolAsterisk,
 		armnetwork.SecurityRuleDirectionInbound, to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil,
 		to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil, to.StringPtr(getDefaultDenyRuleName()),
-		armnetwork.SecurityRuleAccessDeny, appliedToGroupID.Name)
-	securityRules = append(securityRules, securityRule)
+		armnetwork.SecurityRuleAccessDeny)
+	securityRules = append(securityRules, &securityRule)
 
 	return securityRules, nil
 }
@@ -246,15 +247,16 @@ func convertIngressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudR
 // convertEgressToNsgSecurityRules converts egress rules from securitygroup.CloudRule to azure rules.
 func convertEgressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.CloudRule,
 	agAsgMapByNepheControllerName map[string]armnetwork.ApplicationSecurityGroup,
-	atAsgMapByNepheControllerName map[string]armnetwork.ApplicationSecurityGroup) ([]armnetwork.SecurityRule, error) {
-	var securityRules []armnetwork.SecurityRule
+	atAsgMapByNepheControllerName map[string]armnetwork.ApplicationSecurityGroup) ([]*armnetwork.SecurityRule, error) {
+	var securityRules []*armnetwork.SecurityRule
 
-	srcAsgObj, found := atAsgMapByNepheControllerName[strings.ToLower(appliedToGroupID.Name)]
+	asg, found := atAsgMapByNepheControllerName[strings.ToLower(appliedToGroupID.Name)]
 	if !found {
-		return []armnetwork.SecurityRule{}, fmt.Errorf("asg not found for applied to SG %v", appliedToGroupID.Name)
+		return []*armnetwork.SecurityRule{}, fmt.Errorf("asg not found for applied to SG %v", appliedToGroupID.Name)
 	}
+	// only resource id is needed. other fields are ignored to match Azure returned format so rules can be compared.
+	srcAsgObj := armnetwork.ApplicationSecurityGroup{ID: asg.ID}
 
-	rulePriority := int32(ruleStartPriority)
 	for _, obj := range rules {
 		rule := obj.Rule.(*securitygroup.EgressRule)
 		if rule == nil {
@@ -262,11 +264,11 @@ func convertEgressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResour
 		}
 		description, err := securitygroup.GenerateCloudDescription(obj.NpNamespacedName)
 		if err != nil {
-			return []armnetwork.SecurityRule{}, fmt.Errorf("unable to generate rule description, err: %v", err)
+			return []*armnetwork.SecurityRule{}, fmt.Errorf("unable to generate rule description, err: %v", err)
 		}
 		protoName, err := convertToAzureProtocolName(rule.Protocol)
 		if err != nil {
-			return []armnetwork.SecurityRule{}, err
+			return []*armnetwork.SecurityRule{}, err
 		}
 
 		dstPort := convertToAzurePortRange(rule.ToPort)
@@ -274,21 +276,19 @@ func convertEgressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResour
 		if len(rule.ToDstIP) != 0 || len(rule.ToSecurityGroups) == 0 {
 			dstAddrPrefix, dstAddrPrefixes := convertToAzureAddressPrefix(rule.ToDstIP)
 			if dstAddrPrefix != nil || dstAddrPrefixes != nil {
-				securityRule := buildSecurityRule(to.Int32Ptr(rulePriority), protoName, armnetwork.SecurityRuleDirectionOutbound,
+				securityRule := buildSecurityRule(nil, protoName, armnetwork.SecurityRuleDirectionOutbound,
 					to.StringPtr(emptyPort), nil, nil, []*armnetwork.ApplicationSecurityGroup{&srcAsgObj},
 					&dstPort, dstAddrPrefix, dstAddrPrefixes, nil, &description, armnetwork.SecurityRuleAccessAllow)
-				securityRules = append(securityRules, securityRule)
-				rulePriority++
+				securityRules = append(securityRules, &securityRule)
 			}
 		}
 
 		dstApplicationSecurityGroups := convertToAzureApplicationSecurityGroups(rule.ToSecurityGroups, agAsgMapByNepheControllerName)
 		if len(dstApplicationSecurityGroups) != 0 {
-			securityRule := buildSecurityRule(to.Int32Ptr(rulePriority), protoName, armnetwork.SecurityRuleDirectionOutbound,
+			securityRule := buildSecurityRule(nil, protoName, armnetwork.SecurityRuleDirectionOutbound,
 				to.StringPtr(emptyPort), nil, nil, []*armnetwork.ApplicationSecurityGroup{&srcAsgObj},
 				&dstPort, nil, nil, dstApplicationSecurityGroups, &description, armnetwork.SecurityRuleAccessAllow)
-			securityRules = append(securityRules, securityRule)
-			rulePriority++
+			securityRules = append(securityRules, &securityRule)
 		}
 	}
 
@@ -297,7 +297,7 @@ func convertEgressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResour
 		armnetwork.SecurityRuleDirectionOutbound, to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil,
 		to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil, to.StringPtr(getDefaultDenyRuleName()),
 		armnetwork.SecurityRuleAccessDeny)
-	securityRules = append(securityRules, securityRule)
+	securityRules = append(securityRules, &securityRule)
 
 	return securityRules, nil
 }
@@ -305,10 +305,9 @@ func convertEgressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResour
 // convertEgressToPeerNsgSecurityRules converts egress rules that require peering from securitygroup.CloudRule to azure rules.
 func convertEgressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.CloudRule,
 	agAsgMapByNepheControllerName map[string]armnetwork.ApplicationSecurityGroup,
-	ruleIP *string) ([]armnetwork.SecurityRule, error) {
-	var securityRules []armnetwork.SecurityRule
+	ruleIP *string) ([]*armnetwork.SecurityRule, error) {
+	var securityRules []*armnetwork.SecurityRule
 
-	rulePriority := int32(ruleStartPriority)
 	for _, obj := range rules {
 		rule := obj.Rule.(*securitygroup.EgressRule)
 		if rule == nil {
@@ -316,11 +315,11 @@ func convertEgressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudRe
 		}
 		description, err := securitygroup.GenerateCloudDescription(obj.NpNamespacedName)
 		if err != nil {
-			return []armnetwork.SecurityRule{}, fmt.Errorf("unable to generate rule description, err: %v", err)
+			return []*armnetwork.SecurityRule{}, fmt.Errorf("unable to generate rule description, err: %v", err)
 		}
 		protoName, err := convertToAzureProtocolName(rule.Protocol)
 		if err != nil {
-			return []armnetwork.SecurityRule{}, err
+			return []*armnetwork.SecurityRule{}, err
 		}
 
 		dstPort := convertToAzurePortRange(rule.ToPort)
@@ -328,11 +327,10 @@ func convertEgressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudRe
 		if len(rule.ToDstIP) != 0 || len(rule.ToSecurityGroups) == 0 {
 			dstAddrPrefix, dstAddrPrefixes := convertToAzureAddressPrefix(rule.ToDstIP)
 			if dstAddrPrefix != nil || dstAddrPrefixes != nil {
-				securityRule := buildPeerSecurityRule(to.Int32Ptr(rulePriority), protoName, armnetwork.SecurityRuleDirectionOutbound,
+				securityRule := buildSecurityRule(nil, protoName, armnetwork.SecurityRuleDirectionOutbound,
 					to.StringPtr(emptyPort), to.StringPtr(emptyPort), nil, nil,
-					&dstPort, dstAddrPrefix, dstAddrPrefixes, nil, &description, armnetwork.SecurityRuleAccessAllow, appliedToGroupID.Name)
-				securityRules = append(securityRules, securityRule)
-				rulePriority++
+					&dstPort, dstAddrPrefix, dstAddrPrefixes, nil, &description, armnetwork.SecurityRuleAccessAllow)
+				securityRules = append(securityRules, &securityRule)
 			}
 		}
 		flag := 0
@@ -340,43 +338,42 @@ func convertEgressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudRe
 			if toSecurityGroup.Vpc == appliedToGroupID.Vpc {
 				dstApplicationSecurityGroups := convertToAzureApplicationSecurityGroups(rule.ToSecurityGroups, agAsgMapByNepheControllerName)
 				if len(dstApplicationSecurityGroups) != 0 {
-					securityRule := buildPeerSecurityRule(to.Int32Ptr(rulePriority), protoName, armnetwork.SecurityRuleDirectionOutbound,
+					securityRule := buildSecurityRule(nil, protoName, armnetwork.SecurityRuleDirectionOutbound,
 						to.StringPtr(emptyPort), to.StringPtr(emptyPort), nil, nil,
-						&dstPort, nil, nil, dstApplicationSecurityGroups, &description, armnetwork.SecurityRuleAccessAllow, appliedToGroupID.Name)
-					securityRules = append(securityRules, securityRule)
-					rulePriority++
+						&dstPort, nil, nil, dstApplicationSecurityGroups, &description, armnetwork.SecurityRuleAccessAllow)
+					securityRules = append(securityRules, &securityRule)
 					flag = 1
 					break
 				}
 			}
 		}
 		if flag == 0 {
-			securityRule := buildPeerSecurityRule(to.Int32Ptr(rulePriority), protoName, armnetwork.SecurityRuleDirectionOutbound,
+			securityRule := buildSecurityRule(nil, protoName, armnetwork.SecurityRuleDirectionOutbound,
 				to.StringPtr(emptyPort), to.StringPtr(emptyPort), nil, nil,
-				&dstPort, ruleIP, nil, nil, &description, armnetwork.SecurityRuleAccessAllow, appliedToGroupID.Name)
-			securityRules = append(securityRules, securityRule)
-			rulePriority++
+				&dstPort, ruleIP, nil, nil, &description, armnetwork.SecurityRuleAccessAllow)
+			securityRules = append(securityRules, &securityRule)
 		}
 	}
 
 	// add vnet to vnet deny all rule
-	securityRule := buildPeerSecurityRule(to.Int32Ptr(vnetToVnetDenyRulePriority), armnetwork.SecurityRuleProtocolAsterisk,
+	securityRule := buildSecurityRule(to.Int32Ptr(vnetToVnetDenyRulePriority), armnetwork.SecurityRuleProtocolAsterisk,
 		armnetwork.SecurityRuleDirectionOutbound, to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil,
 		to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil, to.StringPtr(getDefaultDenyRuleName()),
-		armnetwork.SecurityRuleAccessDeny, appliedToGroupID.Name)
-	securityRules = append(securityRules, securityRule)
+		armnetwork.SecurityRuleAccessDeny)
+	securityRules = append(securityRules, &securityRule)
 
 	return securityRules, nil
 }
 
+// nolint:whitespace
+// suppress whitespace linter to keep the function in a more readable format.
+// buildSecurityRule builds Azure security rule with given parameters.
 func buildSecurityRule(rulePriority *int32, protoName armnetwork.SecurityRuleProtocol, direction armnetwork.SecurityRuleDirection,
 	srcPort *string, srcAddrPrefix *string, srcAddrPrefixes []*string, srcASGs []*armnetwork.ApplicationSecurityGroup,
 	dstPort *string, dstAddrPrefix *string, dstAddrPrefixes []*string, dstASGs []*armnetwork.ApplicationSecurityGroup,
 	description *string, access armnetwork.SecurityRuleAccess) armnetwork.SecurityRule {
-	ruleName := fmt.Sprintf("%v-%v", *rulePriority, direction)
 
 	securityRule := armnetwork.SecurityRule{
-		Name: to.StringPtr(ruleName),
 		Properties: &armnetwork.SecurityRulePropertiesFormat{
 			Protocol:                             &protoName,
 			SourcePortRange:                      srcPort,
@@ -394,37 +391,45 @@ func buildSecurityRule(rulePriority *int32, protoName armnetwork.SecurityRulePro
 		},
 	}
 
-	return securityRule
-}
-
-func buildPeerSecurityRule(rulePriority *int32, protoName armnetwork.SecurityRuleProtocol, direction armnetwork.SecurityRuleDirection,
-	srcPort *string, srcAddrPrefix *string, srcAddrPrefixes []*string, srcASGs []*armnetwork.ApplicationSecurityGroup,
-	dstPort *string, dstAddrPrefix *string, dstAddrPrefixes []*string, dstASGs []*armnetwork.ApplicationSecurityGroup,
-	description *string, access armnetwork.SecurityRuleAccess, name string) armnetwork.SecurityRule {
-	ruleName := fmt.Sprintf("%v-%v", *rulePriority, direction)
-	azurePluginLogger().Info("Name of rule", "name", name)
-	securityRule := armnetwork.SecurityRule{
-		Name: to.StringPtr(ruleName),
-		Properties: &armnetwork.SecurityRulePropertiesFormat{
-			Protocol:                             &protoName,
-			SourcePortRange:                      srcPort,
-			SourceAddressPrefix:                  srcAddrPrefix,
-			SourceAddressPrefixes:                srcAddrPrefixes,
-			SourceApplicationSecurityGroups:      srcASGs,
-			DestinationPortRange:                 dstPort,
-			DestinationAddressPrefix:             dstAddrPrefix,
-			DestinationAddressPrefixes:           dstAddrPrefixes,
-			DestinationApplicationSecurityGroups: dstASGs,
-			Access:                               &access,
-			Priority:                             rulePriority,
-			Direction:                            &direction,
-			Description:                          description,
-		},
+	if rulePriority != nil {
+		securityRule.Name = to.StringPtr(fmt.Sprintf("%v-%v", *rulePriority, direction))
 	}
 
 	return securityRule
 }
 
+// findSecurityRule finds the security rule in the given slice and return the index with boolean indicating found or not.
+func findSecurityRule(rule *armnetwork.SecurityRule, ruleList []*armnetwork.SecurityRule) (int, bool) {
+	for idx, newRule := range ruleList {
+		if newRule != nil && reflect.DeepEqual(rule.Properties, newRule.Properties) {
+			return idx, true
+		}
+	}
+	return -1, false
+}
+
+// normalizeAzureSecurityRule normalizes and ignores certain Azure rule properties, allowing easy comparison with Nephe rules.
+func normalizeAzureSecurityRule(rule *armnetwork.SecurityRule) *armnetwork.SecurityRule {
+	property := *rule.Properties
+	normalizedProtocolNum := azureProtoNameToNumMap[strings.ToLower(string(*rule.Properties.Protocol))]
+	normalizedProtocol := protoNumAzureNameMap[normalizedProtocolNum]
+
+	property.Protocol = &normalizedProtocol
+	property.Priority = nil
+	property.ProvisioningState = nil
+	property.SourcePortRanges = nil
+	property.DestinationPortRanges = nil
+	if len(property.SourceAddressPrefixes) == 0 {
+		property.SourceAddressPrefixes = nil
+	}
+	if len(property.DestinationAddressPrefixes) == 0 {
+		property.DestinationAddressPrefixes = nil
+	}
+
+	return &armnetwork.SecurityRule{Properties: &property}
+}
+
+// convertToAzureApplicationSecurityGroups converts Nephe security groups to Azure Asgs based on sg cloud resource id.
 func convertToAzureApplicationSecurityGroups(securityGroups []*securitygroup.CloudResourceID,
 	asgByNepheControllerName map[string]armnetwork.ApplicationSecurityGroup) []*armnetwork.ApplicationSecurityGroup {
 	var asgsToReturn []*armnetwork.ApplicationSecurityGroup
@@ -433,7 +438,8 @@ func convertToAzureApplicationSecurityGroups(securityGroups []*securitygroup.Clo
 		if !found {
 			continue
 		}
-		asgsToReturn = append(asgsToReturn, &asg)
+		newAsg := armnetwork.ApplicationSecurityGroup{ID: asg.ID}
+		asgsToReturn = append(asgsToReturn, &newAsg)
 	}
 
 	return asgsToReturn

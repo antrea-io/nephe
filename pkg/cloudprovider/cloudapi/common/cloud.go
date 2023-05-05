@@ -80,8 +80,7 @@ type SecurityInterface interface {
 	CreateSecurityGroup(securityGroupIdentifier *securitygroup.CloudResource, membershipOnly bool) (*string, error)
 	// UpdateSecurityGroupRules updates cloud security group corresponding to provided appliedTo group with provided rules.
 	// addRules and rmRules are the changed rules, allRules are rules from all nps of the security group.
-	UpdateSecurityGroupRules(appliedToGroupIdentifier *securitygroup.CloudResource, addRules, rmRules,
-		allRules []*securitygroup.CloudRule) error
+	UpdateSecurityGroupRules(appliedToGroupIdentifier *securitygroup.CloudResource, addRules, rmRules []*securitygroup.CloudRule) error
 	// UpdateSecurityGroupMembers updates membership of cloud security group corresponding to provided security group. Only
 	// provided computeResources will remain attached to cloud security group. UpdateSecurityGroupMembers will also make sure that
 	// after membership update, if compute resource is no longer attached to any nephe created cloud security group, then

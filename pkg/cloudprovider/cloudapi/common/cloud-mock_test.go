@@ -250,17 +250,17 @@ func (mr *MockCloudInterfaceMockRecorder) UpdateSecurityGroupMembers(securityGro
 }
 
 // UpdateSecurityGroupRules mocks base method.
-func (m *MockCloudInterface) UpdateSecurityGroupRules(appliedToGroupIdentifier *securitygroup.CloudResource, addRules, rmRules, allRules []*securitygroup.CloudRule) error {
+func (m *MockCloudInterface) UpdateSecurityGroupRules(appliedToGroupIdentifier *securitygroup.CloudResource, addRules, rmRules []*securitygroup.CloudRule) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateSecurityGroupRules", appliedToGroupIdentifier, addRules, rmRules, allRules)
+	ret := m.ctrl.Call(m, "UpdateSecurityGroupRules", appliedToGroupIdentifier, addRules, rmRules)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateSecurityGroupRules indicates an expected call of UpdateSecurityGroupRules.
-func (mr *MockCloudInterfaceMockRecorder) UpdateSecurityGroupRules(appliedToGroupIdentifier, addRules, rmRules, allRules interface{}) *gomock.Call {
+func (mr *MockCloudInterfaceMockRecorder) UpdateSecurityGroupRules(appliedToGroupIdentifier, addRules, rmRules interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSecurityGroupRules", reflect.TypeOf((*MockCloudInterface)(nil).UpdateSecurityGroupRules), appliedToGroupIdentifier, addRules, rmRules, allRules)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSecurityGroupRules", reflect.TypeOf((*MockCloudInterface)(nil).UpdateSecurityGroupRules), appliedToGroupIdentifier, addRules, rmRules)
 }
 
 // MockAccountMgmtInterface is a mock of AccountMgmtInterface interface.
@@ -515,15 +515,15 @@ func (mr *MockSecurityInterfaceMockRecorder) UpdateSecurityGroupMembers(security
 }
 
 // UpdateSecurityGroupRules mocks base method.
-func (m *MockSecurityInterface) UpdateSecurityGroupRules(appliedToGroupIdentifier *securitygroup.CloudResource, addRules, rmRules, allRules []*securitygroup.CloudRule) error {
+func (m *MockSecurityInterface) UpdateSecurityGroupRules(appliedToGroupIdentifier *securitygroup.CloudResource, addRules, rmRules []*securitygroup.CloudRule) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateSecurityGroupRules", appliedToGroupIdentifier, addRules, rmRules, allRules)
+	ret := m.ctrl.Call(m, "UpdateSecurityGroupRules", appliedToGroupIdentifier, addRules, rmRules)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateSecurityGroupRules indicates an expected call of UpdateSecurityGroupRules.
-func (mr *MockSecurityInterfaceMockRecorder) UpdateSecurityGroupRules(appliedToGroupIdentifier, addRules, rmRules, allRules interface{}) *gomock.Call {
+func (mr *MockSecurityInterfaceMockRecorder) UpdateSecurityGroupRules(appliedToGroupIdentifier, addRules, rmRules interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSecurityGroupRules", reflect.TypeOf((*MockSecurityInterface)(nil).UpdateSecurityGroupRules), appliedToGroupIdentifier, addRules, rmRules, allRules)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSecurityGroupRules", reflect.TypeOf((*MockSecurityInterface)(nil).UpdateSecurityGroupRules), appliedToGroupIdentifier, addRules, rmRules)
 }
