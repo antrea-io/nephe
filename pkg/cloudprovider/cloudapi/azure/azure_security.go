@@ -316,29 +316,22 @@ func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(ap
 	appliedToGroupNepheControllerName := appliedToGroupID.GetCloudName(false)
 	azurePluginLogger().Info("Building security rules", "applied to security group", appliedToGroupNepheControllerName)
 	for _, rule := range currentNsgSecurityRules {
-		if rule.Properties == nil {
-			continue
-		}
-		// Nephe rules will be created from ruleStartPriority and have description.
-		if *rule.Properties.Priority < ruleStartPriority || rule.Properties.Description == nil {
+		if rule.Properties == nil || *rule.Properties.Priority == vnetToVnetDenyRulePriority {
 			continue
 		}
 
+		// Nephe rules will be created from ruleStartPriority and have description.
 		desc, ok := securitygroup.ExtractCloudDescription(rule.Properties.Description)
-		if !ok {
-			// Ignore rules that don't have a valid description field.
-			azurePluginLogger().V(4).Info("Failed to extract cloud rule description", "desc", desc, "rule", rule)
-			continue
+		if *rule.Properties.Priority >= ruleStartPriority && ok {
+			// skip any rules created by current processing appliedToGroup (as we have new rules for this group).
+			ruleAddrGroupName := desc.AppliedToGroup
+			_, _, isNepheControllerCreatedRule := securitygroup.IsNepheControllerCreatedSG(desc.AppliedToGroup)
+			if isNepheControllerCreatedRule && strings.Compare(ruleAddrGroupName, appliedToGroupNepheControllerName) == 0 {
+				continue
+			}
 		}
-		ruleAddrGroupName := desc.AppliedToGroup
-		_, _, isNepheControllerCreatedRule := securitygroup.IsNepheControllerCreatedSG(ruleAddrGroupName)
-		if !isNepheControllerCreatedRule {
-			continue
-		}
-		// skip any rules created by current processing appliedToGroup (as we have new rules for this group)
-		if strings.Compare(ruleAddrGroupName, appliedToGroupNepheControllerName) == 0 {
-			continue
-		}
+
+		// preserve rules.
 		if *rule.Properties.Direction == armnetwork.SecurityRuleDirectionInbound {
 			currentNsgIngressRules = append(currentNsgIngressRules, *rule)
 		} else {
@@ -395,29 +388,22 @@ func (computeCfg *computeServiceConfig) buildEffectivePeerNSGSecurityRulesToAppl
 	appliedToGroupNepheControllerName := appliedToGroupID.GetCloudName(false)
 	azurePluginLogger().Info("Building peering security rules", "applied to security group", appliedToGroupNepheControllerName)
 	for _, rule := range currentNsgSecurityRules {
-		if rule.Properties == nil {
-			continue
-		}
-		// Nephe rules will be created from ruleStartPriority and have description.
-		if *rule.Properties.Priority < ruleStartPriority || rule.Properties.Description == nil {
+		if rule.Properties == nil || *rule.Properties.Priority == vnetToVnetDenyRulePriority {
 			continue
 		}
 
+		// Nephe rules will be created from ruleStartPriority and have description.
 		desc, ok := securitygroup.ExtractCloudDescription(rule.Properties.Description)
-		if !ok {
-			// Ignore rules that don't have a valid description field.
-			azurePluginLogger().V(4).Info("Failed to extract cloud rule description", "desc", desc, "rule", rule)
-			continue
+		if *rule.Properties.Priority >= ruleStartPriority && ok {
+			// skip any rules created by current processing appliedToGroup (as we have new rules for this group).
+			ruleAddrGroupName := desc.AppliedToGroup
+			_, _, isNepheControllerCreatedRule := securitygroup.IsNepheControllerCreatedSG(desc.AppliedToGroup)
+			if isNepheControllerCreatedRule && strings.Compare(ruleAddrGroupName, appliedToGroupNepheControllerName) == 0 {
+				continue
+			}
 		}
-		ruleAddrGroupName := desc.AppliedToGroup
-		_, _, isNepheControllerCreatedRule := securitygroup.IsNepheControllerCreatedSG(ruleAddrGroupName)
-		if !isNepheControllerCreatedRule {
-			continue
-		}
-		// skip any rules created by current processing appliedToGroup (as we have new rules for this group)
-		if strings.Compare(ruleAddrGroupName, appliedToGroupNepheControllerName) == 0 {
-			continue
-		}
+
+		// preserve rules.
 		if *rule.Properties.Direction == armnetwork.SecurityRuleDirectionInbound {
 			currentNsgIngressRules = append(currentNsgIngressRules, *rule)
 		} else {
@@ -695,7 +681,7 @@ func (computeCfg *computeServiceConfig) getATGroupView(nepheControllerATSGNameTo
 			continue
 		}
 		nepheControllerATSgNameToIngressRulesMap, nepheControllerATSgNameToEgressRulesMap :=
-			convertToInternalRulesByAppliedToSGName(networkSecurityGroup.Properties.SecurityRules, vnetIDLowercase)
+			convertToCloudRulesByAppliedToSGName(networkSecurityGroup.Properties.SecurityRules, vnetIDLowercase)
 
 		for atSgName := range appliedToSgNameSet {
 			resource := securitygroup.CloudResource{

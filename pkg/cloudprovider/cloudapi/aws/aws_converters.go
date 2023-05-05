@@ -21,6 +21,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"k8s.io/apimachinery/pkg/types"
 
 	"antrea.io/nephe/pkg/cloudprovider/securitygroup"
 )
@@ -112,88 +113,92 @@ func convertFromSecurityGroupPair(cloudGroups []*ec2.UserIdGroupPair, managedSGs
 	return cloudResourceIDs, desc
 }
 
-// convertFromIPPermissionToIngressRule converts cloud ingress rules from ec2.IpPermission to internal securitygroup.IngressRule.
+// convertFromIngressIpPermissionToCloudRule converts AWS ingress rules from ec2.IpPermission to internal securitygroup.CloudRule.
 // Each AT Sg can have one or more ANPs and an ANP can have one or more rules. Each rule can have a description.
-func convertFromIPPermissionToIngressRule(ipPermissions []*ec2.IpPermission, managedSGs map[string]*ec2.SecurityGroup,
-	unmanagedSGs map[string]*ec2.SecurityGroup) []securitygroup.IngressRule {
-	var ingressRules []securitygroup.IngressRule
+func convertFromIngressIpPermissionToCloudRule(sgID string, ipPermissions []*ec2.IpPermission,
+	managedSGs, unmanagedSGs map[string]*ec2.SecurityGroup) []securitygroup.CloudRule {
+	var ingressRules []securitygroup.CloudRule
 	for _, ipPermission := range ipPermissions {
-		fromSrcIPs, desc := convertFromIPRange(ipPermission.IpRanges)
+		fromSrcIPs, descriptions := convertFromIPRange(ipPermission.IpRanges)
 		for i, srcIP := range fromSrcIPs {
 			// Get cloud rule description.
-			_, ok := securitygroup.ExtractCloudDescription(desc[i])
-			if !ok {
-				// Ignore rules that don't have a valid description field.
-				awsPluginLogger().V(4).Info("Failed to extract cloud rule description", "desc", desc[i])
-				continue
+			desc, ok := securitygroup.ExtractCloudDescription(descriptions[i])
+			ingressRule := securitygroup.CloudRule{
+				Rule: &securitygroup.IngressRule{
+					FromPort:  convertFromIPPermissionPort(ipPermission.FromPort, ipPermission.ToPort),
+					FromSrcIP: []*net.IPNet{srcIP},
+					Protocol:  convertFromIPPermissionProtocol(*ipPermission.IpProtocol),
+				},
+				AppliedToGrp: sgID,
 			}
-			var ingressRule securitygroup.IngressRule
-
-			ingressRule.FromSrcIP = []*net.IPNet{srcIP}
-			ingressRule.Protocol = convertFromIPPermissionProtocol(*ipPermission.IpProtocol)
-			ingressRule.FromPort = convertFromIPPermissionPort(ipPermission.FromPort, ipPermission.ToPort)
-
+			if ok {
+				ingressRule.NpNamespacedName = types.NamespacedName{Name: desc.Name, Namespace: desc.Namespace}.String()
+			}
+			ingressRule.Hash = ingressRule.GetHash()
 			ingressRules = append(ingressRules, ingressRule)
 		}
-		fromSecurityGroups, desc := convertFromSecurityGroupPair(ipPermission.UserIdGroupPairs, managedSGs, unmanagedSGs)
+		fromSecurityGroups, descriptions := convertFromSecurityGroupPair(ipPermission.UserIdGroupPairs, managedSGs, unmanagedSGs)
 		for i, SecurityGroup := range fromSecurityGroups {
 			// Get cloud rule description.
-			_, ok := securitygroup.ExtractCloudDescription(desc[i])
-			if !ok {
-				// Ignore rules that don't have a valid description field.
-				awsPluginLogger().V(4).Info("Failed to extract cloud rule description", "desc", desc[i])
-				continue
+			desc, ok := securitygroup.ExtractCloudDescription(descriptions[i])
+			ingressRule := securitygroup.CloudRule{
+				Rule: &securitygroup.IngressRule{
+					FromPort:           convertFromIPPermissionPort(ipPermission.FromPort, ipPermission.ToPort),
+					FromSecurityGroups: []*securitygroup.CloudResourceID{SecurityGroup},
+					Protocol:           convertFromIPPermissionProtocol(*ipPermission.IpProtocol),
+				},
+				AppliedToGrp: sgID,
 			}
-			var ingressRule securitygroup.IngressRule
-
-			ingressRule.FromSecurityGroups = []*securitygroup.CloudResourceID{SecurityGroup}
-			ingressRule.Protocol = convertFromIPPermissionProtocol(*ipPermission.IpProtocol)
-			ingressRule.FromPort = convertFromIPPermissionPort(ipPermission.FromPort, ipPermission.ToPort)
-
+			if ok {
+				ingressRule.NpNamespacedName = types.NamespacedName{Name: desc.Name, Namespace: desc.Namespace}.String()
+			}
+			ingressRule.Hash = ingressRule.GetHash()
 			ingressRules = append(ingressRules, ingressRule)
 		}
 	}
 	return ingressRules
 }
 
-// convertFromIPPermissionToEgressRule converts cloud egress rules from ec2.IpPermission to internal securitygroup.EgressRule.
+// convertFromEgressIpPermissionToCloudRule converts AWS egress rules from ec2.IpPermission to internal securitygroup.CloudRule.
 // Each AT Sg can have one or more ANPs and an ANP can have one or more rules. Each rule can have a description.
-func convertFromIPPermissionToEgressRule(ipPermissions []*ec2.IpPermission, managedSGs map[string]*ec2.SecurityGroup,
-	unmanagedSGs map[string]*ec2.SecurityGroup) []securitygroup.EgressRule {
-	var egressRules []securitygroup.EgressRule
+func convertFromEgressIpPermissionToCloudRule(sgID string, ipPermissions []*ec2.IpPermission,
+	managedSGs, unmanagedSGs map[string]*ec2.SecurityGroup) []securitygroup.CloudRule {
+	var egressRules []securitygroup.CloudRule
 	for _, ipPermission := range ipPermissions {
-		toDstIPs, desc := convertFromIPRange(ipPermission.IpRanges)
+		toDstIPs, descriptions := convertFromIPRange(ipPermission.IpRanges)
 		for i, dstIP := range toDstIPs {
 			// Get cloud rule description.
-			_, ok := securitygroup.ExtractCloudDescription(desc[i])
-			if !ok {
-				// Ignore rules that don't have a valid description field.
-				awsPluginLogger().V(4).Info("Failed to extract cloud rule description", "desc", desc[i])
-				continue
+			desc, ok := securitygroup.ExtractCloudDescription(descriptions[i])
+			egressRule := securitygroup.CloudRule{
+				Rule: &securitygroup.EgressRule{
+					ToPort:   convertFromIPPermissionPort(ipPermission.FromPort, ipPermission.ToPort),
+					ToDstIP:  []*net.IPNet{dstIP},
+					Protocol: convertFromIPPermissionProtocol(*ipPermission.IpProtocol),
+				},
+				AppliedToGrp: sgID,
 			}
-			var egressRule securitygroup.EgressRule
-
-			egressRule.ToDstIP = []*net.IPNet{dstIP}
-			egressRule.Protocol = convertFromIPPermissionProtocol(*ipPermission.IpProtocol)
-			egressRule.ToPort = convertFromIPPermissionPort(ipPermission.FromPort, ipPermission.ToPort)
-
+			if ok {
+				egressRule.NpNamespacedName = types.NamespacedName{Name: desc.Name, Namespace: desc.Namespace}.String()
+			}
+			egressRule.Hash = egressRule.GetHash()
 			egressRules = append(egressRules, egressRule)
 		}
-		toSecurityGroups, desc := convertFromSecurityGroupPair(ipPermission.UserIdGroupPairs, managedSGs, unmanagedSGs)
+		toSecurityGroups, descriptions := convertFromSecurityGroupPair(ipPermission.UserIdGroupPairs, managedSGs, unmanagedSGs)
 		for i, SecurityGroup := range toSecurityGroups {
 			// Get cloud rule description.
-			_, ok := securitygroup.ExtractCloudDescription(desc[i])
-			if !ok {
-				// Ignore rules that don't have a valid description field.
-				awsPluginLogger().V(4).Info("Failed to extract cloud rule description", "desc", desc[i])
-				continue
+			desc, ok := securitygroup.ExtractCloudDescription(descriptions[i])
+			egressRule := securitygroup.CloudRule{
+				Rule: &securitygroup.EgressRule{
+					ToPort:           convertFromIPPermissionPort(ipPermission.FromPort, ipPermission.ToPort),
+					ToSecurityGroups: []*securitygroup.CloudResourceID{SecurityGroup},
+					Protocol:         convertFromIPPermissionProtocol(*ipPermission.IpProtocol),
+				},
+				AppliedToGrp: sgID,
 			}
-			var egressRule securitygroup.EgressRule
-
-			egressRule.ToSecurityGroups = []*securitygroup.CloudResourceID{SecurityGroup}
-			egressRule.Protocol = convertFromIPPermissionProtocol(*ipPermission.IpProtocol)
-			egressRule.ToPort = convertFromIPPermissionPort(ipPermission.FromPort, ipPermission.ToPort)
-
+			if ok {
+				egressRule.NpNamespacedName = types.NamespacedName{Name: desc.Name, Namespace: desc.Namespace}.String()
+			}
+			egressRule.Hash = egressRule.GetHash()
 			egressRules = append(egressRules, egressRule)
 		}
 	}

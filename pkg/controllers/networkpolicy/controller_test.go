@@ -289,22 +289,24 @@ var _ = Describe("NetworkPolicy", func() {
 		// rules
 		tcp := 6
 		portInt := int(port.IntVal)
-		ingressRule = []securitygroup.IngressRule{{
-			FromPort:  &portInt,
-			Protocol:  &tcp,
-			FromSrcIP: []*net.IPNet{ingressIPBlock},
-		},
+		ingressRule = []securitygroup.IngressRule{
+			{
+				FromPort:  &portInt,
+				Protocol:  &tcp,
+				FromSrcIP: []*net.IPNet{ingressIPBlock},
+			},
 			{
 				FromPort:           &portInt,
 				Protocol:           &tcp,
 				FromSecurityGroups: []*securitygroup.CloudResourceID{addrGrpIDs[addrGrps[0].Name]},
 			},
 		}
-		egressRule = []securitygroup.EgressRule{{
-			ToPort:   &portInt,
-			Protocol: &tcp,
-			ToDstIP:  []*net.IPNet{egressIPBlock},
-		},
+		egressRule = []securitygroup.EgressRule{
+			{
+				ToPort:   &portInt,
+				Protocol: &tcp,
+				ToDstIP:  []*net.IPNet{egressIPBlock},
+			},
 			{
 				ToPort:           &portInt,
 				Protocol:         &tcp,
@@ -313,8 +315,26 @@ var _ = Describe("NetworkPolicy", func() {
 		}
 
 		for i := appliedToVMIdx; i < patchVMIdx; i++ {
-			syncContents[i].EgressRules = deepcopy.Copy(egressRule).([]securitygroup.EgressRule)
-			syncContents[i].IngressRules = deepcopy.Copy(ingressRule).([]securitygroup.IngressRule)
+			for _, rule := range ingressRule {
+				copyRule := deepcopy.Copy(rule).(securitygroup.IngressRule)
+				cloudRule := securitygroup.CloudRule{
+					Rule:             &copyRule,
+					NpNamespacedName: types.NamespacedName{Namespace: anp.Namespace, Name: anp.Name}.String(),
+					AppliedToGrp:     appliedToGrpsNames[i-appliedToVMIdx] + "/" + vpc,
+				}
+				cloudRule.Hash = cloudRule.GetHash()
+				syncContents[i].IngressRules = append(syncContents[i].IngressRules, cloudRule)
+			}
+			for _, rule := range egressRule {
+				copyRule := deepcopy.Copy(rule).(securitygroup.EgressRule)
+				cloudRule := securitygroup.CloudRule{
+					Rule:             &copyRule,
+					NpNamespacedName: types.NamespacedName{Namespace: anp.Namespace, Name: anp.Name}.String(),
+					AppliedToGrp:     appliedToGrpsNames[i-appliedToVMIdx] + "/" + vpc,
+				}
+				cloudRule.Hash = cloudRule.GetHash()
+				syncContents[i].EgressRules = append(syncContents[i].EgressRules, cloudRule)
+			}
 		}
 		sgConfig = securityGroupConfig{}
 		sgConfig.sgCreateTimes = 1
@@ -1415,7 +1435,8 @@ var _ = Describe("NetworkPolicy", func() {
 				}
 			} else if cloudRet == cloudReturnDiffRuleSG {
 				for i := len(addrGrpNames); i < len(addrGrpNames)+len(appliedToGrpsNames); i++ {
-					syncContents[i].IngressRules[0].FromPort = nil
+					syncContents[i].IngressRules[0].Rule.(*securitygroup.IngressRule).FromPort = nil
+					syncContents[i].IngressRules[0].Hash = syncContents[i].IngressRules[0].GetHash()
 				}
 			} else if cloudRet == cloudReturnExtraSG {
 				syncContents = append(syncContents, extraSG)

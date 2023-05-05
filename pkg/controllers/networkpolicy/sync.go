@@ -17,7 +17,6 @@ package networkpolicy
 import (
 	"fmt"
 
-	"github.com/mohae/deepcopy"
 	"k8s.io/apimachinery/pkg/watch"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
@@ -130,15 +129,21 @@ func (a *appliedToSecurityGroup) sync(syncContent *securitygroup.Synchronization
 
 	// roughly count and compare rules in syncContent against nps.
 	// also updates cloudRuleIndexer in the process.
-	for _, iRule := range syncContent.IngressRules {
-		countIngressRuleItems(&iRule, items, true)
-		if updated := a.checkAndUpdateIndexer(r, &iRule, cloudRuleMap); updated {
+	for _, rule := range syncContent.IngressRules {
+		if rule.NpNamespacedName != "" {
+			iRule := rule.Rule.(*securitygroup.IngressRule)
+			countIngressRuleItems(iRule, items, true)
+		}
+		if a.checkAndUpdateIndexer(r, rule, cloudRuleMap) {
 			indexerUpdate = true
 		}
 	}
-	for _, eRule := range syncContent.EgressRules {
-		countEgressRuleItems(&eRule, items, true)
-		if updated := a.checkAndUpdateIndexer(r, &eRule, cloudRuleMap); updated {
+	for _, rule := range syncContent.EgressRules {
+		if rule.NpNamespacedName != "" {
+			eRule := rule.Rule.(*securitygroup.EgressRule)
+			countEgressRuleItems(eRule, items, true)
+		}
+		if a.checkAndUpdateIndexer(r, rule, cloudRuleMap) {
 			indexerUpdate = true
 		}
 	}
@@ -281,24 +286,16 @@ func (r *NetworkPolicyReconciler) getNICsOfCloudResources(resources []*securityg
 
 // checkAndUpdateIndexer checks if rule is present in indexer and updates the indexer if not present.
 // Returns true if indexer is updated.
-func (a *appliedToSecurityGroup) checkAndUpdateIndexer(r *NetworkPolicyReconciler, rule securitygroup.Rule,
+func (a *appliedToSecurityGroup) checkAndUpdateIndexer(r *NetworkPolicyReconciler, rule securitygroup.CloudRule,
 	existingRuleMap map[string]*securitygroup.CloudRule) bool {
 	indexerUpdate := false
 
-	// deep copy the rule and construct CloudRule object from it.
-	ruleCopy := deepcopy.Copy(rule).(securitygroup.Rule)
-	cr := &securitygroup.CloudRule{
-		Rule:         ruleCopy,
-		AppliedToGrp: a.id.CloudResourceID.String(),
-	}
-	cr.Hash = cr.GetHash()
-
 	// update rule if not found in indexer, otherwise remove from map to indicate a matching rule is found.
-	if _, found := existingRuleMap[cr.Hash]; !found {
+	if _, found := existingRuleMap[rule.Hash]; !found {
 		indexerUpdate = true
-		_ = r.cloudRuleIndexer.Update(cr)
+		_ = r.cloudRuleIndexer.Update(&rule)
 	} else {
-		delete(existingRuleMap, cr.Hash)
+		delete(existingRuleMap, rule.Hash)
 	}
 
 	// return if indexer is updated or not.
