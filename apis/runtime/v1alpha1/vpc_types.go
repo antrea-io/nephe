@@ -15,7 +15,10 @@
 package v1alpha1
 
 import (
+	"fmt"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 type VpcStatus struct {
@@ -59,4 +62,18 @@ type VpcList struct {
 
 func init() {
 	SchemeBuilder.Register(&Vpc{}, &VpcList{})
+	SchemeBuilder.SchemeBuilder.Register(addVpcConversionFuncs)
+}
+
+func addVpcConversionFuncs(scheme *runtime.Scheme) error {
+	return scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.WithKind("Vpc"),
+		func(label, value string) (string, string, error) {
+			switch label {
+			case "metadata.name", "metadata.namespace", "status.cloudId", "status.region":
+				return label, value, nil
+			default:
+				return "", "", fmt.Errorf("field label not supported: %s", label)
+			}
+		},
+	)
 }

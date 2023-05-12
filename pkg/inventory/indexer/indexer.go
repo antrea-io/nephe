@@ -19,7 +19,6 @@ const (
 	ByNamespacedName = "namespace-name"
 
 	VpcByNamespacedAccountName = "namespace-cloud-account-name"
-	VpcByNamespacedRegion      = "namespace-region"
 
 	VirtualMachineByCloudId               = "cloud-assigned-id"
 	VirtualMachineByNamespacedAccountName = "namespaced-cloud-account-name"

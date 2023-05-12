@@ -194,13 +194,13 @@ var _ = Describe("Account Poller", func() {
 			vpcLabelsMap := map[string]string{
 				labels.CloudAccountName:      testAccountNamespacedName.Name,
 				labels.CloudAccountNamespace: testAccountNamespacedName.Namespace,
-				labels.CloudRegion:           "west",
 			}
 			vpcList := make(map[string]*runtimev1alpha1.Vpc)
 			vpcObj1 := new(runtimev1alpha1.Vpc)
 			vpcObj1.Name = "obj1"
 			vpcObj1.Namespace = testAccountNamespacedName.Namespace
 			vpcObj1.Labels = vpcLabelsMap
+			vpcObj1.Status.Region = "west"
 			vpcObj1.Status.CloudId = "vpcid"
 			vpcObj1.Status.CloudName = "vpc"
 			vpcList["vpcid"] = vpcObj1
