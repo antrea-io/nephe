@@ -9,7 +9,7 @@ spec:
   appliedTo:
   - externalEntitySelector:
       matchLabels:
-         nephe.io/kind: virtualmachine
+         nephe.antrea.io/kind: virtualmachine
   ingress:
   - action: Allow
     from:
