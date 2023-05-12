@@ -136,8 +136,10 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 	configANPToFrom = func(kind, instanceName, vpc, tagKey, tagVal, ipBlock, nsName string, ports []string,
 		denyAll bool) *k8stemplates.ToFromParameters {
 		ret := &k8stemplates.ToFromParameters{
-			IPBlock: ipBlock,
 			DenyAll: denyAll,
+		}
+		if len(ipBlock) > 0 {
+			ret.IPBlock = ipBlock
 		}
 		if len(kind) > 0 {
 			ret.Entity = &k8stemplates.EntitySelectorParameters{
@@ -594,6 +596,32 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		verifyIngress(kind, ids[appliedIdx], ips[appliedIdx], srcVMs, oks, false)
 	}
 
+	testIngressAllowAll := func(kind string) {
+		var ids []string
+		var ips []string
+		if kind == reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name() {
+			ids = cloudVPC.GetVMs()
+			ips = cloudVPC.GetVMPrivateIPs()
+		} else {
+			Fail("Unsupported type")
+		}
+		setup(kind, len(ids), []string{"22"}, false)
+
+		appliedIdx := len(ids) - 1
+		srcVMs := cloudVPC.GetVMs()[:appliedIdx]
+		anpParams.AppliedTo = configANPApplyTo(kind, ids[appliedIdx], "", "", "")
+
+		By("Ingress AllowAll NetworkPolicy")
+		oks := make([]bool, len(ids)-1)
+		for i := range oks {
+			oks[i] = true
+		}
+		// wildcard ipblock and port.
+		anpParams.From = configANPToFrom("", "", "", "", "", "", namespace.Name,
+			[]string{}, false)
+		verifyIngress(kind, ids[appliedIdx], ips[appliedIdx], srcVMs, oks, false)
+	}
+
 	DescribeTable("AppliedTo",
 		func(kind string) {
 			testAppliedTo(kind)
@@ -621,6 +649,14 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 	DescribeTable("Ingress",
 		func(kind string) {
 			testIngress(kind)
+		},
+		Entry(fmt.Sprintf("%s %s: VM In Same Namespace", focusAzure, focusAgent),
+			reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
+	)
+
+	DescribeTable("Ingress AllowAll",
+		func(kind string) {
+			testIngressAllowAll(kind)
 		},
 		Entry(fmt.Sprintf("%s %s: VM In Same Namespace", focusAzure, focusAgent),
 			reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
