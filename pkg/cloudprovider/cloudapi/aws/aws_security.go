@@ -213,13 +213,14 @@ func (ec2Cfg *ec2ServiceConfig) realizeIngressIPPermissions(cloudSgObj *ec2.Secu
 			return fmt.Errorf("unable to generate rule description, err: %v", err)
 		}
 		idGroupPairs := buildEc2UserIDGroupPairs(rule.FromSecurityGroups, cloudSGNameToObj, &description)
-		ipRanges := convertToEc2IpRanges(rule.FromSrcIP, len(rule.FromSecurityGroups) > 0, &description)
+		ipv4Ranges, ipv6Ranges := convertToEc2IpRanges(rule.FromSrcIP, len(rule.FromSecurityGroups) > 0, &description)
 		startPort, endPort := convertToIPPermissionPort(rule.FromPort, rule.Protocol)
 		ipPermission := &ec2.IpPermission{
 			FromPort:         startPort,
 			ToPort:           endPort,
 			IpProtocol:       convertToIPPermissionProtocol(rule.Protocol),
-			IpRanges:         ipRanges,
+			IpRanges:         ipv4Ranges,
+			Ipv6Ranges:       ipv6Ranges,
 			UserIdGroupPairs: idGroupPairs,
 		}
 		newIpPermissions = append(newIpPermissions, ipPermission)
@@ -263,13 +264,14 @@ func (ec2Cfg *ec2ServiceConfig) realizeEgressIPPermissions(cloudSgObj *ec2.Secur
 		}
 
 		idGroupPairs := buildEc2UserIDGroupPairs(rule.ToSecurityGroups, cloudSGNameToObj, &description)
-		ipRanges := convertToEc2IpRanges(rule.ToDstIP, len(rule.ToSecurityGroups) > 0, &description)
+		ipv4Ranges, ipv6Ranges := convertToEc2IpRanges(rule.ToDstIP, len(rule.ToSecurityGroups) > 0, &description)
 		startPort, endPort := convertToIPPermissionPort(rule.ToPort, rule.Protocol)
 		ipPermission := &ec2.IpPermission{
 			FromPort:         startPort,
 			ToPort:           endPort,
 			IpProtocol:       convertToIPPermissionProtocol(rule.Protocol),
-			IpRanges:         ipRanges,
+			IpRanges:         ipv4Ranges,
+			Ipv6Ranges:       ipv6Ranges,
 			UserIdGroupPairs: idGroupPairs,
 		}
 		newIpPermissions = append(newIpPermissions, ipPermission)
