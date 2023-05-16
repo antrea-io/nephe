@@ -207,6 +207,9 @@ func (r *NetworkPolicyReconciler) normalizedANPObject(anp *antreanetworking.Netw
 		for j, addrGroup := range rule.To.AddressGroups {
 			anp.Rules[i].To.AddressGroups[j] = getNormalizedName(addrGroup)
 		}
+		for j, appliedToGroup := range rule.AppliedToGroups {
+			anp.Rules[i].AppliedToGroups[j] = getNormalizedName(appliedToGroup)
+		}
 	}
 }
 
@@ -660,7 +663,12 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			// networkPolicy indexed by Antrea AppliedTo ID.
 			networkPolicyIndexerByAppliedToGrp: func(obj interface{}) ([]string, error) {
 				np := obj.(*networkPolicy)
-				return np.AppliedToGroups, nil
+				appliedToGroups := make([]string, 0)
+				for _, rule := range np.Rules {
+					appliedToGroups = append(appliedToGroups, rule.AppliedToGroups...)
+				}
+				appliedToGroups = append(appliedToGroups, np.AppliedToGroups...)
+				return appliedToGroups, nil
 			},
 		})
 	r.cloudResourceNPTrackerIndexer = cache.NewIndexer(
