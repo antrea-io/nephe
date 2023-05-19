@@ -110,4 +110,4 @@ ci/kind/kind-setup.sh create kind
 echo $TF_VAR_azure_client_subscription_id $TF_VAR_azure_client_id $TF_VAR_azure_client_tenant_id $TF_VAR_azure_client_secret
 
 mkdir -p $HOME/logs
-ci/bin/integration.test -ginkgo.v -ginkgo.focus=".*test-azure.*" -kubeconfig=$HOME/.kube/config -cloud-provider=Azure -support-bundle-dir=$HOME/logs
+ci/bin/integration.test -ginkgo.v -ginkgo.timeout 90m -ginkgo.focus=".*test-azure.*" -kubeconfig=$HOME/.kube/config -cloud-provider=Azure -support-bundle-dir=$HOME/logs

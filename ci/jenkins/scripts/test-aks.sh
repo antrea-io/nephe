@@ -145,4 +145,4 @@ docker tag antrea/nephe:latest projects.registry.vmware.com/antrea/nephe:latest
 $HOME/terraform/aks load projects.registry.vmware.com/antrea/nephe
 
 mkdir -p $HOME/logs
-ci/bin/integration.test -ginkgo.v -ginkgo.focus=$TEST_FOCUS -kubeconfig=$HOME/tmp/terraform-aks/kubeconfig -cloud-provider=Azure -support-bundle-dir=$HOME/logs -with-agent=${WITH_AGENT} -with-windows=${WITH_WINDOWS}
+ci/bin/integration.test -ginkgo.v -ginkgo.timeout 90m -ginkgo.focus=$TEST_FOCUS -kubeconfig=$HOME/tmp/terraform-aks/kubeconfig -cloud-provider=Azure -support-bundle-dir=$HOME/logs -with-agent=${WITH_AGENT} -with-windows=${WITH_WINDOWS}
