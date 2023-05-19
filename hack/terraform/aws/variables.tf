@@ -49,7 +49,7 @@ variable "aws_vm_os_types" {
       name            = "rhel-host2"
       login           = "ec2-user"
       init            = "init_script_rhel.sh"
-      ami_name_search = "RHEL_HA-8.4.0_HVM-20210504-x86_64-2-Hourly2-GP2"
+      ami_name_search = "RHEL_HA-8.4.0_HVM-*x86_64*"
       ami_owner       = "309956199498"
     },
     {
@@ -89,7 +89,7 @@ variable "aws_vm_os_types_agented" {
       name            = "rhel-host3"
       login           = "ec2-user"
       init            = "init_script_rhel.sh"
-      ami_name_search = "RHEL_HA-8.4.0_HVM-20210504-x86_64-2-Hourly2-GP2"
+      ami_name_search = "RHEL_HA-8.4.0_HVM-*x86_64*"
       ami_owner       = "309956199498"
     },
   ]
