@@ -103,9 +103,17 @@ func (a *appliedToSecurityGroup) sync(syncContent *securitygroup.Synchronization
 			}
 		}
 		for _, iRule := range np.ingressRules {
+			if _, ok := iRule.AppliedToGroup[a.id.Name]; !ok {
+				// Skip this rule if it's not meant for given appliedToGroup.
+				continue
+			}
 			countIngressRuleItems(iRule, items, false)
 		}
 		for _, eRule := range np.egressRules {
+			if _, ok := eRule.AppliedToGroup[a.id.Name]; !ok {
+				// Skip this rule if it's not meant for given appliedToGroup.
+				continue
+			}
 			countEgressRuleItems(eRule, items, false)
 		}
 	}

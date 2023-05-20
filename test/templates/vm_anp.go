@@ -39,12 +39,13 @@ type PortParameters struct {
 }
 
 type ANPParameters struct {
-	Name           string
-	Namespace      string
-	To             *ToFromParameters
-	From           *ToFromParameters
-	AppliedTo      *EntitySelectorParameters
-	AppliedToGroup *GroupParameters
+	Name               string
+	Namespace          string
+	To                 *ToFromParameters
+	From               *ToFromParameters
+	AppliedTo          *EntitySelectorParameters
+	RuleAppliedToGroup *GroupParameters
+	AppliedToGroup     *GroupParameters
 }
 
 type GroupParameters struct {
@@ -61,11 +62,12 @@ metadata:
   namespace: {{.Namespace}}
 spec:
   priority: 1
-  appliedTo:
 {{- if  .AppliedToGroup }}
+  appliedTo:
   - group : {{ .AppliedToGroup.Name }}
 {{ end }}
 {{- if  .AppliedTo }}
+  appliedTo:
   - externalEntitySelector:
       matchLabels:
 {{- if .AppliedTo.Kind }}
@@ -123,6 +125,10 @@ spec:
       port: {{$port.Port}}
 {{ end }}
 {{- end }}{{/* .From.Ports */}}
+{{- if  .RuleAppliedToGroup }}
+    appliedTo:
+    - group: {{ .RuleAppliedToGroup.Name }}
+{{ end }} {{- /* .RuleAppliedToGroup */}}
 {{ end }} {{/* .From */}}
 {{- if .To }}
 {{- if .To.DenyAll }}

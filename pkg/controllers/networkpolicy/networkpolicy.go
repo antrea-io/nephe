@@ -132,14 +132,38 @@ func getNormalizedName(name string) string {
 	return strings.ToLower(strings.ReplaceAll(name, "/", "-"))
 }
 
-// diffAppliedToGrp returned added and removed groups from appliedToGroup a to b.
-func diffAppliedToGrp(a, b []string) ([]string, []string) {
-	temp := map[string]int{}
-	for _, s := range a {
-		temp[s]++
+// getAppliedToGroups returns all appliedToGroups either at rule or policy level.
+func getAppliedToGroups(n *networkPolicy) []string {
+	var appliedToGroups []string
+	appliedToGroups = append(appliedToGroups, n.AppliedToGroups...)
+	for _, r := range n.Rules {
+		appliedToGroups = append(appliedToGroups, r.AppliedToGroups...)
 	}
-	for _, s := range b {
+	return appliedToGroups
+}
+
+// diffAppliedToGrp returned added and removed groups from appliedToGroup a to b.
+func diffAppliedToGrp(a *networkPolicy, b *antreanetworking.NetworkPolicy) ([]string, []string) {
+	temp := map[string]int{}
+	if a != nil {
+		for _, s := range a.AppliedToGroups {
+			temp[s]++
+		}
+	}
+	for _, s := range b.AppliedToGroups {
 		temp[s]--
+	}
+	if a != nil {
+		for _, r := range a.Rules {
+			for _, g := range r.AppliedToGroups {
+				temp[g]++
+			}
+		}
+	}
+	for _, r := range b.Rules {
+		for _, g := range r.AppliedToGroups {
+			temp[g]--
+		}
 	}
 	var added, removed []string
 	for s, v := range temp {
@@ -350,6 +374,7 @@ func (s *securityGroupImpl) deleteImpl(c cloudSecurityGroup, membershipOnly bool
 	if !r.pendingDeleteGroups.Has(guName) {
 		r.pendingDeleteGroups.Add(guName, &pendingGroup{refCnt: new(int)})
 	}
+	var nps []interface{}
 	if s.state != securityGroupStateGarbageCollectState {
 		if membershipOnly {
 			refs, err := r.appliedToSGIndexer.ByIndex(appliedToIndexerByAddrGroupRef, s.id.CloudResourceID.String())
@@ -361,6 +386,12 @@ func (s *securityGroupImpl) deleteImpl(c cloudSecurityGroup, membershipOnly bool
 					"MembershipOnly", membershipOnly, "refNum", len(refs))
 				s.deletePending = true
 				return nil
+			}
+		} else {
+			var err error
+			nps, err = r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAppliedToGrp, s.id.Name)
+			if err != nil {
+				return fmt.Errorf("get networkpolicy indexer with index=%v, name=%v: %v", networkPolicyIndexerByAppliedToGrp, s.id.Name, err)
 			}
 		}
 		if err := indexer.Delete(c); err != nil {
@@ -388,6 +419,13 @@ func (s *securityGroupImpl) deleteImpl(c cloudSecurityGroup, membershipOnly bool
 		err := <-ch
 		if err == nil && !membershipOnly {
 			s.deleteSgRulesFromIndexer(r)
+		}
+		// Send rule realization even if appliedToGroup is getting deleted.
+		if !membershipOnly && len(nps) != 0 {
+			for _, obj := range nps {
+				np := obj.(*networkPolicy)
+				r.sendRuleRealizationStatus(&np.NetworkPolicy, err)
+			}
 		}
 		r.cloudResponse <- &securityGroupStatus{sg: c, op: securityGroupOperationDelete, err: err}
 	}()
@@ -707,7 +745,7 @@ func (a *appliedToSecurityGroup) updateAllRules(r *NetworkPolicyReconciler) erro
 		return fmt.Errorf("unable to get networkPolicy with key %s from indexer: %w", a.id.Name, err)
 	}
 	if len(nps) == 0 {
-		a.clearMembers(r)
+		a.clearMembers(r, nil)
 		return nil
 	}
 
@@ -752,7 +790,7 @@ func (a *appliedToSecurityGroup) updateANPRules(r *NetworkPolicyReconciler, np *
 		return
 	}
 	if len(nps) == 0 {
-		a.clearMembers(r)
+		a.clearMembers(r, np)
 		return
 	}
 
@@ -799,12 +837,15 @@ func (a *appliedToSecurityGroup) updateANPRules(r *NetworkPolicyReconciler, np *
 }
 
 // clearMembers removes all members from a security group.
-func (a *appliedToSecurityGroup) clearMembers(r *NetworkPolicyReconciler) {
+func (a *appliedToSecurityGroup) clearMembers(r *NetworkPolicyReconciler, np *networkPolicy) {
 	if a.hasMembers {
 		r.Log.V(1).Info("Clearing AppliedToSecurityGroup members with no rules", "Name", a.id.Name)
 		ch := securitygroup.CloudSecurityGroup.UpdateSecurityGroupMembers(&a.id, nil, false)
 		go func() {
 			err := <-ch
+			if np != nil {
+				r.updateRuleRealizationStatus(a.id.CloudResourceID.String(), np, err)
+			}
 			r.cloudResponse <- &securityGroupStatus{sg: a, op: securityGroupOperationClearMembers, err: err}
 		}()
 		return
@@ -823,8 +864,14 @@ func (a *appliedToSecurityGroup) getCloudRulesFromNps(nps []interface{}) []*secu
 		}
 		npNamespacedName := np.getNamespacedName()
 		for _, r := range np.ingressRules {
+			if _, ok := r.AppliedToGroup[a.id.Name]; !ok {
+				continue
+			}
+			// Reset AppliedToGroup so that it's not added in hash.
+			ruleCopy := deepcopy.Copy(r).(*securitygroup.IngressRule)
+			ruleCopy.AppliedToGroup = nil
 			rule := &securitygroup.CloudRule{
-				Rule:             deepcopy.Copy(r).(*securitygroup.IngressRule),
+				Rule:             ruleCopy,
 				NpNamespacedName: npNamespacedName,
 				AppliedToGrp:     a.id.CloudResourceID.String(),
 			}
@@ -832,8 +879,14 @@ func (a *appliedToSecurityGroup) getCloudRulesFromNps(nps []interface{}) []*secu
 			rules = append(rules, rule)
 		}
 		for _, r := range np.egressRules {
+			if _, ok := r.AppliedToGroup[a.id.Name]; !ok {
+				continue
+			}
+			// Reset AppliedToGroup so that it's not added in hash.
+			ruleCopy := deepcopy.Copy(r).(*securitygroup.EgressRule)
+			ruleCopy.AppliedToGroup = nil
 			rule := &securitygroup.CloudRule{
-				Rule:             deepcopy.Copy(r).(*securitygroup.EgressRule),
+				Rule:             ruleCopy,
 				NpNamespacedName: npNamespacedName,
 				AppliedToGrp:     a.id.CloudResourceID.String(),
 			}
@@ -1176,14 +1229,15 @@ type networkPolicyRule struct {
 }
 
 // rules generate cloud plug-in ingressRule and/or egressRule from an networkPolicyRule.
-func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler) (ingressList []*securitygroup.IngressRule,
-	egressList []*securitygroup.EgressRule, ready bool) {
+func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, policyAppliedToGroups []string) (
+	ingressList []*securitygroup.IngressRule, egressList []*securitygroup.EgressRule, ready bool) {
 	ready = true
 	rule := r.rule
 	if rule.Direction == antreanetworking.DirectionIn {
 		iRules := make([]*securitygroup.IngressRule, 0)
 		for _, ip := range rule.From.IPBlocks {
 			ingress := &securitygroup.IngressRule{}
+			ingress.AppliedToGroup = make(map[string]struct{}, 0)
 			ipNet := net.IPNet{IP: net.IP(ip.CIDR.IP), Mask: net.CIDRMask(int(ip.CIDR.PrefixLength), 32)}
 			if ipNet.IP.To4() == nil {
 				// TODO: Enable this when IPv6 is supported in Nephe.
@@ -1191,6 +1245,7 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler) (ingressList []*s
 				continue
 			}
 			ingress.FromSrcIP = append(ingress.FromSrcIP, &ipNet)
+			securitygroup.SetAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, ingress)
 			iRules = append(iRules, ingress)
 		}
 		for _, ag := range rule.From.AddressGroups {
@@ -1209,7 +1264,9 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler) (ingressList []*s
 				id := sg.getID()
 				if len(id.Vpc) > 0 {
 					ingress := &securitygroup.IngressRule{}
+					ingress.AppliedToGroup = make(map[string]struct{}, 0)
 					ingress.FromSecurityGroups = append(ingress.FromSecurityGroups, &id)
+					securitygroup.SetAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, ingress)
 					iRules = append(iRules, ingress)
 				}
 			}
@@ -1245,6 +1302,7 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler) (ingressList []*s
 	eRules := make([]*securitygroup.EgressRule, 0)
 	for _, ip := range rule.To.IPBlocks {
 		egress := &securitygroup.EgressRule{}
+		egress.AppliedToGroup = make(map[string]struct{}, 0)
 		ipNet := net.IPNet{IP: net.IP(ip.CIDR.IP), Mask: net.CIDRMask(int(ip.CIDR.PrefixLength), 32)}
 		if ipNet.IP.To4() == nil {
 			// TODO: Enable this when IPv6 is supported in Nephe.
@@ -1252,6 +1310,7 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler) (ingressList []*s
 			continue
 		}
 		egress.ToDstIP = append(egress.ToDstIP, &ipNet)
+		securitygroup.SetAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, egress)
 		eRules = append(eRules, egress)
 	}
 	for _, ag := range rule.To.AddressGroups {
@@ -1270,7 +1329,9 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler) (ingressList []*s
 			id := sg.getID()
 			if len(id.Vpc) > 0 {
 				egress := &securitygroup.EgressRule{}
+				egress.AppliedToGroup = make(map[string]struct{}, 0)
 				egress.ToSecurityGroups = append(egress.ToSecurityGroups, &id)
+				securitygroup.SetAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, egress)
 				eRules = append(eRules, egress)
 			}
 		}
@@ -1335,9 +1396,10 @@ func (n *networkPolicy) update(anp *antreanetworking.NetworkPolicy, recompute bo
 	if recompute {
 		addedAddr, _ = diffAddressGrp(nil, anp.Rules)
 		if ok := n.computeRules(r); !ok {
+			r.Log.V(1).Info("NetworkPolicy is not ready", "networkPolicy", n.Name)
 			return
 		}
-		modifiedAppliedTo = n.AppliedToGroups
+		addedAppliedTo, _ = diffAppliedToGrp(nil, anp)
 	} else {
 		if !reflect.DeepEqual(anp.Rules, n.Rules) {
 			// Indexer does not work with in-place update. Do delete->update->add.
@@ -1348,13 +1410,21 @@ func (n *networkPolicy) update(anp *antreanetworking.NetworkPolicy, recompute bo
 			if len(removedAddr) != 0 {
 				r.Log.V(1).Info("AddressGroup removed from NetworkPolicy", "networkPolicy", n.Name, "removed", removedAddr)
 			}
+			addedAppliedTo, removedAppliedTo = diffAppliedToGrp(n, anp)
 			n.Rules = anp.Rules
 			n.Generation = anp.Generation
 			if err := r.networkPolicyIndexer.Add(n); err != nil {
 				r.Log.Error(err, "add networkPolicy indexer", "Name", n.Name)
 			}
-			if ok := n.computeRules(r); ok {
-				modifiedAppliedTo = n.AppliedToGroups
+			// Recompute the rules.
+			if ok := n.computeRules(r); !ok {
+				// Reset new appliedTo if rule computation fails.
+				addedAppliedTo = nil
+			} else {
+				// Set change on all appliedToGroups.
+				if len(addedAppliedTo) == 0 && len(removedAppliedTo) == 0 {
+					modifiedAppliedTo = getAppliedToGroups(n)
+				}
 			}
 		}
 		if !reflect.DeepEqual(anp.AppliedToGroups, n.AppliedToGroups) {
@@ -1362,11 +1432,15 @@ func (n *networkPolicy) update(anp *antreanetworking.NetworkPolicy, recompute bo
 			if err := r.networkPolicyIndexer.Delete(n); err != nil {
 				r.Log.Error(err, "delete networkPolicy indexer", "Name", n.Name)
 			}
-			addedAppliedTo, removedAppliedTo = diffAppliedToGrp(n.AppliedToGroups, anp.AppliedToGroups)
+			addedAppliedTo, removedAppliedTo = diffAppliedToGrp(n, anp)
 			n.AppliedToGroups = anp.AppliedToGroups
 			n.Generation = anp.Generation
 			if err := r.networkPolicyIndexer.Add(n); err != nil {
 				r.Log.Error(err, "add networkPolicy indexer", "Name", n.Name)
+			}
+			// Recompute the rules and reset new appliedTo if rule computation fails.
+			if ok := n.computeRules(r); !ok {
+				addedAppliedTo = nil
 			}
 		}
 	}
@@ -1520,7 +1594,7 @@ func (n *networkPolicy) computeRules(rr *NetworkPolicyReconciler) bool {
 	n.egressRules = nil
 	n.rulesReady = false
 	for _, r := range n.Rules {
-		ing, eg, ready := (&networkPolicyRule{rule: &r}).rules(rr)
+		ing, eg, ready := (&networkPolicyRule{rule: &r}).rules(rr, n.AppliedToGroups)
 		if !ready {
 			n.ingressRules = nil
 			n.egressRules = nil

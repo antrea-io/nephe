@@ -420,7 +420,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 
 	}
 
-	testAppliedToUsingGroup := func(kind string) {
+	testAppliedToUsingGroup := func(kind string, rule bool) {
 		var ids []string
 		var ips []string
 		if kind == reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name() {
@@ -449,7 +449,11 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		Expect(err).ToNot(HaveOccurred())
 
 		anpParams.From = configANPToFrom(kind, "", "", "", "", "", nsName, []string{apachePort}, false)
-		anpParams.AppliedToGroup = &groupParameters
+		if rule {
+			anpParams.RuleAppliedToGroup = &groupParameters
+		} else {
+			anpParams.AppliedToGroup = &groupParameters
+		}
 		applied := make([]bool, len(ids))
 		for i := range applied {
 			applied[i] = true
@@ -630,11 +634,19 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
 	)
 
-	DescribeTable("AppliedToUsingGroup",
+	DescribeTable("AppliedTo using Group",
 		func(kind string) {
-			testAppliedToUsingGroup(kind)
+			testAppliedToUsingGroup(kind, false)
 		},
-		Entry(fmt.Sprintf("%s: VM In Same Namespace", focusAws),
+		Entry(fmt.Sprintf("%s: VM In Same Namespace", focusAzure),
+			reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
+	)
+
+	DescribeTable("AppliedTo at Rule using Group",
+		func(kind string) {
+			testAppliedToUsingGroup(kind, true)
+		},
+		Entry(fmt.Sprintf("%s: VM In Same Namespace", focusAzure),
 			reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
 	)
 

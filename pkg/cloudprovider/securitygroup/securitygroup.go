@@ -200,6 +200,7 @@ type IngressRule struct {
 	FromSrcIP          []*net.IPNet
 	FromSecurityGroups []*CloudResourceID
 	Protocol           *int
+	AppliedToGroup     map[string]struct{}
 }
 
 func (i *IngressRule) isRule() {}
@@ -210,9 +211,30 @@ type EgressRule struct {
 	ToDstIP          []*net.IPNet
 	ToSecurityGroups []*CloudResourceID
 	Protocol         *int
+	AppliedToGroup   map[string]struct{}
 }
 
 func (e *EgressRule) isRule() {}
+
+// SetAppliedToGroup set appliedToGroup on ingress or egress rule from rule or policy level.
+func SetAppliedToGroup(ruleAppliedTo []string, policyAppliedTo []string, r Rule) {
+	var appliedTos []string
+	if len(ruleAppliedTo) > 0 {
+		appliedTos = ruleAppliedTo
+	} else {
+		appliedTos = policyAppliedTo
+	}
+
+	if iRule, ok := r.(*IngressRule); ok {
+		for _, appliedToGroup := range appliedTos {
+			iRule.AppliedToGroup[appliedToGroup] = struct{}{}
+		}
+	} else if eRule, ok := r.(*EgressRule); ok {
+		for _, appliedToGroup := range appliedTos {
+			eRule.AppliedToGroup[appliedToGroup] = struct{}{}
+		}
+	}
+}
 
 type CloudRule struct {
 	Hash             string `json:"-"`
