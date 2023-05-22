@@ -87,11 +87,11 @@ kubectl describe vm i-019459b33d951b62e -n vm-ns
 # Output
 Name:         i-019459b33d951b62e
 Namespace:    vm-ns
-Labels:       nephe.io/cloud-vm-uid=i-019459b33d951b62e
-              nephe.io/cloud-vpc-uid=vpc-0d6bb6a4a880bd9ad
-              nephe.io/cpa-name=cloudprovideraccount-aws-sample
-              nephe.io/cpa-namespace=vm-ns
-              nephe.io/vpc-name=vpc-0d6bb6a4a880bd9ad
+Labels:       nephe.antrea.io/cloud-vm-uid=i-019459b33d951b62e
+              nephe.antrea.io/cloud-vpc-uid=vpc-0d6bb6a4a880bd9ad
+              nephe.antrea.io/cpa-name=cloudprovideraccount-aws-sample
+              nephe.antrea.io/cpa-namespace=vm-ns
+              nephe.antrea.io/vpc-name=vpc-0d6bb6a4a880bd9ad
 Annotations:  <none>
 API Version:  runtime.cloud.antrea.io/v1alpha1
 Kind:         VirtualMachine
