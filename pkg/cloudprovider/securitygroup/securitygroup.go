@@ -103,9 +103,8 @@ Antrea internal NetworkPolicy To SecurityGroup Mapping strategy
 
 const (
 	// Used to create a rule description.
-	Name           = "Name"
-	Namespace      = "Namespace"
-	AppliedToGroup = "AppliedToGroup"
+	Name      = "Name"
+	Namespace = "Ns"
 )
 
 var (
@@ -179,15 +178,13 @@ func (c *CloudResourceID) String() string {
 }
 
 type CloudRuleDescription struct {
-	Name           string
-	Namespace      string
-	AppliedToGroup string
+	Name      string
+	Namespace string
 }
 
 func (r *CloudRuleDescription) String() string {
 	return Name + ":" + r.Name + ", " +
-		Namespace + ":" + r.Namespace + ", " +
-		AppliedToGroup + ":" + r.AppliedToGroup
+		Namespace + ":" + r.Namespace
 }
 
 type Rule interface {
