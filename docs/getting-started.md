@@ -215,10 +215,10 @@ kubectl describe vpc vpc-0d6bb6a4a880bd9ad -n sample-ns
 # Output
 Name:         vpc-0d6bb6a4a880bd9ad
 Namespace:    sample-ns
-Labels:       nephe.io/cloud-region=us-west-1
-              nephe.io/cloud-vpc-uid=vpc-0d6bb6a4a880bd9ad
-              nephe.io/cpa-name=cloudprovideraccount-aws-sample
-              nephe.io/cpa-namespace=sample-ns
+Labels:       nephe.antrea.io/cloud-region=us-west-1
+              nephe.antrea.io/cloud-vpc-uid=vpc-0d6bb6a4a880bd9ad
+              nephe.antrea.io/cpa-name=cloudprovideraccount-aws-sample
+              nephe.antrea.io/cpa-namespace=sample-ns
 Annotations:  <none>
 API Version:  runtime.cloud.antrea.io/v1alpha1
 Kind:         Vpc
@@ -293,19 +293,19 @@ kubectl describe ee virtualmachine-i-0033eb4a6c846451d -n sample-ns
 # Output
 Name:         virtualmachine-i-0033eb4a6c846451d
 Namespace:    sample-ns
-Labels:       nephe.io/cloud-region=us-west-1
-              nephe.io/cloud-vm-name=vpc-0d6bb6a4a880bd9ad-ubuntu1
-              nephe.io/cloud-vm-uid=i-0033eb4a6c846451d
-              nephe.io/cloud-vpc-name=test-us-west1-vpc
-              nephe.io/cloud-vpc-uid=vpc-0d6bb6a4a880bd9ad
-              nephe.io/kind=virtualmachine
-              nephe.io/namespace=sample-ns
-              nephe.io/owner-vm=i-0033eb4a6c846451d
-              nephe.io/owner-vm-vpc=vpc-0d6bb6a4a880bd9ad
-              nephe.io/tag-Environment=nephe
-              nephe.io/tag-Login=ec2-user
-              nephe.io/tag-Name=vpc-0d6bb6a4a880bd9ad-ubuntu1
-              nephe.io/tag-Terraform=true
+Labels:       nephe.antrea.io/cloud-region=us-west-1
+              nephe.antrea.io/cloud-vm-name=vpc-0d6bb6a4a880bd9ad-ubuntu1
+              nephe.antrea.io/cloud-vm-uid=i-0033eb4a6c846451d
+              nephe.antrea.io/cloud-vpc-name=test-us-west1-vpc
+              nephe.antrea.io/cloud-vpc-uid=vpc-0d6bb6a4a880bd9ad
+              nephe.antrea.io/kind=virtualmachine
+              nephe.antrea.io/namespace=sample-ns
+              nephe.antrea.io/owner-vm=i-0033eb4a6c846451d
+              nephe.antrea.io/owner-vm-vpc=vpc-0d6bb6a4a880bd9ad
+              nephe.antrea.io/tag-Environment=nephe
+              nephe.antrea.io/tag-Login=ec2-user
+              nephe.antrea.io/tag-Name=vpc-0d6bb6a4a880bd9ad-ubuntu1
+              nephe.antrea.io/tag-Terraform=true
 Annotations:  <none>
 API Version:  crd.antrea.io/v1alpha2
 Kind:         ExternalEntity
@@ -319,19 +319,19 @@ Metadata:
       f:metadata:
         f:labels:
           .:
-          f:nephe.io/cloud-region:
-          f:nephe.io/cloud-vm-name:
-          f:nephe.io/cloud-vm-uid:
-          f:nephe.io/cloud-vpc-name:
-          f:nephe.io/cloud-vpc-uid:
-          f:nephe.io/kind:
-          f:nephe.io/namespace:
-          f:nephe.io/owner-vm:
-          f:nephe.io/owner-vm-vpc:
-          f:nephe.io/tag-environment:
-          f:nephe.io/tag-login:
-          f:nephe.io/tag-name:
-          f:nephe.io/tag-terraform:
+          f:nephe.antrea.io/cloud-region:
+          f:nephe.antrea.io/cloud-vm-name:
+          f:nephe.antrea.io/cloud-vm-uid:
+          f:nephe.antrea.io/cloud-vpc-name:
+          f:nephe.antrea.io/cloud-vpc-uid:
+          f:nephe.antrea.io/kind:
+          f:nephe.antrea.io/namespace:
+          f:nephe.antrea.io/owner-vm:
+          f:nephe.antrea.io/owner-vm-vpc:
+          f:nephe.antrea.io/tag-environment:
+          f:nephe.antrea.io/tag-login:
+          f:nephe.antrea.io/tag-name:
+          f:nephe.antrea.io/tag-terraform:
       f:spec:
         .:
         f:endpoints:
@@ -373,7 +373,7 @@ spec:
   appliedTo:
   - externalEntitySelector:
       matchLabels:
-         nephe.io/kind: virtualmachine
+         nephe.antrea.io/kind: virtualmachine
   ingress:
   - action: Allow
     from:
@@ -412,22 +412,22 @@ sample-ns   i-0033eb4a6c846451d   SUCCESS       1
 The `externalEntitySelector` field in ANP supports the following pre-defined
 labels:
 
-- `nephe.io/kind`: Select based on CRD type. Currently, only supported
+- `nephe.antrea.io/kind`: Select based on CRD type. Currently, only supported
   CRD type is `virtualmachine` in lower case. `virtualmachine` may be used in
   `To`, `From`, `AppliedTo` ANP fields. Thus, an ANP may be applied to virtual
   machines.
-- `nephe.io/owner-vm-vpc`: Select based on K8s VPC resource name of VPC where
+- `nephe.antrea.io/owner-vm-vpc`: Select based on K8s VPC resource name of VPC where
    VM belongs.
-- `nephe.io/owner-vm`: Select based on K8s VM resource name. The resource name
+- `nephe.antrea.io/owner-vm`: Select based on K8s VM resource name. The resource name
   is meaningful only within the K8s cluster. For AWS, virtual machine name is
   the AWS VM instance ID. For Azure virtual machine name is the hashed values of
   the Azure VM resource ID.
-- `nephe.io/cloud-vm-uid`: Select based on unique id(UID) of VM in cloud. For AWS,
+- `nephe.antrea.io/cloud-vm-uid`: Select based on unique id(UID) of VM in cloud. For AWS,
     UID is VM instance ID. For Azure, UID is vmID.
-- `nephe.io/cloud-vm-name`: Select based on VM name in cloud.
-- `nephe.io/cloud-vpc-name`: Select based on VPC name in cloud.
-- `nephe.io/cloud-vpc-uid`: Select based on unique id(UID) of VPC in cloud. For AWS,
+- `nephe.antrea.io/cloud-vm-name`: Select based on VM name in cloud.
+- `nephe.antrea.io/cloud-vpc-name`: Select based on VPC name in cloud.
+- `nephe.antrea.io/cloud-vpc-uid`: Select based on unique id(UID) of VPC in cloud. For AWS,
   UID is VPC ID. For Azure, UID is Resource GUID.
-- `nephe.io/tag-key`: Select based on cloud resource tag key/value pair,
+- `nephe.antrea.io/tag-key`: Select based on cloud resource tag key/value pair,
   where `key` is the cloud resource `Key` tag and the `label` value is
   cloud resource tag `Value`.

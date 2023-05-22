@@ -28,7 +28,7 @@ const (
 // ImportTags function returns tags which comply with kubernetes labels format.
 func ImportTags(tags map[string]string) map[string]string {
 	importedTags := make(map[string]string)
-	// Tags are used as kubernetes labels in External Entity in nephe.io/tag-<tag key>=<tag value> format.
+	// Tags are used as kubernetes labels in External Entity in nephe.antrea.io/tag-<tag key>=<tag value> format.
 	// Filter out the tags which don't comply with kubernetes label format.
 	// For Label format, refer to https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set.
 	for key, value := range tags {

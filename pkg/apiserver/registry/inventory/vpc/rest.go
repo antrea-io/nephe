@@ -89,8 +89,8 @@ func (r *REST) Get(ctx context.Context, name string, _ *metav1.GetOptions) (runt
 func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (runtime.Object, error) {
 	// List only supports four types of input options:
 	// 1. All namespace.
-	// 2. Labelselector with only the specific namespace, the only valid labelselectors are "nephe.io/cpa-name=<accountname>",
-	//    "nephe.io/cpa-namespace=<accountNamespace> and "nephe.io/cloud-region=<region>".
+	// 2. Labelselector with only the specific namespace, the only valid labelselectors are "nephe.antrea.io/cpa-name=<accountname>",
+	//    "nephe.antrea.io/cpa-namespace=<accountNamespace> and "nephe.antrea.io/cloud-region=<region>".
 	// 3. Fieldselector with only the specific namespace, the only valid fieldselectors is "metadata.name=<metadata.name>".
 	// 4. Specific Namespace.
 	accountName := ""
@@ -108,7 +108,8 @@ func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (
 			} else if labelKeyAndValue[0] == labels.CloudRegion {
 				region = strings.ToLower(labelKeyAndValue[1])
 			} else {
-				return nil, errors.NewBadRequest("unsupported label selector, supported labels are: nephe.io/cpa-name and nephe.io/cloud-region")
+				return nil, errors.NewBadRequest("unsupported label selector, supported labels are: nephe.antrea.io/cpa-name" +
+					"and nephe.antrea.io/cloud-region")
 			}
 		}
 	}

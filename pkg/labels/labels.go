@@ -15,7 +15,7 @@
 package labels
 
 const (
-	LabelPrefixNephe = "nephe.io/"
+	LabelPrefixNephe = "nephe.antrea.io/"
 )
 
 // Well known labels on ExternalEntities so that they can be selected by Antrea NetworkPolicies.

@@ -89,7 +89,7 @@ func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (
 	// List only supports three types of input options:
 	// 1. All namespaces.
 	// 2. Labelselector with only the specific namespace, the only valid labelselectors are
-	//    "nephe.io/cpa-name=<accountname>" and "nephe.io/cpa-namespace=<accountNamespace>".
+	//    "nephe.antrea.io/cpa-name=<accountname>" and "nephe.antrea.io/cpa-namespace=<accountNamespace>".
 	// 3. Specific Namespace.
 	accountName := ""
 	accountNamespace := ""
@@ -103,14 +103,14 @@ func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (
 				accountNamespace = labelKeyAndValue[1]
 			} else {
 				return nil, errors.NewBadRequest("unsupported label selector, supported labels are: " +
-					"nephe.io/cpa-name and nephe.io/cpa-namespace")
+					"nephe.antrea.io/cpa-name and nephe.antrea.io/cpa-namespace")
 			}
 		}
 	}
 
-	// Check if both nephe.io/cpa-name and nephe.io/cpa-namespace are specified.
+	// Check if both nephe.antrea.io/cpa-name and nephe.antrea.io/cpa-namespace are specified.
 	if (accountName != "" && accountNamespace == "") || (accountName == "" && accountNamespace != "") {
-		return nil, errors.NewBadRequest("unsupported query, both nephe.io/cpa-name and nephe.io/cpa-namespace" +
+		return nil, errors.NewBadRequest("unsupported query, both nephe.antrea.io/cpa-name and nephe.antrea.io/cpa-namespace" +
 			"labels should be specified")
 	}
 
