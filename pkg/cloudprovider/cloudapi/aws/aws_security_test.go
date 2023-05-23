@@ -403,9 +403,9 @@ var _ = Describe("AWS Cloud Security", func() {
 	Context("GetEnforcedSecurity", func() {
 		It("Should sync cloud security groups and rules with description", func() {
 			desc := securitygroup.CloudRuleDescription{
-				Name:           testAnpNamespacedName.Name,
-				Namespace:      testAnpNamespacedName.Namespace,
-				AppliedToGroup: "dummy"}
+				Name:      testAnpNamespacedName.Name,
+				Namespace: testAnpNamespacedName.Namespace,
+			}
 			descString := desc.String()
 			webAddressGroupIdentifier := &securitygroup.CloudResource{
 				Type: securitygroup.CloudResourceTypeVM,

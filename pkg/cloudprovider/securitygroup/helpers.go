@@ -16,6 +16,7 @@ package securitygroup
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 )
 
@@ -58,15 +59,14 @@ func FindResourcesBasedOnKind(cloudResources []*CloudResource) (map[string]struc
 }
 
 // GenerateCloudDescription generates a CloudRuleDescription object and converts to string.
-func GenerateCloudDescription(namespacedName string, appliedToGroup string) (string, error) {
+func GenerateCloudDescription(namespacedName string) (string, error) {
 	tokens := strings.Split(namespacedName, "/")
 	if len(tokens) != 2 {
 		return "", fmt.Errorf("invalid namespacedname %v", namespacedName)
 	}
 	desc := CloudRuleDescription{
-		Name:           tokens[1],
-		Namespace:      tokens[0],
-		AppliedToGroup: appliedToGroup,
+		Name:      tokens[1],
+		Namespace: tokens[0],
 	}
 	return desc.String(), nil
 }
@@ -76,7 +76,7 @@ func ExtractCloudDescription(description *string) (*CloudRuleDescription, bool) 
 	if description == nil {
 		return nil, false
 	}
-	numKeyValuePair := 3
+	numKeyValuePair := reflect.TypeOf(CloudRuleDescription{}).NumField()
 	descMap := map[string]string{}
 	tempSlice := strings.Split(*description, ",")
 	if len(tempSlice) != numKeyValuePair {
@@ -91,14 +91,13 @@ func ExtractCloudDescription(description *string) (*CloudRuleDescription, bool) 
 	}
 
 	// check if any of the fields are empty.
-	if descMap[Name] == "" || descMap[Namespace] == "" || descMap[AppliedToGroup] == "" {
+	if descMap[Name] == "" || descMap[Namespace] == "" {
 		return nil, false
 	}
 
 	desc := &CloudRuleDescription{
-		Name:           descMap[Name],
-		Namespace:      descMap[Namespace],
-		AppliedToGroup: descMap[AppliedToGroup],
+		Name:      descMap[Name],
+		Namespace: descMap[Namespace],
 	}
 	return desc, true
 }

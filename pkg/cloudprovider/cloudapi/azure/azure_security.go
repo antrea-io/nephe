@@ -321,12 +321,10 @@ func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(ap
 		}
 
 		// Nephe rules will be created from ruleStartPriority and have description.
-		desc, ok := securitygroup.ExtractCloudDescription(rule.Properties.Description)
+		_, ok := securitygroup.ExtractCloudDescription(rule.Properties.Description)
 		if *rule.Properties.Priority >= ruleStartPriority && ok {
 			// skip any rules created by current processing appliedToGroup (as we have new rules for this group).
-			ruleAddrGroupName := desc.AppliedToGroup
-			_, _, isNepheControllerCreatedRule := securitygroup.IsNepheControllerCreatedSG(desc.AppliedToGroup)
-			if isNepheControllerCreatedRule && strings.Compare(ruleAddrGroupName, appliedToGroupNepheControllerName) == 0 {
+			if isAzureRuleAttachedToAtSg(rule, appliedToGroupNepheControllerName) {
 				continue
 			}
 		}
@@ -393,12 +391,10 @@ func (computeCfg *computeServiceConfig) buildEffectivePeerNSGSecurityRulesToAppl
 		}
 
 		// Nephe rules will be created from ruleStartPriority and have description.
-		desc, ok := securitygroup.ExtractCloudDescription(rule.Properties.Description)
+		_, ok := securitygroup.ExtractCloudDescription(rule.Properties.Description)
 		if *rule.Properties.Priority >= ruleStartPriority && ok {
 			// skip any rules created by current processing appliedToGroup (as we have new rules for this group).
-			ruleAddrGroupName := desc.AppliedToGroup
-			_, _, isNepheControllerCreatedRule := securitygroup.IsNepheControllerCreatedSG(desc.AppliedToGroup)
-			if isNepheControllerCreatedRule && strings.Compare(ruleAddrGroupName, appliedToGroupNepheControllerName) == 0 {
+			if isAzureRuleAttachedToAtSg(rule, appliedToGroupNepheControllerName) {
 				continue
 			}
 		}

@@ -51,6 +51,22 @@ func getDefaultDenyRuleName() string {
 	return securitygroup.ControllerPrefix + "-default-deny"
 }
 
+// isAzureRuleAttachedToAtSg check if the given Azure security rule is attached to the specified appliedTo sg.
+func isAzureRuleAttachedToAtSg(rule *armnetwork.SecurityRule, asg string) bool {
+	atSgs := rule.Properties.DestinationApplicationSecurityGroups
+	if *rule.Properties.Direction == armnetwork.SecurityRuleDirectionOutbound {
+		atSgs = rule.Properties.SourceApplicationSecurityGroups
+	}
+	for _, atSg := range atSgs {
+		_, _, name, _ := extractFieldsFromAzureResourceID(*atSg.ID)
+		_, _, isNepheControllerCreatedRule := securitygroup.IsNepheControllerCreatedSG(name)
+		if isNepheControllerCreatedRule && strings.Compare(name, asg) == 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // updateSecurityRuleNameAndPriority updates rule name and priority from existing
 // and new security rules and returns all the security rules.
 func updateSecurityRuleNameAndPriority(existingRules []armnetwork.SecurityRule,
@@ -115,7 +131,7 @@ func convertIngressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResou
 		if rule == nil {
 			continue
 		}
-		description, err := securitygroup.GenerateCloudDescription(obj.NpNamespacedName, appliedToGroupID.GetCloudName(false))
+		description, err := securitygroup.GenerateCloudDescription(obj.NpNamespacedName)
 		if err != nil {
 			return []armnetwork.SecurityRule{}, fmt.Errorf("unable to generate rule description, err: %v", err)
 		}
@@ -170,7 +186,7 @@ func convertIngressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudR
 		if rule == nil {
 			continue
 		}
-		description, err := securitygroup.GenerateCloudDescription(obj.NpNamespacedName, appliedToGroupID.GetCloudName(false))
+		description, err := securitygroup.GenerateCloudDescription(obj.NpNamespacedName)
 		if err != nil {
 			return []armnetwork.SecurityRule{}, fmt.Errorf("unable to generate rule description, err: %v", err)
 		}
@@ -244,7 +260,7 @@ func convertEgressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResour
 		if rule == nil {
 			continue
 		}
-		description, err := securitygroup.GenerateCloudDescription(obj.NpNamespacedName, appliedToGroupID.GetCloudName(false))
+		description, err := securitygroup.GenerateCloudDescription(obj.NpNamespacedName)
 		if err != nil {
 			return []armnetwork.SecurityRule{}, fmt.Errorf("unable to generate rule description, err: %v", err)
 		}
@@ -298,7 +314,7 @@ func convertEgressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudRe
 		if rule == nil {
 			continue
 		}
-		description, err := securitygroup.GenerateCloudDescription(obj.NpNamespacedName, appliedToGroupID.GetCloudName(false))
+		description, err := securitygroup.GenerateCloudDescription(obj.NpNamespacedName)
 		if err != nil {
 			return []armnetwork.SecurityRule{}, fmt.Errorf("unable to generate rule description, err: %v", err)
 		}

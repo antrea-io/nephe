@@ -208,7 +208,7 @@ func (ec2Cfg *ec2ServiceConfig) realizeIngressIPPermissions(cloudSgObj *ec2.Secu
 		if rule == nil {
 			continue
 		}
-		description, err := securitygroup.GenerateCloudDescription(obj.NpNamespacedName, *cloudSgObj.GroupName)
+		description, err := securitygroup.GenerateCloudDescription(obj.NpNamespacedName)
 		if err != nil {
 			return fmt.Errorf("unable to generate rule description, err: %v", err)
 		}
@@ -257,7 +257,7 @@ func (ec2Cfg *ec2ServiceConfig) realizeEgressIPPermissions(cloudSgObj *ec2.Secur
 		if rule == nil {
 			continue
 		}
-		description, err := securitygroup.GenerateCloudDescription(obj.NpNamespacedName, *cloudSgObj.GroupName)
+		description, err := securitygroup.GenerateCloudDescription(obj.NpNamespacedName)
 		if err != nil {
 			return fmt.Errorf("unable to generate rule description, err: %v", err)
 		}
