@@ -283,7 +283,7 @@ var _ = Describe("AWS Cloud Security", func() {
 			mockawsEC2.EXPECT().revokeSecurityGroupEgress(gomock.Any()).Times(0)
 			mockawsEC2.EXPECT().authorizeSecurityGroupEgress(gomock.Any()).Times(0)
 
-			err := cloudInterface.UpdateSecurityGroupRules(webSgIdentifier, addRule, []*securitygroup.CloudRule{}, addRule)
+			err := cloudInterface.UpdateSecurityGroupRules(webSgIdentifier, addRule, []*securitygroup.CloudRule{})
 			Expect(err).Should(BeNil())
 		})
 		// Ingress rules without a description field is not allowed.
@@ -320,7 +320,7 @@ var _ = Describe("AWS Cloud Security", func() {
 			mockawsEC2.EXPECT().revokeSecurityGroupIngress(gomock.Any()).Times(0)
 			mockawsEC2.EXPECT().revokeSecurityGroupEgress(gomock.Any()).Times(0)
 
-			err := cloudInterface.UpdateSecurityGroupRules(webSgIdentifier, addRule, []*securitygroup.CloudRule{}, addRule)
+			err := cloudInterface.UpdateSecurityGroupRules(webSgIdentifier, addRule, []*securitygroup.CloudRule{})
 			Expect(err).ShouldNot(BeNil())
 		})
 		It("Should create egress rules successfully", func() {
@@ -360,7 +360,7 @@ var _ = Describe("AWS Cloud Security", func() {
 					Expect(len(req.IpPermissions)).To(Equal(1))
 				})
 
-			err := cloudInterface.UpdateSecurityGroupRules(webSgIdentifier, addRule, []*securitygroup.CloudRule{}, addRule)
+			err := cloudInterface.UpdateSecurityGroupRules(webSgIdentifier, addRule, []*securitygroup.CloudRule{})
 			Expect(err).Should(BeNil())
 		})
 		// Egress rules without a description field is not allowed.
@@ -396,7 +396,7 @@ var _ = Describe("AWS Cloud Security", func() {
 			mockawsEC2.EXPECT().revokeSecurityGroupIngress(gomock.Any()).Times(0)
 			mockawsEC2.EXPECT().revokeSecurityGroupEgress(gomock.Any()).Times(0)
 
-			err := cloudInterface.UpdateSecurityGroupRules(webSgIdentifier, addRule, []*securitygroup.CloudRule{}, addRule)
+			err := cloudInterface.UpdateSecurityGroupRules(webSgIdentifier, addRule, []*securitygroup.CloudRule{})
 			Expect(err).ShouldNot(BeNil())
 		})
 	})

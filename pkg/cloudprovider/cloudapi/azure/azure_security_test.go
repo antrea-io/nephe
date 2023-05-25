@@ -410,7 +410,7 @@ var _ = Describe("Azure Cloud Security", func() {
 						}, NpNamespacedName: testAnpNamespace.String()},
 				}
 
-				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*securitygroup.CloudRule{}, addRules)
+				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*securitygroup.CloudRule{})
 				Expect(err).Should(BeNil())
 			})
 
@@ -445,7 +445,7 @@ var _ = Describe("Azure Cloud Security", func() {
 						}},
 				}
 
-				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*securitygroup.CloudRule{}, addRules)
+				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*securitygroup.CloudRule{})
 				Expect(err).ShouldNot(BeNil())
 			})
 
@@ -479,7 +479,7 @@ var _ = Describe("Azure Cloud Security", func() {
 						}, NpNamespacedName: testAnpNamespace.String()},
 				}
 
-				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*securitygroup.CloudRule{}, addRules)
+				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*securitygroup.CloudRule{})
 				Expect(err).ShouldNot(BeNil())
 			})
 
@@ -521,7 +521,7 @@ var _ = Describe("Azure Cloud Security", func() {
 						}, NpNamespacedName: testAnpNamespace.String()},
 				}
 
-				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*securitygroup.CloudRule{}, addRules)
+				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*securitygroup.CloudRule{})
 				Expect(err).Should(BeNil())
 			})
 
@@ -564,7 +564,7 @@ var _ = Describe("Azure Cloud Security", func() {
 						}},
 				}
 
-				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*securitygroup.CloudRule{}, addRules)
+				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*securitygroup.CloudRule{})
 				Expect(err).ShouldNot(BeNil())
 			})
 		})

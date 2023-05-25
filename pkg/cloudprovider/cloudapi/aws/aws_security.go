@@ -696,30 +696,12 @@ func (c *awsCloud) CreateSecurityGroup(securityGroupIdentifier *securitygroup.Cl
 
 // UpdateSecurityGroupRules invokes cloud api and updates cloud security group with addRules and rmRules.
 func (c *awsCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *securitygroup.CloudResource,
-	addRules, rmRules, _ []*securitygroup.CloudRule) error {
+	addRules, rmRules []*securitygroup.CloudRule) error {
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	addIRule := make([]*securitygroup.CloudRule, 0)
-	rmIRule := make([]*securitygroup.CloudRule, 0)
-	addERule := make([]*securitygroup.CloudRule, 0)
-	rmERule := make([]*securitygroup.CloudRule, 0)
-	for _, rule := range addRules {
-		switch rule.Rule.(type) {
-		case *securitygroup.IngressRule:
-			addIRule = append(addIRule, rule)
-		case *securitygroup.EgressRule:
-			addERule = append(addERule, rule)
-		}
-	}
-	for _, rule := range rmRules {
-		switch rule.Rule.(type) {
-		case *securitygroup.IngressRule:
-			rmIRule = append(rmIRule, rule)
-		case *securitygroup.EgressRule:
-			rmERule = append(rmERule, rule)
-		}
-	}
+	addIRule, addERule := securitygroup.SplitCloudRulesByDirection(addRules)
+	rmIRule, rmERule := securitygroup.SplitCloudRulesByDirection(rmRules)
 
 	vpcID := appliedToGroupIdentifier.Vpc
 	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&appliedToGroupIdentifier.AccountID)

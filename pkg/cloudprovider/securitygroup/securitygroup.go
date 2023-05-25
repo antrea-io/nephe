@@ -269,7 +269,7 @@ type CloudSecurityGroupAPI interface {
 	// UpdateSecurityGroupRules updates SecurityGroup name's ingress/egress rules in entirety.
 	// SecurityGroup name must already been created. SecurityGroups referred to in ingressRules and
 	// egressRules must have been already created.
-	UpdateSecurityGroupRules(name *CloudResource, addRules, rmRules, allRules []*CloudRule) <-chan error
+	UpdateSecurityGroupRules(name *CloudResource, addRules, rmRules []*CloudRule) <-chan error
 
 	// UpdateSecurityGroupMembers updates SecurityGroup name with members.
 	// SecurityGroup name must already have been created.

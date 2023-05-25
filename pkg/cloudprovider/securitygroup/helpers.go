@@ -58,6 +58,21 @@ func FindResourcesBasedOnKind(cloudResources []*CloudResource) (map[string]struc
 	return virtualMachineIDs, networkInterfaceIDs
 }
 
+// SplitCloudRulesByDirection splits the given CloudRule slice into two, one for ingress rules and one for egress rules.
+func SplitCloudRulesByDirection(rules []*CloudRule) ([]*CloudRule, []*CloudRule) {
+	ingressRules := make([]*CloudRule, 0)
+	egressRules := make([]*CloudRule, 0)
+	for _, rule := range rules {
+		switch rule.Rule.(type) {
+		case *IngressRule:
+			ingressRules = append(ingressRules, rule)
+		case *EgressRule:
+			egressRules = append(egressRules, rule)
+		}
+	}
+	return ingressRules, egressRules
+}
+
 // GenerateCloudDescription generates a CloudRuleDescription object and converts to string.
 func GenerateCloudDescription(namespacedName string) (string, error) {
 	tokens := strings.Split(namespacedName, "/")
