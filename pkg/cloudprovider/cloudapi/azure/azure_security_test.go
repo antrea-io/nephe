@@ -54,6 +54,7 @@ var _ = Describe("Azure Cloud Security", func() {
 		atAsgID                           = "nephe-at-atapplicationsgID"
 		atAsgName                         = "atapplicationsgID"
 		agAsgID                           = "nephe-ag-agapplicationsgID"
+		agAsgName                         = "agapplicationsgID"
 		testPriority                      = int32(100)
 		testDirection                     = network.SecurityRuleDirectionInbound
 		testSourcePortRange               = "*"
@@ -390,6 +391,8 @@ var _ = Describe("Azure Cloud Security", func() {
 					AccountID:     testAccountNamespacedName.String(),
 					CloudProvider: string(v1alpha1.AzureCloudProvider),
 				}
+				toSg := webAddressGroupIdentifier03.CloudResourceID
+				toSg.Name = agAsgName
 
 				fromSrcIP := getFromSrcIP(testCidrStr)
 
@@ -401,12 +404,10 @@ var _ = Describe("Azure Cloud Security", func() {
 					}, NpNamespacedName: testAnpNamespace.String()},
 					{
 						Rule: &securitygroup.EgressRule{
-							Protocol: &testProtocol,
-							ToPort:   &testToPort,
-							ToDstIP:  fromSrcIP,
-							ToSecurityGroups: []*securitygroup.CloudResourceID{
-								&webAddressGroupIdentifier03.CloudResourceID,
-							},
+							Protocol:         &testProtocol,
+							ToPort:           &testToPort,
+							ToDstIP:          fromSrcIP,
+							ToSecurityGroups: []*securitygroup.CloudResourceID{&toSg},
 						}, NpNamespacedName: testAnpNamespace.String()},
 				}
 
@@ -493,6 +494,8 @@ var _ = Describe("Azure Cloud Security", func() {
 					AccountID:     testAccountNamespacedName.String(),
 					CloudProvider: string(v1alpha1.AzureCloudProvider),
 				}
+				toSg := webAddressGroupIdentifier03.CloudResourceID
+				toSg.Name = agAsgName
 
 				cidr := ipaddr.NewIPAddressString(testCidrStr)
 				subnet, _ := cidr.GetAddress().ToPrefixBlock(), cidr.GetHostAddress()
@@ -512,12 +515,10 @@ var _ = Describe("Azure Cloud Security", func() {
 					}, NpNamespacedName: testAnpNamespace.String()},
 					{
 						Rule: &securitygroup.EgressRule{
-							Protocol: &testProtocol,
-							ToPort:   &testToPort,
-							ToDstIP:  fromSrcIP,
-							ToSecurityGroups: []*securitygroup.CloudResourceID{
-								&webAddressGroupIdentifier03.CloudResourceID,
-							},
+							Protocol:         &testProtocol,
+							ToPort:           &testToPort,
+							ToDstIP:          fromSrcIP,
+							ToSecurityGroups: []*securitygroup.CloudResourceID{&toSg},
 						}, NpNamespacedName: testAnpNamespace.String()},
 				}
 
