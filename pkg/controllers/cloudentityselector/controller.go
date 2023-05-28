@@ -17,6 +17,8 @@ package cloudentityselector
 import (
 	"context"
 	"fmt"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -75,9 +77,14 @@ func (r *CloudEntitySelectorReconciler) Reconcile(ctx context.Context, req ctrl.
 
 func (r *CloudEntitySelectorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.selectorToAccountMap = make(map[types.NamespacedName]types.NamespacedName)
-	if err := ctrl.NewControllerManagedBy(mgr).For(&crdv1alpha1.CloudEntitySelector{}).Complete(r); err != nil {
+	// Using GenerationChangedPredicate to allow CES controller to receive CES updates
+	// for all events except change in status.
+	if err := ctrl.NewControllerManagedBy(mgr).
+		For(&crdv1alpha1.CloudEntitySelector{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		Complete(r); err != nil {
 		return err
 	}
+
 	return mgr.Add(r)
 }
 
@@ -125,13 +132,12 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *crdv1alp
 		Name:      selector.Spec.AccountName,
 	}
 	r.selectorToAccountMap[*selectorNamespacedName] = *accountNamespacedName
-	if ok, err := r.AccManager.AddResourceFiltersToAccount(accountNamespacedName, selectorNamespacedName,
-		selector); err != nil {
-		if !ok {
-			_ = r.processDelete(selectorNamespacedName)
-		}
+	retry, err := r.AccManager.AddResourceFiltersToAccount(accountNamespacedName, selectorNamespacedName,
+		selector, false)
+	if err != nil && retry {
 		return err
 	}
+	r.setStatus(selectorNamespacedName, err)
 	return nil
 }
 
@@ -144,4 +150,24 @@ func (r *CloudEntitySelectorReconciler) processDelete(selectorNamespacedName *ty
 	delete(r.selectorToAccountMap, *selectorNamespacedName)
 	_ = r.AccManager.RemoveResourceFiltersFromAccount(&accountNamespacedName, selectorNamespacedName)
 	return nil
+}
+
+// setStatus sets the status on the CloudEntitySelector CR.
+func (r *CloudEntitySelectorReconciler) setStatus(namespacedName *types.NamespacedName, err error) {
+	var errorMsg string
+	if err != nil {
+		errorMsg = err.Error()
+	}
+
+	selector := &crdv1alpha1.CloudEntitySelector{}
+	if err = r.Get(context.TODO(), *namespacedName, selector); err != nil {
+		return
+	}
+	if selector.Status.Error != errorMsg {
+		selector.Status.Error = errorMsg
+		r.Log.Info("Setting selector status", "selector", namespacedName, "message", errorMsg)
+		if err = r.Client.Status().Update(context.TODO(), selector); err != nil {
+			r.Log.Error(err, "failed to update selector status", "selector", namespacedName)
+		}
+	}
 }

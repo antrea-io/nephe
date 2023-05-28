@@ -140,7 +140,7 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 		It("Account add and delete workflow", func() {
 			accountCloudType, err := util.GetAccountProviderType(account)
 			Expect(err).ShouldNot(HaveOccurred())
-			mockAccManager.EXPECT().AddAccount(&testAccountNamespacedName, accountCloudType, account).Return(nil).Times(1)
+			mockAccManager.EXPECT().AddAccount(&testAccountNamespacedName, accountCloudType, account).Return(false, nil).Times(1)
 			mockAccManager.EXPECT().RemoveAccount(&testAccountNamespacedName).Return(nil).Times(1)
 			err = reconciler.processCreateOrUpdate(&testAccountNamespacedName, account)
 			Expect(err).ShouldNot(HaveOccurred())
@@ -167,6 +167,7 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 			val := ctrlsync.GetControllerSyncStatusInstance().IsControllerSynced(ctrlsync.ControllerTypeCPA)
 			Expect(val).Should(BeTrue())
 		})
+
 		Context("Secret watcher", func() {
 			var (
 				accountCloudType runtimev1alpha1.CloudProvider
@@ -186,11 +187,14 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 			// while reconciler using client from controller run-time. Both Secret watcher and reconciler
 			// should be able to retrieve the Secret object.
 			It("Update", func() {
-				mockAccManager.EXPECT().AddAccount(&testAccountNamespacedName, accountCloudType, account).Return(nil).Times(2)
+				mockAccManager.EXPECT().AddAccount(&testAccountNamespacedName, accountCloudType, account).Return(false, nil).Times(2)
+				mockAccManager.EXPECT().IsAccountCredentialsValid(&testAccountNamespacedName).Return(true).Times(1)
+
 				By("Add the Secret")
 				_ = fakeClient.Create(context.Background(), secret)
 				// Create CPA.
 				_ = fakeClient.Create(context.Background(), account)
+				time.Sleep(1 * time.Second)
 				_, err = reconciler.clientset.CoreV1().Secrets(testSecretNamespacedName.Namespace).
 					Create(context.Background(), secret, v1.CreateOptions{})
 				time.Sleep(1 * time.Second)
@@ -231,12 +235,13 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 			})
 			It("Delete", func() {
 				mockAccManager.EXPECT().AddAccount(&testAccountNamespacedName, accountCloudType, account).
-					Return(fmt.Errorf(util.ErrorMsgSecretDoesNotExist)).Times(1)
-				mockAccManager.EXPECT().RemoveAccount(&testAccountNamespacedName).Return(nil).Times(1)
+					Return(false, fmt.Errorf(util.ErrorMsgSecretReference)).Times(1)
+				mockAccManager.EXPECT().IsAccountCredentialsValid(&testAccountNamespacedName).Return(true).Times(1)
 				By("Add the Secret")
 				_ = fakeClient.Create(context.Background(), secret)
 				// Create CPA.
 				_ = fakeClient.Create(context.Background(), account)
+				time.Sleep(1 * time.Second)
 				_, err = reconciler.clientset.CoreV1().Secrets(testSecretNamespacedName.Namespace).
 					Create(context.Background(), secret, v1.CreateOptions{})
 				time.Sleep(1 * time.Second)
@@ -250,6 +255,7 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 				Expect(err).ShouldNot(HaveOccurred())
 			})
 			It("Add for AzureAccount", func() {
+				mockAccManager.EXPECT().IsAccountCredentialsValid(&testAccountNamespacedName).Return(true).Times(1)
 				credential := `{"subscriptionId": "subId", "clientId": "clientId", "tenantId": "tenantId", "clientKey": "clientKey"}`
 				secret.Data = map[string][]byte{credentials: []byte(credential)}
 				account.Spec.AWSConfig = nil

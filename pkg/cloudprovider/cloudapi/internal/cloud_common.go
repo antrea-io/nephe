@@ -170,7 +170,7 @@ func (c *cloudCommon) GetCloudAccountComputeInternalResourceObjects(accountNames
 func (c *cloudCommon) AddResourceFilters(accountNamespacedName *types.NamespacedName, selector *crdv1alpha1.CloudEntitySelector) error {
 	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
 	if !found {
-		return fmt.Errorf("unable to find cloud account: %v", *accountNamespacedName)
+		return fmt.Errorf("unable to find cloud account")
 	}
 
 	for _, serviceCfg := range accCfg.GetServiceConfigs() {

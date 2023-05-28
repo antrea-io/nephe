@@ -274,8 +274,7 @@ func (computeCfg *computeServiceConfig) AddResourceFilters(selector *crdv1alpha1
 		computeCfg.computeFilters[key] = filters
 		computeCfg.selectors[key] = selector.DeepCopy()
 	} else {
-		// TODO: Set CES status with the following error.
-		return fmt.Errorf("error creating resource query filters for selector: %v", selector)
+		return fmt.Errorf("error creating resource query filters")
 	}
 	return nil
 }

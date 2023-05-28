@@ -17,7 +17,6 @@ package cloudprovideraccount
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -78,9 +77,11 @@ func (r *CloudProviderAccountReconciler) Reconcile(ctx context.Context, req ctrl
 		if !errors.IsNotFound(err) {
 			return ctrl.Result{}, err
 		}
+		r.Log.Info("Received request", "account", req.NamespacedName, "operation", "delete")
 		return ctrl.Result{}, r.processDelete(&req.NamespacedName)
 	}
 
+	r.Log.Info("Received request", "account", req.NamespacedName, "operation", "create/update")
 	if err := r.processCreateOrUpdate(&req.NamespacedName, providerAccount); err != nil {
 		return ctrl.Result{}, err
 	}
@@ -135,24 +136,20 @@ func (r *CloudProviderAccountReconciler) Start(_ context.Context) error {
 
 func (r *CloudProviderAccountReconciler) processCreateOrUpdate(namespacedName *types.NamespacedName,
 	account *crdv1alpha1.CloudProviderAccount) error {
-	r.Log.Info("Received request", "account", namespacedName, "operation", "create/update")
 	accountCloudType, err := util.GetAccountProviderType(account)
 	if err != nil {
 		return fmt.Errorf("failed to add or update account: %v", err)
 	}
-	if err = r.AccManager.AddAccount(namespacedName, accountCloudType, account); err != nil {
-		account.Status.Error = err.Error()
-		r.Log.Info("Setting account status", "account", namespacedName, "err", err)
-		if err = r.Client.Status().Update(context.TODO(), account); err != nil {
-			return fmt.Errorf("failed to update account status, account %v err %v", namespacedName, err)
-		}
-		_ = r.AccManager.RemoveAccount(namespacedName)
+
+	retry, err := r.AccManager.AddAccount(namespacedName, accountCloudType, account)
+	if err != nil && retry {
+		return err
 	}
+	r.setStatus(namespacedName, err)
 	return nil
 }
 
 func (r *CloudProviderAccountReconciler) processDelete(namespacedName *types.NamespacedName) error {
-	r.Log.Info("Received request", "account", namespacedName, "operation", "delete")
 	return r.AccManager.RemoveAccount(namespacedName)
 }
 
@@ -183,17 +180,17 @@ func (r *CloudProviderAccountReconciler) getCpaBySecret(s *types.NamespacedName)
 		return nil, fmt.Errorf("failed to get CloudProviderAccount list, err %v", err)
 	}
 	var cpaItems []*crdv1alpha1.CloudProviderAccount
-	for _, cpa := range cpaList.Items {
+	for i, cpa := range cpaList.Items {
 		if cpa.Spec.AWSConfig != nil {
 			if cpa.Spec.AWSConfig.SecretRef.Name == s.Name &&
 				cpa.Spec.AWSConfig.SecretRef.Namespace == s.Namespace {
-				cpaItems = append(cpaItems, &cpa)
+				cpaItems = append(cpaItems, &cpaList.Items[i])
 			}
 		}
 		if cpa.Spec.AzureConfig != nil {
 			if cpa.Spec.AzureConfig.SecretRef.Name == s.Name &&
 				cpa.Spec.AzureConfig.SecretRef.Namespace == s.Namespace {
-				cpaItems = append(cpaItems, &cpa)
+				cpaItems = append(cpaItems, &cpaList.Items[i])
 			}
 		}
 	}
@@ -208,18 +205,18 @@ func (r *CloudProviderAccountReconciler) processSecretUpdateEvent(secretNamespac
 
 	cpaItems, err := r.getCpaBySecret(secretNamespacedName)
 	if err != nil {
-		r.Log.WithName("Secret").Error(err, "error getting CPA by Secret", "Secret", secretNamespacedName)
+		r.Log.WithName("Secret").Error(err, "error getting account by Secret", "Secret", secretNamespacedName)
 	}
 
 	for _, cpa := range cpaItems {
 		accountNamespacedName := &types.NamespacedName{Namespace: cpa.Namespace, Name: cpa.Name}
-		// For add operation, update CPA only when status contains an error ErrorMsgSecretDoesNotExist.
 		if eventType == watch.Added {
-			if !strings.Contains(cpa.Status.Error, util.ErrorMsgSecretDoesNotExist) {
-				r.Log.WithName("Secret").Info("Secret exists, skip updating account", "account", accountNamespacedName)
+			// Add event is ignored, if account credentials are already valid.
+			if r.AccManager.IsAccountCredentialsValid(accountNamespacedName) {
 				continue
 			}
 		}
+		r.Log.WithName("Secret").Info("Updating account", "account", *accountNamespacedName)
 		if err := r.processCreateOrUpdate(accountNamespacedName, cpa); err != nil {
 			r.Log.WithName("Secret").Error(err, "error updating account", "account", *accountNamespacedName)
 		}
@@ -258,4 +255,24 @@ func (r *CloudProviderAccountReconciler) resetSecretWatcher() {
 func (r *CloudProviderAccountReconciler) setupSecretWatcher() {
 	r.resetSecretWatcher()
 	r.watchSecret()
+}
+
+// setStatus sets the status on the CloudProviderAccount CR.
+func (r *CloudProviderAccountReconciler) setStatus(namespacedName *types.NamespacedName, err error) {
+	var errorMsg string
+	if err != nil {
+		errorMsg = err.Error()
+	}
+
+	account := &crdv1alpha1.CloudProviderAccount{}
+	if err = r.Get(context.TODO(), *namespacedName, account); err != nil {
+		r.Log.Error(err, "failed to get account")
+		return
+	}
+	if account.Status.Error != errorMsg {
+		r.Log.Info("Setting account status", "account", namespacedName, "message", errorMsg)
+		if err = r.Client.Status().Update(context.TODO(), account); err != nil {
+			r.Log.Error(err, "failed to update account status", "account", namespacedName)
+		}
+	}
 }

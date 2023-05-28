@@ -134,12 +134,12 @@ func (accCfg *cloudAccountConfig) update(credentialComparator CloudCredentialCom
 
 	credentialsChanged := credentialComparator(accCfg.namespacedName.String(), newCredentials, accCfg.credentials)
 	if !credentialsChanged {
-		logger.Info("Credentials not changed.", "account", accCfg.namespacedName)
+		logger.Info("Credentials not changed", "account", accCfg.namespacedName)
 		return nil
 	}
 
 	accCfg.credentials = newCredentials
-	logger.Info("Credentials updated.", "account", accCfg.namespacedName)
+	logger.Info("Credentials updated", "account", accCfg.namespacedName)
 
 	existingSvcConfigMap := accCfg.serviceConfigs
 	for name, svcConfig := range existingSvcConfigMap {

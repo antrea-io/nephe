@@ -126,8 +126,8 @@ func (p *accountPoller) addOrUpdateSelector(selector *crdv1alpha1.CloudEntitySel
 		}
 	}
 
-	// Populate selector specific fields in the accPoller created by CPA, needed for setting owner reference in VM CR.
-	p.selector = selector.DeepCopy()
+	// Store selector to filter cloud resources based on selector.
+	p.selector = selector
 }
 
 // removeSelector reset selector in account poller.
@@ -189,7 +189,7 @@ func (p *accountPoller) updateAccountStatus(cloudInterface common.CloudInterface
 	discoveredStatus := crdv1alpha1.CloudProviderAccountStatus{}
 	status, err := cloudInterface.GetAccountStatus(p.namespacedName)
 	if err != nil {
-		discoveredStatus.Error = fmt.Sprintf("failed to get status, err %v", err)
+		discoveredStatus.Error = fmt.Sprintf("failed to get account status, err %v", err)
 	} else if status != nil {
 		discoveredStatus = *status
 	}

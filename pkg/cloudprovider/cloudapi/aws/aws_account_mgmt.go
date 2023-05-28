@@ -98,27 +98,32 @@ func extractSecret(c client.Client, s *crdv1alpha1.SecretReference) (*crdv1alpha
 		Version: "v1",
 	})
 	if err := c.Get(context.Background(), client.ObjectKey{Namespace: s.Namespace, Name: s.Name}, u); err != nil {
-		return nil, fmt.Errorf("%v: %v/%v", util.ErrorMsgSecretDoesNotExist, s.Namespace, s.Name)
+		return nil, fmt.Errorf("%v, failed to get Secret object: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
 	}
 
 	data, ok := u.Object["data"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("error missing Secret config data: %v/%v", s.Namespace, s.Name)
+		return nil, fmt.Errorf("%v, failed to get Secret data: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
 	}
 
 	key, ok := data[s.Key].(string)
 	if !ok {
-		return nil, fmt.Errorf("error decoding Secret: %v/%v, key: %v", s.Namespace, s.Name, s.Key)
+		return nil, fmt.Errorf("%v, failed to get Secret key: %v/%v, key: %v", util.ErrorMsgSecretReference, s.Namespace, s.Name, s.Key)
 	}
 
 	decode, err := base64.StdEncoding.DecodeString(key)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding Secret: %v/%v", s.Namespace, s.Name)
+		return nil, fmt.Errorf("%v, failed to decode Secret key: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
 	}
 
 	cred := &crdv1alpha1.AwsAccountCredential{}
 	if err = json.Unmarshal(decode, cred); err != nil {
 		return nil, fmt.Errorf("error unmarshalling credentials: %v/%v", s.Namespace, s.Name)
+	}
+
+	// TODO: Make sure account creds are non-empty.
+	if (cred.AccessKeyID == "" || cred.AccessKeySecret == "") && (cred.RoleArn == "") {
+		return nil, fmt.Errorf("%v, Secret credentials cannot be empty: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
 	}
 
 	return cred, nil
