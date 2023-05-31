@@ -121,7 +121,7 @@ func updateSecurityRuleNameAndPriority(existingRules []*armnetwork.SecurityRule,
 }
 
 // convertIngressToNsgSecurityRules converts ingress rules from securitygroup.CloudRule to azure rules.
-func convertIngressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.CloudRule,
+func convertIngressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.CloudRule, isRemove bool,
 	agAsgMapByNepheControllerName map[string]armnetwork.ApplicationSecurityGroup,
 	atAsgMapByNepheControllerName map[string]armnetwork.ApplicationSecurityGroup) ([]*armnetwork.SecurityRule, error) {
 	var securityRules []*armnetwork.SecurityRule
@@ -162,7 +162,10 @@ func convertIngressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResou
 
 		srcApplicationSecurityGroups, err := convertToAzureApplicationSecurityGroups(rule.FromSecurityGroups, agAsgMapByNepheControllerName)
 		if err != nil {
-			return []*armnetwork.SecurityRule{}, err
+			if !isRemove {
+				return []*armnetwork.SecurityRule{}, err
+			}
+			continue
 		}
 		if len(srcApplicationSecurityGroups) != 0 {
 			securityRule := buildSecurityRule(nil, protoName, armnetwork.SecurityRuleDirectionInbound,
@@ -183,7 +186,7 @@ func convertIngressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResou
 }
 
 // convertIngressToPeerNsgSecurityRules converts ingress rules that require peering from securitygroup.CloudRule to azure rules.
-func convertIngressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.CloudRule,
+func convertIngressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.CloudRule, isRemove bool,
 	agAsgMapByNepheControllerName map[string]armnetwork.ApplicationSecurityGroup,
 	ruleIP *string) ([]*armnetwork.SecurityRule, error) {
 	var securityRules []*armnetwork.SecurityRule
@@ -219,7 +222,10 @@ func convertIngressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudR
 			if fromSecurityGroup.Vpc == appliedToGroupID.Vpc {
 				srcApplicationSecurityGroups, err := convertToAzureApplicationSecurityGroups(rule.FromSecurityGroups, agAsgMapByNepheControllerName)
 				if err != nil {
-					return []*armnetwork.SecurityRule{}, err
+					if !isRemove {
+						return []*armnetwork.SecurityRule{}, err
+					}
+					continue
 				}
 				if len(srcApplicationSecurityGroups) != 0 {
 					securityRule := buildSecurityRule(nil, protoName, armnetwork.SecurityRuleDirectionInbound,
@@ -251,7 +257,7 @@ func convertIngressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudR
 }
 
 // convertEgressToNsgSecurityRules converts egress rules from securitygroup.CloudRule to azure rules.
-func convertEgressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.CloudRule,
+func convertEgressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.CloudRule, isRemove bool,
 	agAsgMapByNepheControllerName map[string]armnetwork.ApplicationSecurityGroup,
 	atAsgMapByNepheControllerName map[string]armnetwork.ApplicationSecurityGroup) ([]*armnetwork.SecurityRule, error) {
 	var securityRules []*armnetwork.SecurityRule
@@ -291,7 +297,10 @@ func convertEgressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResour
 
 		dstApplicationSecurityGroups, err := convertToAzureApplicationSecurityGroups(rule.ToSecurityGroups, agAsgMapByNepheControllerName)
 		if err != nil {
-			return []*armnetwork.SecurityRule{}, err
+			if !isRemove {
+				return []*armnetwork.SecurityRule{}, err
+			}
+			continue
 		}
 		if len(dstApplicationSecurityGroups) != 0 {
 			securityRule := buildSecurityRule(nil, protoName, armnetwork.SecurityRuleDirectionOutbound,
@@ -312,7 +321,7 @@ func convertEgressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResour
 }
 
 // convertEgressToPeerNsgSecurityRules converts egress rules that require peering from securitygroup.CloudRule to azure rules.
-func convertEgressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.CloudRule,
+func convertEgressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudResourceID, rules []*securitygroup.CloudRule, isRemove bool,
 	agAsgMapByNepheControllerName map[string]armnetwork.ApplicationSecurityGroup,
 	ruleIP *string) ([]*armnetwork.SecurityRule, error) {
 	var securityRules []*armnetwork.SecurityRule
@@ -347,7 +356,10 @@ func convertEgressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudRe
 			if toSecurityGroup.Vpc == appliedToGroupID.Vpc {
 				dstApplicationSecurityGroups, err := convertToAzureApplicationSecurityGroups(rule.ToSecurityGroups, agAsgMapByNepheControllerName)
 				if err != nil {
-					return []*armnetwork.SecurityRule{}, err
+					if !isRemove {
+						return []*armnetwork.SecurityRule{}, err
+					}
+					continue
 				}
 				if len(dstApplicationSecurityGroups) != 0 {
 					securityRule := buildSecurityRule(nil, protoName, armnetwork.SecurityRuleDirectionOutbound,

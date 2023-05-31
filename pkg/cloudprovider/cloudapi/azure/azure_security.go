@@ -316,19 +316,19 @@ func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(ap
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
-	addIngressSecurityRules, err := convertIngressToNsgSecurityRules(appliedToGroupID, addIRule, agAsgMapByNepheName, atAsgMapByNepheName)
+	addIngressRules, err := convertIngressToNsgSecurityRules(appliedToGroupID, addIRule, false, agAsgMapByNepheName, atAsgMapByNepheName)
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
-	addEgressSecurityRules, err := convertEgressToNsgSecurityRules(appliedToGroupID, addERule, agAsgMapByNepheName, atAsgMapByNepheName)
+	addEgressRules, err := convertEgressToNsgSecurityRules(appliedToGroupID, addERule, false, agAsgMapByNepheName, atAsgMapByNepheName)
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
-	rmIngressSecurityRules, err := convertIngressToNsgSecurityRules(appliedToGroupID, rmIRule, agAsgMapByNepheName, atAsgMapByNepheName)
+	rmIngressRules, err := convertIngressToNsgSecurityRules(appliedToGroupID, rmIRule, true, agAsgMapByNepheName, atAsgMapByNepheName)
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
-	rmEgressSecurityRules, err := convertEgressToNsgSecurityRules(appliedToGroupID, rmERule, agAsgMapByNepheName, atAsgMapByNepheName)
+	rmEgressRules, err := convertEgressToNsgSecurityRules(appliedToGroupID, rmERule, true, agAsgMapByNepheName, atAsgMapByNepheName)
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
@@ -349,9 +349,9 @@ func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(ap
 			// check if the rule is created by current processing appliedToGroup.
 			if isAzureRuleAttachedToAtSg(rule, appliedToGroupNepheControllerName) {
 				// skip the rule if found in remove list.
-				removeRules := rmIngressSecurityRules
+				removeRules := rmIngressRules
 				if *rule.Properties.Direction == armnetwork.SecurityRuleDirectionOutbound {
-					removeRules = rmEgressSecurityRules
+					removeRules = rmEgressRules
 				}
 				normalizedRule := normalizeAzureSecurityRule(rule)
 				idx, found := findSecurityRule(normalizedRule, removeRules)
@@ -371,8 +371,8 @@ func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(ap
 		}
 	}
 
-	allIngressRules := updateSecurityRuleNameAndPriority(currentNsgIngressRules, addIngressSecurityRules)
-	allEgressRules := updateSecurityRuleNameAndPriority(currentNsgEgressRules, addEgressSecurityRules)
+	allIngressRules := updateSecurityRuleNameAndPriority(currentNsgIngressRules, addIngressRules)
+	allEgressRules := updateSecurityRuleNameAndPriority(currentNsgEgressRules, addEgressRules)
 
 	return append(allIngressRules, allEgressRules...), nil
 }
@@ -396,19 +396,19 @@ func (computeCfg *computeServiceConfig) buildEffectivePeerNSGSecurityRulesToAppl
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
-	addIngressSecurityRules, err := convertIngressToPeerNsgSecurityRules(appliedToGroupID, addIRule, agAsgMapByNepheName, ruleIP)
+	addIngressSecurityRules, err := convertIngressToPeerNsgSecurityRules(appliedToGroupID, addIRule, false, agAsgMapByNepheName, ruleIP)
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
-	addEgressSecurityRules, err := convertEgressToPeerNsgSecurityRules(appliedToGroupID, addERule, agAsgMapByNepheName, ruleIP)
+	addEgressSecurityRules, err := convertEgressToPeerNsgSecurityRules(appliedToGroupID, addERule, false, agAsgMapByNepheName, ruleIP)
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
-	rmIngressSecurityRules, err := convertIngressToPeerNsgSecurityRules(appliedToGroupID, rmIRule, agAsgMapByNepheName, ruleIP)
+	rmIngressSecurityRules, err := convertIngressToPeerNsgSecurityRules(appliedToGroupID, rmIRule, true, agAsgMapByNepheName, ruleIP)
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
-	rmEgressSecurityRules, err := convertEgressToPeerNsgSecurityRules(appliedToGroupID, rmERule, agAsgMapByNepheName, ruleIP)
+	rmEgressSecurityRules, err := convertEgressToPeerNsgSecurityRules(appliedToGroupID, rmERule, true, agAsgMapByNepheName, ruleIP)
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
