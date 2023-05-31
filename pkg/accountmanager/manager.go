@@ -30,6 +30,7 @@ import (
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloudprovider"
 	"antrea.io/nephe/pkg/cloudprovider/cloudapi/common"
+	ctrlsync "antrea.io/nephe/pkg/controllers/sync"
 	"antrea.io/nephe/pkg/inventory"
 	"antrea.io/nephe/pkg/util"
 )
@@ -66,19 +67,13 @@ type accountConfig struct {
 	namespacedName *types.NamespacedName
 	providerType   common.ProviderType
 	// Indicates account initialization state.
-	accountInitState bool
+	initialized bool
 	// Indicates credentials are valid or not.
 	credentialsValid bool
 	// retry upon failure.
 	retry bool
-	// capture the filter configuration of each CloudEntitySelector.
-	// Lock is not added, since no two CloudEntitySelector CRs will access the same entry.
-	selectorConfigMap map[types.NamespacedName]*selectorConfig
-}
-
-type selectorConfig struct {
-	namespacedName *types.NamespacedName
-	selector       *crdv1alpha1.CloudEntitySelector
+	// map of selector namespaced name to selector.
+	selectorMap map[types.NamespacedName]*crdv1alpha1.CloudEntitySelector
 }
 
 // ConfigureAccountManager configures and initializes account manager.
@@ -113,19 +108,19 @@ func (a *AccountManager) AddAccount(namespacedName *types.NamespacedName, accoun
 			go wait.Until(accPoller.doAccountPolling, time.Duration(accPoller.PollIntvInSeconds)*time.Second, accPoller.ch)
 		} else {
 			a.Log.Info("Ignoring start of account poller", "account", namespacedName)
+			if ctrlsync.GetControllerSyncStatusInstance().IsControllerSynced(ctrlsync.ControllerTypeCPA) && !config.initialized {
+				// Replay CES CR only when account init state is changed from failure to success.
+				a.replaySelectorsForAccount(namespacedName, config)
+			}
 		}
 	} else {
 		accPoller.restartPoller(namespacedName)
 	}
 
-	if !config.accountInitState {
-		// Replay CES CR only when account init state is changed from failure to success.
-		a.replaySelectorsForAccount(namespacedName, config)
-		// Set account init state to true as there were no errors reported from cloud plug-in.
-		config.retry = false
-		config.credentialsValid = true
-		config.accountInitState = true
-	}
+	// Set account init state to true as there were no errors reported from cloud plug-in.
+	config.retry = false
+	config.credentialsValid = true
+	config.initialized = true
 
 	return false, nil
 }
@@ -174,7 +169,7 @@ func (a *AccountManager) AddResourceFiltersToAccount(accNamespacedName *types.Na
 	cloudInterface, _ := cloudprovider.GetCloudInterface(cloudProviderType)
 	if !replay {
 		// Update the selector config only when the reconciler processes the CR request.
-		if err := a.addSelectorConfig(accNamespacedName, selectorNamespacedName, selector); err != nil {
+		if err := a.addSelectorToAccountConfig(accNamespacedName, selectorNamespacedName, selector); err != nil {
 			return false, fmt.Errorf(fmt.Sprintf("failed to add or update selector %v, %v: %v",
 				selectorNamespacedName, accNamespacedName, err))
 		}
@@ -194,9 +189,14 @@ func (a *AccountManager) AddResourceFiltersToAccount(accNamespacedName *types.Na
 		return false, fmt.Errorf(fmt.Sprintf("failed to add or update selector %v, account %v: %v",
 			selectorNamespacedName, accNamespacedName, errorMsgAccountPollerNotFound))
 	}
-	accPoller.addOrUpdateSelector(selector)
-	accPoller.restartPoller(accNamespacedName)
 
+	// Update account poller with selector config.
+	selectorCopy := a.getSelectorFromAccountConfig(accNamespacedName, selectorNamespacedName)
+	if selectorCopy != nil {
+		accPoller.addOrUpdateSelector(selectorCopy)
+	}
+
+	accPoller.restartPoller(accNamespacedName)
 	// wait for polling to complete after restart.
 	return false, accPoller.waitForPollDone(accNamespacedName)
 }
@@ -214,7 +214,7 @@ func (a *AccountManager) RemoveResourceFiltersFromAccount(accNamespacedName *typ
 	a.Log.V(1).Info("Removing selectors for account", "name", accNamespacedName)
 	cloudInterface.RemoveAccountResourcesSelector(accNamespacedName, selectorNamespacedName)
 	// Delete selector config from the account config.
-	a.removeSelectorConfig(accNamespacedName, selectorNamespacedName)
+	a.removeSelectorFromAccountConfig(accNamespacedName, selectorNamespacedName)
 
 	// Restart account poller after removing the selector.
 	accPoller, exists := a.getAccountPoller(accNamespacedName)
@@ -300,10 +300,10 @@ func (a *AccountManager) getAccountConfig(name *types.NamespacedName) *accountCo
 	a.mutex.RLock()
 	defer a.mutex.RUnlock()
 	config, ok := a.accountConfigMap[*name]
-	if ok {
-		return config
+	if !ok {
+		return nil
 	}
-	return nil
+	return config
 }
 
 // addAccountConfig creates the account configuration or returns the existing configuration.
@@ -316,11 +316,11 @@ func (a *AccountManager) addAccountConfig(name *types.NamespacedName, provider r
 	config = &accountConfig{
 		namespacedName:   name,
 		providerType:     common.ProviderType(provider),
-		accountInitState: false,
+		initialized:      false,
 		credentialsValid: false,
 		retry:            false,
 		// Init maps.
-		selectorConfigMap: make(map[types.NamespacedName]*selectorConfig),
+		selectorMap: make(map[types.NamespacedName]*crdv1alpha1.CloudEntitySelector),
 	}
 	a.Log.V(1).Info("Adding account config", "account", name)
 	a.mutex.Lock()
@@ -337,51 +337,40 @@ func (a *AccountManager) removeAccountConfig(namespacedName *types.NamespacedNam
 	delete(a.accountConfigMap, *namespacedName)
 }
 
-// getSelectorConfig gets the selector configuration of the specified account and selector.
-func (a *AccountManager) getSelectorConfig(accountNamespacedName, selectorNamespacedName *types.NamespacedName) *selectorConfig {
+// getSelectorFromAccountConfig gets the selector configuration of the specified account and selector.
+func (a *AccountManager) getSelectorFromAccountConfig(accountNamespacedName,
+	selectorNamespacedName *types.NamespacedName) *crdv1alpha1.CloudEntitySelector {
 	acctConfig := a.getAccountConfig(accountNamespacedName)
 	if acctConfig == nil {
 		a.Log.Error(fmt.Errorf("failed to get account config"), "", "account", accountNamespacedName)
 		return nil
 	}
-	return acctConfig.selectorConfigMap[*selectorNamespacedName]
+	return acctConfig.selectorMap[*selectorNamespacedName]
 }
 
-// addSelectorConfig add the current selector configuration to the specified account.
-func (a *AccountManager) addSelectorConfig(accountNamespacedName, selectorNamespacedName *types.NamespacedName,
+// addSelectorToAccountConfig add the current selector configuration to the specified account.
+func (a *AccountManager) addSelectorToAccountConfig(accountNamespacedName, selectorNamespacedName *types.NamespacedName,
 	selector *crdv1alpha1.CloudEntitySelector) error {
 	acctConfig := a.getAccountConfig(accountNamespacedName)
 	if acctConfig == nil {
 		return fmt.Errorf("failed to get account config")
 	}
-	config, ok := acctConfig.selectorConfigMap[*selectorNamespacedName]
-	if !ok {
-		config = &selectorConfig{
-			namespacedName: selectorNamespacedName,
-			selector:       selector,
-		}
-		a.Log.V(1).Info("Adding selector config", "account",
-			accountNamespacedName, "selector", selectorNamespacedName)
-		acctConfig.selectorConfigMap[*selectorNamespacedName] = config
-		return nil
-	}
-
-	// Update the selector with the latest copy.
-	a.Log.V(1).Info("Updating selector config", "account",
-		accountNamespacedName, "selector", selectorNamespacedName)
-	config.selector = selector
+	a.Log.V(1).Info("Adding selector config", "account", accountNamespacedName,
+		"selector", selectorNamespacedName)
+	acctConfig.selectorMap[*selectorNamespacedName] = selector.DeepCopy()
 	return nil
 }
 
-// removeSelectorConfig removes the current selector configuration for the specified account.
-func (a *AccountManager) removeSelectorConfig(accountNamespacedName, selectorNamespacedName *types.NamespacedName) {
+// removeSelectorFromAccountConfig removes the current selector configuration for the specified account.
+func (a *AccountManager) removeSelectorFromAccountConfig(accountNamespacedName, selectorNamespacedName *types.NamespacedName) {
 	acctConfig := a.getAccountConfig(accountNamespacedName)
 	if acctConfig == nil {
 		a.Log.Error(fmt.Errorf("failed to get account config"), "", "account", accountNamespacedName)
 		return
 	}
-	a.Log.V(1).Info("Removing selector config", "account", accountNamespacedName, "selector", selectorNamespacedName)
-	delete(acctConfig.selectorConfigMap, *selectorNamespacedName)
+	a.Log.V(1).Info("Removing selector config", "account", accountNamespacedName,
+		"selector", selectorNamespacedName)
+	delete(acctConfig.selectorMap, *selectorNamespacedName)
 }
 
 func (a *AccountManager) getAccountProviderType(namespacedName *types.NamespacedName) (common.ProviderType, bool) {
@@ -389,13 +378,13 @@ func (a *AccountManager) getAccountProviderType(namespacedName *types.Namespaced
 	if acctConfig != nil {
 		return acctConfig.providerType, true
 	}
-
 	return "", false
 }
 
 // handleAddProviderAccountError performs the cleanup on account add/update.
 // i.e. Removes poller, inventory and returns if the error can be retried or not.
-func (a *AccountManager) handleAddProviderAccountError(namespacedName *types.NamespacedName, config *accountConfig, err error) bool {
+func (a *AccountManager) handleAddProviderAccountError(namespacedName *types.NamespacedName, config *accountConfig,
+	err error) bool {
 	// Account poller is removed upon any error in the plug-in.
 	if err := a.removeAccountPoller(namespacedName); err != nil {
 		a.Log.Error(err, "error removing account poller")
@@ -403,7 +392,7 @@ func (a *AccountManager) handleAddProviderAccountError(namespacedName *types.Nam
 	_ = a.Inventory.DeleteVpcsFromCache(namespacedName)
 	_ = a.Inventory.DeleteVmsFromCache(namespacedName)
 	// TODO: require lock to write into account config structure.
-	config.accountInitState = false
+	config.initialized = false
 	if strings.Contains(err.Error(), util.ErrorMsgSecretReference) {
 		config.credentialsValid = false
 		config.retry = false
@@ -416,12 +405,13 @@ func (a *AccountManager) handleAddProviderAccountError(namespacedName *types.Nam
 
 // replaySelectorsForAccount replays all the selectors that belong to this specified account,
 // set/resets the selector status.
-func (a *AccountManager) replaySelectorsForAccount(namespacedName *types.NamespacedName, config *accountConfig) {
-	for _, filterConfig := range config.selectorConfigMap {
-		a.Log.Info("Re-playing selector", "account", namespacedName, "selector", filterConfig.namespacedName)
-		_, err := a.AddResourceFiltersToAccount(namespacedName, filterConfig.namespacedName, filterConfig.selector, true)
+func (a *AccountManager) replaySelectorsForAccount(accNamespacedName *types.NamespacedName, config *accountConfig) {
+	for namespacedName, selector := range config.selectorMap {
+		a.Log.Info("Re-playing selector", "account", accNamespacedName, "selector", namespacedName)
+		// TODO: Call the plug-in directly..
+		_, err := a.AddResourceFiltersToAccount(accNamespacedName, &namespacedName, selector, true)
 		// set status with the latest error message or clear status.
-		a.setSelectorStatus(namespacedName, err)
+		a.setSelectorStatus(&namespacedName, err)
 	}
 }
 

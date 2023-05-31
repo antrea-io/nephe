@@ -271,6 +271,7 @@ func (r *CloudProviderAccountReconciler) setStatus(namespacedName *types.Namespa
 	}
 	if account.Status.Error != errorMsg {
 		r.Log.Info("Setting account status", "account", namespacedName, "message", errorMsg)
+		account.Status.Error = errorMsg
 		if err = r.Client.Status().Update(context.TODO(), account); err != nil {
 			r.Log.Error(err, "failed to update account status", "account", namespacedName)
 		}

@@ -17,15 +17,15 @@ package cloudentityselector
 import (
 	"context"
 	"fmt"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/pkg/accountmanager"

@@ -196,6 +196,7 @@ func (p *accountPoller) updateAccountStatus(cloudInterface common.CloudInterface
 
 	if account.Status != discoveredStatus {
 		account.Status.Error = discoveredStatus.Error
+		p.log.Info("Setting account status", "account", p.namespacedName, "message", discoveredStatus.Error)
 		if err = p.Client.Status().Update(context.TODO(), account); err != nil {
 			p.log.Error(err, "failed to update account status", "account", p.namespacedName)
 		}
