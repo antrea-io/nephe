@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	cloudcommon "antrea.io/nephe/pkg/cloudprovider/cloudapi/common"
 	"antrea.io/nephe/pkg/util"
 )
 
@@ -38,19 +39,22 @@ type awsAccountConfig struct {
 // setAccountCredentials sets account credentials.
 func setAccountCredentials(client client.Client, credentials interface{}) (interface{}, error) {
 	awsProviderConfig := credentials.(*crdv1alpha1.CloudProviderAccountAWSConfig)
+	awsConfig := &awsAccountConfig{
+		region:   strings.TrimSpace(awsProviderConfig.Region[0]),
+		endpoint: strings.TrimSpace(awsProviderConfig.Endpoint),
+	}
 	accCred, err := extractSecret(client, awsProviderConfig.SecretRef)
 	if err != nil {
-		return nil, err
+		accCred.AccessKeyID = cloudcommon.AccountCredentialsDefault
+		accCred.AccessKeySecret = cloudcommon.AccountCredentialsDefault
+		accCred.SessionToken = cloudcommon.AccountCredentialsDefault
+		accCred.RoleArn = cloudcommon.AccountCredentialsDefault
+		accCred.ExternalID = cloudcommon.AccountCredentialsDefault
 	}
 
 	// As only single region is supported right now, use 0th index in awsProviderConfig.Region as the configured region.
-	awsConfig := &awsAccountConfig{
-		AwsAccountCredential: *accCred,
-		region:               strings.TrimSpace(awsProviderConfig.Region[0]),
-		endpoint:             strings.TrimSpace(awsProviderConfig.Endpoint),
-	}
-
-	return awsConfig, nil
+	awsConfig.AwsAccountCredential = *accCred
+	return awsConfig, err
 }
 
 func compareAccountCredentials(accountName string, existing interface{}, new interface{}) bool {
@@ -91,6 +95,7 @@ func compareAccountCredentials(accountName string, existing interface{}, new int
 
 // extractSecret extracts credentials from a Kubernetes secret.
 func extractSecret(c client.Client, s *crdv1alpha1.SecretReference) (*crdv1alpha1.AwsAccountCredential, error) {
+	cred := &crdv1alpha1.AwsAccountCredential{}
 	u := &unstructured.Unstructured{}
 	u.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   "",
@@ -98,32 +103,30 @@ func extractSecret(c client.Client, s *crdv1alpha1.SecretReference) (*crdv1alpha
 		Version: "v1",
 	})
 	if err := c.Get(context.Background(), client.ObjectKey{Namespace: s.Namespace, Name: s.Name}, u); err != nil {
-		return nil, fmt.Errorf("%v, failed to get Secret object: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
+		return cred, fmt.Errorf("%v, failed to get Secret object: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
 	}
 
 	data, ok := u.Object["data"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("%v, failed to get Secret data: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
+		return cred, fmt.Errorf("%v, failed to get Secret data: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
 	}
 
 	key, ok := data[s.Key].(string)
 	if !ok {
-		return nil, fmt.Errorf("%v, failed to get Secret key: %v/%v, key: %v", util.ErrorMsgSecretReference, s.Namespace, s.Name, s.Key)
+		return cred, fmt.Errorf("%v, failed to get Secret key: %v/%v, key: %v", util.ErrorMsgSecretReference, s.Namespace, s.Name, s.Key)
 	}
 
 	decode, err := base64.StdEncoding.DecodeString(key)
 	if err != nil {
-		return nil, fmt.Errorf("%v, failed to decode Secret key: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
+		return cred, fmt.Errorf("%v, failed to decode Secret key: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
 	}
 
-	cred := &crdv1alpha1.AwsAccountCredential{}
 	if err = json.Unmarshal(decode, cred); err != nil {
-		return nil, fmt.Errorf("error unmarshalling credentials: %v/%v", s.Namespace, s.Name)
+		return cred, fmt.Errorf("error unmarshalling credentials: %v/%v", s.Namespace, s.Name)
 	}
 
-	// TODO: Make sure account creds are non-empty.
-	if (cred.AccessKeyID == "" || cred.AccessKeySecret == "") && (cred.RoleArn == "") {
-		return nil, fmt.Errorf("%v, Secret credentials cannot be empty: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
+	if (cred.AccessKeyID == "" || cred.AccessKeySecret == "") && cred.RoleArn == "" {
+		return cred, fmt.Errorf("%v, Secret credentials cannot be empty: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
 	}
 
 	return cred, nil

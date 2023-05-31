@@ -56,18 +56,16 @@ func (c *cloudCommon) newCloudAccountConfig(client client.Client, namespacedName
 	if credentialsValidatorFunc == nil {
 		return nil, fmt.Errorf("error creating account config, registered cloud-credentials validator function cannot be nil")
 	}
-	cloudConvertedCredential, err := credentialsValidatorFunc(client, credentials)
-	if err != nil {
-		return nil, err
-	}
-	if cloudConvertedCredential == nil {
-		return nil, fmt.Errorf("error creating account config, cloud credentials cannot be nil, account: %v", namespacedName)
-	}
-
 	cloudServicesCreateFunc := c.commonHelper.GetCloudServicesCreateFunc()
 	if cloudServicesCreateFunc == nil {
 		return nil, fmt.Errorf("error creating account config, registered cloud-services creator function cannot be nil")
 	}
+
+	cloudConvertedCredential, err := credentialsValidatorFunc(client, credentials)
+	if err != nil {
+		return nil, err
+	}
+
 	serviceConfigs, err := cloudServicesCreateFunc(namespacedName, cloudConvertedCredential, c.cloudSpecificHelper)
 	if err != nil {
 		return nil, err
@@ -96,25 +94,29 @@ func (c *cloudCommon) updateCloudAccountConfig(client client.Client, credentials
 	if credentialsValidatorFunc == nil {
 		return fmt.Errorf("error updating account config, registered cloud-credentials validator function cannot be nil")
 	}
-	cloudConvertedNewCredential, err := credentialsValidatorFunc(client, credentials)
-	if err != nil {
-		return err
-	}
-	if cloudConvertedNewCredential == nil {
-		return fmt.Errorf("error updating account config, cloud credentials cannot be nil, account: %v", currentConfig.GetNamespacedName())
-	}
-
 	credentialsComparatorFunc := c.commonHelper.GetCloudCredentialsComparatorFunc()
 	if credentialsComparatorFunc == nil {
 		c.logger().Info("Cloud credentials comparator func nil. credentials not updated. existing credentials will be used.",
 			"account", currentConfig.GetNamespacedName())
 		return nil
 	}
-
 	cloudServicesCreateFunc := c.commonHelper.GetCloudServicesCreateFunc()
 	if cloudServicesCreateFunc == nil {
 		return fmt.Errorf("error updating account config, registered cloud services creator function cannot be nil")
 	}
+
+	cloudConvertedNewCredential, err := credentialsValidatorFunc(client, credentials)
+	if !credentialsComparatorFunc(currentConfig.namespacedName.String(), cloudConvertedNewCredential, currentConfig.credentials) {
+		c.logger().Info("Credentials not changed", "account", currentConfig.namespacedName)
+		return err
+	}
+	currentConfig.credentials = cloudConvertedNewCredential
+	c.logger().Info("Credentials updated", "account", currentConfig.namespacedName)
+	// When credentialsValidatorFunc() returns error, abort updating service configs.
+	if err != nil {
+		return err
+	}
+
 	serviceConfigs, err := cloudServicesCreateFunc(currentConfig.namespacedName, cloudConvertedNewCredential, c.cloudSpecificHelper)
 	if err != nil {
 		return err
@@ -124,22 +126,12 @@ func (c *cloudCommon) updateCloudAccountConfig(client client.Client, credentials
 		serviceConfigMap[serviceCfg.GetName()] = serviceCfg
 	}
 
-	return currentConfig.update(credentialsComparatorFunc, cloudConvertedNewCredential, serviceConfigMap, c.logger())
+	return currentConfig.update(serviceConfigMap, c.logger())
 }
 
-func (accCfg *cloudAccountConfig) update(credentialComparator CloudCredentialComparatorFunc, newCredentials interface{},
-	newSvcConfigMap map[CloudServiceName]CloudServiceInterface, logger logging.Logger) error {
+func (accCfg *cloudAccountConfig) update(newSvcConfigMap map[CloudServiceName]CloudServiceInterface, logger logging.Logger) error {
 	accCfg.mutex.Lock()
 	defer accCfg.mutex.Unlock()
-
-	credentialsChanged := credentialComparator(accCfg.namespacedName.String(), newCredentials, accCfg.credentials)
-	if !credentialsChanged {
-		logger.Info("Credentials not changed", "account", accCfg.namespacedName)
-		return nil
-	}
-
-	accCfg.credentials = newCredentials
-	logger.Info("Credentials updated", "account", accCfg.namespacedName)
 
 	existingSvcConfigMap := accCfg.serviceConfigs
 	for name, svcConfig := range existingSvcConfigMap {

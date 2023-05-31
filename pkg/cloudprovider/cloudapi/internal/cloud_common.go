@@ -153,7 +153,7 @@ func (c *cloudCommon) GetCloudAccountComputeInternalResourceObjects(accountNames
 	map[string]*runtimev1alpha1.VirtualMachine, error) {
 	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
 	if !found {
-		return nil, fmt.Errorf("unable to find cloud account config: %v", *accountNamespacedName)
+		return nil, fmt.Errorf("unable to find cloud account config")
 	}
 
 	computeCRs := map[string]*runtimev1alpha1.VirtualMachine{}
@@ -232,7 +232,7 @@ func (c *cloudCommon) ResetInventoryCache(accountNamespacedName *types.Namespace
 func (c *cloudCommon) GetVpcInventory(accountNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.Vpc, error) {
 	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
 	if !found {
-		return nil, fmt.Errorf("unable to find cloud account config: %v", *accountNamespacedName)
+		return nil, fmt.Errorf("unable to find cloud account config")
 	}
 
 	serviceConfigs := accCfg.GetServiceConfigs()

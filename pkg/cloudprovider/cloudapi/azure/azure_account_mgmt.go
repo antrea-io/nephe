@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
+	cloudcommon "antrea.io/nephe/pkg/cloudprovider/cloudapi/common"
 	"antrea.io/nephe/pkg/util"
 )
 
@@ -37,18 +38,20 @@ type azureAccountConfig struct {
 // setAccountCredentials sets account credentials.
 func setAccountCredentials(client client.Client, credentials interface{}) (interface{}, error) {
 	azureProviderConfig := credentials.(*crdv1alpha1.CloudProviderAccountAzureConfig)
+	azureConfig := &azureAccountConfig{
+		region: strings.TrimSpace(azureProviderConfig.Region[0]),
+	}
 	accCred, err := extractSecret(client, azureProviderConfig.SecretRef)
 	if err != nil {
-		return nil, err
+		accCred.SubscriptionID = cloudcommon.AccountCredentialsDefault
+		accCred.TenantID = cloudcommon.AccountCredentialsDefault
+		accCred.ClientID = cloudcommon.AccountCredentialsDefault
+		accCred.ClientKey = cloudcommon.AccountCredentialsDefault
 	}
 
 	// As only single region is supported right now, use 0th index in awsProviderConfig.Region as the configured region.
-	azureConfig := &azureAccountConfig{
-		AzureAccountCredential: *accCred,
-		region:                 strings.TrimSpace(azureProviderConfig.Region[0]),
-	}
-
-	return azureConfig, nil
+	azureConfig.AzureAccountCredential = *accCred
+	return azureConfig, err
 }
 
 func compareAccountCredentials(accountName string, existing interface{}, new interface{}) bool {
@@ -81,6 +84,7 @@ func compareAccountCredentials(accountName string, existing interface{}, new int
 
 // extractSecret extracts credentials from a Kubernetes secret.
 func extractSecret(c client.Client, s *crdv1alpha1.SecretReference) (*crdv1alpha1.AzureAccountCredential, error) {
+	cred := &crdv1alpha1.AzureAccountCredential{}
 	u := &unstructured.Unstructured{}
 	u.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   "",
@@ -88,29 +92,28 @@ func extractSecret(c client.Client, s *crdv1alpha1.SecretReference) (*crdv1alpha
 		Version: "v1",
 	})
 	if err := c.Get(context.Background(), client.ObjectKey{Namespace: s.Namespace, Name: s.Name}, u); err != nil {
-		return nil, fmt.Errorf("%v, failed to get Secret object: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
+		return cred, fmt.Errorf("%v, failed to get Secret object: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
 	}
 
 	data, ok := u.Object["data"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("%v, failed to get Secret data: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
+		return cred, fmt.Errorf("%v, failed to get Secret data: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
 	}
 	key, ok := data[s.Key].(string)
 	if !ok {
-		return nil, fmt.Errorf("%v, failed to get Secret key: %v/%v, key: %v", util.ErrorMsgSecretReference, s.Namespace, s.Name, s.Key)
+		return cred, fmt.Errorf("%v, failed to get Secret key: %v/%v, key: %v", util.ErrorMsgSecretReference, s.Namespace, s.Name, s.Key)
 	}
 	decode, err := base64.StdEncoding.DecodeString(key)
 	if err != nil {
-		return nil, fmt.Errorf("%v, failed to decode Secret key: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
+		return cred, fmt.Errorf("%v, failed to decode Secret key: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
 	}
 
-	cred := &crdv1alpha1.AzureAccountCredential{}
 	if err = json.Unmarshal(decode, cred); err != nil {
-		return nil, fmt.Errorf("%v, failed to unmarshall Secret credentials: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
+		return cred, fmt.Errorf("%v, failed to unmarshall Secret credentials: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
 	}
 
 	if cred.SubscriptionID == "" || cred.TenantID == "" || cred.ClientID == "" || cred.ClientKey == "" {
-		return nil, fmt.Errorf("%v, Secret credentials cannot be empty: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
+		return cred, fmt.Errorf("%v, Secret credentials cannot be empty: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
 	}
 
 	return cred, nil
