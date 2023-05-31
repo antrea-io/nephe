@@ -215,8 +215,7 @@ kubectl describe vpc vpc-0d6bb6a4a880bd9ad -n sample-ns
 # Output
 Name:         vpc-0d6bb6a4a880bd9ad
 Namespace:    sample-ns
-Labels:       nephe.antrea.io/cloud-region=us-west-1
-              nephe.antrea.io/cloud-vpc-uid=vpc-0d6bb6a4a880bd9ad
+Labels:       nephe.antrea.io/cloud-vpc-uid=vpc-0d6bb6a4a880bd9ad
               nephe.antrea.io/cpa-name=cloudprovideraccount-aws-sample
               nephe.antrea.io/cpa-namespace=sample-ns
 Annotations:  <none>

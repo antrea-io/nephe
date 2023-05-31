@@ -16,8 +16,9 @@ package vpc
 
 import (
 	"context"
+	"fmt"
+	"reflect"
 	"sort"
-	"strings"
 
 	logger "github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -26,16 +27,15 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/internalversion"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	registryinventory "antrea.io/nephe/pkg/apiserver/registry/inventory"
 	"antrea.io/nephe/pkg/inventory"
 	"antrea.io/nephe/pkg/inventory/indexer"
 	"antrea.io/nephe/pkg/inventory/store"
-	"antrea.io/nephe/pkg/labels"
 )
 
 // REST implements rest.Storage for VPC Inventory.
@@ -86,110 +86,38 @@ func (r *REST) Get(ctx context.Context, name string, _ *metav1.GetOptions) (runt
 	return vpc, nil
 }
 
+// List returns a list of object based on Namespace and filtered by labels and field selectors.
 func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (runtime.Object, error) {
-	// List only supports four types of input options:
-	// 1. All namespace.
-	// 2. Labelselector with only the specific namespace, the only valid labelselectors are "nephe.antrea.io/cpa-name=<accountname>",
-	//    "nephe.antrea.io/cpa-namespace=<accountNamespace> and "nephe.antrea.io/cloud-region=<region>".
-	// 3. Fieldselector with only the specific namespace, the only valid fieldselectors is "metadata.name=<metadata.name>".
-	// 4. Specific Namespace.
-	accountName := ""
-	accountNamespace := ""
-	region := ""
-
-	if options != nil && options.LabelSelector != nil && options.LabelSelector.String() != "" {
-		labelSelectorStrings := strings.Split(options.LabelSelector.String(), ",")
-		for _, labelSelectorString := range labelSelectorStrings {
-			labelKeyAndValue := strings.Split(labelSelectorString, "=")
-			if labelKeyAndValue[0] == labels.CloudAccountName {
-				accountName = labelKeyAndValue[1]
-			} else if labelKeyAndValue[0] == labels.CloudAccountNamespace {
-				accountNamespace = labelKeyAndValue[1]
-			} else if labelKeyAndValue[0] == labels.CloudRegion {
-				region = strings.ToLower(labelKeyAndValue[1])
-			} else {
-				return nil, errors.NewBadRequest("unsupported label selector, supported labels are: nephe.antrea.io/cpa-name" +
-					"and nephe.antrea.io/cloud-region")
-			}
-		}
+	contextNamespace, _ := request.NamespaceFrom(ctx)
+	// Return all the vpc objects when 'all' is specified.
+	if contextNamespace == "" {
+		return sortAndConvertObjsToVpcList(r.cloudInventory.GetAllVpcs()), nil
 	}
 
-	name := ""
-	namespace := ""
-	if options != nil && options.FieldSelector != nil && options.FieldSelector.String() != "" {
-		fieldSelectorStrings := strings.Split(options.FieldSelector.String(), ",")
-		for _, fieldSelectorString := range fieldSelectorStrings {
-			fieldKeyAndValue := strings.Split(fieldSelectorString, "=")
-			if fieldKeyAndValue[0] == "metadata.name" {
-				name = fieldKeyAndValue[1]
-			} else if fieldKeyAndValue[0] == "metadata.namespace" {
-				namespace = fieldKeyAndValue[1]
-			} else {
-				return nil, errors.NewBadRequest("unsupported field selector, supported labels are: metadata.name and metadata.namespace")
-			}
-		}
+	supportedLabelsKeyMap := getSupportedLabelKeysMap()
+	supportedFieldsKeyMap := getSupportedFieldKeysMap()
+	labelSelectors, fieldSelectors, err := getSelectors(options, supportedLabelsKeyMap, supportedFieldsKeyMap)
+	if err != nil {
+		return nil, err
 	}
 
-	ns, _ := request.NamespaceFrom(ctx)
-	if ns != metav1.NamespaceDefault && namespace != "" && ns != namespace {
-		return nil, errors.NewBadRequest("namespace in field selector is different from namespace filter")
-	}
-	if namespace == "" {
-		namespace = ns
-	}
-
-	if namespace == "" && (accountName != "" || region != "" || name != "") {
-		return nil, errors.NewBadRequest("cannot query with all namespaces. Namespace should be specified")
+	// Resources are listed based on the context Namespace.
+	if labelSelectors[registryinventory.CloudAccountNamespace] != "" &&
+		labelSelectors[registryinventory.CloudAccountNamespace] != contextNamespace {
+		// Since account Namespace is different from context Namespace, return empty.
+		return &runtimev1alpha1.VpcList{}, nil
 	}
 
-	var objs []interface{}
-	if namespace == "" {
-		objs = r.cloudInventory.GetAllVpcs()
-	} else if accountName != "" {
-		accountNameSpacedName := types.NamespacedName{
-			Name:      accountName,
-			Namespace: accountNamespace,
-		}
-		// If account namespace is not specified in the label selector, then use the namespace specified.
-		if accountNamespace == "" {
-			accountNameSpacedName.Namespace = namespace
-		}
-		objs, _ = r.cloudInventory.GetVpcsFromIndexer(indexer.VpcByNamespacedAccountName, accountNameSpacedName.String())
-	} else if name != "" {
-		namespacedName := types.NamespacedName{
-			Namespace: namespace,
-			Name:      name,
-		}
-		objs, _ = r.cloudInventory.GetVpcsFromIndexer(indexer.ByNamespacedName, namespacedName.String())
-	} else if region != "" {
-		namespacedRegion := types.NamespacedName{
-			Namespace: namespace,
-			Name:      region,
-		}
-		objs, _ = r.cloudInventory.GetVpcsFromIndexer(indexer.VpcByNamespacedRegion, namespacedRegion.String())
-	} else {
-		objs, _ = r.cloudInventory.GetVpcsFromIndexer(indexer.ByNamespace, namespace)
+	if fieldSelectors[registryinventory.MetaNamespace] != "" &&
+		fieldSelectors[registryinventory.MetaNamespace] != contextNamespace {
+		// Since meta Namespace is different from context Namespace, return empty.
+		return &runtimev1alpha1.VpcList{}, nil
 	}
 
-	sort.Slice(objs, func(i, j int) bool {
-		vpcI := objs[i].(*runtimev1alpha1.Vpc)
-		vpcJ := objs[j].(*runtimev1alpha1.Vpc)
-		// First Sort with Namespace.
-		if vpcI.Namespace < vpcJ.Namespace {
-			return true
-		} else if vpcI.Namespace > vpcJ.Namespace {
-			return false
-		}
-		// Second Sort with Name.
-		return vpcI.Name < vpcJ.Name
-	})
-
-	vpcList := &runtimev1alpha1.VpcList{}
-	for _, obj := range objs {
-		vpc := obj.(*runtimev1alpha1.Vpc)
-		vpcList.Items = append(vpcList.Items, *vpc)
-	}
-	return vpcList, nil
+	objsByNamespace, _ := r.cloudInventory.GetVpcsFromIndexer(indexer.ByNamespace, contextNamespace)
+	filterObjsByLabels := registryinventory.GetFilteredObjsByLabels(objsByNamespace, labelSelectors, supportedLabelsKeyMap)
+	retObjs := getFilteredObjsByFields(filterObjsByLabels, fieldSelectors)
+	return sortAndConvertObjsToVpcList(retObjs), nil
 }
 
 func (r *REST) NamespaceScoped() bool {
@@ -214,6 +142,7 @@ func (r *REST) ConvertToTable(_ context.Context, obj runtime.Object, _ runtime.O
 			table.ResourceVersion = m.GetResourceVersion()
 		}
 	}
+
 	var err error
 	table.Rows, err = metatable.MetaToTableRow(obj,
 		func(obj runtime.Object, _ metav1.Object, _, _ string) ([]interface{}, error) {
@@ -229,4 +158,90 @@ func (r *REST) ConvertToTable(_ context.Context, obj runtime.Object, _ runtime.O
 func (r *REST) Watch(ctx context.Context, options *internalversion.ListOptions) (watch.Interface, error) {
 	key, label, field := store.GetSelectors(options)
 	return r.cloudInventory.WatchVpcs(ctx, key, label, field)
+}
+
+// sortAndConvertObjsToVpcList sorts the objs based on Namespace and Name and returns the VPC list.
+func sortAndConvertObjsToVpcList(objs []interface{}) *runtimev1alpha1.VpcList {
+	sort.Slice(objs, func(i, j int) bool {
+		vpcI := objs[i].(*runtimev1alpha1.Vpc)
+		vpcJ := objs[j].(*runtimev1alpha1.Vpc)
+		// First Sort with Namespace.
+		if vpcI.Namespace < vpcJ.Namespace {
+			return true
+		} else if vpcI.Namespace > vpcJ.Namespace {
+			return false
+		}
+		// Second Sort with Name.
+		return vpcI.Name < vpcJ.Name
+	})
+
+	vpcList := &runtimev1alpha1.VpcList{}
+	for _, obj := range objs {
+		vpc := obj.(*runtimev1alpha1.Vpc)
+		vpcList.Items = append(vpcList.Items, *vpc)
+	}
+	return vpcList
+}
+
+// getSelectors creates and returns a map of supported label and field selectors.
+func getSelectors(options *internalversion.ListOptions, labelsNameMap map[string]struct{},
+	fieldsNameMap map[string]struct{}) (map[string]string, map[string]string, error) {
+	labelSelectors := make(map[string]string)
+	fieldSelectors := make(map[string]string)
+	if err := registryinventory.GetLabelSelectors(options, labelSelectors, labelsNameMap); err != nil {
+		return nil, nil, errors.NewBadRequest(fmt.Sprintf("unsupported label selector, supported labels are: "+
+			"%v", reflect.ValueOf(labelsNameMap).MapKeys()))
+	}
+	if err := registryinventory.GetFieldSelectors(options, fieldSelectors, fieldsNameMap); err != nil {
+		return nil, nil, errors.NewBadRequest(fmt.Sprintf("unsupported field selector, supported fields are: "+
+			"%v", reflect.ValueOf(fieldsNameMap).MapKeys()))
+	}
+	return labelSelectors, fieldSelectors, nil
+}
+
+// getFilteredObjsByFields filters the objs based on the fieldSelector and returns a list.
+func getFilteredObjsByFields(objs []interface{}, fieldSelector map[string]string) []interface{} {
+	if len(fieldSelector) == 0 {
+		return objs
+	}
+
+	var ret []interface{}
+	for _, obj := range objs {
+		vpc := obj.(*runtimev1alpha1.Vpc)
+		if fieldSelector[registryinventory.MetaName] != "" &&
+			vpc.Name != fieldSelector[registryinventory.MetaName] {
+			continue
+		}
+		if fieldSelector[registryinventory.StatusCloudId] != "" &&
+			vpc.Status.CloudId != fieldSelector[registryinventory.StatusCloudId] {
+			continue
+		}
+		if fieldSelector[registryinventory.StatusRegion] != "" &&
+			vpc.Status.Region != fieldSelector[registryinventory.StatusRegion] {
+			continue
+		}
+		ret = append(ret, obj)
+	}
+	return ret
+}
+
+// getSupportedFieldKeysMap returns a map supported fields.
+// Valid field selectors are "metadata.name=<name>", "metadata.namespace=<namespace>",
+// "status.cloudId=<cloudId>", "status.region=<region>".
+func getSupportedFieldKeysMap() map[string]struct{} {
+	fieldKeys := make(map[string]struct{})
+	fieldKeys[registryinventory.MetaName] = struct{}{}
+	fieldKeys[registryinventory.MetaNamespace] = struct{}{}
+	fieldKeys[registryinventory.StatusCloudId] = struct{}{}
+	fieldKeys[registryinventory.StatusRegion] = struct{}{}
+	return fieldKeys
+}
+
+// getSupportedLabelKeysMap returns a map supported label names.
+// Valid label selectors are "nephe.io/cpa-name=<accountname>" and "nephe.io/cpa-namespace=<accountNamespace>".
+func getSupportedLabelKeysMap() map[string]struct{} {
+	labelKeys := make(map[string]struct{})
+	labelKeys[registryinventory.CloudAccountNamespace] = struct{}{}
+	labelKeys[registryinventory.CloudAccountName] = struct{}{}
+	return labelKeys
 }

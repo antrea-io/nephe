@@ -134,21 +134,17 @@ func vpcKeyFunc(obj interface{}) (string, error) {
 // NewVPCInventoryStore creates a store of VPC.
 func NewVPCInventoryStore() antreastorage.Interface {
 	indexers := cache.Indexers{
-		indexer.VpcByNamespacedAccountName: func(obj interface{}) ([]string, error) {
+		indexer.ByNamespace: func(obj interface{}) ([]string, error) {
 			vpc := obj.(*runtimev1alpha1.Vpc)
-			return []string{vpc.Namespace + "/" + vpc.Labels[nephelabels.CloudAccountName]}, nil
+			return []string{vpc.Namespace}, nil
 		},
 		indexer.ByNamespacedName: func(obj interface{}) ([]string, error) {
 			vpc := obj.(*runtimev1alpha1.Vpc)
 			return []string{vpc.Namespace + "/" + vpc.Name}, nil
 		},
-		indexer.VpcByNamespacedRegion: func(obj interface{}) ([]string, error) {
+		indexer.VpcByNamespacedAccountName: func(obj interface{}) ([]string, error) {
 			vpc := obj.(*runtimev1alpha1.Vpc)
-			return []string{vpc.Namespace + "/" + vpc.Status.Region}, nil
-		},
-		indexer.ByNamespace: func(obj interface{}) ([]string, error) {
-			vpc := obj.(*runtimev1alpha1.Vpc)
-			return []string{vpc.Namespace}, nil
+			return []string{vpc.Namespace + "/" + vpc.Labels[nephelabels.CloudAccountName]}, nil
 		},
 	}
 	return ram.NewStore(vpcKeyFunc, indexers, genVPCEvent, keyAndSpanSelectFunc, func() runtime.Object { return new(runtimev1alpha1.Vpc) })

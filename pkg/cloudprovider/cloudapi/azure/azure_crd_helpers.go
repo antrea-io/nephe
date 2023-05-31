@@ -188,7 +188,6 @@ func ComputeVpcToInternalVpcObject(vnet *armnetwork.VirtualNetwork, accountNames
 	labels := map[string]string{
 		labels.CloudAccountNamespace: accountNamespace,
 		labels.CloudAccountName:      accountName,
-		labels.CloudRegion:           region,
 		labels.CloudVpcUID:           uid,
 	}
 

@@ -164,7 +164,6 @@ func ec2VpcToInternalVpcObject(vpc *ec2.Vpc, accountNamespace, accountName, regi
 	labels := map[string]string{
 		labels.CloudAccountNamespace: accountNamespace,
 		labels.CloudAccountName:      accountName,
-		labels.CloudRegion:           region,
 		labels.CloudVpcUID:           *vpc.VpcId,
 	}
 

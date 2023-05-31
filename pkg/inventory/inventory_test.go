@@ -40,7 +40,6 @@ var (
 	namespace             = "testNS"
 	accountName           = "account01"
 	namespacedAccountName = types.NamespacedName{Namespace: namespace, Name: accountName}
-	region                = "xyz"
 	vpcCacheKey1          = fmt.Sprintf("%s-%s", namespacedAccountName, testVpcID01)
 	testVmID01            = "testVmID01"
 	testVmName01          = "testVmName01"
@@ -63,7 +62,6 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 		vpcLabelsMap := map[string]string{
 			labels.CloudAccountName:      namespacedAccountName.Name,
 			labels.CloudAccountNamespace: namespacedAccountName.Namespace,
-			labels.CloudRegion:           region,
 		}
 		vpcList1 := make(map[string]*runtimev1alpha1.Vpc)
 		vpcObj1 := new(runtimev1alpha1.Vpc)
