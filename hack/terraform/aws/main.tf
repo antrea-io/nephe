@@ -57,7 +57,7 @@ data "aws_region" "current" {}
 
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
-  version = "2.77.0"
+  version = ">=2.77.0"
 
   name = local.vpc_name
   cidr = var.vpc_cidr
@@ -76,7 +76,7 @@ module "vpc" {
 
 module "security_group" {
   source          = "terraform-aws-modules/security-group/aws"
-  version         = "3.18.0"
+  version         = ">=3.18.0"
   count           = length(var.aws_security_groups_postfix)
   name            = "nephe-at-${var.aws_security_groups_postfix[count.index]}"
   vpc_id          = module.vpc.vpc_id
@@ -119,7 +119,6 @@ module "ec2_cluster" {
   count                       = length(local.aws_vm_os_types)
   source                      = "terraform-aws-modules/ec2-instance/aws"
   version                     = "~> 2.0"
-  instance_count              = 1
   name                        = "${module.vpc.vpc_id}-${local.aws_vm_os_types[count.index].name}-${var.owner}"
   ami                         = data.aws_ami.aws_ami[count.index].id
   instance_type               = local.aws_vm_type
