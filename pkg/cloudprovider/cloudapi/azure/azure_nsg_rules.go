@@ -160,7 +160,10 @@ func convertIngressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResou
 			}
 		}
 
-		srcApplicationSecurityGroups := convertToAzureApplicationSecurityGroups(rule.FromSecurityGroups, agAsgMapByNepheControllerName)
+		srcApplicationSecurityGroups, err := convertToAzureApplicationSecurityGroups(rule.FromSecurityGroups, agAsgMapByNepheControllerName)
+		if err != nil {
+			return []*armnetwork.SecurityRule{}, err
+		}
 		if len(srcApplicationSecurityGroups) != 0 {
 			securityRule := buildSecurityRule(nil, protoName, armnetwork.SecurityRuleDirectionInbound,
 				to.StringPtr(emptyPort), nil, nil, srcApplicationSecurityGroups,
@@ -214,7 +217,10 @@ func convertIngressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudR
 		flag := 0
 		for _, fromSecurityGroup := range rule.FromSecurityGroups {
 			if fromSecurityGroup.Vpc == appliedToGroupID.Vpc {
-				srcApplicationSecurityGroups := convertToAzureApplicationSecurityGroups(rule.FromSecurityGroups, agAsgMapByNepheControllerName)
+				srcApplicationSecurityGroups, err := convertToAzureApplicationSecurityGroups(rule.FromSecurityGroups, agAsgMapByNepheControllerName)
+				if err != nil {
+					return []*armnetwork.SecurityRule{}, err
+				}
 				if len(srcApplicationSecurityGroups) != 0 {
 					securityRule := buildSecurityRule(nil, protoName, armnetwork.SecurityRuleDirectionInbound,
 						to.StringPtr(emptyPort), nil, nil, srcApplicationSecurityGroups,
@@ -283,7 +289,10 @@ func convertEgressToNsgSecurityRules(appliedToGroupID *securitygroup.CloudResour
 			}
 		}
 
-		dstApplicationSecurityGroups := convertToAzureApplicationSecurityGroups(rule.ToSecurityGroups, agAsgMapByNepheControllerName)
+		dstApplicationSecurityGroups, err := convertToAzureApplicationSecurityGroups(rule.ToSecurityGroups, agAsgMapByNepheControllerName)
+		if err != nil {
+			return []*armnetwork.SecurityRule{}, err
+		}
 		if len(dstApplicationSecurityGroups) != 0 {
 			securityRule := buildSecurityRule(nil, protoName, armnetwork.SecurityRuleDirectionOutbound,
 				to.StringPtr(emptyPort), nil, nil, []*armnetwork.ApplicationSecurityGroup{&srcAsgObj},
@@ -336,7 +345,10 @@ func convertEgressToPeerNsgSecurityRules(appliedToGroupID *securitygroup.CloudRe
 		flag := 0
 		for _, toSecurityGroup := range rule.ToSecurityGroups {
 			if toSecurityGroup.Vpc == appliedToGroupID.Vpc {
-				dstApplicationSecurityGroups := convertToAzureApplicationSecurityGroups(rule.ToSecurityGroups, agAsgMapByNepheControllerName)
+				dstApplicationSecurityGroups, err := convertToAzureApplicationSecurityGroups(rule.ToSecurityGroups, agAsgMapByNepheControllerName)
+				if err != nil {
+					return []*armnetwork.SecurityRule{}, err
+				}
 				if len(dstApplicationSecurityGroups) != 0 {
 					securityRule := buildSecurityRule(nil, protoName, armnetwork.SecurityRuleDirectionOutbound,
 						to.StringPtr(emptyPort), to.StringPtr(emptyPort), nil, nil,
@@ -431,18 +443,18 @@ func normalizeAzureSecurityRule(rule *armnetwork.SecurityRule) *armnetwork.Secur
 
 // convertToAzureApplicationSecurityGroups converts Nephe security groups to Azure Asgs based on sg cloud resource id.
 func convertToAzureApplicationSecurityGroups(securityGroups []*securitygroup.CloudResourceID,
-	asgByNepheControllerName map[string]armnetwork.ApplicationSecurityGroup) []*armnetwork.ApplicationSecurityGroup {
+	asgByNepheControllerName map[string]armnetwork.ApplicationSecurityGroup) ([]*armnetwork.ApplicationSecurityGroup, error) {
 	var asgsToReturn []*armnetwork.ApplicationSecurityGroup
 	for _, securityGroup := range securityGroups {
 		asg, found := asgByNepheControllerName[strings.ToLower(securityGroup.Name)]
 		if !found {
-			continue
+			return nil, fmt.Errorf("asg not found for sg %s", securityGroup.Name)
 		}
 		newAsg := armnetwork.ApplicationSecurityGroup{ID: asg.ID}
 		asgsToReturn = append(asgsToReturn, &newAsg)
 	}
 
-	return asgsToReturn
+	return asgsToReturn, nil
 }
 
 func convertToAzureProtocolName(protoNum *int) (armnetwork.SecurityRuleProtocol, error) {
