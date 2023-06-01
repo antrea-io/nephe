@@ -64,6 +64,9 @@ func (r *REST) New() runtime.Object {
 	return &runtimev1alpha1.VirtualMachine{}
 }
 
+func (r *REST) Destroy() {
+}
+
 func (r *REST) NewList() runtime.Object {
 	return &runtimev1alpha1.VirtualMachine{}
 }
