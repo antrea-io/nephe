@@ -101,7 +101,7 @@ fi
 
 # Namespace and ServiceAccount is constant due to upstream limitation. The RBAC yaml provided by Antrea has hardcoded Namespace vm-ns and
 # ServiceAccount vm-agent.
-# https://github.com/antrea-io/antrea/blob/v1.11.0/build/yamls/externalnode/vm-agent-rbac.yml.
+# https://github.com/antrea-io/antrea/blob/v1.12.0/build/yamls/externalnode/vm-agent-rbac.yml.
 # TODO: remove when limitation no longer exists.
 if [[ "$SERVICE_ACCOUNT" != "vm-agent" ]] || [[ "$NAMESPACE" != "vm-ns" ]]; then
   echoerr "ServiceAccount can only be vm-agent. Namespace can only be vm-ns"

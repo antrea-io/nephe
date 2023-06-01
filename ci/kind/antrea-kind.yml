@@ -116,11 +116,12 @@ metadata:
   name: clustergroups.crd.antrea.io
   labels:
     app: antrea
+    served-by: antrea-controller
 spec:
   group: crd.antrea.io
   versions:
     - name: v1alpha2
-      served: true
+      served: false
       storage: false
       schema:
         openAPIV3Schema:
@@ -604,6 +605,10 @@ spec:
                               x-kubernetes-int-or-string: true
                             endPort:
                               type: integer
+                            sourcePort:
+                              type: integer
+                            sourceEndPort:
+                              type: integer
                       protocols:
                         type: array
                         items:
@@ -761,6 +766,9 @@ spec:
                         type: string
                       enableLogging:
                         type: boolean
+                      logLabel:
+                        type: string
+                        pattern: "^(([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9])?$"
                 egress:
                   type: array
                   items:
@@ -849,6 +857,10 @@ spec:
                             port:
                               x-kubernetes-int-or-string: true
                             endPort:
+                              type: integer
+                            sourcePort:
+                              type: integer
+                            sourceEndPort:
                               type: integer
                       protocols:
                         type: array
@@ -1023,6 +1035,9 @@ spec:
                         type: string
                       enableLogging:
                         type: boolean
+                      logLabel:
+                        type: string
+                        pattern: "^(([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9])?$"
             status:
               type: object
               properties:
@@ -1083,11 +1098,17 @@ spec:
             type: object
             required:
             - appliedTo
-            anyOf:
-            - required:
-              - egressIP
-            - required:
-              - externalIPPool
+            oneOf:
+            - anyOf:
+              - required:
+                - egressIP
+              - required:
+                - externalIPPool
+            - anyOf:
+              - required:
+                - egressIPs
+              - required:
+                - externalIPPools
             properties:
               appliedTo:
                 type: object
@@ -1145,16 +1166,30 @@ spec:
                 oneOf:
                 - format: ipv4
                 - format: ipv6
+              egressIPs:
+                type: array
+                items:
+                  type: string
+                  oneOf:
+                  - maxLength: 0
+                  - format: ipv4
+                  - format: ipv6
               externalIPPool:
                 type: string
+              externalIPPools:
+                type: array
+                items:
+                  type: string
           status:
             type: object
             properties:
               egressNode:
                 type: string
+              egressIP:
+                type: string
     additionalPrinterColumns:
-    - description: Specifies the SNAT IP address for the selected workloads.
-      jsonPath: .spec.egressIP
+    - description: The effective SNAT IP address for the selected workloads.
+      jsonPath: .status.egressIP
       name: EgressIP
       type: string
     - jsonPath: .metadata.creationTimestamp
@@ -1693,6 +1728,10 @@ spec:
                               x-kubernetes-int-or-string: true
                             endPort:
                               type: integer
+                            sourcePort:
+                              type: integer
+                            sourceEndPort:
+                              type: integer
                       protocols:
                         type: array
                         items:
@@ -1857,6 +1896,9 @@ spec:
                         type: string
                       enableLogging:
                         type: boolean
+                      logLabel:
+                        type: string
+                        pattern: "^(([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9])?$"
                 egress:
                   type: array
                   items:
@@ -1911,6 +1953,10 @@ spec:
                             port:
                               x-kubernetes-int-or-string: true
                             endPort:
+                              type: integer
+                            sourcePort:
+                              type: integer
+                            sourceEndPort:
                               type: integer
                       protocols:
                         type: array
@@ -2090,6 +2136,9 @@ spec:
                         type: string
                       enableLogging:
                         type: boolean
+                      logLabel:
+                        type: string
+                        pattern: "^(([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9])?$"
             status:
               type: object
               properties:
@@ -2942,7 +2991,7 @@ data:
 
     # Enable TopologyAwareHints in AntreaProxy. This requires AntreaProxy and EndpointSlice to be
     # enabled, otherwise this flag will not take effect.
-    #  TopologyAwareHints: false
+    #  TopologyAwareHints: true
 
     # Enable traceflow which provides packet tracing feature to diagnose network issue.
     #  Traceflow: true
@@ -2971,7 +3020,7 @@ data:
     #  AntreaIPAM: false
 
     # Enable multicast traffic.
-    #  Multicast: false
+    #  Multicast: true
 
     # Enable Antrea Multi-cluster features.
     #  Multicluster: false
@@ -3181,12 +3230,23 @@ data:
     transportInterface: ""
 
     multicast:
-    # The names of the interfaces on Nodes that are used to forward multicast traffic.
-    # Defaults to transport interface if not set.
+      # To enable Multicast, you need to set "enable" to true, and ensure that the
+      # Multicast feature gate is also enabled (which is the default).
+      enable: false
+
+      # The names of the interfaces on Nodes that are used to forward multicast traffic.
+      # Defaults to transport interface if not set.
       multicastInterfaces:
 
-    # The interval at which the antrea-agent sends IGMP queries to Pods.
-    # Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
+      # The versions of IGMP queries antrea-agent sends to Pods.
+      # Valid versions are 1, 2 and 3.
+      igmpQueryVersions:
+      - 1
+      - 2
+      - 3
+
+      # The interval at which the antrea-agent sends IGMP queries to Pods.
+      # Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
       igmpQueryInterval: "125s"
 
     # The network CIDRs of the interface on Node which is used for tunneling or routing the traffic across
@@ -3242,6 +3302,16 @@ data:
       enableStretchedNetworkPolicy: false
     # Enable Pod to Pod connectivity.
       enablePodToPodConnectivity: false
+    # Determines how cross-cluster traffic is encrypted.
+    # It has the following options:
+    # - none (default):  Cross-cluster traffic will not be encrypted.
+    # - wireGuard:       Use WireGuard to encrypt traffic.
+      trafficEncryptionMode: "none"
+    # WireGuard tunnel configuration for cross-cluster traffic.
+    # It only works when multicluster.trafficEncryptionMode is wireGuard.
+      wireGuard:
+        # WireGuard tunnel port for cross-cluster traffic.
+        port: 51821
   antrea-cni.conflist: |
     {
         "cniVersion":"0.3.0",
@@ -3286,13 +3356,13 @@ data:
     #  NetworkPolicyStats: true
 
     # Enable multicast traffic.
-    #  Multicast: false
+    #  Multicast: true
 
     # Enable controlling SNAT IPs of Pod egress traffic.
     #  Egress: true
 
     # Run Kubernetes NodeIPAMController with Antrea.
-    #  NodeIPAM: false
+    #  NodeIPAM: true
 
     # Enable AntreaIPAM, which can allocate IP addresses from IPPools. AntreaIPAM is required by the
     # bridging mode and allocates IPs to Pods in bridging mode. It is also required to use Antrea for
@@ -3341,6 +3411,10 @@ data:
 
     # TLS min version from: VersionTLS10, VersionTLS11, VersionTLS12, VersionTLS13.
     tlsMinVersion: ""
+
+    # File path of the certificate bundle for all the signers that is recognized for incoming client
+    # certificates.
+    clientCAFile: ""
 
     nodeIPAM:
       # Enable the integrated Node IPAM controller within the Antrea controller.
@@ -3720,6 +3794,7 @@ rules:
     - get
     - list
     - watch
+    - patch
   - apiGroups:
     - multicluster.crd.antrea.io
     resources:
@@ -3867,6 +3942,7 @@ rules:
       - customresourcedefinitions
     verbs:
       - get
+      - list
       - update
   # This is the content of built-in role kube-system/extension-apiserver-authentication-reader.
   # But it doesn't have list/watch permission before K8s v1.17.0 so the extension apiserver (antrea-controller) will
@@ -3916,12 +3992,8 @@ rules:
       - apiregistration.k8s.io
     resources:
       - apiservices
-    resourceNames:
-      - v1alpha1.stats.antrea.io
-      - v1beta1.system.antrea.io
-      - v1beta2.controlplane.antrea.io
     verbs:
-      - get
+      - list
       - update
   - apiGroups:
       - apiregistration.k8s.io
@@ -3940,15 +4012,8 @@ rules:
     resources:
       - mutatingwebhookconfigurations
       - validatingwebhookconfigurations
-    resourceNames:
-      # always give permissions for labelsmutator.antrea.io, even when the
-      # feature is disabled, to avoid errors in antrea-controller when updating
-      # the CA cert.
-      - labelsmutator.antrea.io
-      - crdmutator.antrea.io
-      - crdvalidator.antrea.io
     verbs:
-      - get
+      - list
       - update
   - apiGroups:
     - certificates.k8s.io
@@ -4299,7 +4364,7 @@ spec:
         kubectl.kubernetes.io/default-container: antrea-agent
         # Automatically restart Pods with a RollingUpdate if the ConfigMap changes
         # See https://helm.sh/docs/howto/charts_tips_and_tricks/#automatically-roll-deployments
-        checksum/config: 8b0774e5e0eb1ad2807c6e5f18409d8f6a20e61317bafadb1009b9190ae163b3
+        checksum/config: 1f7ec3f7c131b06c35ae624655ebbf81ca332c08abcfcddd434dd3c0a5387dab
       labels:
         app: antrea
         component: antrea-agent
@@ -4318,7 +4383,7 @@ spec:
       serviceAccountName: antrea-agent
       initContainers:
         - name: install-cni
-          image: "projects.registry.vmware.com/antrea/antrea-ubuntu:v1.11.0"
+          image: "projects.registry.vmware.com/antrea/antrea-ubuntu:v1.12.0"
           imagePullPolicy: IfNotPresent
           resources:
             requests:
@@ -4352,7 +4417,7 @@ spec:
             mountPath: /var/run/antrea
       containers:
         - name: antrea-agent
-          image: "projects.registry.vmware.com/antrea/antrea-ubuntu:v1.11.0"
+          image: "projects.registry.vmware.com/antrea/antrea-ubuntu:v1.12.0"
           imagePullPolicy: IfNotPresent
           command: ["antrea-agent"]
           # Log to both "/var/log/antrea/" and stderr (so "kubectl logs" can work).-
@@ -4444,7 +4509,7 @@ spec:
           - name: xtables-lock
             mountPath: /run/xtables.lock
         - name: antrea-ovs
-          image: "projects.registry.vmware.com/antrea/antrea-ubuntu:v1.11.0"
+          image: "projects.registry.vmware.com/antrea/antrea-ubuntu:v1.12.0"
           imagePullPolicy: IfNotPresent
           resources:
             requests:
@@ -4538,7 +4603,7 @@ spec:
       annotations:
         # Automatically restart Pod if the ConfigMap changes
         # See https://helm.sh/docs/howto/charts_tips_and_tricks/#automatically-roll-deployments
-        checksum/config: 8b0774e5e0eb1ad2807c6e5f18409d8f6a20e61317bafadb1009b9190ae163b3
+        checksum/config: 1f7ec3f7c131b06c35ae624655ebbf81ca332c08abcfcddd434dd3c0a5387dab
       labels:
         app: antrea
         component: antrea-controller
@@ -4557,7 +4622,7 @@ spec:
       serviceAccountName: antrea-controller
       containers:
         - name: antrea-controller
-          image: "projects.registry.vmware.com/antrea/antrea-ubuntu:v1.11.0"
+          image: "projects.registry.vmware.com/antrea/antrea-ubuntu:v1.12.0"
           imagePullPolicy: IfNotPresent
           resources:
             requests:
@@ -4646,6 +4711,7 @@ metadata:
   name: v1beta2.controlplane.antrea.io
   labels:
     app: antrea
+    served-by: antrea-controller
 spec:
   group: controlplane.antrea.io
   groupPriorityMinimum: 100
@@ -4662,6 +4728,7 @@ metadata:
   name: v1beta1.system.antrea.io
   labels:
     app: antrea
+    served-by: antrea-controller
 spec:
   group: system.antrea.io
   groupPriorityMinimum: 100
@@ -4678,6 +4745,7 @@ metadata:
   name: v1alpha1.stats.antrea.io
   labels:
     app: antrea
+    served-by: antrea-controller
 spec:
   group: stats.antrea.io
   groupPriorityMinimum: 100
@@ -4694,6 +4762,7 @@ metadata:
   name: "crdmutator.antrea.io"
   labels:
     app: antrea
+    served-by: antrea-controller
 webhooks:
   - name: "acnpmutator.antrea.io"
     clientConfig:
@@ -4733,6 +4802,7 @@ metadata:
   name: "crdvalidator.antrea.io"
   labels:
     app: antrea
+    served-by: antrea-controller
 webhooks:
   - name: "tiervalidator.antrea.io"
     clientConfig:
