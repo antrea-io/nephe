@@ -24,6 +24,7 @@ import (
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
@@ -107,7 +108,7 @@ func (a *AccountManager) AddAccount(namespacedName *types.NamespacedName, accoun
 			a.Log.Info("Starting account poller", "account", namespacedName)
 			go wait.Until(accPoller.doAccountPolling, time.Duration(accPoller.PollIntvInSeconds)*time.Second, accPoller.ch)
 		} else {
-			a.Log.Info("Ignoring start of account poller", "account", namespacedName)
+			a.Log.V(1).Info("Ignoring start of account poller", "account", namespacedName)
 			if ctrlsync.GetControllerSyncStatusInstance().IsControllerSynced(ctrlsync.ControllerTypeCPA) && !config.initialized {
 				// Replay CES CR only when account init state is changed from failure to success.
 				a.replaySelectorsForAccount(namespacedName, config)
@@ -175,9 +176,7 @@ func (a *AccountManager) AddResourceFiltersToAccount(accNamespacedName *types.Na
 		}
 	}
 
-	a.Log.V(1).Info("Updating selectors for account", "name", accNamespacedName)
 	if err := cloudInterface.AddAccountResourceSelector(accNamespacedName, selector); err != nil {
-		// TODO: Check which errors can be retried.
 		return false, fmt.Errorf(fmt.Sprintf("failed to add or update selector %v, account %v: %v",
 			selectorNamespacedName, accNamespacedName, err))
 	}
@@ -242,7 +241,6 @@ func (a *AccountManager) addAccountPoller(cloudInterface common.CloudInterface, 
 	// Restart account poller after removing the selector.
 	accPoller, exists := a.getAccountPoller(namespacedName)
 	if exists {
-		a.Log.Info("Account poller exists", "account", namespacedName)
 		// Update the polling interval.
 		accPoller.PollIntvInSeconds = *account.Spec.PollIntervalInSeconds
 		return accPoller, true
@@ -386,9 +384,7 @@ func (a *AccountManager) getAccountProviderType(namespacedName *types.Namespaced
 func (a *AccountManager) handleAddProviderAccountError(namespacedName *types.NamespacedName, config *accountConfig,
 	err error) bool {
 	// Account poller is removed upon any error in the plug-in.
-	if err := a.removeAccountPoller(namespacedName); err != nil {
-		a.Log.Error(err, "error removing account poller")
-	}
+	_ = a.removeAccountPoller(namespacedName)
 	_ = a.Inventory.DeleteVpcsFromCache(namespacedName)
 	_ = a.Inventory.DeleteVmsFromCache(namespacedName)
 	// TODO: require lock to write into account config structure.
@@ -411,25 +407,34 @@ func (a *AccountManager) replaySelectorsForAccount(accNamespacedName *types.Name
 		// TODO: Call the plug-in directly..
 		_, err := a.AddResourceFiltersToAccount(accNamespacedName, &namespacedName, selector, true)
 		// set status with the latest error message or clear status.
-		a.setSelectorStatus(&namespacedName, err)
+		a.updateSelectorStatus(&namespacedName, err)
 	}
 }
 
-// setSelectorStatus sets the status on the selector to the error message.
-func (a *AccountManager) setSelectorStatus(namespacedName *types.NamespacedName, err error) {
+// updateSelectorStatus updates the status on the CloudEntitySelector CR.
+func (a *AccountManager) updateSelectorStatus(namespacedName *types.NamespacedName, err error) {
 	var errorMsg string
 	if err != nil {
 		errorMsg = err.Error()
 	}
-	selector := &crdv1alpha1.CloudEntitySelector{}
-	if err = a.Get(context.TODO(), *namespacedName, selector); err != nil {
-		return
-	}
-	if selector.Status.Error != errorMsg {
-		selector.Status.Error = errorMsg
-		a.Log.Info("Setting selector status", "selector", namespacedName, "message", errorMsg)
-		if err = a.Client.Status().Update(context.TODO(), selector); err != nil {
-			a.Log.Error(err, "failed to update selector status", "selector", namespacedName)
+
+	updateStatusFunc := func() error {
+		selector := &crdv1alpha1.CloudEntitySelector{}
+		if err = a.Get(context.TODO(), *namespacedName, selector); err != nil {
+			return nil
 		}
+		if selector.Status.Error != errorMsg {
+			selector.Status.Error = errorMsg
+			a.Log.Info("Setting CES status", "selector", namespacedName, "message", errorMsg)
+			if err = a.Client.Status().Update(context.TODO(), selector); err != nil {
+				a.Log.Error(err, "failed to update CES status, retrying", "selector", namespacedName)
+				return err
+			}
+		}
+		return nil
+	}
+
+	if err := retry.RetryOnConflict(retry.DefaultRetry, updateStatusFunc); err != nil {
+		a.Log.Error(err, "failed to update CES status", "selector", namespacedName)
 	}
 }

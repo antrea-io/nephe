@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -145,7 +146,7 @@ func (r *CloudProviderAccountReconciler) processCreateOrUpdate(namespacedName *t
 	if err != nil && retry {
 		return err
 	}
-	r.setStatus(namespacedName, err)
+	r.updateStatus(namespacedName, err)
 	return nil
 }
 
@@ -257,23 +258,30 @@ func (r *CloudProviderAccountReconciler) setupSecretWatcher() {
 	r.watchSecret()
 }
 
-// setStatus sets the status on the CloudProviderAccount CR.
-func (r *CloudProviderAccountReconciler) setStatus(namespacedName *types.NamespacedName, err error) {
+// updateStatus udpates the status on the CloudProviderAccount CR.
+func (r *CloudProviderAccountReconciler) updateStatus(namespacedName *types.NamespacedName, err error) {
 	var errorMsg string
 	if err != nil {
 		errorMsg = err.Error()
 	}
 
-	account := &crdv1alpha1.CloudProviderAccount{}
-	if err = r.Get(context.TODO(), *namespacedName, account); err != nil {
-		r.Log.Error(err, "failed to get account")
-		return
-	}
-	if account.Status.Error != errorMsg {
-		r.Log.Info("Setting account status", "account", namespacedName, "message", errorMsg)
-		account.Status.Error = errorMsg
-		if err = r.Client.Status().Update(context.TODO(), account); err != nil {
-			r.Log.Error(err, "failed to update account status", "account", namespacedName)
+	updateStatusFunc := func() error {
+		account := &crdv1alpha1.CloudProviderAccount{}
+		if err = r.Get(context.TODO(), *namespacedName, account); err != nil {
+			return nil
 		}
+		if account.Status.Error != errorMsg {
+			r.Log.Info("Setting CPA status", "account", namespacedName, "message", errorMsg)
+			account.Status.Error = errorMsg
+			if err = r.Client.Status().Update(context.TODO(), account); err != nil {
+				r.Log.Error(err, "failed to update CPA status, retrying", "account", namespacedName)
+				return err
+			}
+		}
+		return nil
+	}
+
+	if err := retry.RetryOnConflict(retry.DefaultRetry, updateStatusFunc); err != nil {
+		r.Log.Error(err, "failed to update CPA status", "account", namespacedName)
 	}
 }

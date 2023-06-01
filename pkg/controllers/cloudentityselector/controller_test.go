@@ -150,13 +150,13 @@ var _ = Describe("CloudEntitySelector Controller", func() {
 			}
 			_ = fakeClient.Create(context.Background(), selector)
 			By("Set status error")
-			reconciler.setStatus(&testSelectorNamespacedName, fmt.Errorf("dummy"))
+			reconciler.updateStatus(&testSelectorNamespacedName, fmt.Errorf("dummy"))
 			temp := &crdv1alpha1.CloudEntitySelector{}
 			err := fakeClient.Get(context.Background(), testSelectorNamespacedName, temp)
 			Expect(err).Should(Not(HaveOccurred()))
 			Expect(temp.Status.Error).Should(Not(BeEmpty()))
 			By("Reset status error")
-			reconciler.setStatus(&testSelectorNamespacedName, fmt.Errorf(""))
+			reconciler.updateStatus(&testSelectorNamespacedName, fmt.Errorf(""))
 			err = fakeClient.Get(context.Background(), testSelectorNamespacedName, temp)
 			Expect(err).Should(Not(HaveOccurred()))
 			Expect(temp.Status.Error).Should(BeEmpty())

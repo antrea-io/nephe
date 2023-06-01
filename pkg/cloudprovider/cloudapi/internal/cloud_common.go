@@ -91,11 +91,16 @@ func (c *cloudCommon) AddCloudAccount(client client.Client, account *crdv1alpha1
 
 	existingConfig, found := c.accountConfigs[*namespacedName]
 	if found {
-		return c.updateCloudAccountConfig(client, credentials, existingConfig)
+		err := c.updateCloudAccountConfig(client, credentials, existingConfig)
+		if err != nil {
+			c.logger().Info("Failed to update cloud account config", "account", namespacedName)
+		}
+		return err
 	}
 
 	config, err := c.newCloudAccountConfig(client, namespacedName, credentials, c.logger)
 	if err != nil {
+		c.logger().Info("Failed to create cloud account config", "account", namespacedName)
 		return err
 	}
 

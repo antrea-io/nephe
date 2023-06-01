@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -137,7 +138,7 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *crdv1alp
 	if err != nil && retry {
 		return err
 	}
-	r.setStatus(selectorNamespacedName, err)
+	r.updateStatus(selectorNamespacedName, err)
 	return nil
 }
 
@@ -152,22 +153,30 @@ func (r *CloudEntitySelectorReconciler) processDelete(selectorNamespacedName *ty
 	return nil
 }
 
-// setStatus sets the status on the CloudEntitySelector CR.
-func (r *CloudEntitySelectorReconciler) setStatus(namespacedName *types.NamespacedName, err error) {
+// updateStatus updates the status on the CloudEntitySelector CR.
+func (r *CloudEntitySelectorReconciler) updateStatus(namespacedName *types.NamespacedName, err error) {
 	var errorMsg string
 	if err != nil {
 		errorMsg = err.Error()
 	}
 
-	selector := &crdv1alpha1.CloudEntitySelector{}
-	if err = r.Get(context.TODO(), *namespacedName, selector); err != nil {
-		return
-	}
-	if selector.Status.Error != errorMsg {
-		selector.Status.Error = errorMsg
-		r.Log.Info("Setting selector status", "selector", namespacedName, "message", errorMsg)
-		if err = r.Client.Status().Update(context.TODO(), selector); err != nil {
-			r.Log.Error(err, "failed to update selector status", "selector", namespacedName)
+	updateStatusFunc := func() error {
+		selector := &crdv1alpha1.CloudEntitySelector{}
+		if err = r.Get(context.TODO(), *namespacedName, selector); err != nil {
+			return nil
 		}
+		if selector.Status.Error != errorMsg {
+			selector.Status.Error = errorMsg
+			r.Log.Info("Setting CES status", "selector", namespacedName, "message", errorMsg)
+			if err = r.Client.Status().Update(context.TODO(), selector); err != nil {
+				r.Log.Error(err, "failed to update CES status, retrying", "selector", namespacedName)
+				return err
+			}
+		}
+		return nil
+	}
+
+	if err := retry.RetryOnConflict(retry.DefaultRetry, updateStatusFunc); err != nil {
+		r.Log.Error(err, "failed to update CES status", "selector", namespacedName)
 	}
 }

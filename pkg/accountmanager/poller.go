@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
@@ -180,12 +181,6 @@ func (p *accountPoller) doAccountPolling() {
 
 // updateAccountStatus updates status of a CPA object when it's changed.
 func (p *accountPoller) updateAccountStatus(cloudInterface common.CloudInterface) {
-	account := &crdv1alpha1.CloudProviderAccount{}
-	err := p.Get(context.TODO(), *p.namespacedName, account)
-	if err != nil {
-		return
-	}
-
 	discoveredStatus := crdv1alpha1.CloudProviderAccountStatus{}
 	status, err := cloudInterface.GetAccountStatus(p.namespacedName)
 	if err != nil {
@@ -194,12 +189,24 @@ func (p *accountPoller) updateAccountStatus(cloudInterface common.CloudInterface
 		discoveredStatus = *status
 	}
 
-	if account.Status != discoveredStatus {
-		account.Status.Error = discoveredStatus.Error
-		p.log.Info("Setting account status", "account", p.namespacedName, "message", discoveredStatus.Error)
-		if err = p.Client.Status().Update(context.TODO(), account); err != nil {
-			p.log.Error(err, "failed to update account status", "account", p.namespacedName)
+	updateStatusFunc := func() error {
+		account := &crdv1alpha1.CloudProviderAccount{}
+		if err := p.Get(context.TODO(), *p.namespacedName, account); err != nil {
+			return nil
 		}
+		if account.Status != discoveredStatus {
+			account.Status.Error = discoveredStatus.Error
+			p.log.Info("Setting CPA status", "account", p.namespacedName, "message", discoveredStatus.Error)
+			if err = p.Client.Status().Update(context.TODO(), account); err != nil {
+				p.log.Error(err, "failed to update CPA status, retrying", "account", p.namespacedName)
+				return err
+			}
+		}
+		return nil
+	}
+
+	if err := retry.RetryOnConflict(retry.DefaultRetry, updateStatusFunc); err != nil {
+		p.log.Error(err, "failed to update CPA status", "account", p.namespacedName)
 	}
 }
 

@@ -174,7 +174,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: VPC Inventory", focusAws, focusAzure), func
 
 		// Verify error is captured in CPA status field.
 		err = verifyCpaStatus(accountParams.Name, true)
-		Expect(err).ToNot(HaveOccurred(), "timeout waiting to retrieve a VPC")
+		Expect(err).ToNot(HaveOccurred(), "timeout waiting to get CPA status")
 
 		By("Update Secret with valid credentials")
 		// Update CPA account.
