@@ -149,6 +149,7 @@ func NewVPCInventoryStore() antreastorage.Interface {
 			vpc := obj.(*runtimev1alpha1.Vpc)
 			return []string{vpc.Namespace + "/" + vpc.Name}, nil
 		},
+
 		indexer.VpcByAccountNamespacedName: func(obj interface{}) ([]string, error) {
 			vpc := obj.(*runtimev1alpha1.Vpc)
 			return []string{vpc.Namespace + "/" + vpc.Labels[nephelabels.CloudAccountName]}, nil

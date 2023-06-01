@@ -47,6 +47,7 @@ type ec2ResourcesCacheSnapshot struct {
 	managedVpcIds map[string]struct{}
 	vpcNameToId   map[string]string
 	vpcPeers      map[string][]string
+	sgs           []*ec2.SecurityGroup
 }
 
 func newEC2ServiceConfig(accountNamespacedName types.NamespacedName, service awsServiceClientCreateInterface,
@@ -68,7 +69,7 @@ func newEC2ServiceConfig(accountNamespacedName types.NamespacedName, service aws
 	}
 
 	vmSnapshot := make(map[types.NamespacedName][]*ec2.Instance)
-	config.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{vmSnapshot, nil, nil, nil, nil})
+	config.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{vmSnapshot, nil, nil, nil, nil, nil})
 	return config, nil
 }
 
@@ -166,6 +167,20 @@ func (ec2Cfg *ec2ServiceConfig) getCachedVpcs() []*ec2.Vpc {
 	return vpcsToReturn
 }
 
+// GetCachedSGs returns VPCs from cached snapshot for the account.
+func (ec2Cfg *ec2ServiceConfig) GetCachedSGs() []*ec2.SecurityGroup {
+	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
+	if snapshot == nil {
+		awsPluginLogger().Info("Cache snapshot nil", "account", ec2Cfg.accountNamespacedName)
+		return []*ec2.SecurityGroup{}
+	}
+	sgs := snapshot.(*ec2ResourcesCacheSnapshot).sgs
+	sgsToReturn := make([]*ec2.SecurityGroup, 0, len(sgs))
+	sgsToReturn = append(sgsToReturn, sgs...)
+
+	return sgsToReturn
+}
+
 // getVpcPeers returns all the peers of a vpc.
 func (ec2Cfg *ec2ServiceConfig) getVpcPeers(vpcId string) []string {
 	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
@@ -227,7 +242,7 @@ func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
 	if len(ec2Cfg.selectors) == 0 {
 		awsPluginLogger().V(1).Info("Fetching vm resources from cloud skipped",
 			"account", ec2Cfg.accountNamespacedName, "resource-filters", "not-configured")
-		ec2Cfg.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{allInstances, vpcs, nil, vpcNameToId, vpcPeers})
+		ec2Cfg.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{allInstances, vpcs, nil, vpcNameToId, vpcPeers, nil})
 		return nil
 	}
 
@@ -243,7 +258,13 @@ func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
 		}
 		allInstances[namespacedName] = instances
 	}
-	ec2Cfg.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{allInstances, vpcs, managedVpcIds, vpcNameToId, vpcPeers})
+
+	sgs, err := ec2Cfg.getSecurityGroupsOfVpc(managedVpcIds)
+	if err != nil {
+		awsPluginLogger().Error(err, "failed to fetch cloud resources", "account", ec2Cfg.accountNamespacedName)
+		return err
+	}
+	ec2Cfg.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{allInstances, vpcs, managedVpcIds, vpcNameToId, vpcPeers, sgs})
 
 	return nil
 }
@@ -371,4 +392,16 @@ func (ec2Cfg *ec2ServiceConfig) GetCloudInventory() *nephetypes.CloudInventory {
 	}
 
 	return &cloudInventory
+}
+
+// GetSecurityGroupInventory generates vpc object for the vpcs stored in snapshot(in cloud format) and return a map of vpc runtime objects.
+func (ec2Cfg *ec2ServiceConfig) GetSecurityGroupInventory() map[string]*runtimev1alpha1.SecurityGroup {
+	sgs := ec2Cfg.GetCachedSGs()
+	sgMap := map[string]*runtimev1alpha1.SecurityGroup{}
+	for _, sg := range sgs {
+		sgObj := ec2SgToInternalSgObject(sg, ec2Cfg.accountNamespacedName.Namespace, ec2Cfg.accountNamespacedName.Name,
+			strings.ToLower(ec2Cfg.credentials.region))
+		sgMap[strings.ToLower(*sg.GroupId)] = sgObj
+	}
+	return sgMap
 }

@@ -78,10 +78,15 @@ func ec2InstanceToInternalVirtualMachineObject(instance *ec2.Instance, vpcs map[
 				ipAddressObjs = append(ipAddressObjs, ipAddress)
 			}
 		}
+		var Sgs []runtimev1alpha1.SG
+		for _, groups := range nwInf.Groups {
+			Sgs = append(Sgs, runtimev1alpha1.SG{Name: *groups.GroupName, Id: *groups.GroupId})
+		}
 		networkInterface := runtimev1alpha1.NetworkInterface{
 			Name: *nwInf.NetworkInterfaceId,
 			MAC:  *nwInf.MacAddress,
 			IPs:  ipAddressObjs,
+			Sgs:  Sgs,
 		}
 		networkInterfaces = append(networkInterfaces, networkInterface)
 	}
@@ -191,4 +196,65 @@ func ec2VpcToInternalVpcObject(vpc *ec2.Vpc, accountNamespace, accountName, regi
 	}
 
 	return vpcObj
+}
+
+// ec2SgToInternalSgObject converts ec2 SG object to SG runtime object.
+func ec2SgToInternalSgObject(sg *ec2.SecurityGroup, accountNamespace, accountName, region string) *runtimev1alpha1.SecurityGroup {
+	status := &runtimev1alpha1.SecurityGroupStatus{
+		CloudName: strings.ToLower(*sg.GroupName),
+		CloudId:   strings.ToLower(*sg.GroupId),
+		Provider:  runtimev1alpha1.AWSCloudProvider,
+		Region:    region,
+	}
+
+	// TODO: Move this to function and add parser for user rules and address group. Also make sure ipv6 address is handled too.
+	for _, ipPermission := range sg.IpPermissions {
+		rule := runtimev1alpha1.Rule{}
+		if len(ipPermission.IpRanges) == 0 {
+			continue
+		}
+		rule.From = *ipPermission.IpRanges[0].CidrIp
+		protocol := convertFromIPPermissionProtocol(*ipPermission.IpProtocol)
+		if protocol != nil {
+			rule.Protocol = *ipPermission.IpProtocol
+		} else {
+			rule.Protocol = "any"
+		}
+		rule.Egress = false
+		rule.Port = convertFromIPPermissionPortToString(ipPermission.FromPort, ipPermission.ToPort)
+		status.Rules = append(status.Rules, rule)
+	}
+
+	for _, ipPermission := range sg.IpPermissionsEgress {
+		rule := runtimev1alpha1.Rule{}
+		if len(ipPermission.IpRanges) == 0 {
+			continue
+		}
+		rule.To = *ipPermission.IpRanges[0].CidrIp
+		protocol := convertFromIPPermissionProtocol(*ipPermission.IpProtocol)
+		if protocol != nil {
+			rule.Protocol = *ipPermission.IpProtocol
+		} else {
+			rule.Protocol = "any"
+		}
+		rule.Egress = true
+		rule.Port = convertFromIPPermissionPortToString(ipPermission.FromPort, ipPermission.ToPort)
+		status.Rules = append(status.Rules, rule)
+	}
+
+	labels := map[string]string{
+		labels.CloudAccountNamespace: accountNamespace,
+		labels.CloudAccountName:      accountName,
+		labels.VpcName:               strings.ToLower(*sg.VpcId),
+	}
+
+	sgObj := &runtimev1alpha1.SecurityGroup{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      *sg.GroupId,
+			Namespace: accountNamespace,
+			Labels:    labels,
+		},
+		Status: *status,
+	}
+	return sgObj
 }

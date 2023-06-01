@@ -64,6 +64,7 @@ type AccountMgmtInterface interface {
 type ComputeInterface interface {
 	// GetCloudInventory gets VPC and VM inventory from plugin snapshot for a given cloud provider account.
 	GetCloudInventory(accountNamespacedName *types.NamespacedName) (*nephetypes.CloudInventory, error)
+	GetSecurityGroups(namespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.SecurityGroup, error)
 }
 
 type SecurityInterface interface {

@@ -24,4 +24,5 @@ const (
 	VirtualMachineByCloudResourceID        = "cloud-resource-id"
 	VirtualMachineByAccountNamespacedName  = "namespaced-cloud-account-name"
 	VirtualMachineBySelectorNamespacedName = "namespaced-cloud-selector-name"
+	SecurityGroupByAccountNamespacedName   = "namespaced-cloud-account-name"
 )

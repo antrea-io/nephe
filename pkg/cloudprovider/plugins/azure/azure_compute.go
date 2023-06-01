@@ -50,6 +50,7 @@ type computeResourcesCacheSnapshot struct {
 	vnets          []armnetwork.VirtualNetwork
 	managedVnetIds map[string]struct{}
 	vnetPeers      map[string][][]string
+	nsg            map[internal.InstanceID]*nsgTable
 }
 
 func newComputeServiceConfig(account types.NamespacedName, service azureServiceClientCreateInterface,
@@ -96,7 +97,7 @@ func newComputeServiceConfig(account types.NamespacedName, service azureServiceC
 	}
 
 	vmSnapshot := make(map[types.NamespacedName][]*virtualMachineTable)
-	config.resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{vmSnapshot, nil, nil, nil})
+	config.resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{vmSnapshot, nil, nil, nil, nil})
 	return config, nil
 }
 
@@ -216,6 +217,7 @@ func (computeCfg *computeServiceConfig) getVirtualMachines(namespacedName *types
 
 func (computeCfg *computeServiceConfig) DoResourceInventory() error {
 	vnets, err := computeCfg.getVpcs()
+	var subscriptions []*string
 	if err != nil {
 		azurePluginLogger().Error(err, "failed to fetch cloud resources", "account", computeCfg.accountNamespacedName)
 		return err
@@ -227,13 +229,14 @@ func (computeCfg *computeServiceConfig) DoResourceInventory() error {
 
 	// Make cloud API calls for fetching vm inventory for each configured CES.
 	if len(computeCfg.selectors) == 0 {
-		computeCfg.resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{allVirtualMachines, vnets, nil, vnetPeers})
+		computeCfg.resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{allVirtualMachines, vnets, nil, vnetPeers, nil})
 		azurePluginLogger().V(1).Info("Fetching vm resources from cloud skipped",
 			"account", computeCfg.accountNamespacedName, "resource-filters", "not-configured")
 		return nil
 	}
 
 	managedVnetIds := make(map[string]struct{})
+	nsgIDToInfoMap := make(map[internal.InstanceID]*nsgTable)
 	for namespacedName := range computeCfg.selectors {
 		virtualMachines, err := computeCfg.getVirtualMachines(&namespacedName)
 		if err != nil {
@@ -244,8 +247,23 @@ func (computeCfg *computeServiceConfig) DoResourceInventory() error {
 			managedVnetIds[*vm.VnetID] = struct{}{}
 		}
 		allVirtualMachines[namespacedName] = virtualMachines
+		nsgFilter, err := getNsgByVnetIDsMatchQuery(managedVnetIds)
+		if err != nil {
+			azurePluginLogger().Error(err, "failed to create nsg Filter", "account", computeCfg.accountNamespacedName)
+			return err
+		}
+		subscriptions = append(subscriptions, &computeCfg.credentials.SubscriptionID)
+		nsgs, _, err := getNsgTable(computeCfg.resourceGraphAPIClient, nsgFilter, subscriptions)
+		for _, nsg := range nsgs {
+			id := internal.InstanceID(strings.ToLower(*nsg.ID))
+			nsgIDToInfoMap[id] = nsg
+		}
+		if err != nil {
+			azurePluginLogger().Error(err, "failed to get nsg from cloud resources", "account", computeCfg.accountNamespacedName)
+			return err
+		}
 	}
-	computeCfg.resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{allVirtualMachines, vnets, managedVnetIds, vnetPeers})
+	computeCfg.resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{allVirtualMachines, vnets, managedVnetIds, vnetPeers, nsgIDToInfoMap})
 	return nil
 }
 
@@ -395,4 +413,8 @@ func (computeCfg *computeServiceConfig) getVpcObjects() map[string]*runtimev1alp
 	}
 
 	return vpcMap
+}
+
+func (computeCfg *computeServiceConfig) GetSecurityGroupInventory() map[string]*runtimev1alpha1.SecurityGroup {
+	return nil
 }

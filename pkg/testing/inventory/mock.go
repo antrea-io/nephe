@@ -54,6 +54,20 @@ func (m *MockInterface) EXPECT() *MockInterfaceMockRecorder {
 	return m.recorder
 }
 
+// BuildSgCache mocks base method.
+func (m *MockInterface) BuildSgCache(arg0 map[string]*v1alpha1.SecurityGroup, arg1 *types.NamespacedName) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BuildSgCache", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// BuildSgCache indicates an expected call of BuildSgCache.
+func (mr *MockInterfaceMockRecorder) BuildSgCache(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildSgCache", reflect.TypeOf((*MockInterface)(nil).BuildSgCache), arg0, arg1)
+}
+
 // BuildVmCache mocks base method.
 func (m *MockInterface) BuildVmCache(arg0 map[string]*v1alpha1.VirtualMachine, arg1, arg2 *types.NamespacedName) {
 	m.ctrl.T.Helper()
@@ -122,6 +136,20 @@ func (mr *MockInterfaceMockRecorder) DeleteVpcsFromCache(arg0 interface{}) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteVpcsFromCache", reflect.TypeOf((*MockInterface)(nil).DeleteVpcsFromCache), arg0)
 }
 
+// GetAllSgs mocks base method.
+func (m *MockInterface) GetAllSgs() []interface{} {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllSgs")
+	ret0, _ := ret[0].([]interface{})
+	return ret0
+}
+
+// GetAllSgs indicates an expected call of GetAllSgs.
+func (mr *MockInterfaceMockRecorder) GetAllSgs() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllSgs", reflect.TypeOf((*MockInterface)(nil).GetAllSgs))
+}
+
 // GetAllVms mocks base method.
 func (m *MockInterface) GetAllVms() []interface{} {
 	m.ctrl.T.Helper()
@@ -148,6 +176,36 @@ func (m *MockInterface) GetAllVpcs() []interface{} {
 func (mr *MockInterfaceMockRecorder) GetAllVpcs() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllVpcs", reflect.TypeOf((*MockInterface)(nil).GetAllVpcs))
+}
+
+// GetSgByKey mocks base method.
+func (m *MockInterface) GetSgByKey(arg0 string) (*v1alpha1.SecurityGroup, bool) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSgByKey", arg0)
+	ret0, _ := ret[0].(*v1alpha1.SecurityGroup)
+	ret1, _ := ret[1].(bool)
+	return ret0, ret1
+}
+
+// GetSgByKey indicates an expected call of GetSgByKey.
+func (mr *MockInterfaceMockRecorder) GetSgByKey(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSgByKey", reflect.TypeOf((*MockInterface)(nil).GetSgByKey), arg0)
+}
+
+// GetSgsFromIndexer mocks base method.
+func (m *MockInterface) GetSgsFromIndexer(arg0, arg1 string) ([]interface{}, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSgsFromIndexer", arg0, arg1)
+	ret0, _ := ret[0].([]interface{})
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSgsFromIndexer indicates an expected call of GetSgsFromIndexer.
+func (mr *MockInterfaceMockRecorder) GetSgsFromIndexer(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSgsFromIndexer", reflect.TypeOf((*MockInterface)(nil).GetSgsFromIndexer), arg0, arg1)
 }
 
 // GetVmByKey mocks base method.

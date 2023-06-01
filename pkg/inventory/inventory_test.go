@@ -280,7 +280,7 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 		})
 		It("Delete VM inventory", func() {
 			cloudInventory.BuildVmCache(vmList, &namespacedAccountName, &selectorNamespacedName)
-
+			
 			vmListByIndex, err := cloudInventory.GetVmFromIndexer(indexer.VirtualMachineBySelectorNamespacedName,
 				selectorNamespacedName.String())
 			Expect(err).ShouldNot(HaveOccurred())

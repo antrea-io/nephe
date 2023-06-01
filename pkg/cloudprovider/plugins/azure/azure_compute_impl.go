@@ -15,6 +15,7 @@
 package azure
 
 import (
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"k8s.io/apimachinery/pkg/types"
 
 	nephetypes "antrea.io/nephe/pkg/types"
@@ -23,4 +24,8 @@ import (
 // GetCloudInventory pulls cloud vpc and vm inventory from internal snapshot.
 func (c *azureCloud) GetCloudInventory(accountNamespacedName *types.NamespacedName) (*nephetypes.CloudInventory, error) {
 	return c.cloudCommon.GetCloudInventory(accountNamespacedName)
+}
+
+func (c *azureCloud) GetSecurityGroups(accountNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.SecurityGroup, error) {
+	return c.cloudCommon.GetSecurityGroups(accountNamespacedName)
 }
