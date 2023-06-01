@@ -27,7 +27,7 @@ import (
 
 var (
 	ErrorMsgUnknownCloudProvider = "missing cloud provider config. Please add AWS or Azure Config"
-	ErrorMsgSecretDoesNotExist   = "error Secret does not exist"
+	ErrorMsgSecretReference      = "error fetching Secret reference"
 )
 
 // GetVMIPAddresses returns IP addresses of all network interfaces attached to the vm.

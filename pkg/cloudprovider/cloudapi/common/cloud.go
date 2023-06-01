@@ -27,6 +27,7 @@ import (
 
 var (
 	RuntimeAPIVersion               = "runtime.cloud.antrea.io/v1alpha1"
+	AccountCredentialsDefault       = "default"
 	VirtualMachineRuntimeObjectKind = reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()
 
 	MaxCloudResourceResponse int64 = 100

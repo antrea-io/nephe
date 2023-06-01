@@ -298,7 +298,7 @@ func (ec2Cfg *ec2ServiceConfig) AddResourceFilters(selector *crdv1alpha1.CloudEn
 		key := selector.GetNamespace() + "/" + selector.GetName()
 		ec2Cfg.instanceFilters[key] = filters
 	} else {
-		return fmt.Errorf("error creating resource query filters for selector: %v", selector)
+		return fmt.Errorf("error creating resource query filters")
 	}
 	return nil
 }

@@ -110,7 +110,7 @@ var _ = Describe("CloudEntitySelector Controller", func() {
 
 		It("CES Add and Delete workflow", func() {
 			mockAccManager.EXPECT().AddResourceFiltersToAccount(&testAccountNamespacedName, &testSelectorNamespacedName,
-				selector).Return(true, nil).Times(1)
+				selector, false).Return(true, nil).Times(1)
 			mockAccManager.EXPECT().RemoveResourceFiltersFromAccount(&testAccountNamespacedName,
 				&testSelectorNamespacedName).Return(nil).Times(1)
 
@@ -119,11 +119,15 @@ var _ = Describe("CloudEntitySelector Controller", func() {
 			err = reconciler.processDelete(&testSelectorNamespacedName)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
-		It("CES Add failure", func() {
+		It("CES Add failure without retry", func() {
 			mockAccManager.EXPECT().AddResourceFiltersToAccount(&testAccountNamespacedName, &testSelectorNamespacedName,
-				selector).Return(false, fmt.Errorf("dummy")).Times(1)
-			mockAccManager.EXPECT().RemoveResourceFiltersFromAccount(&testAccountNamespacedName,
-				&testSelectorNamespacedName).Return(nil).Times(1)
+				selector, false).Return(false, fmt.Errorf("dummy")).Times(1)
+			err := reconciler.processCreateOrUpdate(selector, &testSelectorNamespacedName)
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+		It("CES Add failure with retry", func() {
+			mockAccManager.EXPECT().AddResourceFiltersToAccount(&testAccountNamespacedName, &testSelectorNamespacedName,
+				selector, false).Return(true, fmt.Errorf("dummy")).Times(1)
 			err := reconciler.processCreateOrUpdate(selector, &testSelectorNamespacedName)
 			Expect(err).Should(HaveOccurred())
 		})
@@ -131,7 +135,32 @@ var _ = Describe("CloudEntitySelector Controller", func() {
 			err := reconciler.processDelete(&testSelectorNamespacedName)
 			Expect(err).Should(HaveOccurred())
 		})
-
+		It("CES set status error", func() {
+			testSelectorNamespacedName := types.NamespacedName{Namespace: "namespace01", Name: "selector01"}
+			selector := &crdv1alpha1.CloudEntitySelector{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
+				},
+			}
+			reconciler := &CloudEntitySelectorReconciler{
+				Log:    logf.Log,
+				Client: fakeClient,
+				Scheme: scheme,
+			}
+			_ = fakeClient.Create(context.Background(), selector)
+			By("Set status error")
+			reconciler.updateStatus(&testSelectorNamespacedName, fmt.Errorf("dummy"))
+			temp := &crdv1alpha1.CloudEntitySelector{}
+			err := fakeClient.Get(context.Background(), testSelectorNamespacedName, temp)
+			Expect(err).Should(Not(HaveOccurred()))
+			Expect(temp.Status.Error).Should(Not(BeEmpty()))
+			By("Reset status error")
+			reconciler.updateStatus(&testSelectorNamespacedName, fmt.Errorf(""))
+			err = fakeClient.Get(context.Background(), testSelectorNamespacedName, temp)
+			Expect(err).Should(Not(HaveOccurred()))
+			Expect(temp.Status.Error).Should(BeEmpty())
+		})
 		It("CloudEntitySelector start with no CRs", func() {
 			reconciler := &CloudEntitySelectorReconciler{
 				Log:    logf.Log,

@@ -22,8 +22,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/pkg/accountmanager"
@@ -75,9 +78,14 @@ func (r *CloudEntitySelectorReconciler) Reconcile(ctx context.Context, req ctrl.
 
 func (r *CloudEntitySelectorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.selectorToAccountMap = make(map[types.NamespacedName]types.NamespacedName)
-	if err := ctrl.NewControllerManagedBy(mgr).For(&crdv1alpha1.CloudEntitySelector{}).Complete(r); err != nil {
+	// Using GenerationChangedPredicate to allow CES controller to receive CES updates
+	// for all events except change in status.
+	if err := ctrl.NewControllerManagedBy(mgr).
+		For(&crdv1alpha1.CloudEntitySelector{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		Complete(r); err != nil {
 		return err
 	}
+
 	return mgr.Add(r)
 }
 
@@ -125,13 +133,12 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *crdv1alp
 		Name:      selector.Spec.AccountName,
 	}
 	r.selectorToAccountMap[*selectorNamespacedName] = *accountNamespacedName
-	if ok, err := r.AccManager.AddResourceFiltersToAccount(accountNamespacedName, selectorNamespacedName,
-		selector); err != nil {
-		if !ok {
-			_ = r.processDelete(selectorNamespacedName)
-		}
+	retry, err := r.AccManager.AddResourceFiltersToAccount(accountNamespacedName, selectorNamespacedName,
+		selector, false)
+	if err != nil && retry {
 		return err
 	}
+	r.updateStatus(selectorNamespacedName, err)
 	return nil
 }
 
@@ -144,4 +151,32 @@ func (r *CloudEntitySelectorReconciler) processDelete(selectorNamespacedName *ty
 	delete(r.selectorToAccountMap, *selectorNamespacedName)
 	_ = r.AccManager.RemoveResourceFiltersFromAccount(&accountNamespacedName, selectorNamespacedName)
 	return nil
+}
+
+// updateStatus updates the status on the CloudEntitySelector CR.
+func (r *CloudEntitySelectorReconciler) updateStatus(namespacedName *types.NamespacedName, err error) {
+	var errorMsg string
+	if err != nil {
+		errorMsg = err.Error()
+	}
+
+	updateStatusFunc := func() error {
+		selector := &crdv1alpha1.CloudEntitySelector{}
+		if err = r.Get(context.TODO(), *namespacedName, selector); err != nil {
+			return nil
+		}
+		if selector.Status.Error != errorMsg {
+			selector.Status.Error = errorMsg
+			r.Log.Info("Setting CES status", "selector", namespacedName, "message", errorMsg)
+			if err = r.Client.Status().Update(context.TODO(), selector); err != nil {
+				r.Log.Error(err, "failed to update CES status, retrying", "selector", namespacedName)
+				return err
+			}
+		}
+		return nil
+	}
+
+	if err := retry.RetryOnConflict(retry.DefaultRetry, updateStatusFunc); err != nil {
+		r.Log.Error(err, "failed to update CES status", "selector", namespacedName)
+	}
 }

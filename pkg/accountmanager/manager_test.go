@@ -125,20 +125,20 @@ var _ = Describe("Account Manager", func() {
 		})
 		It("Add/Remove Account", func() {
 			// Secret is not created.
-			err := accountManager.AddAccount(&testAccountNamespacedName, accountCloudType, account)
+			_, err := accountManager.AddAccount(&testAccountNamespacedName, accountCloudType, account)
 			Expect(err).Should(HaveOccurred())
 
 			// Invalid account cloud type.
-			err = accountManager.AddAccount(&testAccountNamespacedName, "", account)
+			_, err = accountManager.AddAccount(&testAccountNamespacedName, "", account)
 			Expect(err).Should(HaveOccurred())
 
 			// Valid add account.
 			_ = fakeClient.Create(context.Background(), secret)
-			err = accountManager.AddAccount(&testAccountNamespacedName, accountCloudType, account)
+			_, err = accountManager.AddAccount(&testAccountNamespacedName, accountCloudType, account)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Verify whether the poller is restarted.
-			err = accountManager.AddAccount(&testAccountNamespacedName, accountCloudType, account)
+			_, err = accountManager.AddAccount(&testAccountNamespacedName, accountCloudType, account)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Delete the account.
@@ -148,8 +148,8 @@ var _ = Describe("Account Manager", func() {
 		})
 		It("Add/Remove Account Poller", func() {
 			// Add account poller.
-			cloudProviderType := accountManager.addAccountProviderType(&testAccountNamespacedName, accountCloudType)
-			cloudInterface, err := cloudprovider.GetCloudInterface(cloudProviderType)
+			config := accountManager.addAccountConfig(&testAccountNamespacedName, accountCloudType)
+			cloudInterface, err := cloudprovider.GetCloudInterface(config.providerType)
 			Expect(err).ShouldNot(HaveOccurred())
 			_, exists := accountManager.addAccountPoller(cloudInterface, &testAccountNamespacedName, account)
 			Expect(exists).To(Equal(false))
@@ -169,34 +169,34 @@ var _ = Describe("Account Manager", func() {
 		It("Add Resource Filters to Account ", func() {
 			// Account is not added so throws error.
 			_, err := accountManager.AddResourceFiltersToAccount(&testAccountNamespacedName, &testCesNamespacedName,
-				ces)
+				ces, false)
 			Expect(err).Should(HaveOccurred())
 
 			// Invalid account namespaced name.
 			_, err = accountManager.AddResourceFiltersToAccount(&testSecretNamespacedName, &testCesNamespacedName,
-				ces)
+				ces, false)
 			Expect(err).Should(HaveOccurred())
 
 			// Invalid selector.
 			_, err = accountManager.AddResourceFiltersToAccount(&testAccountNamespacedName, &testCesNamespacedName,
-				nil)
+				nil, false)
 			Expect(err).Should(HaveOccurred())
 
 			// Add a resource filters to account.
 			_ = fakeClient.Create(context.Background(), secret)
-			err = accountManager.AddAccount(&testAccountNamespacedName, accountCloudType, account)
+			_, err = accountManager.AddAccount(&testAccountNamespacedName, accountCloudType, account)
 			Expect(err).ShouldNot(HaveOccurred())
 			_, err = accountManager.AddResourceFiltersToAccount(&testAccountNamespacedName, &testCesNamespacedName,
-				ces)
+				ces, false)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 		It("Remove Resource Filters from Account", func() {
 			// Add a resource filters to account.
 			_ = fakeClient.Create(context.Background(), secret)
-			err := accountManager.AddAccount(&testAccountNamespacedName, accountCloudType, account)
+			_, err := accountManager.AddAccount(&testAccountNamespacedName, accountCloudType, account)
 			Expect(err).ShouldNot(HaveOccurred())
 			_, err = accountManager.AddResourceFiltersToAccount(&testAccountNamespacedName, &testCesNamespacedName,
-				ces)
+				ces, false)
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// Remove resource filters from account.
@@ -213,5 +213,38 @@ var _ = Describe("Account Manager", func() {
 			err = accountManager.RemoveResourceFiltersFromAccount(&testAccountNamespacedName, &testCesNamespacedName)
 			Expect(err).Should(HaveOccurred())
 		})
+		It("Add/Remove Account config", func() {
+			config := accountManager.getAccountConfig(&testAccountNamespacedName)
+			Expect(config).Should(BeNil())
+			By("Add account config")
+			config = accountManager.addAccountConfig(&testAccountNamespacedName, accountCloudType)
+			Expect(config).ShouldNot(BeNil())
+			By("Remove account config")
+			accountManager.removeAccountConfig(&testAccountNamespacedName)
+			config = accountManager.getAccountConfig(&testAccountNamespacedName)
+			Expect(config).Should(BeNil())
+		})
+		It("Add/Remove Selector config", func() {
+			config := accountManager.getAccountConfig(&testAccountNamespacedName)
+			Expect(config).Should(BeNil())
+			By("Add account config")
+			config = accountManager.addAccountConfig(&testAccountNamespacedName, accountCloudType)
+			Expect(config).ShouldNot(BeNil())
+			By("Add selector config")
+			err := accountManager.addSelectorToAccountConfig(&testAccountNamespacedName, &testCesNamespacedName, ces)
+			Expect(err).ShouldNot(HaveOccurred())
+			filterConfig := accountManager.getSelectorFromAccountConfig(&testAccountNamespacedName, &testCesNamespacedName)
+			Expect(filterConfig).ShouldNot(BeNil())
+
+			By("Remove selector config")
+			accountManager.removeSelectorFromAccountConfig(&testAccountNamespacedName, &testCesNamespacedName)
+			filterConfig = accountManager.getSelectorFromAccountConfig(&testAccountNamespacedName, &testCesNamespacedName)
+			Expect(filterConfig).Should(BeNil())
+			By("Remove account config")
+			accountManager.removeAccountConfig(&testAccountNamespacedName)
+			filterConfig = accountManager.getSelectorFromAccountConfig(&testAccountNamespacedName, &testCesNamespacedName)
+			Expect(filterConfig).Should(BeNil())
+		})
+
 	})
 })
