@@ -4,7 +4,6 @@ metadata:
   annotations:
     cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/serving-cert
     controller-gen.kubebuilder.io/version: v0.8.0
-    helm.sh/resource-policy: keep
   name: cloudentityselectors.crd.cloud.antrea.io
 spec:
   conversion:
@@ -121,6 +120,8 @@ spec:
         type: object
     served: true
     storage: true
+    subresources:
+      status: {}
 status:
   acceptedNames:
     kind: ""
