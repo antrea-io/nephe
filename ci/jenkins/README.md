@@ -80,3 +80,9 @@ cloud will be automatically updated with the new changes.
 - `nephe-test-e2e-azure-for-pull-request`: Run end-to-end Azure tests on a Kind cluster with Azure VMs
 - `nephe-test-e2e-eks-for-pull-request`: Run end-to-end AWS tests on EKS cluster with AWS VMs
 - `nephe-test-e2e-aks-for-pull-request`: Run end-to-end Azure tests on AKS cluster with Azure VMs
+- `nephe-test-e2e-aws-upgrade-for-pull-request`: Run end-to-end AWS upgrade tests on a Kind cluster with AWS VMs
+- `nephe-test-e2e-azure-upgrade-for-pull-request`: Run end-to-end Azure upgrade tests on a Kind cluster with Azure VMs
+- `nephe-test-e2e-with-agent-eks-for-pull-request`: Run end-to-end AWS tests on EKS cluster with AWS VMs with Linux agent installed.
+- `nephe-test-e2e-with-agent-aks--for-pull-request`: Run end-to-end Azure tests on AKS cluster with Azure VMs with Linux agent installed.
+- `nephe-test-e2e-with-windows-eks-for-pull-request`: Run end-to-end AWS tests on EKS cluster with AWS VMs with Windows agent installed.
+- `nephe-test-e2e-with-windows-aks-for-pull-request`: Run end-to-end Azure tests on AKS cluster with Azure VMs with Windows agent installed.

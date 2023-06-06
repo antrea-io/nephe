@@ -117,6 +117,15 @@ case $key in
     dockerPassword="$2"
     shift 2
     ;;
+    -h|--help)
+    print_usage
+    exit 0
+    ;;
+    *)    # unknown option
+    echoerr "Unknown option $1"
+    print_help
+    exit 1
+    ;;
 esac
 done
 
@@ -246,4 +255,4 @@ case $testType in
     ssh -i id_rsa ubuntu@${ip_addr} "cd ~/nephe; ./ci/jenkins/scripts/test-azure.sh --azure-subscription-id ${AZURE_SUBSCRIPTION_ID} --azure-app-id ${AZURE_APP_ID} \
                                                    --azure-tenant-id ${AZURE_TENANT_ID} --azure-secret ${AZURE_PASSWORD} --owner ${owner} --upgrade"
     ;;
- esac
+esac

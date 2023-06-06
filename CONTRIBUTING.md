@@ -76,10 +76,18 @@ Here are the trigger phrases for individual checks:
 - `/nephe-test-e2e-azure`: Run end-to-end Azure tests on a Kind cluster with Azure VMs
 - `/nephe-test-e2e-eks`: Run end-to-end AWS tests on EKS cluster with AWS VMs
 - `/nephe-test-e2e-aks`: Run end-to-end Azure tests on AKS cluster with Azure VMs
+- `/nephe-test-e2e-aws-upgrade`: Run end-to-end AWS upgrade tests on a Kind cluster with AWS VMs
+- `/nephe-test-e2e-azure-upgrade`: Run end-to-end Azure upgrade tests on a Kind cluster with Azure VMs
+- `/nephe-test-e2e-eks-linux-agent`: Run end-to-end AWS tests on EKS cluster with AWS VMs with Linux agent installed
+- `/nephe-test-e2e-aks-linux-agent`: Run end-to-end Azure tests on AKS cluster with Azure VMs with Linux agent installed
+- `/nephe-test-e2e-eks-windows-agent`: Run end-to-end AWS tests on EKS cluster with AWS VMs with Windows agent installed
+- `/nephe-test-e2e-aks-windows-agent`: Run end-to-end Azure tests on AKS cluster with Azure VMs with Windows agent installed
 
 Here are the trigger phrases for groups of checks:
 
-- `/nephe-test-e2e-kind`: Run end-to-end tests on a Kind cluster.
+- `/nephe-test-e2e-agentless`: Run all the end-to-end tests on a kind cluster.
+- `/nephe-test-e2e-agentless-upgrade`: Run all the end-to-end upgrade tests on a kind cluster.
+- `/nephe-test-e2e-agented`: Run all the end-to-end tests on AKS and EKS cluster with VM agent installed.
 - `/nephe-test-e2e-all`: Runs all the end-to-end tests.
 
 For more information about the tests we run as part of CI, please refer to
