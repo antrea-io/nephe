@@ -585,12 +585,6 @@ func convertFromAzureIngressSecurityRuleToCloudRule(rule armnetwork.SecurityRule
 		return nil, err
 	}
 
-	// special handling for Azure any rule, where both srcIP and securityGroups will be empty.
-	if len(srcIP) == 0 && len(securityGroups) == 0 {
-		_, ipNet, _ := net.ParseCIDR("0.0.0.0/0")
-		srcIP = append(srcIP, ipNet)
-	}
-
 	for _, ip := range srcIP {
 		ingressRule := securitygroup.CloudRule{
 			Rule: &securitygroup.IngressRule{
@@ -636,12 +630,6 @@ func convertFromAzureEgressSecurityRuleToCloudRule(rule armnetwork.SecurityRule,
 	protoNum, err := convertFromAzureProtocolToNepheControllerProtocol(rule.Properties.Protocol)
 	if err != nil {
 		return nil, err
-	}
-
-	// special handling for Azure any rule, where both dstIP and securityGroups will be empty.
-	if len(dstIP) == 0 && len(securityGroups) == 0 {
-		_, ipNet, _ := net.ParseCIDR("0.0.0.0/0")
-		dstIP = append(dstIP, ipNet)
 	}
 
 	for _, ip := range dstIP {
