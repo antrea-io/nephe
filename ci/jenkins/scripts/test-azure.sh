@@ -30,7 +30,8 @@ Setup and Run integration tests on Kind cluster with Azure VMs.
         [--azure-tenant-id <TenantID>]              Azure Service Principal Tenant ID.
         [--azure-secret <Secret>]                   Azure Service Principal Secret.
         [--azure-location <Location>]               The Azure location where the setup will be deployed. Defaults to West US 2.
-        [--owner <OwnerName>]                       Setup will be prefixed with owner name."
+        [--owner <OwnerName>]                       Setup will be prefixed with owner name.
+        [--upgrade]                                 Run upgrade test."
 
 function print_usage {
     echoerr "$_usage"
@@ -43,6 +44,7 @@ function print_help {
 # Defaults
 export TF_VAR_owner="ci"
 export TF_VAR_location="West US 2"
+export UPGRADE=false
 
 while [[ $# -gt 0 ]]
 do
@@ -72,6 +74,10 @@ case $key in
     --owner)
     export TF_VAR_owner="$2"
     shift 2
+    ;;
+    --upgrade)
+    export UPGRADE=true
+    shift 1
     ;;
     -h|--help)
     print_usage
@@ -107,7 +113,11 @@ echo "Creating Kind cluster"
 hack/install-cloud-tools.sh
 ci/kind/kind-setup.sh create kind
 
-echo $TF_VAR_azure_client_subscription_id $TF_VAR_azure_client_id $TF_VAR_azure_client_tenant_id $TF_VAR_azure_client_secret
-
-mkdir -p $HOME/logs
-ci/bin/integration.test -ginkgo.v -ginkgo.timeout 90m -ginkgo.focus=".*test-azure.*" -kubeconfig=$HOME/.kube/config -cloud-provider=Azure -support-bundle-dir=$HOME/logs
+mkdir -p "$HOME"/logs
+if [ "$UPGRADE" = true ] ; then
+    ci/bin/upgrade.test -ginkgo.v -ginkgo.timeout 90m -ginkgo.focus=".*test-azure.*" -kubeconfig="$HOME"/.kube/config \
+    -from-version=0.5.0 -to-version="latest" -chart-dir="build/charts/nephe" -cloud-provider=Azure -support-bundle-dir="$HOME"/logs
+else
+    ci/bin/integration.test -ginkgo.v -ginkgo.timeout 90m -ginkgo.focus=".*test-azure.*" -kubeconfig="$HOME"/.kube/config \
+    -cloud-provider=Azure -support-bundle-dir="$HOME"/logs
+fi

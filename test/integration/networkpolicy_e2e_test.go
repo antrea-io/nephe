@@ -36,12 +36,6 @@ import (
 	"antrea.io/nephe/test/utils"
 )
 
-var (
-	configANPApplyTo func(kind, instanceName, vpc, tagKey, tagVal string) *k8stemplates.EntitySelectorParameters
-	configANPToFrom  func(kind, instanceName, vpc, tagKey, tagVal, ipBlock, nsName string, ports []string,
-		denyAll bool) *k8stemplates.ToFromParameters
-)
-
 var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws, focusCloud), func() {
 	const (
 		apachePort = "8080"
@@ -115,60 +109,6 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	configANPApplyTo = func(kind, instanceName, vpc, tagKey, tagVal string) *k8stemplates.EntitySelectorParameters {
-		ret := &k8stemplates.EntitySelectorParameters{}
-		if len(kind) > 0 {
-			ret.Kind = labels.ExternalEntityLabelKeyKind + ": " + strings.ToLower(kind)
-		}
-		if len(vpc) > 0 {
-			ret.VPC = labels.ExternalEntityLabelKeyOwnerVmVpc + ": " + strings.ToLower(vpc)
-		}
-		if len(instanceName) > 0 {
-			ret.CloudInstanceName = labels.ExternalEntityLabelKeyOwnerVm + ": " + strings.ToLower(instanceName)
-		}
-		if len(tagKey) > 0 {
-			tagKey = labels.LabelPrefixNephe + labels.ExternalEntityLabelKeyTagPrefix + tagKey
-			ret.Tags = map[string]string{tagKey: tagVal}
-		}
-		return ret
-	}
-
-	configANPToFrom = func(kind, instanceName, vpc, tagKey, tagVal, ipBlock, nsName string, ports []string,
-		denyAll bool) *k8stemplates.ToFromParameters {
-		ret := &k8stemplates.ToFromParameters{
-			DenyAll: denyAll,
-		}
-		if len(ipBlock) > 0 {
-			ret.IPBlock = ipBlock
-		}
-		if len(kind) > 0 {
-			ret.Entity = &k8stemplates.EntitySelectorParameters{
-				Kind: labels.ExternalEntityLabelKeyKind + ": " + strings.ToLower(kind),
-			}
-			if len(vpc) > 0 {
-				ret.Entity.VPC = labels.ExternalEntityLabelKeyOwnerVmVpc + ": " + strings.ToLower(vpc)
-			}
-			if len(instanceName) > 0 {
-				ret.Entity.CloudInstanceName = labels.ExternalEntityLabelKeyOwnerVm + ": " + strings.ToLower(instanceName)
-			}
-			if len(tagKey) > 0 {
-				tagKey = labels.LabelPrefixNephe + labels.ExternalEntityLabelKeyTagPrefix + tagKey
-				ret.Entity.Tags = map[string]string{tagKey: tagVal}
-			}
-		}
-
-		for _, p := range ports {
-			ret.Ports = append(ret.Ports, &k8stemplates.PortParameters{Protocol: string(v1.ProtocolTCP), Port: p})
-		}
-
-		if len(nsName) > 0 && nsName != namespace.Name {
-			ret.Namespace = &k8stemplates.NamespaceParameters{
-				Labels: map[string]string{"name": nsName},
-			}
-		}
-		return ret
-	}
-
 	setup := func(kind string, num int, allowedPorts []string, denyEgress bool) {
 		namespace = &v1.Namespace{}
 		if withAgent {
@@ -225,13 +165,13 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			Namespace: namespace.Name,
 		}
 		vmKind := reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()
-		anpSetupParams.AppliedTo = configANPApplyTo(vmKind, "", "", "", "")
-		anpSetupParams.From = configANPToFrom("", "", "", "", "",
+		anpSetupParams.AppliedTo = utils.ConfigANPApplyTo(vmKind, "", "", "", "")
+		anpSetupParams.From = utils.ConfigANPToFrom("", "", "", "", "",
 			"0.0.0.0/0", "", allowedPorts, false)
 		if denyEgress {
-			anpSetupParams.To = configANPToFrom("", "", "", "", "", "", "", nil, denyEgress)
+			anpSetupParams.To = utils.ConfigANPToFrom("", "", "", "", "", "", "", nil, denyEgress)
 		} else {
-			anpSetupParams.To = configANPToFrom("", "", "", "", "", "0.0.0.0/0", "", nil, false)
+			anpSetupParams.To = utils.ConfigANPToFrom("", "", "", "", "", "0.0.0.0/0", "", nil, false)
 
 		}
 		err := utils.ConfigureK8s(kubeCtl, anpSetupParams, k8stemplates.CloudAntreaNetworkPolicy, false)
@@ -382,20 +322,20 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		dstNsName := namespace.Name
 
 		appliedIdx := len(ids) - 1
-		anpParams.From = configANPToFrom(kind, "", "", "", "", "", dstNsName, []string{apachePort}, false)
+		anpParams.From = utils.ConfigANPToFrom(kind, "", "", "", "", "", dstNsName, []string{apachePort}, false)
 
 		By(fmt.Sprintf("Applied NetworkPolicy to %v by kind label selector", kind))
 		applied := make([]bool, len(ids))
 		for i := range applied {
 			applied[i] = true
 		}
-		anpParams.AppliedTo = configANPApplyTo(kind, "", "", "", "")
+		anpParams.AppliedTo = utils.ConfigANPApplyTo(kind, "", "", "", "")
 		verifyAppliedTo(kind, ids, ips, srcVM, srcIP, applied)
 
 		By(fmt.Sprintf("Applied NetworkPolicy to %v by name label selector", kind))
 		applied = make([]bool, len(ids))
 		applied[appliedIdx] = true
-		anpParams.AppliedTo = configANPApplyTo(kind, ids[appliedIdx], "", "", "")
+		anpParams.AppliedTo = utils.ConfigANPApplyTo(kind, ids[appliedIdx], "", "", "")
 		verifyAppliedTo(kind, ids, ips, srcVM, srcIP, applied)
 
 		if abbreviated {
@@ -406,7 +346,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		for i := range applied {
 			applied[i] = true
 		}
-		anpParams.AppliedTo = configANPApplyTo(kind, "", cloudVPC.GetCRDVPCID(), "", "")
+		anpParams.AppliedTo = utils.ConfigANPApplyTo(kind, "", cloudVPC.GetCRDVPCID(), "", "")
 		verifyAppliedTo(kind, ids, ips, srcVM, srcIP, applied)
 
 		By(fmt.Sprintf("Applied NetworkPolicy to %v by tag label selector", kind))
@@ -414,7 +354,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		applied[appliedIdx] = true
 		key := "Name"
 		if value, found := cloudVPC.GetTags()[appliedIdx][key]; found {
-			anpParams.AppliedTo = configANPApplyTo(kind, "", "", key, value)
+			anpParams.AppliedTo = utils.ConfigANPApplyTo(kind, "", "", key, value)
 			verifyAppliedTo(kind, ids, ips, srcVM, srcIP, applied)
 		}
 
@@ -448,7 +388,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		err := utils.ConfigureK8s(kubeCtl, groupParameters, k8stemplates.CloudAntreaGroup, false)
 		Expect(err).ToNot(HaveOccurred())
 
-		anpParams.From = configANPToFrom(kind, "", "", "", "", "", nsName, []string{apachePort}, false)
+		anpParams.From = utils.ConfigANPToFrom(kind, "", "", "", "", "", nsName, []string{apachePort}, false)
 		if rule {
 			anpParams.RuleAppliedToGroup = &groupParameters
 		} else {
@@ -489,21 +429,21 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 
 		appliedIdx := len(ids) - 1
 		srcVM := cloudVPC.GetVMs()[appliedIdx]
-		anpParams.AppliedTo = configANPApplyTo(kind, ids[appliedIdx], "", "", "")
+		anpParams.AppliedTo = utils.ConfigANPApplyTo(kind, ids[appliedIdx], "", "", "")
 
 		By(fmt.Sprintf("Egress NetworkPolicy on %v by kind label selector", kind))
 		oks := make([]bool, len(ids)-1)
 		for i := range oks {
 			oks[i] = true
 		}
-		anpParams.To = configANPToFrom(kind, "", "", "", "", "", dstNsName,
+		anpParams.To = utils.ConfigANPToFrom(kind, "", "", "", "", "", dstNsName,
 			[]string{apachePort}, false)
 		verifyEgress(kind, ids[appliedIdx], srcVM, ips[:len(ips)-1], oks)
 
 		By(fmt.Sprintf("Egress NetworkPolicy on %v by name label selector", kind))
 		oks = make([]bool, len(ids)-1)
 		oks[0] = true
-		anpParams.To = configANPToFrom(kind, ids[0], "", "", "", "", dstNsName,
+		anpParams.To = utils.ConfigANPToFrom(kind, ids[0], "", "", "", "", dstNsName,
 			[]string{apachePort}, false)
 		verifyEgress(kind, ids[appliedIdx], srcVM, ips[:len(ips)-1], oks)
 
@@ -515,7 +455,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		for i := range oks {
 			oks[i] = true
 		}
-		anpParams.To = configANPToFrom(kind, "", cloudVPC.GetCRDVPCID(), "", "", "", dstNsName,
+		anpParams.To = utils.ConfigANPToFrom(kind, "", cloudVPC.GetCRDVPCID(), "", "", "", dstNsName,
 			[]string{apachePort}, false)
 		verifyEgress(kind, ids[appliedIdx], srcVM, ips[:len(ips)-1], oks)
 
@@ -524,7 +464,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		oks[0] = true
 		key := "Name"
 		if value, found := cloudVPC.GetTags()[0][key]; found {
-			anpParams.To = configANPToFrom(kind, "", "", key, value, "", dstNsName,
+			anpParams.To = utils.ConfigANPToFrom(kind, "", "", key, value, "", dstNsName,
 				[]string{apachePort}, false)
 			verifyEgress(kind, ids[appliedIdx], srcVM, ips[:len(ips)-1], oks)
 		}
@@ -532,7 +472,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		By(fmt.Sprintf("Egress NetworkPolicy on %v by IPBlock", kind))
 		oks = make([]bool, len(ids)-1)
 		oks[1] = true
-		anpParams.To = configANPToFrom("", "", "", "", "", ips[1]+"/32", dstNsName,
+		anpParams.To = utils.ConfigANPToFrom("", "", "", "", "", ips[1]+"/32", dstNsName,
 			[]string{apachePort}, false)
 		verifyEgress(kind, ids[appliedIdx], srcVM, ips[:len(ips)-1], oks)
 	}
@@ -552,21 +492,21 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 
 		appliedIdx := len(ids) - 1
 		srcVMs := cloudVPC.GetVMs()[:appliedIdx]
-		anpParams.AppliedTo = configANPApplyTo(kind, ids[appliedIdx], "", "", "")
+		anpParams.AppliedTo = utils.ConfigANPApplyTo(kind, ids[appliedIdx], "", "", "")
 
 		By(fmt.Sprintf("Ingress NetworkPolicy on %v by kind label selector", kind))
 		oks := make([]bool, len(ids)-1)
 		for i := range oks {
 			oks[i] = true
 		}
-		anpParams.From = configANPToFrom(kind, "", "", "", "", "", dstNsName,
+		anpParams.From = utils.ConfigANPToFrom(kind, "", "", "", "", "", dstNsName,
 			[]string{apachePort}, false)
 		verifyIngress(kind, ids[appliedIdx], ips[appliedIdx], srcVMs, oks, false)
 
 		By(fmt.Sprintf("Ingress NetworkPolicy on %v by name label selector", kind))
 		oks = make([]bool, len(ids)-1)
 		oks[0] = true
-		anpParams.From = configANPToFrom(kind, ids[0], "", "", "", "", dstNsName,
+		anpParams.From = utils.ConfigANPToFrom(kind, ids[0], "", "", "", "", dstNsName,
 			[]string{apachePort}, false)
 		verifyIngress(kind, ids[appliedIdx], ips[appliedIdx], srcVMs, oks, false)
 
@@ -578,7 +518,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		for i := range oks {
 			oks[i] = true
 		}
-		anpParams.From = configANPToFrom(kind, "", cloudVPC.GetCRDVPCID(), "", "", "",
+		anpParams.From = utils.ConfigANPToFrom(kind, "", cloudVPC.GetCRDVPCID(), "", "", "",
 			dstNsName, []string{apachePort}, false)
 		verifyIngress(kind, ids[appliedIdx], ips[appliedIdx], srcVMs, oks, false)
 
@@ -587,7 +527,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		oks[0] = true
 		key := "Name"
 		if value, found := cloudVPC.GetTags()[0][key]; found {
-			anpParams.From = configANPToFrom(kind, "", "", key, value, "", dstNsName,
+			anpParams.From = utils.ConfigANPToFrom(kind, "", "", key, value, "", dstNsName,
 				[]string{apachePort}, false)
 			verifyIngress(kind, ids[appliedIdx], ips[appliedIdx], srcVMs, oks, false)
 		}
@@ -595,7 +535,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		By(fmt.Sprintf("Ingress NetworkPolicy on %v by IPBlock", kind))
 		oks = make([]bool, len(ids)-1)
 		oks[1] = true
-		anpParams.From = configANPToFrom("", "", "", "", "", ips[1]+"/32", dstNsName,
+		anpParams.From = utils.ConfigANPToFrom("", "", "", "", "", ips[1]+"/32", dstNsName,
 			[]string{apachePort}, false)
 		verifyIngress(kind, ids[appliedIdx], ips[appliedIdx], srcVMs, oks, false)
 	}
@@ -613,7 +553,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 
 		appliedIdx := len(ids) - 1
 		srcVMs := cloudVPC.GetVMs()[:appliedIdx]
-		anpParams.AppliedTo = configANPApplyTo(kind, ids[appliedIdx], "", "", "")
+		anpParams.AppliedTo = utils.ConfigANPApplyTo(kind, ids[appliedIdx], "", "", "")
 
 		By("Ingress AllowAll NetworkPolicy")
 		oks := make([]bool, len(ids)-1)
@@ -621,7 +561,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			oks[i] = true
 		}
 		// wildcard ipblock and port.
-		anpParams.From = configANPToFrom("", "", "", "", "", "", namespace.Name,
+		anpParams.From = utils.ConfigANPToFrom("", "", "", "", "", "", namespace.Name,
 			[]string{}, false)
 		verifyIngress(kind, ids[appliedIdx], ips[appliedIdx], srcVMs, oks, false)
 	}
@@ -718,10 +658,10 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		By("New NetworkPolicy")
 		replicas, err = utils.StopDeployment(k8sClient, "nephe-controller", "nephe-system", time.Second*120)
 		Expect(err).NotTo(HaveOccurred())
-		anpParams.AppliedTo = configANPApplyTo(kind, ids[appliedIdx], "", "", "")
+		anpParams.AppliedTo = utils.ConfigANPApplyTo(kind, ids[appliedIdx], "", "", "")
 		oks := make([]bool, len(ids)-1)
 		oks[0] = true
-		anpParams.From = configANPToFrom(kind, ids[0], "", "", "", "", namespace.Name,
+		anpParams.From = utils.ConfigANPToFrom(kind, ids[0], "", "", "", "", namespace.Name,
 			[]string{apachePort}, false)
 		err = utils.ConfigureK8s(kubeCtl, anpParams, k8stemplates.CloudAntreaNetworkPolicy, false)
 		Expect(err).ToNot(HaveOccurred())
@@ -739,7 +679,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		for i := range oks {
 			oks[i] = true
 		}
-		anpParams.From = configANPToFrom(kind, "", "", "", "", "", namespace.Name,
+		anpParams.From = utils.ConfigANPToFrom(kind, "", "", "", "", "", namespace.Name,
 			[]string{apachePort}, false)
 		err = utils.ConfigureK8s(kubeCtl, anpParams, k8stemplates.CloudAntreaNetworkPolicy, false)
 		Expect(err).ToNot(HaveOccurred())
@@ -780,11 +720,11 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		oks := make([]bool, len(ids)-1)
 		var err error
 		By(fmt.Sprintf("Ingress NetworkPolicy on %v by kind label selector while restarting Antrea controller", kind))
-		anpParams.AppliedTo = configANPApplyTo(kind, ids[appliedIdx], "", "", "")
+		anpParams.AppliedTo = utils.ConfigANPApplyTo(kind, ids[appliedIdx], "", "", "")
 		for i := range oks {
 			oks[i] = true
 		}
-		anpParams.From = configANPToFrom(kind, "", "", "", "", "", namespace.Name,
+		anpParams.From = utils.ConfigANPToFrom(kind, "", "", "", "", "", namespace.Name,
 			[]string{apachePort}, false)
 		verifyIngress(kind, ids[appliedIdx], ips[appliedIdx], srcVMs, oks, false)
 		err = utils.RestartOrWaitDeployment(k8sClient, "antrea-controller", "kube-system", time.Second*200, true)
@@ -793,10 +733,10 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		verifyIngress(kind, ids[appliedIdx], ips[appliedIdx], srcVMs, oks, true)
 
 		By(fmt.Sprintf("Ingress NetworkPolicy on %v by name label selector while restarting Nephe controller", kind))
-		anpParams.AppliedTo = configANPApplyTo(kind, ids[appliedIdx], "", "", "")
+		anpParams.AppliedTo = utils.ConfigANPApplyTo(kind, ids[appliedIdx], "", "", "")
 		oks = make([]bool, len(ids)-1)
 		oks[0] = true
-		anpParams.From = configANPToFrom(kind, ids[0], "", "", "", "", namespace.Name,
+		anpParams.From = utils.ConfigANPToFrom(kind, ids[0], "", "", "", "", namespace.Name,
 			[]string{apachePort}, false)
 		verifyIngress(kind, ids[appliedIdx], ips[appliedIdx], srcVMs, oks, false)
 		By("Restarting controllers now...")
@@ -811,8 +751,8 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		ids := cloudVPC.GetVMIDs()
 		kind := reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()
 		setup(kind, len(ids), []string{"22"}, false)
-		anpParams.AppliedTo = configANPApplyTo(kind, "", cloudVPC.GetCRDVPCID(), "", "")
-		anpParams.From = configANPToFrom(kind, "", "", "", "", "", namespace.Name,
+		anpParams.AppliedTo = utils.ConfigANPApplyTo(kind, "", cloudVPC.GetCRDVPCID(), "", "")
+		anpParams.From = utils.ConfigANPToFrom(kind, "", "", "", "", "", namespace.Name,
 			[]string{apachePort}, false)
 		err := utils.ConfigureK8s(kubeCtl, anpParams, k8stemplates.CloudAntreaNetworkPolicy, false)
 		Expect(err).ToNot(HaveOccurred())

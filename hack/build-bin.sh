@@ -19,3 +19,5 @@ echo "GOBIN=$(pwd)/bin CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go i
 GOBIN=$(pwd)/bin CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go install -ldflags="-s -w" antrea.io/nephe/cmd/...
 echo "CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go test -c antrea.io/nephe/test/integration/ -ldflags="-s -w" -o ./ci/bin/integration.test"
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go test -c antrea.io/nephe/test/integration/ -ldflags="-s -w" -o ./ci/bin/integration.test
+echo "CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go test -c antrea.io/nephe/test/upgrade/ -ldflags="-s -w" -o ./ci/bin/upgrade.test"
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go test -c antrea.io/nephe/test/upgrade/ -ldflags="-s -w" -o ./ci/bin/upgrade.test

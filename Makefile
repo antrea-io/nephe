@@ -134,8 +134,17 @@ $(CONTROLLER_GEN):
 # Run integration-tests
 integration-test-aws:
 	ginkgo -v --timeout=90m --fail-fast --focus=".*test-aws.*" test/integration/ -- \
-	    -manifest-path=../../config/nephe.yml -preserve-setup-on-fail=true -cloud-provider=AWS
+	-manifest-path=../../config/nephe.yml -preserve-setup-on-fail=true -cloud-provider=AWS
 
 integration-test-azure:
 	ginkgo -v --timeout=90m --fail-fast --focus=".*test-azure.*" test/integration/ -- \
-        -manifest-path=../../config/nephe.yml -preserve-setup-on-fail=true -cloud-provider=Azure
+	-manifest-path=../../config/nephe.yml -preserve-setup-on-fail=true -cloud-provider=Azure
+
+# Upgrade tests
+upgrade-test-aws:
+	ginkgo -v --timeout=90m --fail-fast --focus=".*test-aws.*" test/upgrade/ -- \
+	-from-version=0.5.0 -to-version="latest" -chart-dir="../../build/charts/nephe" -preserve-setup-on-fail=false -cloud-provider=AWS
+
+upgrade-test-azure:
+	ginkgo -v --timeout=90m --fail-fast --focus=".*test-azure.*" test/upgrade/ -- \
+	-from-version=0.5.0 -to-version="latest" -chart-dir="../../build/charts/nephe" -preserve-setup-on-fail=true -cloud-provider=Azure
