@@ -316,19 +316,19 @@ func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(ap
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
-	addIngressRules, err := convertIngressToNsgSecurityRules(appliedToGroupID, addIRule, false, agAsgMapByNepheName, atAsgMapByNepheName)
+	addIngressRules, err := convertIngressToNsgSecurityRules(appliedToGroupID, addIRule, agAsgMapByNepheName, atAsgMapByNepheName)
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
-	addEgressRules, err := convertEgressToNsgSecurityRules(appliedToGroupID, addERule, false, agAsgMapByNepheName, atAsgMapByNepheName)
+	addEgressRules, err := convertEgressToNsgSecurityRules(appliedToGroupID, addERule, agAsgMapByNepheName, atAsgMapByNepheName)
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
-	rmIngressRules, err := convertIngressToNsgSecurityRules(appliedToGroupID, rmIRule, true, agAsgMapByNepheName, atAsgMapByNepheName)
+	rmIngressRules, err := convertIngressToNsgSecurityRules(appliedToGroupID, rmIRule, agAsgMapByNepheName, atAsgMapByNepheName)
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
-	rmEgressRules, err := convertEgressToNsgSecurityRules(appliedToGroupID, rmERule, true, agAsgMapByNepheName, atAsgMapByNepheName)
+	rmEgressRules, err := convertEgressToNsgSecurityRules(appliedToGroupID, rmERule, agAsgMapByNepheName, atAsgMapByNepheName)
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
@@ -396,19 +396,19 @@ func (computeCfg *computeServiceConfig) buildEffectivePeerNSGSecurityRulesToAppl
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
-	addIngressSecurityRules, err := convertIngressToPeerNsgSecurityRules(appliedToGroupID, addIRule, false, agAsgMapByNepheName, ruleIP)
+	addIngressSecurityRules, err := convertIngressToPeerNsgSecurityRules(appliedToGroupID, addIRule, agAsgMapByNepheName, ruleIP)
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
-	addEgressSecurityRules, err := convertEgressToPeerNsgSecurityRules(appliedToGroupID, addERule, false, agAsgMapByNepheName, ruleIP)
+	addEgressSecurityRules, err := convertEgressToPeerNsgSecurityRules(appliedToGroupID, addERule, agAsgMapByNepheName, ruleIP)
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
-	rmIngressSecurityRules, err := convertIngressToPeerNsgSecurityRules(appliedToGroupID, rmIRule, true, agAsgMapByNepheName, ruleIP)
+	rmIngressSecurityRules, err := convertIngressToPeerNsgSecurityRules(appliedToGroupID, rmIRule, agAsgMapByNepheName, ruleIP)
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
-	rmEgressSecurityRules, err := convertEgressToPeerNsgSecurityRules(appliedToGroupID, rmERule, true, agAsgMapByNepheName, ruleIP)
+	rmEgressSecurityRules, err := convertEgressToPeerNsgSecurityRules(appliedToGroupID, rmERule, agAsgMapByNepheName, ruleIP)
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
@@ -1020,9 +1020,12 @@ func (c *azureCloud) DeleteSecurityGroup(securityGroupIdentifier *securitygroup.
 	if err != nil {
 		return err
 	}
-	err = computeService.removeReferencesToSecurityGroup(&securityGroupIdentifier.CloudResourceID, rgName, location, membershipOnly)
-	if err != nil {
-		return err
+	// remove attached rules for appliedTo sg but not address sg. This behavior is consistent with AWS.
+	if !membershipOnly {
+		err = computeService.removeReferencesToSecurityGroup(&securityGroupIdentifier.CloudResourceID, rgName, location, membershipOnly)
+		if err != nil {
+			return err
+		}
 	}
 
 	var cloudAsgName string
