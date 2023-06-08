@@ -102,8 +102,7 @@ make integration-test-azure
 
 ```bash
 make
-docker tag antrea/nephe projects.registry.vmware.com/antrea/nephe
-kind load docker-image projects.registry.vmware.com/antrea/nephe
+kind load docker-image antrea/nephe:latest
 make integration-test-aws
 make integration-test-azure
 ```

@@ -92,6 +92,7 @@ cp "$NEPHE_CHART/charts/crds/Chart.yaml" "$NEPHE_CHART/charts/crds/Chart.yaml.ba
 cp "$NEPHE_CHART/Chart.lock" "$NEPHE_CHART/Chart.lock.bak"
 
 yq -i '.annotations."artifacthub.io/prerelease" = strenv(PRERELEASE)' "$NEPHE_CHART/Chart.yaml"
+sed -i.bak 's=antrea/nephe=projects.registry.vmware.com/antrea/nephe=g' "$NEPHE_CHART/values.yaml"
 # Update version for dependent chart.
 sed -i "s/version: "[0-9].[0-9].[0-9]"/version: "$VERSION"/" "$NEPHE_CHART/Chart.yaml"
 sed -i "s/version: "[0-9].[0-9].[0-9]"/version: "$VERSION"/" "$NEPHE_CHART/charts/crds/Chart.yaml"
