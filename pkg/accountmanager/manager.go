@@ -238,6 +238,12 @@ func (a *AccountManager) IsAccountCredentialsValid(namespacedName *types.Namespa
 // addAccountPoller creates an account poller for a given account.
 func (a *AccountManager) addAccountPoller(cloudInterface common.CloudInterface, namespacedName *types.NamespacedName,
 	account *crdv1alpha1.CloudProviderAccount) (*accountPoller, bool) {
+	// Set poller interval to default if not specified.
+	if account.Spec.PollIntervalInSeconds == nil {
+		var pollInterval uint = crdv1alpha1.DefaultPollIntervalInSeconds
+		account.Spec.PollIntervalInSeconds = &pollInterval
+	}
+
 	// Restart account poller after removing the selector.
 	accPoller, exists := a.getAccountPoller(namespacedName)
 	if exists {
