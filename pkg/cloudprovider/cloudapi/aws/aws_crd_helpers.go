@@ -46,7 +46,7 @@ func ec2InstanceToInternalVirtualMachineObject(instance *ec2.Instance, vpcs map[
 	networkInterfaces := make([]runtimev1alpha1.NetworkInterface, 0, len(instNetworkInterfaces))
 
 	for _, nwInf := range instNetworkInterfaces {
-		var ipAddressCRDs []runtimev1alpha1.IPAddress
+		var ipAddressObjs []runtimev1alpha1.IPAddress
 		privateIPAddresses := nwInf.PrivateIpAddresses
 		if len(privateIPAddresses) > 0 {
 			for _, ipAddress := range privateIPAddresses {
@@ -54,7 +54,7 @@ func ec2InstanceToInternalVirtualMachineObject(instance *ec2.Instance, vpcs map[
 					AddressType: runtimev1alpha1.AddressTypeInternalIP,
 					Address:     *ipAddress.PrivateIpAddress,
 				}
-				ipAddressCRDs = append(ipAddressCRDs, ipAddressCRD)
+				ipAddressObjs = append(ipAddressObjs, ipAddressCRD)
 
 				association := ipAddress.Association
 				if association != nil {
@@ -62,14 +62,25 @@ func ec2InstanceToInternalVirtualMachineObject(instance *ec2.Instance, vpcs map[
 						AddressType: runtimev1alpha1.AddressTypeExternalIP,
 						Address:     *association.PublicIp,
 					}
-					ipAddressCRDs = append(ipAddressCRDs, ipAddressCRD)
+					ipAddressObjs = append(ipAddressObjs, ipAddressCRD)
 				}
+			}
+		}
+		// Parsing Amazon allocated IPv6 addresses for now. They are treated as Public IPs.
+		// TODO: Re-check the parsing for private IPv6 IP block.
+		if len(nwInf.Ipv6Addresses) > 0 {
+			for _, ipv6Address := range nwInf.Ipv6Addresses {
+				ipAddress := runtimev1alpha1.IPAddress{
+					AddressType: runtimev1alpha1.AddressTypeExternalIP,
+					Address:     *ipv6Address.Ipv6Address,
+				}
+				ipAddressObjs = append(ipAddressObjs, ipAddress)
 			}
 		}
 		networkInterface := runtimev1alpha1.NetworkInterface{
 			Name: *nwInf.NetworkInterfaceId,
 			MAC:  *nwInf.MacAddress,
-			IPs:  ipAddressCRDs,
+			IPs:  ipAddressObjs,
 		}
 		networkInterfaces = append(networkInterfaces, networkInterface)
 	}

@@ -1235,11 +1235,9 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, policyAppliedToGr
 		for _, ip := range rule.From.IPBlocks {
 			ingress := &securitygroup.IngressRule{}
 			ingress.AppliedToGroup = make(map[string]struct{}, 0)
-			ipNet := net.IPNet{IP: net.IP(ip.CIDR.IP), Mask: net.CIDRMask(int(ip.CIDR.PrefixLength), 32)}
+			ipNet := net.IPNet{IP: net.IP(ip.CIDR.IP), Mask: net.CIDRMask(int(ip.CIDR.PrefixLength), 8*net.IPv4len)}
 			if ipNet.IP.To4() == nil {
-				// TODO: Enable this when IPv6 is supported in Nephe.
-				rr.Log.V(1).Info("IPv6 address detected in the rule. Skipping it for now.")
-				continue
+				ipNet = net.IPNet{IP: net.IP(ip.CIDR.IP), Mask: net.CIDRMask(int(ip.CIDR.PrefixLength), 8*net.IPv6len)}
 			}
 			ingress.FromSrcIP = append(ingress.FromSrcIP, &ipNet)
 			securitygroup.SetAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, ingress)
@@ -1300,11 +1298,9 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, policyAppliedToGr
 	for _, ip := range rule.To.IPBlocks {
 		egress := &securitygroup.EgressRule{}
 		egress.AppliedToGroup = make(map[string]struct{}, 0)
-		ipNet := net.IPNet{IP: net.IP(ip.CIDR.IP), Mask: net.CIDRMask(int(ip.CIDR.PrefixLength), 32)}
+		ipNet := net.IPNet{IP: net.IP(ip.CIDR.IP), Mask: net.CIDRMask(int(ip.CIDR.PrefixLength), 8*net.IPv4len)}
 		if ipNet.IP.To4() == nil {
-			// TODO: Enable this when IPv6 is supported in Nephe.
-			rr.Log.V(1).Info("IPv6 address detected in the rule. Skipping it for now.")
-			continue
+			ipNet = net.IPNet{IP: net.IP(ip.CIDR.IP), Mask: net.CIDRMask(int(ip.CIDR.PrefixLength), 8*net.IPv6len)}
 		}
 		egress.ToDstIP = append(egress.ToDstIP, &ipNet)
 		securitygroup.SetAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, egress)

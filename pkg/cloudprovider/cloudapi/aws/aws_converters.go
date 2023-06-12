@@ -45,28 +45,44 @@ func convertToIPPermissionPort(port *int, protocol *int) (*int64, *int64) {
 	return portVal, portVal
 }
 
-func convertToEc2IpRanges(ips []*net.IPNet, ruleHasGroups bool, description *string) []*ec2.IpRange {
-	var ipRanges []*ec2.IpRange
+// convertToEc2IpRanges convert the IPs to EC2 IPv4 and IPv6 ranges.
+func convertToEc2IpRanges(ips []*net.IPNet, ruleHasGroups bool, description *string) ([]*ec2.IpRange, []*ec2.Ipv6Range) {
+	var ipv4Ranges []*ec2.IpRange
+	var ipv6Ranges []*ec2.Ipv6Range
 	if len(ips) == 0 && !ruleHasGroups {
 		ipRange := &ec2.IpRange{
 			CidrIp:      aws.String("0.0.0.0/0"),
 			Description: description,
 		}
-		ipRanges = append(ipRanges, ipRange)
-		return ipRanges
+		ipv4Ranges = append(ipv4Ranges, ipRange)
+		ipv6Range := &ec2.Ipv6Range{
+			CidrIpv6:    aws.String("::/0"),
+			Description: description,
+		}
+		ipv6Ranges = append(ipv6Ranges, ipv6Range)
+		return ipv4Ranges, ipv6Ranges
 	}
 
 	for _, ip := range ips {
-		ipRange := &ec2.IpRange{
-			CidrIp:      aws.String(ip.String()),
-			Description: description,
+		if ip.IP.To4() != nil {
+			ipRange := &ec2.IpRange{
+				CidrIp:      aws.String(ip.String()),
+				Description: description,
+			}
+			ipv4Ranges = append(ipv4Ranges, ipRange)
+		} else if ip.IP.To16() != nil {
+			ipRange := &ec2.Ipv6Range{
+				CidrIpv6:    aws.String(ip.String()),
+				Description: description,
+			}
+			ipv6Ranges = append(ipv6Ranges, ipRange)
 		}
-		ipRanges = append(ipRanges, ipRange)
 	}
-	return ipRanges
+	return ipv4Ranges, ipv6Ranges
 }
 
-func convertFromIPRange(ipRanges []*ec2.IpRange) ([]*net.IPNet, []*string) {
+// convertFromIPRange convert from EC2 IPv4 and IPv6 ranges to IPs.
+func convertFromIPRange(ipRanges []*ec2.IpRange, ipv6Ranges []*ec2.Ipv6Range) ([]*net.IPNet, []*string) {
 	var srcIPNets []*net.IPNet
 	var desc []*string
 	for _, ipRange := range ipRanges {
@@ -77,7 +93,14 @@ func convertFromIPRange(ipRanges []*ec2.IpRange) ([]*net.IPNet, []*string) {
 		desc = append(desc, ipRange.Description)
 		srcIPNets = append(srcIPNets, ipNet)
 	}
-
+	for _, ipRange := range ipv6Ranges {
+		_, ipNet, err := net.ParseCIDR(*ipRange.CidrIpv6)
+		if err != nil {
+			continue
+		}
+		desc = append(desc, ipRange.Description)
+		srcIPNets = append(srcIPNets, ipNet)
+	}
 	return srcIPNets, desc
 }
 
@@ -119,7 +142,7 @@ func convertFromIngressIpPermissionToCloudRule(sgID string, ipPermissions []*ec2
 	managedSGs, unmanagedSGs map[string]*ec2.SecurityGroup) []securitygroup.CloudRule {
 	var ingressRules []securitygroup.CloudRule
 	for _, ipPermission := range ipPermissions {
-		fromSrcIPs, descriptions := convertFromIPRange(ipPermission.IpRanges)
+		fromSrcIPs, descriptions := convertFromIPRange(ipPermission.IpRanges, ipPermission.Ipv6Ranges)
 		for i, srcIP := range fromSrcIPs {
 			// Get cloud rule description.
 			desc, ok := securitygroup.ExtractCloudDescription(descriptions[i])
@@ -165,7 +188,7 @@ func convertFromEgressIpPermissionToCloudRule(sgID string, ipPermissions []*ec2.
 	managedSGs, unmanagedSGs map[string]*ec2.SecurityGroup) []securitygroup.CloudRule {
 	var egressRules []securitygroup.CloudRule
 	for _, ipPermission := range ipPermissions {
-		toDstIPs, descriptions := convertFromIPRange(ipPermission.IpRanges)
+		toDstIPs, descriptions := convertFromIPRange(ipPermission.IpRanges, ipPermission.Ipv6Ranges)
 		for i, dstIP := range toDstIPs {
 			// Get cloud rule description.
 			desc, ok := securitygroup.ExtractCloudDescription(descriptions[i])

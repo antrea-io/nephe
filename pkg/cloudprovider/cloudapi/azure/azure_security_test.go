@@ -415,6 +415,34 @@ var _ = Describe("Azure Cloud Security", func() {
 				Expect(err).Should(BeNil())
 			})
 
+			It("Should update IPv6 Security rules successfully", func() {
+				webAddressGroupIdentifier03 := &securitygroup.CloudResource{
+					Type: securitygroup.CloudResourceTypeVM,
+					CloudResourceID: securitygroup.CloudResourceID{
+						Name: atAsgName,
+						Vpc:  testVnetID01,
+					},
+					AccountID:     testAccountNamespacedName.String(),
+					CloudProvider: string(v1alpha1.AzureCloudProvider),
+				}
+				toSg := webAddressGroupIdentifier03.CloudResourceID
+				toSg.Name = agAsgName
+
+				addRules := []*securitygroup.CloudRule{{
+					Rule: &securitygroup.IngressRule{
+						Protocol: &testProtocol,
+						FromPort: &testFromPort,
+						FromSrcIP: []*net.IPNet{{
+							IP:   net.ParseIP("2600:1f16:c77:a001:fb97:21b2:a8dc:dc60"),
+							Mask: net.CIDRMask(128, 128)},
+						}},
+					NpNamespacedName: testAnpNamespace.String()},
+				}
+
+				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*securitygroup.CloudRule{})
+				Expect(err).Should(BeNil())
+			})
+
 			//  Creating cloud security rules without a description field is not allowed.
 			It("Should fail to update Security rules -- invalid namespacedname", func() {
 				webAddressGroupIdentifier03 := &securitygroup.CloudResource{
