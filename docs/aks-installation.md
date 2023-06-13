@@ -94,8 +94,7 @@ export KUBECONFIG=~/tmp/terraform-aks/kubeconfig
 Loading locally built `antrea/nephe` image to AKS cluster.
 
 ```bash
-docker tag antrea/nephe:latest projects.registry.vmware.com/antrea/nephe:latest
-~/terraform/aks load projects.registry.vmware.com/antrea/nephe
+~/terraform/aks load antrea/nephe:latest
 ```
 
 ### Display AKS attributes

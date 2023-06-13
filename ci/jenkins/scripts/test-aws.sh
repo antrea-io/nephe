@@ -137,9 +137,6 @@ make build
 install_kind
 pull_docker_images
 
-# Tag locally built nephe image
-docker tag antrea/nephe:latest projects.registry.vmware.com/antrea/nephe:latest
-
 echo "Creating Kind cluster"
 hack/install-cloud-tools.sh
 ci/kind/kind-setup.sh create kind

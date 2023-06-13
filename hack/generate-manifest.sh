@@ -79,7 +79,7 @@ pushd $TMP_DIR > /dev/null
 
 cp -r $WORK_DIR/../config/. .
 cd manager
-$KUSTOMIZE edit set image projects.registry.vmware.com/antrea/nephe:latest=$IMG_NAME:$IMG_TAG
+$KUSTOMIZE edit set image antrea/nephe:latest=$IMG_NAME:$IMG_TAG
 
 # Remove debug log from the manifest
 $KUSTOMIZE build ../default | sed -n '/enable-debug-log/!p'

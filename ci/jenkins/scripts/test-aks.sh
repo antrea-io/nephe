@@ -140,9 +140,8 @@ $HOME/terraform/aks create
 
 wait_for_cert_manager
 
-# Tag and Load locally built nephe docker image
-docker tag antrea/nephe:latest projects.registry.vmware.com/antrea/nephe:latest
-$HOME/terraform/aks load projects.registry.vmware.com/antrea/nephe
+# Load locally built nephe docker image.
+$HOME/terraform/aks load antrea/nephe:latest
 
 mkdir -p $HOME/logs
 ci/bin/integration.test -ginkgo.v -ginkgo.timeout 90m -ginkgo.focus=$TEST_FOCUS -kubeconfig=$HOME/tmp/terraform-aks/kubeconfig -cloud-provider=Azure -support-bundle-dir=$HOME/logs -with-agent=${WITH_AGENT} -with-windows=${WITH_WINDOWS}

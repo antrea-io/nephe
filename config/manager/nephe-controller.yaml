@@ -52,7 +52,7 @@ spec:
         args:
         - --config=/tmp/nephe/nephe-controller.conf
         - --enable-debug-log
-        image: "projects.registry.vmware.com/antrea/nephe:latest"
+        image: "antrea/nephe:latest"
         imagePullPolicy: IfNotPresent
         name: nephe-controller
         env:

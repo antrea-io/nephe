@@ -1,6 +1,6 @@
 # -- Container image to use for Nephe Controller.
 image:
-  repository: "projects.registry.vmware.com/antrea/nephe"
+  repository: "antrea/nephe"
   pullPolicy: "IfNotPresent"
   tag: ""
 

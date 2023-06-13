@@ -102,8 +102,7 @@ export KUBECONFIG=~/tmp/terraform-eks/kubeconfig
 Loading locally built `antrea/nephe` images to EKS cluster.
 
 ```bash
-docker tag antrea/nephe:latest projects.registry.vmware.com/antrea/nephe:latest
-~/terraform/eks load projects.registry.vmware.com/antrea/nephe
+~/terraform/eks load antrea/nephe:latest
 ```
 
 ### Display EKS attributes

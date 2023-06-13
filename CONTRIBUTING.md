@@ -26,12 +26,7 @@ To build the `antrea/nephe` image, you can simply do:
 The `nephe-controller` binary is located in `./bin` directory and the docker
 image `antrea/nephe:latest` is created or updated in the local docker repository.
 
-To deploy the locally built image, tag and load the docker image on your cluster.
-
-```bash
-docker tag antrea/nephe:latest projects.registry.vmware.com/antrea/nephe:latest
-# Load the projects.registry.vmware.com/antrea/nephe image on your cluster.
-```
+To deploy the locally built image, load the docker image(antrea/nephe:latest) on your cluster.
 
 ## Deployment
 

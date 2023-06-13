@@ -20,7 +20,7 @@
 
 CLUSTER_NAME=""
 ANTREA_IMAGES="projects.registry.vmware.com/antrea/antrea-ubuntu:v1.12.0 "
-ANTREA_IMAGES+="projects.registry.vmware.com/antrea/nephe:latest "
+ANTREA_IMAGES+="antrea/nephe:latest "
 OTHER_IMAGES="quay.io/jetstack/cert-manager-controller:v1.8.2 "
 OTHER_IMAGES+="quay.io/jetstack/cert-manager-webhook:v1.8.2 "
 OTHER_IMAGES+="quay.io/jetstack/cert-manager-cainjector:v1.8.2 "
