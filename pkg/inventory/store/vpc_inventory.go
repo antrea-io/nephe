@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"reflect"
 
-	"k8s.io/apimachinery/pkg/apis/meta/internalversion"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -28,6 +27,7 @@ import (
 	antreastorage "antrea.io/antrea/pkg/apiserver/storage"
 	"antrea.io/antrea/pkg/apiserver/storage/ram"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/apiserver/registry/inventory/selector"
 	"antrea.io/nephe/pkg/inventory/indexer"
 	nephelabels "antrea.io/nephe/pkg/labels"
 )
@@ -49,18 +49,25 @@ func keyAndSpanSelectFunc(selectors *antreastorage.Selectors, key string, obj in
 	if selectors.Key != "" && key != selectors.Key {
 		return false
 	}
+	if selectors.Label.Empty() && selectors.Field.Empty() {
+		// Match everything.
+		return true
+	}
+
 	labelSelector := labels.Everything()
-	if selectors != nil && selectors.Label != nil {
+	if !selectors.Label.Empty() {
 		labelSelector = selectors.Label
 	}
-	vpc, _ := obj.(*runtimev1alpha1.Vpc)
 	fieldSelector := fields.Everything()
-	if selectors != nil && selectors.Field != nil {
+	if !selectors.Field.Empty() {
 		fieldSelector = selectors.Field
 	}
+	vpc, _ := obj.(*runtimev1alpha1.Vpc)
 	vpcFields := map[string]string{
-		"metadata.name":      vpc.Name,
-		"metadata.namespace": vpc.Namespace,
+		selector.MetaName:      vpc.Name,
+		selector.MetaNamespace: vpc.Namespace,
+		selector.StatusCloudId: vpc.Status.CloudId,
+		selector.StatusRegion:  vpc.Status.Region,
 	}
 	return labelSelector.Matches(labels.Set(vpc.Labels)) && fieldSelector.Matches(fields.Set(vpcFields))
 }
@@ -148,18 +155,4 @@ func NewVPCInventoryStore() antreastorage.Interface {
 		},
 	}
 	return ram.NewStore(vpcKeyFunc, indexers, genVPCEvent, keyAndSpanSelectFunc, func() runtime.Object { return new(runtimev1alpha1.Vpc) })
-}
-
-// GetSelectors extracts label selector, field selector, and key selector from the provided options.
-func GetSelectors(options *internalversion.ListOptions) (string, labels.Selector, fields.Selector) {
-	label := labels.Everything()
-	if options != nil && options.LabelSelector != nil {
-		label = options.LabelSelector
-	}
-	field := fields.Everything()
-	if options != nil && options.FieldSelector != nil {
-		field = options.FieldSelector
-	}
-	key, _ := field.RequiresExactMatch("metadata.name")
-	return key, label, field
 }
