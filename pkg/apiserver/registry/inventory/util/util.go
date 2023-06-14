@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package inventory
+package util
 
 import (
 	"reflect"
@@ -22,18 +22,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/internalversion"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
-	"antrea.io/nephe/pkg/labels"
-)
-
-const (
-	MetaName         = "metadata.name"
-	MetaNamespace    = "metadata.namespace"
-	StatusCloudId    = "status.cloudId"
-	StatusCloudVpcId = "status.cloudVpcId"
-	StatusRegion     = "status.region"
-
-	CloudAccountName      = labels.CloudAccountName
-	CloudAccountNamespace = labels.CloudAccountNamespace
 )
 
 // GetFieldSelectors extracts and populates the field selectors map from the list options.
