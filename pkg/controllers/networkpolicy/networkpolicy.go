@@ -132,14 +132,23 @@ func getNormalizedName(name string) string {
 	return strings.ToLower(strings.ReplaceAll(name, "/", "-"))
 }
 
-// getAppliedToGroups returns all appliedToGroups either at rule or policy level.
+// getAppliedToGroups returns all unique appliedToGroups either at rule or policy level.
 func getAppliedToGroups(n *networkPolicy) []string {
 	var appliedToGroups []string
 	appliedToGroups = append(appliedToGroups, n.AppliedToGroups...)
 	for _, r := range n.Rules {
 		appliedToGroups = append(appliedToGroups, r.AppliedToGroups...)
 	}
-	return appliedToGroups
+	// deduplicate appliedTo groups.
+	var uniqueAppliedTo []string
+	appliedToMap := make(map[string]struct{}, 0)
+	for _, gname := range appliedToGroups {
+		if _, ok := appliedToMap[gname]; !ok {
+			uniqueAppliedTo = append(uniqueAppliedTo, gname)
+			appliedToMap[gname] = struct{}{}
+		}
+	}
+	return uniqueAppliedTo
 }
 
 // diffAppliedToGrp returned added and removed groups from appliedToGroup a to b.
@@ -1565,7 +1574,7 @@ func (n *networkPolicy) notifyAddressGroupChange(r *NetworkPolicyReconciler, gro
 		return nil
 	}
 
-	for _, gname := range n.AppliedToGroups {
+	for _, gname := range getAppliedToGroups(n) {
 		sgs, err := r.appliedToSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, gname)
 		if err != nil {
 			return fmt.Errorf("unable to get appliedToSGs %s from indexer: %w", gname, err)
