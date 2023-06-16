@@ -1,24 +1,4 @@
 - builder:
-      name: builder-slack-notify-declare
-      builders:
-          - shell: |-
-                #!/bin/bash
-                set -ex
-
-                declare -a nanny
-                nanny=("rahulj" "kumaranand")
-
-                d=$(date '+%d')
-                r=$((d % ${#nanny[@]}))
-                chosen_nanny=${nanny[$r]}
-
-                cat > chosen_nanny <<EOF
-                chosen_nanny=${chosen_nanny}
-                EOF
-
-                cat chosen_nanny
-
-- builder:
     name: deploy-vm-and-run-aws-tests-for-nephe
     builders:
       - shell: |-
@@ -38,6 +18,27 @@
                   --vcCluster "${VC_CLUSTER}" --resourcePool "${RESOURCEPOOLPATH}" --vcNetwork "${VMC_NETWORK_1}" \
                   --virtualMachine "${VIRTUAL_MACHINE}" --goVcPassword "${GOVC_PASSWORD}" --testType azure \
                   --dockerUser "${DOCKER_USERNAME}" --dockerPassword "${DOCKER_PASSWORD}"
+- builder:
+    name: deploy-vm-and-run-aws-upgrade-tests-for-nephe
+    builders:
+      - shell: |-
+          #!/bin/bash
+          ./ci/jenkins/nephe-ci.sh --buildnumber "${BUILD_NUMBER}" --vchost "${VC_HOST}" \
+                  --vcuser "${VC_USER}" --datacenter "${DATACENTERNAME}" --datastore "${DATA_STORE}" \
+                  --vcCluster "${VC_CLUSTER}" --resourcePool "${RESOURCEPOOLPATH}" --vcNetwork "${VMC_NETWORK_1}" \
+                  --virtualMachine "${VIRTUAL_MACHINE}" --goVcPassword "${GOVC_PASSWORD}" --testType aws-upgrade \
+                  --dockerUser "${DOCKER_USERNAME}" --dockerPassword "${DOCKER_PASSWORD}"
+- builder:
+    name: deploy-vm-and-run-azure-upgrade-tests-for-nephe
+    builders:
+      - shell: |-
+          #!/bin/bash
+          ./ci/jenkins/nephe-ci.sh --buildnumber "${BUILD_NUMBER}" --vchost "${VC_HOST}" \
+                  --vcuser "${VC_USER}" --datacenter "${DATACENTERNAME}" --datastore "${DATA_STORE}" \
+                  --vcCluster "${VC_CLUSTER}" --resourcePool "${RESOURCEPOOLPATH}" --vcNetwork "${VMC_NETWORK_1}" \
+                  --virtualMachine "${VIRTUAL_MACHINE}" --goVcPassword "${GOVC_PASSWORD}" --testType azure-upgrade \
+                  --dockerUser "${DOCKER_USERNAME}" --dockerPassword "${DOCKER_PASSWORD}"
+
 - builder:
     name: deploy-vm-and-run-eks-tests-for-nephe
     builders:

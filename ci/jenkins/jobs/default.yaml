@@ -1,6 +1,6 @@
 - defaults:
     name: global
-    ghpr_auth: ""
+    ghpr_auth: "15795878-237c-4156-a264-2206937fd042"
     nephe_admin_list: ["liu4480", "reachjainrahul", "Anandkumar26", "shenmo3"]
     nephe_org_list: [""]
     nephe_white_list: []

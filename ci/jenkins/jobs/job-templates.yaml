@@ -75,7 +75,7 @@
     wrappers: '{wrappers}'
 
 - job-template:
-    name: '{test_name}'
+    name: '{test_name}-cron'
     node: '{node}'
     triggers: '{triggers}'
     builders: '{builders}'
