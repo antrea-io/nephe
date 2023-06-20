@@ -162,6 +162,7 @@ func (a *appliedToSecurityGroup) sync(syncContent *securitygroup.Synchronization
 	}
 
 	if indexerUpdate {
+		_ = a.updateAddrGroupReference(r)
 		_ = a.updateAllRules(r)
 		return
 	}
@@ -197,23 +198,29 @@ func (r *NetworkPolicyReconciler) syncWithCloud() {
 	cloudAddrSGs := make(map[securitygroup.CloudResourceID]*securitygroup.SynchronizationContent)
 	cloudAppliedToSGs := make(map[securitygroup.CloudResourceID]*securitygroup.SynchronizationContent)
 	rscWithUnknownSGs := make(map[securitygroup.CloudResource]struct{})
+	removeAddrSgs := make([]*addrSecurityGroup, 0)
 	for content := range ch {
 		log.V(1).Info("Sync from cloud", "SecurityGroup", content)
-		indexer := r.addrSGIndexer
-		sgNew := newAddrSecurityGroup
-		if !content.MembershipOnly {
-			indexer = r.appliedToSGIndexer
-			sgNew = newAppliedToSecurityGroup
-		}
-		// Removes unknown sg.
-		if _, ok, _ := indexer.GetByKey(content.Resource.CloudResourceID.String()); !ok {
-			log.V(0).Info("Delete SecurityGroup not found in cache", "Name", content.Resource.Name, "MembershipOnly", content.MembershipOnly)
+		if content.MembershipOnly {
+			// mark unknown address groups and pending delete groups for deletion after appliedTo groups updates address group references.
+			_, ok, _ := r.addrSGIndexer.GetByKey(content.Resource.CloudResourceID.String())
+			if !ok {
+				state := securityGroupStateCreated
+				sg := newAddrSecurityGroup(&content.Resource, []*securitygroup.CloudResource{}, &state).(*addrSecurityGroup)
+				sg.deletePending = true
+				removeAddrSgs = append(removeAddrSgs, sg)
+				// add unknown address group in indexer for future network policy notify.
+				_ = r.addrSGIndexer.Add(sg)
+				continue
+			}
+		} else if _, ok, _ := r.appliedToSGIndexer.GetByKey(content.Resource.CloudResourceID.String()); !ok {
+			// remove unknown appliedTo groups.
+			log.V(0).Info("Delete appliedTo security group not found in cache", "Name", content.Resource.Name)
 			state := securityGroupStateCreated
-			_ = sgNew(&content.Resource, []*securitygroup.CloudResource{}, &state).delete(r)
+			_ = newAppliedToSecurityGroup(&content.Resource, []*securitygroup.CloudResource{}, &state).delete(r)
 			continue
 		}
-		// copy channel reference content to a local variable because we use pointer to
-		// reference to cloud sg.
+		// copy channel reference content to a local variable because we use pointer to reference to cloud sg.
 		cc := content
 		if content.MembershipOnly {
 			cloudAddrSGs[content.Resource.CloudResourceID] = &cc
@@ -232,6 +239,11 @@ func (r *NetworkPolicyReconciler) syncWithCloud() {
 	for _, i := range r.appliedToSGIndexer.List() {
 		sg := i.(*appliedToSecurityGroup)
 		sg.sync(cloudAppliedToSGs[sg.getID()], r)
+	}
+	// remove unknown address groups after syncing appliedTo group references.
+	for _, sg := range removeAddrSgs {
+		log.V(0).Info("Delete address security group not found in cache", "Name", sg.id.Name)
+		_ = sg.delete(r)
 	}
 	// For cloud resource with any non nephe created SG, tricking plug-in to remove them by explicitly
 	// updating a single instance of associated security group.

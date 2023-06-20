@@ -1005,15 +1005,15 @@ func (a *appliedToSecurityGroup) checkRealization(r *NetworkPolicyReconciler, np
 // updateAddrGroupReference updates appliedTo group addrGroupRefs and notifies removed addrGroups that rules referencing them is removed.
 func (a *appliedToSecurityGroup) updateAddrGroupReference(r *NetworkPolicyReconciler) error {
 	// get latest irules and erules
-	nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAppliedToGrp, a.id.Name)
+	rules, err := r.cloudRuleIndexer.ByIndex(cloudRuleIndexerByAppliedToGrp, a.id.CloudResourceID.String())
 	if err != nil {
-		return fmt.Errorf("unable to get networkPolicy with key %s from indexer: %w", a.id.Name, err)
+		return fmt.Errorf("unable to get cloud rules with key %s from indexer: %w", a.id.CloudResourceID.String(), err)
 	}
-	rules := a.getCloudRulesFromNps(nps)
 
 	// combine rules to get latest addrGroupRefs.
 	currentRefs := make(map[string]struct{})
-	for _, rule := range rules {
+	for _, obj := range rules {
+		rule := obj.(*securitygroup.CloudRule)
 		switch rule.Rule.(type) {
 		case *securitygroup.IngressRule:
 			for _, sg := range rule.Rule.(*securitygroup.IngressRule).FromSecurityGroups {
