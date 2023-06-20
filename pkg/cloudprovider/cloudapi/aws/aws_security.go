@@ -680,13 +680,9 @@ func (c *awsCloud) CreateSecurityGroup(securityGroupIdentifier *securitygroup.Cl
 	if !found {
 		return nil, fmt.Errorf("aws account not found managing virtual private cloud [%v]", vpcID)
 	}
-	serviceCfg, err := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
-	if err != nil {
-		return nil, err
-	}
-	ec2Service := serviceCfg.(*ec2ServiceConfig)
 
 	cloudSgName := securityGroupIdentifier.GetCloudName(membershipOnly)
+	ec2Service := accCfg.GetServiceConfig().(*ec2ServiceConfig)
 	resp, err := ec2Service.createOrGetSecurityGroups(securityGroupIdentifier.Vpc, map[string]struct{}{cloudSgName: {}})
 	if err != nil {
 		return nil, err
@@ -711,17 +707,12 @@ func (c *awsCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *securitygr
 		return fmt.Errorf("aws account not found managing virtual private cloud [%v]", vpcID)
 	}
 
-	serviceCfg, err := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
-	if err != nil {
-		return err
-	}
-	ec2Service := serviceCfg.(*ec2ServiceConfig)
-
 	// build from addressGroups, cloudSgNames from rules
 	cloudSgNames := buildEc2CloudSgNamesFromRules(&appliedToGroupIdentifier.CloudResourceID, append(addIRule, rmIRule...),
 		append(addERule, rmERule...))
 
 	// make sure all required security groups pre-exist
+	ec2Service := accCfg.GetServiceConfig().(*ec2ServiceConfig)
 	vpcIDs := []string{vpcID}
 	vpcPeerIDs := ec2Service.getVpcPeers(vpcID)
 	vpcIDs = append(vpcIDs, vpcPeerIDs...)
@@ -786,15 +777,9 @@ func (c *awsCloud) UpdateSecurityGroupMembers(securityGroupIdentifier *securityg
 		return fmt.Errorf("aws account not found managing virtual private cloud [%v]", vpcID)
 	}
 
-	serviceCfg, err := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
-	if err != nil {
-		return err
-	}
-	ec2Service := serviceCfg.(*ec2ServiceConfig)
-
-	cloudSgName := securityGroupIdentifier.GetCloudName(membershipOnly)
-
 	// get addressGroup cloudSgID
+	cloudSgName := securityGroupIdentifier.GetCloudName(membershipOnly)
+	ec2Service := accCfg.GetServiceConfig().(*ec2ServiceConfig)
 	vpcIDs := []string{vpcID}
 	cloudSgNames := map[string]struct{}{cloudSgName: {}}
 	out, err := ec2Service.getCloudSecurityGroupsWithNameFromCloud(vpcIDs, cloudSgNames)
@@ -826,15 +811,10 @@ func (c *awsCloud) DeleteSecurityGroup(securityGroupIdentifier *securitygroup.Cl
 		return fmt.Errorf("aws account not found managing virtual private cloud [%v]", vpcID)
 	}
 
-	serviceCfg, err := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
-	if err != nil {
-		return err
-	}
-	ec2Service := serviceCfg.(*ec2ServiceConfig)
-
 	// check if sg exists in cloud and get its cloud sg id to delete
 	vpcIDs := []string{vpcID}
 	cloudSgNameToDelete := securityGroupIdentifier.GetCloudName(membershipOnly)
+	ec2Service := accCfg.GetServiceConfig().(*ec2ServiceConfig)
 	out, err := ec2Service.getCloudSecurityGroupsWithNameFromCloud(vpcIDs, map[string]struct{}{cloudSgNameToDelete: {}})
 	if err != nil || len(out) == 0 {
 		return err
@@ -892,14 +872,8 @@ func (c *awsCloud) GetEnforcedSecurity() []securitygroup.SynchronizationContent 
 				return
 			}
 
-			serviceCfg, err := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
-			if err != nil {
-				awsPluginLogger().Error(err, "Enforced-security-cloud-view GET for account skipped", "account", accCfg.GetNamespacedName())
-				return
-			}
-			ec2Service := serviceCfg.(*ec2ServiceConfig)
-			err = ec2Service.waitForInventoryInit(inventoryInitWaitDuration)
-			if err != nil {
+			ec2Service := accCfg.GetServiceConfig().(*ec2ServiceConfig)
+			if err := ec2Service.waitForInventoryInit(inventoryInitWaitDuration); err != nil {
 				awsPluginLogger().Error(err, "Enforced-security-cloud-view GET for account skipped", "account", accCfg.GetNamespacedName())
 				return
 			}

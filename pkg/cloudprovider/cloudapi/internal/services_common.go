@@ -24,19 +24,6 @@ import (
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 )
 
-type CloudServiceName string
-type CloudServiceType string
-
-const (
-	CloudServiceTypeCompute = CloudServiceType("Compute")
-)
-
-type CloudServiceCommon struct {
-	mutex sync.Mutex
-
-	serviceInterface CloudServiceInterface
-}
-
 // CloudServiceInterface needs to be implemented by every cloud-service to be added for a cloud-plugin.
 // Once implemented, cloud-service implementation of CloudServiceInterface will get injected into
 // plugin-common-framework using CloudCommonHelperInterface.
@@ -56,75 +43,10 @@ type CloudServiceInterface interface {
 	GetInventoryStats() *CloudServiceStats
 	// GetInternalResourceObjects returns VM instances saved in CloudServiceResourcesCache in terms of runtimev1alpha1.VirtualMachine.
 	GetInternalResourceObjects(namespace string, accountId *types.NamespacedName) map[string]*runtimev1alpha1.VirtualMachine
-	// GetName returns cloud name of the service.
-	GetName() CloudServiceName
-	// GetType returns service type (compute, any other type etc.)
-	GetType() CloudServiceType
 	// ResetInventoryCache clears any internal state built by the service as part of cloud resource discovery.
 	ResetInventoryCache()
 	// GetVpcInventory copies VPCs stored in internal snapshot(in cloud specific format) to runtimev1alpha1.Vpc format.
 	GetVpcInventory() map[string]*runtimev1alpha1.Vpc
-}
-
-func (cfg *CloudServiceCommon) updateServiceConfig(newConfig CloudServiceInterface) error {
-	cfg.mutex.Lock()
-	defer cfg.mutex.Unlock()
-
-	return cfg.serviceInterface.UpdateServiceConfig(newConfig)
-}
-
-func (cfg *CloudServiceCommon) addResourceFilters(selector *crdv1alpha1.CloudEntitySelector) error {
-	cfg.mutex.Lock()
-	defer cfg.mutex.Unlock()
-
-	return cfg.serviceInterface.AddResourceFilters(selector)
-}
-
-func (cfg *CloudServiceCommon) removeResourceFilters(selectorNamespacedName *types.NamespacedName) {
-	cfg.mutex.Lock()
-	defer cfg.mutex.Unlock()
-
-	cfg.serviceInterface.RemoveResourceFilters(selectorNamespacedName)
-}
-
-func (cfg *CloudServiceCommon) doResourceInventory() error {
-	cfg.mutex.Lock()
-	defer cfg.mutex.Unlock()
-
-	return cfg.serviceInterface.DoResourceInventory()
-}
-
-func (cfg *CloudServiceCommon) getInventoryStats() *CloudServiceStats {
-	cfg.mutex.Lock()
-	defer cfg.mutex.Unlock()
-
-	return cfg.serviceInterface.GetInventoryStats()
-}
-
-func (cfg *CloudServiceCommon) getInternalResourceObjects(namespace string,
-	account *types.NamespacedName) map[string]*runtimev1alpha1.VirtualMachine {
-	cfg.mutex.Lock()
-	defer cfg.mutex.Unlock()
-
-	return cfg.serviceInterface.GetInternalResourceObjects(namespace, account)
-}
-
-func (cfg *CloudServiceCommon) getType() CloudServiceType {
-	return cfg.serviceInterface.GetType()
-}
-
-func (cfg *CloudServiceCommon) resetInventoryCache() {
-	cfg.mutex.Lock()
-	defer cfg.mutex.Unlock()
-
-	cfg.serviceInterface.ResetInventoryCache()
-}
-
-func (cfg *CloudServiceCommon) getVpcInventory() map[string]*runtimev1alpha1.Vpc {
-	cfg.mutex.Lock()
-	defer cfg.mutex.Unlock()
-
-	return cfg.serviceInterface.GetVpcInventory()
 }
 
 // CloudServiceResourcesCache is cache used by all services. Each service can maintain

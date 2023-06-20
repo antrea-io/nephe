@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"sync"
 
-	"go.uber.org/multierr"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -28,8 +27,7 @@ import (
 
 type CloudAccountInterface interface {
 	GetNamespacedName() *types.NamespacedName
-	GetServiceConfigs() map[CloudServiceName]*CloudServiceCommon
-	GetServiceConfigByName(name CloudServiceName) (CloudServiceInterface, error)
+	GetServiceConfig() CloudServiceInterface
 	GetStatus() *crdv1alpha1.CloudProviderAccountStatus
 
 	performInventorySync() error
@@ -40,7 +38,7 @@ type cloudAccountConfig struct {
 	mutex          sync.Mutex
 	namespacedName *types.NamespacedName
 	credentials    interface{}
-	serviceConfigs map[CloudServiceName]*CloudServiceCommon
+	serviceConfig  CloudServiceInterface
 	logger         func() logging.Logger
 	Status         *crdv1alpha1.CloudProviderAccountStatus
 }
@@ -48,7 +46,7 @@ type cloudAccountConfig struct {
 type CloudCredentialValidatorFunc func(client client.Client, credentials interface{}) (interface{}, error)
 type CloudCredentialComparatorFunc func(accountName string, existing interface{}, new interface{}) bool
 type CloudServiceConfigCreatorFunc func(namespacedName *types.NamespacedName, cloudConvertedCredentials interface{},
-	helper interface{}) ([]CloudServiceInterface, error)
+	helper interface{}) (CloudServiceInterface, error)
 
 func (c *cloudCommon) newCloudAccountConfig(client client.Client, namespacedName *types.NamespacedName, credentials interface{},
 	loggerFunc func() logging.Logger) (CloudAccountInterface, error) {
@@ -66,23 +64,16 @@ func (c *cloudCommon) newCloudAccountConfig(client client.Client, namespacedName
 		return nil, err
 	}
 
-	serviceConfigs, err := cloudServicesCreateFunc(namespacedName, cloudConvertedCredential, c.cloudSpecificHelper)
+	serviceConfig, err := cloudServicesCreateFunc(namespacedName, cloudConvertedCredential, c.cloudSpecificHelper)
 	if err != nil {
 		return nil, err
-	}
-	serviceConfigMap := make(map[CloudServiceName]*CloudServiceCommon)
-	for _, serviceCfg := range serviceConfigs {
-		serviceConfig := &CloudServiceCommon{
-			serviceInterface: serviceCfg,
-		}
-		serviceConfigMap[serviceCfg.GetName()] = serviceConfig
 	}
 
 	status := &crdv1alpha1.CloudProviderAccountStatus{}
 	return &cloudAccountConfig{
 		logger:         loggerFunc,
 		namespacedName: namespacedName,
-		serviceConfigs: serviceConfigMap,
+		serviceConfig:  serviceConfig,
 		credentials:    cloudConvertedCredential,
 		Status:         status,
 	}, nil
@@ -117,73 +108,23 @@ func (c *cloudCommon) updateCloudAccountConfig(client client.Client, credentials
 		return err
 	}
 
-	serviceConfigs, err := cloudServicesCreateFunc(currentConfig.namespacedName, cloudConvertedNewCredential, c.cloudSpecificHelper)
+	serviceConfig, err := cloudServicesCreateFunc(currentConfig.namespacedName, cloudConvertedNewCredential, c.cloudSpecificHelper)
 	if err != nil {
 		return err
 	}
-	serviceConfigMap := make(map[CloudServiceName]CloudServiceInterface)
-	for _, serviceCfg := range serviceConfigs {
-		serviceConfigMap[serviceCfg.GetName()] = serviceCfg
-	}
-
-	return currentConfig.update(serviceConfigMap, c.logger())
-}
-
-func (accCfg *cloudAccountConfig) update(newSvcConfigMap map[CloudServiceName]CloudServiceInterface, logger logging.Logger) error {
-	accCfg.mutex.Lock()
-	defer accCfg.mutex.Unlock()
-
-	existingSvcConfigMap := accCfg.serviceConfigs
-	for name, svcConfig := range existingSvcConfigMap {
-		newSvcCfg, found := newSvcConfigMap[name]
-		if !found {
-			// should not happen
-			continue
-		}
-		if err := svcConfig.updateServiceConfig(newSvcCfg); err != nil {
-			return err
-		}
-		logger.Info("Service config updated (api-clients to use new creds)", "account", accCfg.namespacedName,
-			"serviceName", name)
-	}
-	return nil
+	return currentConfig.serviceConfig.UpdateServiceConfig(serviceConfig)
 }
 
 func (accCfg *cloudAccountConfig) performInventorySync() error {
 	accCfg.mutex.Lock()
 	defer accCfg.mutex.Unlock()
 
-	serviceConfigs := accCfg.serviceConfigs
-
-	ch := make(chan error)
-	var wg sync.WaitGroup
-	wg.Add(len(serviceConfigs))
-	go func() {
-		wg.Wait()
-		close(ch)
-	}()
-
-	for _, serviceConfig := range serviceConfigs {
-		go func(serviceCfg *CloudServiceCommon) {
-			defer wg.Done()
-
-			err := serviceCfg.doResourceInventory()
-			if err != nil {
-				// set the error status to be used later in `CloudProviderAccount` CR.
-				accCfg.Status.Error = err.Error()
-				ch <- err
-			}
-			inventoryStats := serviceCfg.getInventoryStats()
-			inventoryStats.UpdateInventoryPollStats(err)
-		}(serviceConfig)
+	err := accCfg.serviceConfig.DoResourceInventory()
+	if err != nil {
+		// set the error status to be used later in `CloudProviderAccount` CR.
+		accCfg.Status.Error = err.Error()
 	}
-
-	var err error
-	for e := range ch {
-		if e != nil {
-			err = multierr.Append(err, e)
-		}
-	}
+	accCfg.serviceConfig.GetInventoryStats().UpdateInventoryPollStats(err)
 	return err
 }
 
@@ -191,20 +132,8 @@ func (accCfg *cloudAccountConfig) GetNamespacedName() *types.NamespacedName {
 	return accCfg.namespacedName
 }
 
-func (accCfg *cloudAccountConfig) GetServiceConfigs() map[CloudServiceName]*CloudServiceCommon {
-	svcNameCfgMap := make(map[CloudServiceName]*CloudServiceCommon)
-	for name, serviceCommon := range accCfg.serviceConfigs {
-		svcNameCfgMap[name] = serviceCommon
-	}
-	return svcNameCfgMap
-}
-
-func (accCfg *cloudAccountConfig) GetServiceConfigByName(name CloudServiceName) (CloudServiceInterface, error) {
-	if serviceCfg, found := accCfg.serviceConfigs[name]; found {
-		return serviceCfg.serviceInterface, nil
-	}
-
-	return nil, fmt.Errorf("%v service not found for account %v", name, accCfg.namespacedName)
+func (accCfg *cloudAccountConfig) GetServiceConfig() CloudServiceInterface {
+	return accCfg.serviceConfig
 }
 
 func (accCfg *cloudAccountConfig) GetStatus() *crdv1alpha1.CloudProviderAccountStatus {
@@ -212,7 +141,5 @@ func (accCfg *cloudAccountConfig) GetStatus() *crdv1alpha1.CloudProviderAccountS
 }
 
 func (accCfg *cloudAccountConfig) resetInventoryCache() {
-	for _, serviceConfig := range accCfg.serviceConfigs {
-		serviceConfig.resetInventoryCache()
-	}
+	accCfg.serviceConfig.ResetInventoryCache()
 }

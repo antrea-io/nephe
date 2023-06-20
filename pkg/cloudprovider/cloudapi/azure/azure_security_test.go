@@ -233,7 +233,7 @@ var _ = Describe("Azure Cloud Security", func() {
 			Expect(err).Should(BeNil())
 
 			accCfg, _ := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
-			serviceConfig, _ := accCfg.GetServiceConfigByName(azureComputeServiceNameCompute)
+			serviceConfig := accCfg.GetServiceConfig()
 
 			vnetIDs := make(map[string]struct{})
 			vnetIDs[strings.ToLower(testVnetID01)] = struct{}{}
@@ -621,7 +621,7 @@ var _ = Describe("Azure Cloud Security", func() {
 				}
 
 				accCfg, _ := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
-				serviceConfig, _ := accCfg.GetServiceConfigByName(azureComputeServiceNameCompute)
+				serviceConfig := accCfg.GetServiceConfig()
 				serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{vmToUpdateMap, nil, nil, nil})
 
 				serviceConfig.(*computeServiceConfig).GetInternalResourceObjects(testAccountNamespacedName.Namespace, testAccountNamespacedName)
