@@ -97,7 +97,7 @@ if [ -z "$TF_VAR_azure_client_subscription_id" ] || [ -z "$TF_VAR_azure_client_i
     exit 1
 fi
 
-source $(dirname "${BASH_SOURCE[0]}")/install-common.sh
+source $(dirname "${BASH_SOURCE[0]}")/common.sh
 install_common_packages
 
 echo "Building Nephe Docker image"
@@ -110,11 +110,18 @@ echo "Creating Kind cluster"
 hack/install-cloud-tools.sh
 ci/kind/kind-setup.sh create kind
 
+wait_for_cert_manager "$HOME"/.kube/config
+
+# Pre install Nephe.
+helm repo add antrea https://charts.antrea.io
+helm repo update
+helm install nephe build/charts/nephe --create-namespace -n nephe-system --set cloudSyncInterval=3600
+
 mkdir -p "$HOME"/logs
 if [ "$UPGRADE" = true ] ; then
     ci/bin/upgrade.test -ginkgo.v -ginkgo.timeout 90m -ginkgo.focus=".*test-azure.*" -kubeconfig="$HOME"/.kube/config \
     -from-version=0.5.0 -to-version="latest" -chart-dir="build/charts/nephe" -cloud-provider=Azure -support-bundle-dir="$HOME"/logs
 else
     ci/bin/integration.test -ginkgo.v -ginkgo.timeout 90m -ginkgo.focus=".*test-azure.*" -kubeconfig="$HOME"/.kube/config \
-    -cloud-provider=Azure -support-bundle-dir="$HOME"/logs
+    -cloud-provider=Azure -support-bundle-dir="$HOME"/logs -pre-installed
 fi

@@ -64,3 +64,17 @@ function pull_docker_images() {
     docker pull quay.io/jetstack/cert-manager-cainjector:${CERT_MANAGER_VERSION}
     docker pull projects.registry.vmware.com/antrea/antrea-ubuntu:${ANTREA_VERSION}
 }
+
+function wait_for_cert_manager() {
+    i=1
+    while [ "$(kubectl get pods --kubeconfig=$1 -l=app='cert-manager' -n cert-manager -o jsonpath='{.items[*].status.containerStatuses[0].ready}')" != "true" ]; do
+        sleep 5
+        echo "Waiting for Cert Manager to be ready."
+        i=$(( $i + 1 ))
+        if [ $i -eq 20 ]; then
+            echo "Cert Manager failed to come up."
+            exit 1
+        fi
+    done
+    sleep 5
+}

@@ -128,7 +128,7 @@ curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip
 unzip -q awscliv2.zip
 sudo ./aws/install
 
-source $(dirname "${BASH_SOURCE[0]}")/install-common.sh
+source $(dirname "${BASH_SOURCE[0]}")/common.sh
 install_common_packages
 
 echo "Building Nephe Docker image"

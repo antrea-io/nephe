@@ -105,7 +105,7 @@ if [ -z "$TF_VAR_azure_client_subscription_id" ] || [ -z "$TF_VAR_azure_client_i
     exit 1
 fi
 
-source $(dirname "${BASH_SOURCE[0]}")/install-common.sh
+source $(dirname "${BASH_SOURCE[0]}")/common.sh
 install_common_packages
 
 echo "Building Nephe Docker image"
@@ -121,24 +121,11 @@ function cleanup() {
 }
 trap cleanup EXIT
 
-function wait_for_cert_manager() {
-    i=1
-    while [ "$($HOME/terraform/aks kubectl get pods -l=app='cert-manager' -n cert-manager -o jsonpath='{.items[*].status.containerStatuses[0].ready}')" != "true" ]; do
-        sleep 5
-        echo "Waiting for Cert Manager to be ready."
-        i=$(( $i + 1 ))
-        if [ $i -eq 20 ]; then
-            echo "Cert Manager failed to come up."
-            exit 1
-        fi
-    done
-}
-
 hack/install-cloud-tools.sh
 echo "Creating AKS Cluster"
 $HOME/terraform/aks create
 
-wait_for_cert_manager
+wait_for_cert_manager "$HOME"/tmp/terraform-aks/kubeconfig
 
 # Load locally built nephe docker image.
 $HOME/terraform/aks load antrea/nephe:latest

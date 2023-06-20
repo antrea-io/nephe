@@ -66,6 +66,7 @@ var (
 
 	// flags.
 	manifest            string
+	preInstalled        bool
 	preserveSetupOnFail bool
 	supportBundleDir    string
 	kubeconfig          string
@@ -77,6 +78,7 @@ var (
 
 func init() {
 	flag.StringVar(&manifest, "manifest-path", "./config/nephe.yml", "The relative path to manifest.")
+	flag.BoolVar(&preInstalled, "pre-installed", false, "Controller deployment is pre installed or not")
 	flag.BoolVar(&preserveSetupOnFail, "preserve-setup-on-fail", false, "Preserve the setup if a test failed.")
 	flag.StringVar(&supportBundleDir, "support-bundle-dir", "", "Support bundles are saved in this dir when specified.")
 	flag.BoolVar(&withAgent, "with-agent", false, "Using antrea-agent on Linux VM.")
@@ -118,8 +120,12 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(kubeCtl).ToNot(BeNil())
 
-	bytes, err := os.ReadFile(manifest)
-	Expect(err).ToNot(HaveOccurred())
+	var nepheControllerManifest string
+	if !preInstalled {
+		bytes, err := os.ReadFile(manifest)
+		Expect(err).ToNot(HaveOccurred())
+		nepheControllerManifest = string(bytes)
+	}
 
 	cluster := clusterContext
 	c, err := utils.NewK8sClient(scheme, cluster)
@@ -168,7 +174,6 @@ var _ = BeforeSuite(func() {
 		close(wgChan)
 	}()
 
-	nepheControllerManifest := string(bytes)
 	kubeCtl.SetContext(cluster)
 	By("Check cert-manager is ready, may wait longer for docker pull")
 	// Increase the timeout for now to get past CI/CD timeout at this point to see what is causing it.
@@ -183,9 +188,11 @@ var _ = BeforeSuite(func() {
 	err = utils.RestartOrWaitDeployment(k8sClient, "antrea-controller", "kube-system", time.Second*120, false)
 	Expect(err).ToNot(HaveOccurred())
 
-	By("Applying nephe controller manifest")
-	err = kubeCtl.Apply("", []byte(nepheControllerManifest))
-	Expect(err).ToNot(HaveOccurred())
+	if !preInstalled {
+		By("Applying nephe controller manifest")
+		err = kubeCtl.Apply("", []byte(nepheControllerManifest))
+		Expect(err).ToNot(HaveOccurred())
+	}
 
 	By("Check nephe controller is ready")
 	err = utils.RestartOrWaitDeployment(k8sClient, "nephe-controller", "nephe-system", time.Second*120, false)
