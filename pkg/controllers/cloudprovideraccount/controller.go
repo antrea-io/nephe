@@ -36,6 +36,7 @@ import (
 
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/pkg/accountmanager"
+	"antrea.io/nephe/pkg/controllers/networkpolicy"
 	controllersync "antrea.io/nephe/pkg/controllers/sync"
 	"antrea.io/nephe/pkg/util"
 	"antrea.io/nephe/pkg/util/env"
@@ -55,6 +56,7 @@ type CloudProviderAccountReconciler struct {
 	initialized      bool
 	watcher          watch.Interface
 	clientset        kubernetes.Interface
+	NpController     networkpolicy.NetworkPolicyController
 }
 
 // nolint:lll
@@ -151,6 +153,12 @@ func (r *CloudProviderAccountReconciler) processCreateOrUpdate(namespacedName *t
 }
 
 func (r *CloudProviderAccountReconciler) processDelete(namespacedName *types.NamespacedName) error {
+	deletedCpa := &crdv1alpha1.CloudProviderAccount{
+		ObjectMeta: metav1.ObjectMeta{Name: namespacedName.Name, Namespace: namespacedName.Namespace},
+	}
+	r.Log.V(1).Info("Sending local event", "account", deletedCpa)
+	r.NpController.LocalEvent(watch.Event{Type: watch.Deleted, Object: deletedCpa})
+
 	if err := r.AccManager.RemoveAccount(namespacedName); err != nil {
 		return err
 	}

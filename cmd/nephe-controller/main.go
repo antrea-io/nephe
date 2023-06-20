@@ -127,6 +127,19 @@ func main() {
 	}
 	vmController.ConfigureConverterAndStart()
 
+	npController := &networkpolicy.NetworkPolicyReconciler{
+		Client:            mgr.GetClient(),
+		Log:               logging.GetLogger("controllers").WithName("NetworkPolicy"),
+		Scheme:            mgr.GetScheme(),
+		CloudSyncInterval: opts.config.CloudSyncInterval,
+		Inventory:         cloudInventory,
+	}
+
+	if err = npController.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "NetworkPolicy")
+		os.Exit(1)
+	}
+
 	if err = (&cloudentityselector.CloudEntitySelectorReconciler{
 		Client:     mgr.GetClient(),
 		Log:        logging.GetLogger("controllers").WithName("CloudEntitySelector"),
@@ -138,26 +151,14 @@ func main() {
 	}
 
 	if err = (&cloudprovideraccount.CloudProviderAccountReconciler{
-		Client:     mgr.GetClient(),
-		Log:        logging.GetLogger("controllers").WithName("CloudProviderAccount"),
-		Scheme:     mgr.GetScheme(),
-		AccManager: accountManager,
-		Mgr:        &mgr,
+		Client:       mgr.GetClient(),
+		Log:          logging.GetLogger("controllers").WithName("CloudProviderAccount"),
+		Scheme:       mgr.GetScheme(),
+		AccManager:   accountManager,
+		Mgr:          &mgr,
+		NpController: npController,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "CloudProviderAccount")
-		os.Exit(1)
-	}
-
-	npController := &networkpolicy.NetworkPolicyReconciler{
-		Client:            mgr.GetClient(),
-		Log:               logging.GetLogger("controllers").WithName("NetworkPolicy"),
-		Scheme:            mgr.GetScheme(),
-		CloudSyncInterval: opts.config.CloudSyncInterval,
-		Inventory:         cloudInventory,
-	}
-
-	if err = npController.SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "NetworkPolicy")
 		os.Exit(1)
 	}
 
