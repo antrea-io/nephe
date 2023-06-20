@@ -22,7 +22,6 @@ import (
 	mock "github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -38,6 +37,7 @@ import (
 	"antrea.io/nephe/pkg/inventory"
 	"antrea.io/nephe/pkg/labels"
 	"antrea.io/nephe/pkg/testing/cloud"
+	nephetypes "antrea.io/nephe/pkg/types"
 )
 
 var _ = Describe("Account Poller", func() {
@@ -66,11 +66,10 @@ var _ = Describe("Account Poller", func() {
 			mockCloudInterface = cloud.NewMockCloudInterface(mockCtrl)
 			cloudInventory := inventory.InitInventory()
 			accountPollerObj = &accountPoller{
-				log:                    logf.Log,
-				Client:                 fakeClient,
-				inventory:              cloudInventory,
-				mutex:                  sync.RWMutex{},
-				selectorNamespacedName: make(map[types.NamespacedName]struct{}),
+				log:       logf.Log,
+				Client:    fakeClient,
+				inventory: cloudInventory,
+				mutex:     sync.RWMutex{},
 			}
 
 			pollIntv = 1
@@ -171,12 +170,13 @@ var _ = Describe("Account Poller", func() {
 		})
 		It("Remove selector", func() {
 			vmLabelsMap := map[string]string{
-				labels.CloudAccountName:      testAccountNamespacedName.Name,
-				labels.CloudAccountNamespace: testAccountNamespacedName.Namespace,
-				labels.CloudSelectorName:     testCesNamespacedName.Name,
-				labels.CloudVmUID:            "ubuntu",
-				labels.CloudVpcUID:           "vpcid",
-				labels.VpcName:               "vpc",
+				labels.CloudAccountName:       testAccountNamespacedName.Name,
+				labels.CloudAccountNamespace:  testAccountNamespacedName.Namespace,
+				labels.CloudSelectorName:      testCesNamespacedName.Name,
+				labels.CloudSelectorNamespace: testCesNamespacedName.Namespace,
+				labels.CloudVmUID:             "ubuntu",
+				labels.CloudVpcUID:            "vpcid",
+				labels.VpcName:                "vpc",
 			}
 			vmList := make(map[string]*runtimev1alpha1.VirtualMachine)
 			vmObj := new(runtimev1alpha1.VirtualMachine)
@@ -184,12 +184,12 @@ var _ = Describe("Account Poller", func() {
 			vmObj.Namespace = testCesNamespacedName.Namespace
 			vmObj.Labels = vmLabelsMap
 			vmList["ubuntu"] = vmObj
-			accountPollerObj.inventory.BuildVmCache(vmList, &testCesNamespacedName)
+			accountPollerObj.inventory.BuildVmCache(vmList, &testAccountNamespacedName, &testCesNamespacedName)
 			vms := accountPollerObj.inventory.GetAllVms()
 			Expect(len(vms)).To(Equal(1))
 
 			// Delete VMs from cache.
-			accountPollerObj.removeSelector(&testCesNamespacedName)
+			_ = accountPollerObj.inventory.DeleteVmsFromCache(&testAccountNamespacedName, &testCesNamespacedName)
 			vms = accountPollerObj.inventory.GetAllVms()
 			Expect(len(vms)).To(Equal(0))
 		})
@@ -217,31 +217,32 @@ var _ = Describe("Account Poller", func() {
 				CloudProviderAccountStatus{}, nil).AnyTimes()
 
 			// Invalid VPC.
-			mockCloudInterface.EXPECT().GetVpcInventory(&testAccountNamespacedName).Return(nil,
+			mockCloudInterface.EXPECT().GetCloudInventory(&testAccountNamespacedName).Return(nil,
 				fmt.Errorf("error")).Times(1)
 			accountPollerObj.doAccountPolling()
 			Expect(len(accountPollerObj.inventory.GetAllVpcs())).To(Equal(0))
 
 			// Empty VPC.
-			mockCloudInterface.EXPECT().GetVpcInventory(&testAccountNamespacedName).Return(nil,
+			cloudInventory := nephetypes.CloudInventory{}
+			mockCloudInterface.EXPECT().GetCloudInventory(&testAccountNamespacedName).Return(&cloudInventory,
 				nil).Times(1)
 			accountPollerObj.doAccountPolling()
 			Expect(len(accountPollerObj.inventory.GetAllVpcs())).To(Equal(0))
 
 			// Valid VPC.
-			mockCloudInterface.EXPECT().GetVpcInventory(&testAccountNamespacedName).Return(vpcList,
+			cloudInventory = nephetypes.CloudInventory{VpcMap: vpcList}
+			mockCloudInterface.EXPECT().GetCloudInventory(&testAccountNamespacedName).Return(&cloudInventory,
 				nil).Times(1)
 			accountPollerObj.doAccountPolling()
 			Expect(len(accountPollerObj.inventory.GetAllVpcs())).To(Equal(len(vpcList)))
-
-			accountPollerObj.selectorNamespacedName[testCesNamespacedName] = struct{}{}
 			vmLabelsMap := map[string]string{
-				labels.CloudAccountName:      testAccountNamespacedName.Name,
-				labels.CloudAccountNamespace: testAccountNamespacedName.Namespace,
-				labels.CloudSelectorName:     testCesNamespacedName.Name,
-				labels.CloudVmUID:            "ubuntu",
-				labels.CloudVpcUID:           "vpcid",
-				labels.VpcName:               "vpc",
+				labels.CloudAccountName:       testAccountNamespacedName.Name,
+				labels.CloudAccountNamespace:  testAccountNamespacedName.Namespace,
+				labels.CloudSelectorName:      testCesNamespacedName.Name,
+				labels.CloudSelectorNamespace: testCesNamespacedName.Namespace,
+				labels.CloudVmUID:             "ubuntu",
+				labels.CloudVpcUID:            "vpcid",
+				labels.VpcName:                "vpc",
 			}
 			vmList := make(map[string]*runtimev1alpha1.VirtualMachine)
 			vmObj := new(runtimev1alpha1.VirtualMachine)
@@ -250,18 +251,18 @@ var _ = Describe("Account Poller", func() {
 			vmObj.Labels = vmLabelsMap
 			vmList["ubuntu"] = vmObj
 
+			cloudInventory = nephetypes.CloudInventory{VpcMap: vpcList}
 			// Invalid VMs.
-			mockCloudInterface.EXPECT().InstancesGivenProviderAccount(&testAccountNamespacedName, &testCesNamespacedName).Return(
-				nil, fmt.Errorf("error")).Times(1)
-			mockCloudInterface.EXPECT().GetVpcInventory(&testAccountNamespacedName).Return(vpcList,
+			mockCloudInterface.EXPECT().GetCloudInventory(&testAccountNamespacedName).Return(&cloudInventory,
 				nil).Times(1)
 			accountPollerObj.doAccountPolling()
 			Expect(len(accountPollerObj.inventory.GetAllVms())).To(Equal(0))
 
 			// Valid VMs.
-			mockCloudInterface.EXPECT().InstancesGivenProviderAccount(&testAccountNamespacedName, &testCesNamespacedName).Return(vmList,
-				nil).Times(1)
-			mockCloudInterface.EXPECT().GetVpcInventory(&testAccountNamespacedName).Return(vpcList,
+			vmMap := make(map[types.NamespacedName]map[string]*runtimev1alpha1.VirtualMachine)
+			vmMap[testCesNamespacedName] = vmList
+			cloudInventory = nephetypes.CloudInventory{VpcMap: vpcList, VmMap: vmMap}
+			mockCloudInterface.EXPECT().GetCloudInventory(&testAccountNamespacedName).Return(&cloudInventory,
 				nil).Times(1)
 			accountPollerObj.doAccountPolling()
 			Expect(len(accountPollerObj.inventory.GetAllVms())).To(Equal(len(vmList)))
@@ -287,12 +288,13 @@ var _ = Describe("Account Poller", func() {
 		})
 		It("Get vm selector match", func() {
 			vmLabelsMap := map[string]string{
-				labels.CloudAccountName:      testAccountNamespacedName.Name,
-				labels.CloudAccountNamespace: testAccountNamespacedName.Namespace,
-				labels.CloudSelectorName:     testCesNamespacedName.Name,
-				labels.CloudVmUID:            "ubuntu",
-				labels.CloudVpcUID:           "vpcid",
-				labels.VpcName:               "vpc",
+				labels.CloudAccountName:       testAccountNamespacedName.Name,
+				labels.CloudAccountNamespace:  testAccountNamespacedName.Namespace,
+				labels.CloudSelectorName:      testCesNamespacedName.Name,
+				labels.CloudSelectorNamespace: testCesNamespacedName.Namespace,
+				labels.CloudVmUID:             "ubuntu",
+				labels.CloudVpcUID:            "vpcid",
+				labels.VpcName:                "vpc",
 			}
 			vmStatus := &runtimev1alpha1.VirtualMachineStatus{
 				Provider: runtimev1alpha1.AWSCloudProvider,

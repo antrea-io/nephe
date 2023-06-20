@@ -46,11 +46,11 @@ var (
 		"use vpc matchID instead of vpc matchName"
 	errorMsgMatchIDNameTogether = "matchID and matchName are not supported together, " +
 		"configure either matchID or matchName in an EntityMatch"
-	errorMsgAccountNameUpdate         = "account Name update not allowed"
-	errorMsgAccountNamespaceUpdate    = "account Namespace update not allowed"
+	errorMsgAccountNameUpdate         = "account name update not allowed"
+	errorMsgAccountNamespaceUpdate    = "account namespace update not allowed"
 	errorMsgReferencedAccountNotFound = "failed to find the referenced CloudProviderAccount"
 	errorMsgInvalidCloudType          = "invalid cloud provider type"
-	errorMsgVpcOrVmMatchNotAvailable  = "Either vpcMatch or vmMatch is mandatory"
+	errorMsgVpcOrVmMatchNotAvailable  = "either vpcMatch or vmMatch is mandatory"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -83,8 +83,10 @@ func (v *CESMutator) Handle(_ context.Context, req admission.Request) admission.
 	referencedAccount := &v1alpha1.CloudProviderAccount{}
 	err = v.Client.Get(context.TODO(), *accountNameSpacedName, referencedAccount)
 	if err != nil {
-		v.Log.Error(err, errorMsgReferencedAccountNotFound, "account", *accountNameSpacedName)
-		return admission.Errored(http.StatusBadRequest, err)
+		v.Log.Error(err, errorMsgReferencedAccountNotFound, "CloudEntitySelector", selector, "Account name", selector.Spec.AccountName,
+			"Account namespace", selector.Spec.AccountNamespace)
+		return admission.Errored(http.StatusBadRequest, fmt.Errorf("%s, account name : %s, account namespace: %s",
+			errorMsgReferencedAccountNotFound, selector.Spec.AccountName, selector.Spec.AccountNamespace))
 	}
 	cloudProviderType, err := util.GetAccountProviderType(referencedAccount)
 	if err != nil {
@@ -188,20 +190,25 @@ func (v *CESValidator) validateUpdate(req admission.Request) admission.Response 
 		}
 	}
 
-	// account name update not allowed.
-	oldAccName := strings.TrimSpace(oldSelector.Spec.AccountName)
-	newAccountName := strings.TrimSpace(newSelector.Spec.AccountName)
-	if strings.Compare(oldAccName, newAccountName) != 0 {
-		return admission.Errored(http.StatusBadRequest, fmt.Errorf(
-			"%s (old:%v, new:%v)", errorMsgAccountNameUpdate, oldAccName, newAccountName))
+	// TODO: remove null string check for name and namespace later.
+	// account Name update not allowed.
+	if oldSelector.Spec.AccountName != "" {
+		oldAccName := strings.TrimSpace(oldSelector.Spec.AccountName)
+		newAccountName := strings.TrimSpace(newSelector.Spec.AccountName)
+		if strings.Compare(oldAccName, newAccountName) != 0 {
+			return admission.Errored(http.StatusBadRequest, fmt.Errorf(
+				"%s (old:%v, new:%v)", errorMsgAccountNameUpdate, oldAccName, newAccountName))
+		}
 	}
 
-	// account namespace update not allowed.
-	oldAccNamespace := strings.TrimSpace(oldSelector.Spec.AccountNamespace)
-	newAccountNamespace := strings.TrimSpace(newSelector.Spec.AccountNamespace)
-	if strings.Compare(oldAccNamespace, newAccountNamespace) != 0 {
-		return admission.Errored(http.StatusBadRequest, fmt.Errorf(
-			"%s (old:%v, new:%v)", errorMsgAccountNamespaceUpdate, oldAccNamespace, newAccountNamespace))
+	// account Namespace update not allowed.
+	if oldSelector.Spec.AccountNamespace != "" {
+		oldAccNamespace := strings.TrimSpace(oldSelector.Spec.AccountNamespace)
+		newAccountNamespace := strings.TrimSpace(newSelector.Spec.AccountNamespace)
+		if strings.Compare(oldAccNamespace, newAccountNamespace) != 0 {
+			return admission.Errored(http.StatusBadRequest, fmt.Errorf(
+				"%s (old:%v, new:%v)", errorMsgAccountNamespaceUpdate, oldAccNamespace, newAccountNamespace))
+		}
 	}
 
 	// make sure unsupported match combinations are not configured.
@@ -228,7 +235,7 @@ func (v *CESValidator) getReferencedAccount(selector *v1alpha1.CloudEntitySelect
 	err := v.Client.Get(context.TODO(), *accountNamespacedName, referencedAccount)
 	if err != nil {
 		v.Log.Error(err, errorMsgReferencedAccountNotFound, "CloudEntitySelector", selector,
-			"account", *accountNamespacedName)
+			"Account name", selector.Spec.AccountName, "Account namespace", selector.Spec.AccountNamespace)
 		return nil, err
 	}
 	return referencedAccount, err

@@ -12,15 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package indexer
+package types
 
-const (
-	ByNamespace      = "namespace"
-	ByNamespacedName = "namespace-name"
+import (
+	"k8s.io/apimachinery/pkg/types"
 
-	VpcByNamespacedAccountName = "namespace-cloud-account-name"
-
-	VirtualMachineByCloudId                = "cloud-assigned-id"
-	VirtualMachineByAccountNamespacedName  = "namespaced-cloud-account-name"
-	VirtualMachineBySelectorNamespacedName = "namespaced-cloud-selector-name"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 )
+
+type CloudInventory struct {
+	// VmMap holds Virtual Machine objects indexed per selector.
+	VmMap map[types.NamespacedName]map[string]*runtimev1alpha1.VirtualMachine
+	// VpcMap holds VPC objects.
+	VpcMap map[string]*runtimev1alpha1.Vpc
+}

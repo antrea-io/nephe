@@ -133,12 +133,13 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 	})
 	Context("VM Inventory Test", func() {
 		vmLabelsMap := map[string]string{
-			labels.CloudSelectorName:     selectorNamespacedName.Name,
-			labels.CloudAccountName:      namespacedAccountName.Name,
-			labels.CloudAccountNamespace: namespacedAccountName.Namespace,
-			labels.CloudVmUID:            testVmID01,
-			labels.CloudVpcUID:           testVpcID01,
-			labels.VpcName:               testVpcName01,
+			labels.CloudSelectorName:      selectorNamespacedName.Name,
+			labels.CloudSelectorNamespace: selectorNamespacedName.Namespace,
+			labels.CloudAccountName:       namespacedAccountName.Name,
+			labels.CloudAccountNamespace:  namespacedAccountName.Namespace,
+			labels.CloudVmUID:             testVmID01,
+			labels.CloudVpcUID:            testVpcID01,
+			labels.VpcName:                testVpcName01,
 		}
 
 		ipAddressCRD := runtimev1alpha1.IPAddress{
@@ -178,11 +179,11 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 		vmList[testVmID01] = vmObj
 
 		It("Add VMs to VM inventory", func() {
-			cloudInventory.BuildVmCache(vmList, &selectorNamespacedName)
+			cloudInventory.BuildVmCache(vmList, &namespacedAccountName, &selectorNamespacedName)
 			allVmList := cloudInventory.GetAllVms()
 			Expect(allVmList).Should(HaveLen(len(vmList)))
 
-			vmListByIndex, err := cloudInventory.GetVmFromIndexer(indexer.VirtualMachineByNamespacedSelectorName,
+			vmListByIndex, err := cloudInventory.GetVmFromIndexer(indexer.VirtualMachineBySelectorNamespacedName,
 				selectorNamespacedName.String())
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(vmListByIndex).Should(HaveLen(len(vmList)))
@@ -192,9 +193,9 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			}
 		})
 		It("Delete a VM from VM inventory", func() {
-			cloudInventory.BuildVmCache(vmList, &selectorNamespacedName)
+			cloudInventory.BuildVmCache(vmList, &namespacedAccountName, &selectorNamespacedName)
 
-			vmListByIndex, err := cloudInventory.GetVmFromIndexer(indexer.VirtualMachineByNamespacedSelectorName,
+			vmListByIndex, err := cloudInventory.GetVmFromIndexer(indexer.VirtualMachineBySelectorNamespacedName,
 				selectorNamespacedName.String())
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(vmListByIndex).Should(HaveLen(len(vmList)))
@@ -211,7 +212,7 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			vmObj.Labels = vmLabelsMap
 			vmObj.Status = *vmStatus
 			vmList2[testVmID02] = vmObj
-			cloudInventory.BuildVmCache(vmList2, &selectorNamespacedName)
+			cloudInventory.BuildVmCache(vmList2, &namespacedAccountName, &selectorNamespacedName)
 
 			_, exist := cloudInventory.GetVmByKey(vmCacheKey2)
 			Expect(exist).Should(BeTrue())
@@ -220,7 +221,7 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			Expect(exist).Should(BeFalse())
 		})
 		It("Update Agented field in Status and add to VM inventory", func() {
-			cloudInventory.BuildVmCache(vmList, &selectorNamespacedName)
+			cloudInventory.BuildVmCache(vmList, &namespacedAccountName, &selectorNamespacedName)
 
 			vm, exist := cloudInventory.GetVmByKey(vmCacheKey1)
 			Expect(exist).Should(BeTrue())
@@ -241,7 +242,7 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			vmObjUpdate.Labels = vmLabelsMap
 			vmObjUpdate.Status = *vmStatusUpdate
 			vmListUpdate[testVmID01] = vmObjUpdate
-			cloudInventory.BuildVmCache(vmListUpdate, &selectorNamespacedName)
+			cloudInventory.BuildVmCache(vmListUpdate, &namespacedAccountName, &selectorNamespacedName)
 
 			// Vm object should be updated the latest Status field.
 			vm, exist = cloudInventory.GetVmByKey(vmCacheKey1)
@@ -249,7 +250,7 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			Expect(vm.Status.Agented).To(BeTrue())
 		})
 		It("Update State field in Status and add to VM inventory", func() {
-			cloudInventory.BuildVmCache(vmList, &selectorNamespacedName)
+			cloudInventory.BuildVmCache(vmList, &namespacedAccountName, &selectorNamespacedName)
 
 			vm, exist := cloudInventory.GetVmByKey(vmCacheKey1)
 			Expect(exist).Should(BeTrue())
@@ -270,7 +271,7 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			vmObjUpdate.Labels = vmLabelsMap
 			vmObjUpdate.Status = *vmStatusUpdate
 			vmListUpdate[testVmID01] = vmObjUpdate
-			cloudInventory.BuildVmCache(vmListUpdate, &namespacedAccountName)
+			cloudInventory.BuildVmCache(vmListUpdate, &namespacedAccountName, &namespacedAccountName)
 
 			// Vm object should be updated with the latest Status field.
 			vm, exist = cloudInventory.GetVmByKey(vmCacheKey1)
@@ -278,17 +279,30 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			Expect(vm.Status.State).To(Equal(runtimev1alpha1.Stopped))
 		})
 		It("Delete VM inventory", func() {
-			cloudInventory.BuildVmCache(vmList, &selectorNamespacedName)
+			cloudInventory.BuildVmCache(vmList, &namespacedAccountName, &selectorNamespacedName)
 
-			vmListByIndex, err := cloudInventory.GetVmFromIndexer(indexer.VirtualMachineByNamespacedSelectorName,
+			vmListByIndex, err := cloudInventory.GetVmFromIndexer(indexer.VirtualMachineBySelectorNamespacedName,
 				selectorNamespacedName.String())
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(vmListByIndex).Should(HaveLen(len(vmList)))
 
 			// Delete vm cache.
-			err = cloudInventory.DeleteVmsFromCache(&selectorNamespacedName)
+			err = cloudInventory.DeleteVmsFromCache(&namespacedAccountName, &selectorNamespacedName)
 			Expect(err).ShouldNot(HaveOccurred())
 			_, exist := cloudInventory.GetVmByKey(vmCacheKey1)
+			Expect(exist).Should(BeFalse())
+
+			// Add vm inventory again and delete vm inventory using account namespaced name.
+			cloudInventory.BuildVmCache(vmList, &namespacedAccountName, &selectorNamespacedName)
+			vmListByIndex, err = cloudInventory.GetVmFromIndexer(indexer.VirtualMachineBySelectorNamespacedName,
+				selectorNamespacedName.String())
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(vmListByIndex).Should(HaveLen(len(vmList)))
+
+			// Delete vm cache.
+			err = cloudInventory.DeleteAllVmsFromCache(&namespacedAccountName)
+			Expect(err).ShouldNot(HaveOccurred())
+			_, exist = cloudInventory.GetVmByKey(vmCacheKey1)
 			Expect(exist).Should(BeFalse())
 		})
 	})

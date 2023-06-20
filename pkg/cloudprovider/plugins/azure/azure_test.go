@@ -188,9 +188,9 @@ var _ = Describe("Azure", func() {
 				errPolAdd := c.DoInventoryPoll(testAccountNamespacedName)
 				Expect(errPolAdd).Should(BeNil())
 
-				vnetMap, err := c.GetVpcInventory(testAccountNamespacedName)
+				cloudInventory, err := c.GetCloudInventory(testAccountNamespacedName)
 				Expect(err).Should(BeNil())
-				Expect(len(vnetMap)).Should(Equal(len(vnetIDs)))
+				Expect(len(cloudInventory.VpcMap)).Should(Equal(len(vnetIDs)))
 			})
 			It("StopPoller cloud inventory poll on poller delete", func() {
 				vnetIDs := []string{"testVnetID01", "testVnetID02"}
@@ -248,16 +248,13 @@ var _ = Describe("Azure", func() {
 				err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
 				Expect(err).Should(BeNil())
 
-				filters := getFilters(c, testSelectorNamespacedName.String())
+				filters := getFilters(c, testSelectorNamespacedName)
 				Expect(filters).To(Equal(expectedQueryStrs))
 
 				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName)
 				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
-				filters = getFilters(c, testSelectorNamespacedName.String())
+				filters = getFilters(c, testSelectorNamespacedName)
 				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
-
-				_, err = c.InstancesGivenProviderAccount(testAccountNamespacedName, testSelectorNamespacedName)
-				Expect(err).Should(BeNil())
 
 				_ = c.GetEnforcedSecurity()
 			})
@@ -285,12 +282,12 @@ var _ = Describe("Azure", func() {
 				err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
 				Expect(err).Should(BeNil())
 
-				filters := getFilters(c, testSelectorNamespacedName.String())
+				filters := getFilters(c, testSelectorNamespacedName)
 				Expect(filters).To(Equal(expectedQueryStrs))
 
 				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName)
 				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
-				filters = getFilters(c, testSelectorNamespacedName.String())
+				filters = getFilters(c, testSelectorNamespacedName)
 				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
 			})
 
@@ -311,7 +308,7 @@ var _ = Describe("Azure", func() {
 				err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
 				Expect(err).Should(BeNil())
 
-				filters := getFilters(c, testSelectorNamespacedName.String())
+				filters := getFilters(c, testSelectorNamespacedName)
 				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
 			})
 
@@ -333,12 +330,12 @@ var _ = Describe("Azure", func() {
 				err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
 				Expect(err).Should(BeNil())
 
-				filters := getFilters(c, testSelectorNamespacedName.String())
+				filters := getFilters(c, testSelectorNamespacedName)
 				Expect(filters).To(Equal(expectedQueryStrs))
 
 				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName)
 				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
-				filters = getFilters(c, testSelectorNamespacedName.String())
+				filters = getFilters(c, testSelectorNamespacedName)
 				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
 			})
 
@@ -361,19 +358,19 @@ var _ = Describe("Azure", func() {
 				err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
 				Expect(err).Should(BeNil())
 
-				filters := getFilters(c, testSelectorNamespacedName.String())
+				filters := getFilters(c, testSelectorNamespacedName)
 				Expect(filters).To(Equal(expectedQueryStrs))
 
 				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName)
 				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
-				filters = getFilters(c, testSelectorNamespacedName.String())
+				filters = getFilters(c, testSelectorNamespacedName)
 				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
 			})
 
 			It("Should match expected filter - vpcID with VMID match", func() {
 				vnetIDs = []string{testVnetID01}
 				vmIDs = []string{testVMID01}
-				vmNames := []string{}
+				var vmNames []string
 				var expectedQueryStrs []*string
 				expectedQueryStr, _ := getVMsByVnetAndOtherMatchesQuery(vnetIDs, vmNames, vmIDs,
 					subIDs, tenantIDs, locations)
@@ -391,12 +388,12 @@ var _ = Describe("Azure", func() {
 				err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
 				Expect(err).Should(BeNil())
 
-				filters := getFilters(c, testSelectorNamespacedName.String())
+				filters := getFilters(c, testSelectorNamespacedName)
 				Expect(filters).To(Equal(expectedQueryStrs))
 
 				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName)
 				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
-				filters = getFilters(c, testSelectorNamespacedName.String())
+				filters = getFilters(c, testSelectorNamespacedName)
 				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
 			})
 
@@ -422,12 +419,12 @@ var _ = Describe("Azure", func() {
 				err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
 				Expect(err).Should(BeNil())
 
-				filters := getFilters(c, testSelectorNamespacedName.String())
+				filters := getFilters(c, testSelectorNamespacedName)
 				Expect(filters).To(Equal(expectedQueryStrs))
 
 				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName)
 				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
-				filters = getFilters(c, testSelectorNamespacedName.String())
+				filters = getFilters(c, testSelectorNamespacedName)
 				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
 			})
 
@@ -482,11 +479,11 @@ func getResourceGraphResult() resourcegraph.ClientResourcesResponse {
 	return result
 }
 
-func getFilters(c *azureCloud, selectorNamespacedName string) []*string {
+func getFilters(c *azureCloud, selectorNamespacedName *types.NamespacedName) []*string {
 	accCfg, _ := c.cloudCommon.GetCloudAccountByName(&types.NamespacedName{Namespace: "namespace01", Name: "account01"})
 	serviceConfig := accCfg.GetServiceConfig()
-	if obj, found := serviceConfig.(*computeServiceConfig).selectorConfigMap[selectorNamespacedName]; found {
-		return obj.instanceFilters
+	if filters, found := serviceConfig.(*computeServiceConfig).computeFilters[*selectorNamespacedName]; found {
+		return filters
 	}
 	return nil
 }

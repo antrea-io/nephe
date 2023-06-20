@@ -127,12 +127,13 @@ func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable
 	}
 
 	labelsMap := map[string]string{
-		labels.CloudAccountName:      accountNamespacedName.Name,
-		labels.CloudAccountNamespace: accountNamespacedName.Namespace,
-		labels.CloudSelectorName:     selectorNamespacedName.Name,
-		labels.VpcName:               cloudNetworkShortID,
-		labels.CloudVmUID:            strings.ToLower(vmUid),
-		labels.CloudVpcUID:           strings.ToLower(vnetUid),
+		labels.CloudAccountName:       accountNamespacedName.Name,
+		labels.CloudAccountNamespace:  accountNamespacedName.Namespace,
+		labels.CloudSelectorName:      selectorNamespacedName.Name,
+		labels.CloudSelectorNamespace: selectorNamespacedName.Namespace,
+		labels.VpcName:                cloudNetworkShortID,
+		labels.CloudVmUID:             strings.ToLower(vmUid),
+		labels.CloudVpcUID:            strings.ToLower(vnetUid),
 	}
 
 	vmObj := &runtimev1alpha1.VirtualMachine{
@@ -186,7 +187,7 @@ func ComputeVpcToInternalVpcObject(vnet *armnetwork.VirtualNetwork, accountNames
 		Managed:   managed,
 	}
 
-	labels := map[string]string{
+	labelsMap := map[string]string{
 		labels.CloudAccountNamespace: accountNamespace,
 		labels.CloudAccountName:      accountName,
 		labels.CloudVpcUID:           uid,
@@ -196,7 +197,7 @@ func ComputeVpcToInternalVpcObject(vnet *armnetwork.VirtualNetwork, accountNames
 		ObjectMeta: v1.ObjectMeta{
 			Name:      crdName,
 			Namespace: accountNamespace,
-			Labels:    labels,
+			Labels:    labelsMap,
 		},
 		Status: *status,
 	}

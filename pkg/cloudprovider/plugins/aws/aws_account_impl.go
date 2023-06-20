@@ -19,7 +19,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
-	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 )
 
 // AddProviderAccount adds and initializes given account of a cloud provider.
@@ -54,9 +53,4 @@ func (c *awsCloud) DoInventoryPoll(accountNamespacedName *types.NamespacedName) 
 // ResetInventoryCache resets cloud snapshot and poll stats to nil.
 func (c *awsCloud) ResetInventoryCache(accountNamespacedName *types.NamespacedName) error {
 	return c.cloudCommon.ResetInventoryCache(accountNamespacedName)
-}
-
-// GetVpcInventory pulls cloud vpc inventory from internal snapshot.
-func (c *awsCloud) GetVpcInventory(accountNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.Vpc, error) {
-	return c.cloudCommon.GetVpcInventory(accountNamespacedName)
 }

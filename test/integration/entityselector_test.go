@@ -47,8 +47,6 @@ var _ = Describe(fmt.Sprintf("%s: Entity selector test", focusAws), func() {
 		vpcNameMatch = "vpc-name"
 		vmIDMatch    = "vm-id"
 		vmNameMatch  = "vm-name"
-		// TODO: Check if it is a better idea to set numNamespace to number of vms.
-		numNamespace = 3
 	)
 
 	var (
@@ -58,6 +56,7 @@ var _ = Describe(fmt.Sprintf("%s: Entity selector test", focusAws), func() {
 		vmIDList     []string
 		vmNameList   []string
 		pollInterval uint = 30
+		numNamespace int
 		cpaNamespace *v1.Namespace
 		cesNamespace []v1.Namespace
 		// CES can be in same namespace as CPA(cpaNamespace) or a different namespace(cesNamespace).
@@ -234,7 +233,6 @@ var _ = Describe(fmt.Sprintf("%s: Entity selector test", focusAws), func() {
 				expectedResult = append(expectedResult, [][]string{vmIDList}...)
 			}
 		case vmIDMatch:
-			// TODO: Handle a case where len(vmIDList) is less than 3, is setting numNamespace to len(vmIDList) required?
 			for i := 0; i < numNamespace; i++ {
 				matchValue = append(matchValue, vmIDList[i]+appendKey)
 				temp := []string{vmList[i]}
@@ -262,6 +260,7 @@ var _ = Describe(fmt.Sprintf("%s: Entity selector test", focusAws), func() {
 		vmList = cloudVPC.GetVMs()
 		vmIDList = cloudVPC.GetVMIDs()
 		vmNameList = cloudVPC.GetVMNames()
+		numNamespace = len(vmList)
 		cpaNamespace = &v1.Namespace{}
 		cpaNamespace.Name = namespaceName + "-" + fmt.Sprintf("%x", rand.Int())
 		// create namespaces for CES to test CES in different namespace from CPA.

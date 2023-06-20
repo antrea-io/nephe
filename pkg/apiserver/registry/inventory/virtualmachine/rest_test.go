@@ -54,9 +54,10 @@ var _ = Describe("Virtual Machine", func() {
 			Namespace: "default",
 			Name:      "targetId",
 			Labels: map[string]string{
-				nephelabels.CloudAccountNamespace: accountNamespacedName.Namespace,
-				nephelabels.CloudAccountName:      accountNamespacedName.Name,
-				nephelabels.CloudSelectorName:     "selector01",
+				nephelabels.CloudAccountNamespace:  accountNamespacedName.Namespace,
+				nephelabels.CloudAccountName:       accountNamespacedName.Name,
+				nephelabels.CloudSelectorName:      "selector01",
+				nephelabels.CloudSelectorNamespace: "default",
 			},
 		},
 		Status: runtimev1alpha1.VirtualMachineStatus{
@@ -76,9 +77,10 @@ var _ = Describe("Virtual Machine", func() {
 			Namespace: "non-default",
 			Name:      "targetId-nondefault",
 			Labels: map[string]string{
-				nephelabels.CloudSelectorName:     "selector01",
-				nephelabels.CloudAccountNamespace: accountNamespacedName.Namespace,
-				nephelabels.CloudAccountName:      accountNamespacedName.Name,
+				nephelabels.CloudSelectorName:      "selector01",
+				nephelabels.CloudSelectorNamespace: "non-default",
+				nephelabels.CloudAccountNamespace:  accountNamespacedName.Namespace,
+				nephelabels.CloudAccountName:       accountNamespacedName.Name,
 			},
 		},
 		Status: runtimev1alpha1.VirtualMachineStatus{
@@ -92,9 +94,10 @@ var _ = Describe("Virtual Machine", func() {
 			Namespace: "default",
 			Name:      "targetId2",
 			Labels: map[string]string{
-				nephelabels.CloudAccountNamespace: accountNamespacedName.Namespace,
-				nephelabels.CloudAccountName:      accountNamespacedName.Name,
-				nephelabels.CloudSelectorName:     "selector01",
+				nephelabels.CloudAccountNamespace:  accountNamespacedName.Namespace,
+				nephelabels.CloudAccountName:       accountNamespacedName.Name,
+				nephelabels.CloudSelectorName:      "selector01",
+				nephelabels.CloudSelectorNamespace: "default",
 			},
 		},
 		Status: runtimev1alpha1.VirtualMachineStatus{
@@ -121,7 +124,7 @@ var _ = Describe("Virtual Machine", func() {
 				vmMap := make(map[string]*runtimev1alpha1.VirtualMachine)
 				vmMap[cachedVM.Name] = cachedVM
 				namespacedName := types.NamespacedName{Namespace: cachedVM.Namespace, Name: "selector01"}
-				cloudInventory.BuildVmCache(vmMap, &namespacedName)
+				cloudInventory.BuildVmCache(vmMap, &accountNamespacedName, &namespacedName)
 				rest := NewREST(cloudInventory, l)
 				actualVM, err := rest.Get(request.NewDefaultContext(), cachedVM.Name, &metav1.GetOptions{})
 				if cachedVM.Name == "targetId-nondefault" {
@@ -143,8 +146,9 @@ var _ = Describe("Virtual Machine", func() {
 			for _, cachedVM := range cachedVMs {
 				vmMap[cachedVM.Name] = cachedVM
 			}
-			namespacedName := types.NamespacedName{Namespace: cacheTest1.Namespace, Name: "accountID"}
-			cloudInventory.BuildVmCache(vmMap, &namespacedName)
+			accountNamespacedName := types.NamespacedName{Namespace: cacheTest1.Namespace, Name: "accountID"}
+			namespacedName := types.NamespacedName{Namespace: accountNamespacedName.Namespace, Name: "selector01"}
+			cloudInventory.BuildVmCache(vmMap, &accountNamespacedName, &namespacedName)
 		})
 
 		expectedVMList1 := &runtimev1alpha1.VirtualMachineList{
@@ -176,7 +180,6 @@ var _ = Describe("Virtual Machine", func() {
 			listLabelSelectorOption1,
 			listLabelSelectorOption2,
 		}
-
 		It("Should return the VM list by labels", func() {
 			for i, vmListOption := range vmLabelSelectorListOptions {
 				rest := NewREST(cloudInventory, l)
@@ -275,10 +278,11 @@ var _ = Describe("Virtual Machine", func() {
 				Namespace: "non-default1",
 				Name:      "targetId4",
 				Labels: map[string]string{
-					nephelabels.CloudAccountNamespace: accountNamespacedName.Namespace,
-					nephelabels.CloudAccountName:      accountNamespacedName.Name,
-					nephelabels.VpcName:               "testNetworkID",
-					nephelabels.CloudSelectorName:     "selector01",
+					nephelabels.CloudAccountNamespace:  accountNamespacedName.Namespace,
+					nephelabels.CloudAccountName:       accountNamespacedName.Name,
+					nephelabels.VpcName:                "testNetworkID",
+					nephelabels.CloudSelectorName:      "selector01",
+					nephelabels.CloudSelectorNamespace: "non-default1",
 				},
 			},
 			Status: runtimev1alpha1.VirtualMachineStatus{
@@ -296,9 +300,10 @@ var _ = Describe("Virtual Machine", func() {
 				Namespace: "default",
 				Name:      "targetId",
 				Labels: map[string]string{
-					nephelabels.CloudAccountNamespace: accountNamespacedName.Namespace,
-					nephelabels.CloudAccountName:      accountNamespacedName.Name,
-					nephelabels.CloudSelectorName:     "selector01",
+					nephelabels.CloudAccountNamespace:  accountNamespacedName.Namespace,
+					nephelabels.CloudAccountName:       accountNamespacedName.Name,
+					nephelabels.CloudSelectorName:      "selector01",
+					nephelabels.CloudSelectorNamespace: "default",
 				},
 			},
 			Status: runtimev1alpha1.VirtualMachineStatus{
@@ -328,8 +333,9 @@ var _ = Describe("Virtual Machine", func() {
 			}
 			vmMap := make(map[string]*runtimev1alpha1.VirtualMachine)
 			vmMap[cacheTest4.Name] = cacheTest4
-			namespacedName := types.NamespacedName{Namespace: cacheTest4.Namespace, Name: cacheTest4.Labels[nephelabels.CloudSelectorName]}
-			cloudInventory.BuildVmCache(vmMap, &namespacedName)
+			namespacedName := types.NamespacedName{Namespace: cacheTest4.Labels[nephelabels.CloudSelectorNamespace],
+				Name: cacheTest4.Labels[nephelabels.CloudSelectorName]}
+			cloudInventory.BuildVmCache(vmMap, &accountNamespacedName, &namespacedName)
 
 			rest := NewREST(cloudInventory, l)
 			actualTable, err := rest.ConvertToTable(request.NewDefaultContext(), cacheTest4, &metav1.TableOptions{})
@@ -348,15 +354,15 @@ var _ = Describe("Virtual Machine", func() {
 			cloudInventory1 := inventory.InitInventory()
 			vmMap := make(map[string]*runtimev1alpha1.VirtualMachine)
 			namespacedName := types.NamespacedName{Namespace: accountNamespacedName.Namespace, Name: "selector01"}
-			cloudInventory1.BuildVmCache(vmMap, &namespacedName)
+			cloudInventory1.BuildVmCache(vmMap, &accountNamespacedName, &namespacedName)
 			rest := NewREST(cloudInventory1, l)
 			watcher, err := rest.Watch(request.NewDefaultContext(), &internalversion.ListOptions{})
 			Expect(err).Should(BeNil())
 			vmMap[cacheTest1.Name] = cacheTest1
-			cloudInventory1.BuildVmCache(vmMap, &namespacedName)
+			cloudInventory1.BuildVmCache(vmMap, &accountNamespacedName, &namespacedName)
 			vmMap[cacheTest1.Name] = cacheTest5
-			cloudInventory1.BuildVmCache(vmMap, &namespacedName)
-			err = cloudInventory1.DeleteVmsFromCache(&namespacedName)
+			cloudInventory1.BuildVmCache(vmMap, &accountNamespacedName, &namespacedName)
+			err = cloudInventory1.DeleteVmsFromCache(&accountNamespacedName, &namespacedName)
 			Expect(err).Should(BeNil())
 			for _, expectedEvent := range expectedEvents {
 				ev := <-watcher.ResultChan()

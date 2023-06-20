@@ -105,13 +105,19 @@ var _ = Describe("AWS cloud", func() {
 			BeforeEach(func() {
 				selector = &v1alpha1.CloudEntitySelector{
 					ObjectMeta: v1.ObjectMeta{
-						Name:      "selector-all",
+						Name:      "vpc-match-selector",
 						Namespace: testAccountNamespacedName.Namespace,
 					},
 					Spec: v1alpha1.CloudEntitySelectorSpec{
 						AccountName:      testAccountNamespacedName.Name,
 						AccountNamespace: testAccountNamespacedName.Namespace,
-						VMSelector:       []v1alpha1.VirtualMachineSelector{},
+						VMSelector: []v1alpha1.VirtualMachineSelector{
+							{
+								VpcMatch: &v1alpha1.EntityMatch{
+									MatchID: "xyz",
+								},
+							},
+						},
 					},
 				}
 
@@ -188,9 +194,9 @@ var _ = Describe("AWS cloud", func() {
 				errPolAdd := c.DoInventoryPoll(&testAccountNamespacedName)
 				Expect(errPolAdd).Should(BeNil())
 
-				vpcMap, err := c.GetVpcInventory(&testAccountNamespacedName)
+				cloudInventory, err := c.GetCloudInventory(&testAccountNamespacedName)
 				Expect(err).Should(BeNil())
-				Expect(len(vpcMap)).Should(Equal(len(vpcIDs)))
+				Expect(len(cloudInventory.VpcMap)).Should(Equal(len(vpcIDs)))
 			})
 			It("StopPoller cloud inventory poll on poller delete", func() {
 				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret", "sessionToken": "token"}`
@@ -232,44 +238,6 @@ var _ = Describe("AWS cloud", func() {
 				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(&ec2.DescribeVpcsOutput{}, nil).Times(0)
 				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{}, nil).Times(0)
 			})
-			It("Should discover few instances with get ALL selector using credentials", func() {
-				instanceIds := []string{"i-01", "i-02"}
-				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret"}`
-
-				secret = &corev1.Secret{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      testAccountNamespacedName.Name,
-						Namespace: testAccountNamespacedName.Namespace,
-					},
-					Data: map[string][]byte{
-						"credentials": []byte(credential),
-					},
-				}
-
-				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).AnyTimes()
-				mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).AnyTimes()
-				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(&ec2.DescribeVpcsOutput{}, nil).AnyTimes()
-				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
-					nil).AnyTimes()
-
-				_ = fakeClient.Create(context.Background(), secret)
-				c := newAWSCloud(mockawsCloudHelper)
-				err := c.AddProviderAccount(fakeClient, account)
-
-				Expect(err).Should(BeNil())
-				accCfg, found := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
-				Expect(found).To(BeTrue())
-				Expect(accCfg).To(Not(BeNil()))
-
-				errSelAdd := c.AddAccountResourceSelector(&testAccountNamespacedName, selector)
-				Expect(errSelAdd).Should(BeNil())
-
-				err = c.DoInventoryPoll(&testAccountNamespacedName)
-				Expect(err).Should(BeNil())
-
-				err = checkAccountAddSuccessCondition(c, testAccountNamespacedName, instanceIds)
-				Expect(err).Should(BeNil())
-			})
 			It("Should discover instances when selector is in different namespace from account", func() {
 				instanceIds := []string{"i-01", "i-02"}
 				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret"}`
@@ -292,7 +260,13 @@ var _ = Describe("AWS cloud", func() {
 					Spec: v1alpha1.CloudEntitySelectorSpec{
 						AccountName:      testAccountNamespacedName.Name,
 						AccountNamespace: testAccountNamespacedName.Namespace,
-						VMSelector:       []v1alpha1.VirtualMachineSelector{},
+						VMSelector: []v1alpha1.VirtualMachineSelector{
+							{
+								VpcMatch: &v1alpha1.EntityMatch{
+									MatchID: "xyz",
+								},
+							},
+						},
 					},
 				}
 
@@ -317,43 +291,7 @@ var _ = Describe("AWS cloud", func() {
 				err = c.DoInventoryPoll(&testAccountNamespacedName)
 				Expect(err).Should(BeNil())
 
-				err = checkAccountAddSuccessCondition(c, testAccountNamespacedName, instanceIds)
-				Expect(err).Should(BeNil())
-			})
-			It("Should discover few instances with get ALL selector using roleArn", func() {
-				instanceIds := []string{"i-01", "i-02"}
-				credential := `{"roleArn" : "roleArn","externalID" : "" }`
-				secret = &corev1.Secret{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      testAccountNamespacedName.Name,
-						Namespace: testAccountNamespacedName.Namespace,
-					},
-					Data: map[string][]byte{
-						"credentials": []byte(credential),
-					},
-				}
-				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).AnyTimes()
-				mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).AnyTimes()
-				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(&ec2.DescribeVpcsOutput{}, nil).AnyTimes()
-				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
-					nil).AnyTimes()
-
-				_ = fakeClient.Create(context.Background(), secret)
-				c := newAWSCloud(mockawsCloudHelper)
-				err := c.AddProviderAccount(fakeClient, account)
-
-				Expect(err).Should(BeNil())
-				accCfg, found := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
-				Expect(found).To(BeTrue())
-				Expect(accCfg).To(Not(BeNil()))
-
-				errSelAdd := c.AddAccountResourceSelector(&testAccountNamespacedName, selector)
-				Expect(errSelAdd).Should(BeNil())
-
-				err = c.DoInventoryPoll(&testAccountNamespacedName)
-				Expect(err).Should(BeNil())
-
-				err = checkAccountAddSuccessCondition(c, testAccountNamespacedName, instanceIds)
+				err = checkAccountAddSuccessCondition(c, testAccountNamespacedName, testSelectorNamespacedName, instanceIds)
 				Expect(err).Should(BeNil())
 			})
 			It("Should discover no instances with get ALL selector", func() {
@@ -377,7 +315,7 @@ var _ = Describe("AWS cloud", func() {
 				err = c.DoInventoryPoll(&testAccountNamespacedName)
 				Expect(err).Should(BeNil())
 
-				err = checkAccountAddSuccessCondition(c, testAccountNamespacedName, instanceIds)
+				err = checkAccountAddSuccessCondition(c, testAccountNamespacedName, testSelectorNamespacedName, instanceIds)
 				Expect(err).Should(BeNil())
 			})
 		})
@@ -507,8 +445,7 @@ var _ = Describe("AWS cloud", func() {
 				err := c.AddAccountResourceSelector(&testAccountNamespacedName, selector)
 				Expect(err).Should(BeNil())
 
-				accCfg, _ := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
-				filters := accCfg.GetServiceConfig().(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
+				filters := getFilters(c, testSelectorNamespacedName)
 				Expect(filters).To(Equal(expectedFilters))
 			})
 		})
@@ -538,8 +475,7 @@ var _ = Describe("AWS cloud", func() {
 			err := c.AddAccountResourceSelector(&testAccountNamespacedName, selector)
 			Expect(err).Should(BeNil())
 
-			accCfg, _ := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
-			filters := accCfg.GetServiceConfig().(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
+			filters := getFilters(c, testSelectorNamespacedName)
 			Expect(filters).To(Equal(expectedFilters))
 		})
 		It("Should match expected filter - multiple vpcName only match", func() {
@@ -567,9 +503,7 @@ var _ = Describe("AWS cloud", func() {
 			selector.Spec.VMSelector = vmSelector
 			err := c.AddAccountResourceSelector(&testAccountNamespacedName, selector)
 			Expect(err).Should(BeNil())
-
-			accCfg, _ := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
-			filters := accCfg.GetServiceConfig().(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
+			filters := getFilters(c, testSelectorNamespacedName)
 			Expect(filters).To(Equal(expectedFilters))
 		})
 		It("Should match expected filter - multiple vpcID & vmName match", func() {
@@ -622,8 +556,7 @@ var _ = Describe("AWS cloud", func() {
 			err := c.AddAccountResourceSelector(&testAccountNamespacedName, selector)
 			Expect(err).Should(BeNil())
 
-			accCfg, _ := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
-			filters := accCfg.GetServiceConfig().(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
+			filters := getFilters(c, testSelectorNamespacedName)
 			Expect(filters).To(Equal(expectedFilters))
 		})
 		It("Should match expected filter - multiple with one all", func() {
@@ -647,9 +580,7 @@ var _ = Describe("AWS cloud", func() {
 			selector.Spec.VMSelector = vmSelector
 			err := c.AddAccountResourceSelector(&testAccountNamespacedName, selector)
 			Expect(err).Should(BeNil())
-
-			accCfg, _ := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
-			filters := accCfg.GetServiceConfig().(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
+			filters := getFilters(c, testSelectorNamespacedName)
 			Expect(filters).To(Equal(expectedFilters))
 		})
 		It("Should match expected filter - multiple vm names only match", func() {
@@ -684,8 +615,7 @@ var _ = Describe("AWS cloud", func() {
 			err := c.AddAccountResourceSelector(&testAccountNamespacedName, selector)
 			Expect(err).Should(BeNil())
 
-			accCfg, _ := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
-			filters := accCfg.GetServiceConfig().(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
+			filters := getFilters(c, testSelectorNamespacedName)
 			Expect(filters).To(Equal(expectedFilters))
 		})
 		It("Should match expected filter - multiple vm IDs only match", func() {
@@ -720,8 +650,7 @@ var _ = Describe("AWS cloud", func() {
 			err := c.AddAccountResourceSelector(&testAccountNamespacedName, selector)
 			Expect(err).Should(BeNil())
 
-			accCfg, _ := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
-			filters := accCfg.GetServiceConfig().(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
+			filters := getFilters(c, testSelectorNamespacedName)
 			Expect(filters).To(Equal(expectedFilters))
 		})
 	})
@@ -765,14 +694,15 @@ func createVpcObject(vpcIDs []string) *ec2.DescribeVpcsOutput {
 	return vpcsOutput
 }
 
-func checkAccountAddSuccessCondition(c *awsCloud, namespacedName types.NamespacedName, ids []string) error {
+func checkAccountAddSuccessCondition(c *awsCloud, namespacedName types.NamespacedName, selectorNamespacedName types.NamespacedName,
+	ids []string) error {
 	conditionFunc := func() (done bool, e error) {
 		accCfg, found := c.cloudCommon.GetCloudAccountByName(&namespacedName)
 		if !found {
 			return true, errors.New("failed to find account")
 		}
 
-		instances := accCfg.GetServiceConfig().(*ec2ServiceConfig).getCachedInstances()
+		instances := accCfg.GetServiceConfig().(*ec2ServiceConfig).getCachedInstances(&selectorNamespacedName)
 		instanceIds := make([]string, 0, len(instances))
 		for _, instance := range instances {
 			instanceIds = append(instanceIds, *instance.InstanceId)
@@ -797,7 +727,7 @@ func checkVpcPollResult(c *awsCloud, namespacedName types.NamespacedName, ids []
 			return true, errors.New("failed to find account")
 		}
 
-		vpcs := accCfg.GetServiceConfig().(*ec2ServiceConfig).GetCachedVpcs()
+		vpcs := accCfg.GetServiceConfig().(*ec2ServiceConfig).getCachedVpcs()
 		vpcIDs := make([]string, 0, len(vpcs))
 		for _, vpc := range vpcs {
 			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("vpc id %s", *vpc.VpcId)))
@@ -814,4 +744,12 @@ func checkVpcPollResult(c *awsCloud, namespacedName types.NamespacedName, ids []
 	}
 
 	return wait.PollImmediate(1*time.Second, 5*time.Second, conditionFunc)
+}
+
+func getFilters(c *awsCloud, selectorNamespacedName types.NamespacedName) [][]*ec2.Filter {
+	accCfg, _ := c.cloudCommon.GetCloudAccountByName(&types.NamespacedName{Namespace: "namespace01", Name: "account01"})
+	if obj, found := accCfg.GetServiceConfig().(*ec2ServiceConfig).instanceFilters[selectorNamespacedName]; found {
+		return obj
+	}
+	return nil
 }

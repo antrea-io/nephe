@@ -55,17 +55,19 @@ func GetAccountProviderType(account *crdv1alpha1.CloudProviderAccount) (runtimev
 }
 
 // DoesCesCrExistsForAccount returns true if there is a CloudEntitySelector CR for a given account.
-func CesCrForAccount(k8sClient client.Client, namespacedName *types.NamespacedName) int {
+func DoesCesCrExistsForAccount(k8sClient client.Client, namespacedName *types.NamespacedName) bool {
 	cesList := &crdv1alpha1.CloudEntitySelectorList{}
-	if err := k8sClient.List(context.TODO(), cesList); err != nil {
-		return 0
+	listOptions := &client.ListOptions{
+		Namespace: namespacedName.Namespace,
+	}
+	if err := k8sClient.List(context.TODO(), cesList, listOptions); err != nil {
+		return false
 	}
 
-	var numCes int
 	for _, ces := range cesList.Items {
-		if ces.Spec.AccountName == namespacedName.Name && ces.Spec.AccountNamespace == namespacedName.Namespace {
-			numCes++
+		if ces.Spec.AccountName == namespacedName.Name {
+			return true
 		}
 	}
-	return numCes
+	return false
 }

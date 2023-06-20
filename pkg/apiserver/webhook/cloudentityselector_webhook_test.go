@@ -1907,7 +1907,7 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			selector = &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testSelectorDifferentNamespace.Name,
-					Namespace: testSelectorNamespacedName.Namespace,
+					Namespace: testSelectorDifferentNamespace.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
 					AccountName:      testAccountNamespacedName.Name,

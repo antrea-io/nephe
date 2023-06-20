@@ -147,7 +147,7 @@ func NewVmInventoryStore() antreastorage.Interface {
 			vm := obj.(*runtimev1alpha1.VirtualMachine)
 			return []string{vm.Namespace + "/" + vm.Name}, nil
 		},
-		indexer.VirtualMachineByNamespacedAccountName: func(obj interface{}) ([]string, error) {
+		indexer.VirtualMachineByAccountNamespacedName: func(obj interface{}) ([]string, error) {
 			vm := obj.(*runtimev1alpha1.VirtualMachine)
 			return []string{vm.Labels[nephelabels.CloudAccountNamespace] + "/" +
 				vm.Labels[nephelabels.CloudAccountName]}, nil
@@ -156,9 +156,9 @@ func NewVmInventoryStore() antreastorage.Interface {
 			vm := obj.(*runtimev1alpha1.VirtualMachine)
 			return []string{vm.Status.CloudId}, nil
 		},
-		indexer.VirtualMachineByNamespacedSelectorName: func(obj interface{}) ([]string, error) {
+		indexer.VirtualMachineBySelectorNamespacedName: func(obj interface{}) ([]string, error) {
 			vm := obj.(*runtimev1alpha1.VirtualMachine)
-			return []string{vm.Namespace + "/" +
+			return []string{vm.Labels[nephelabels.CloudSelectorNamespace] + "/" +
 				vm.Labels[nephelabels.CloudSelectorName]}, nil
 		},
 	}

@@ -25,8 +25,9 @@ import (
 	v1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	v1alpha10 "antrea.io/nephe/apis/runtime/v1alpha1"
 	cloudresource "antrea.io/nephe/pkg/cloudprovider/cloudresource"
+	types "antrea.io/nephe/pkg/types"
 	gomock "github.com/golang/mock/gomock"
-	types "k8s.io/apimachinery/pkg/types"
+	types0 "k8s.io/apimachinery/pkg/types"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -54,7 +55,7 @@ func (m *MockCloudInterface) EXPECT() *MockCloudInterfaceMockRecorder {
 }
 
 // AddAccountResourceSelector mocks base method.
-func (m *MockCloudInterface) AddAccountResourceSelector(arg0 *types.NamespacedName, arg1 *v1alpha1.CloudEntitySelector) error {
+func (m *MockCloudInterface) AddAccountResourceSelector(arg0 *types0.NamespacedName, arg1 *v1alpha1.CloudEntitySelector) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddAccountResourceSelector", arg0, arg1)
 	ret0, _ := ret[0].(error)
@@ -111,7 +112,7 @@ func (mr *MockCloudInterfaceMockRecorder) DeleteSecurityGroup(arg0, arg1 interfa
 }
 
 // DoInventoryPoll mocks base method.
-func (m *MockCloudInterface) DoInventoryPoll(arg0 *types.NamespacedName) error {
+func (m *MockCloudInterface) DoInventoryPoll(arg0 *types0.NamespacedName) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DoInventoryPoll", arg0)
 	ret0, _ := ret[0].(error)
@@ -125,7 +126,7 @@ func (mr *MockCloudInterfaceMockRecorder) DoInventoryPoll(arg0 interface{}) *gom
 }
 
 // GetAccountStatus mocks base method.
-func (m *MockCloudInterface) GetAccountStatus(arg0 *types.NamespacedName) (*v1alpha1.CloudProviderAccountStatus, error) {
+func (m *MockCloudInterface) GetAccountStatus(arg0 *types0.NamespacedName) (*v1alpha1.CloudProviderAccountStatus, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAccountStatus", arg0)
 	ret0, _ := ret[0].(*v1alpha1.CloudProviderAccountStatus)
@@ -137,6 +138,21 @@ func (m *MockCloudInterface) GetAccountStatus(arg0 *types.NamespacedName) (*v1al
 func (mr *MockCloudInterfaceMockRecorder) GetAccountStatus(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccountStatus", reflect.TypeOf((*MockCloudInterface)(nil).GetAccountStatus), arg0)
+}
+
+// GetCloudInventory mocks base method.
+func (m *MockCloudInterface) GetCloudInventory(arg0 *types0.NamespacedName) (*types.CloudInventory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCloudInventory", arg0)
+	ret0, _ := ret[0].(*types.CloudInventory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCloudInventory indicates an expected call of GetCloudInventory.
+func (mr *MockCloudInterfaceMockRecorder) GetCloudInventory(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCloudInventory", reflect.TypeOf((*MockCloudInterface)(nil).GetCloudInventory), arg0)
 }
 
 // GetEnforcedSecurity mocks base method.
@@ -151,36 +167,6 @@ func (m *MockCloudInterface) GetEnforcedSecurity() []cloudresource.Synchronizati
 func (mr *MockCloudInterfaceMockRecorder) GetEnforcedSecurity() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnforcedSecurity", reflect.TypeOf((*MockCloudInterface)(nil).GetEnforcedSecurity))
-}
-
-// GetVpcInventory mocks base method.
-func (m *MockCloudInterface) GetVpcInventory(arg0 *types.NamespacedName) (map[string]*v1alpha10.Vpc, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetVpcInventory", arg0)
-	ret0, _ := ret[0].(map[string]*v1alpha10.Vpc)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetVpcInventory indicates an expected call of GetVpcInventory.
-func (mr *MockCloudInterfaceMockRecorder) GetVpcInventory(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVpcInventory", reflect.TypeOf((*MockCloudInterface)(nil).GetVpcInventory), arg0)
-}
-
-// InstancesGivenProviderAccount mocks base method.
-func (m *MockCloudInterface) InstancesGivenProviderAccount(arg0, arg1 *types.NamespacedName) (map[string]*v1alpha10.VirtualMachine, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InstancesGivenProviderAccount", arg0, arg1)
-	ret0, _ := ret[0].(map[string]*v1alpha10.VirtualMachine)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// InstancesGivenProviderAccount indicates an expected call of InstancesGivenProviderAccount.
-func (mr *MockCloudInterfaceMockRecorder) InstancesGivenProviderAccount(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstancesGivenProviderAccount", reflect.TypeOf((*MockCloudInterface)(nil).InstancesGivenProviderAccount), arg0, arg1)
 }
 
 // ProviderType mocks base method.
@@ -198,7 +184,7 @@ func (mr *MockCloudInterfaceMockRecorder) ProviderType() *gomock.Call {
 }
 
 // RemoveAccountResourcesSelector mocks base method.
-func (m *MockCloudInterface) RemoveAccountResourcesSelector(arg0, arg1 *types.NamespacedName) {
+func (m *MockCloudInterface) RemoveAccountResourcesSelector(arg0, arg1 *types0.NamespacedName) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "RemoveAccountResourcesSelector", arg0, arg1)
 }
@@ -210,7 +196,7 @@ func (mr *MockCloudInterfaceMockRecorder) RemoveAccountResourcesSelector(arg0, a
 }
 
 // RemoveProviderAccount mocks base method.
-func (m *MockCloudInterface) RemoveProviderAccount(arg0 *types.NamespacedName) {
+func (m *MockCloudInterface) RemoveProviderAccount(arg0 *types0.NamespacedName) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "RemoveProviderAccount", arg0)
 }
@@ -222,7 +208,7 @@ func (mr *MockCloudInterfaceMockRecorder) RemoveProviderAccount(arg0 interface{}
 }
 
 // ResetInventoryCache mocks base method.
-func (m *MockCloudInterface) ResetInventoryCache(arg0 *types.NamespacedName) error {
+func (m *MockCloudInterface) ResetInventoryCache(arg0 *types0.NamespacedName) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ResetInventoryCache", arg0)
 	ret0, _ := ret[0].(error)

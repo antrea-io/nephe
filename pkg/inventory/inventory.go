@@ -60,7 +60,10 @@ func (i *Inventory) BuildVpcCache(discoveredVpcMap map[string]*runtimev1alpha1.V
 
 	// Remove vpcs in vpc cache which are not found in vpc list fetched from cloud.
 	for _, object := range vpcsInCache {
-		vpc := object.(*runtimev1alpha1.Vpc)
+		vpc, ok := object.(*runtimev1alpha1.Vpc)
+		if !ok {
+			continue
+		}
 		if _, found := discoveredVpcMap[vpc.Status.CloudId]; !found {
 			if err := i.vpcStore.Delete(fmt.Sprintf("%v/%v-%v", vpc.Namespace,
 				vpc.Labels[nephelabels.CloudAccountName], vpc.Status.CloudId)); err != nil {
@@ -112,7 +115,10 @@ func (i *Inventory) DeleteVpcsFromCache(namespacedName *types.NamespacedName) er
 	}
 	var numVpcsToDelete int
 	for _, object := range vpcsInCache {
-		vpc := object.(*runtimev1alpha1.Vpc)
+		vpc, ok := object.(*runtimev1alpha1.Vpc)
+		if !ok {
+			continue
+		}
 		key := fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[nephelabels.CloudAccountName], vpc.Status.CloudId)
 		if err := i.vpcStore.Delete(key); err != nil {
 			i.log.Error(err, "failed to delete vpc from vpc cache, account: %v", *namespacedName)
@@ -144,20 +150,23 @@ func (i *Inventory) WatchVpcs(ctx context.Context, key string, labelSelector lab
 }
 
 // BuildVmCache builds vm cache for given account using vm list fetched from cloud.
-func (i *Inventory) BuildVmCache(discoveredVmMap map[string]*runtimev1alpha1.VirtualMachine,
+func (i *Inventory) BuildVmCache(discoveredVmMap map[string]*runtimev1alpha1.VirtualMachine, accountNamespacedName *types.NamespacedName,
 	selectorNamespacedName *types.NamespacedName) {
 	var numVmsToAdd, numVmsToUpdate, numVmsToDelete int
 
-	// Fetch all vms for a given account from the cache and check if it exists in the discovered vm list.
-	vmsInCache, _ := i.vmStore.GetByIndex(indexer.VirtualMachineByNamespacedSelectorName, selectorNamespacedName.String())
+	// Fetch all vms specific to a selector from the inventory cache and check if it exists in the discovered vm list.
+	vmsInCache, _ := i.vmStore.GetByIndex(indexer.VirtualMachineBySelectorNamespacedName, selectorNamespacedName.String())
 	// Remove vm from vm cache which are not found in vm map fetched from cloud.
 	for _, cachedObject := range vmsInCache {
-		cachedVm := cachedObject.(*runtimev1alpha1.VirtualMachine)
+		cachedVm, ok := cachedObject.(*runtimev1alpha1.VirtualMachine)
+		if !ok {
+			continue
+		}
 		if _, found := discoveredVmMap[cachedVm.Name]; !found {
 			key := fmt.Sprintf("%v/%v", cachedVm.Namespace, cachedVm.Name)
 			if err := i.vmStore.Delete(key); err != nil {
-				i.log.Error(err, "failed to delete vm from vm cache", "vm", cachedVm.Name, "selector",
-					selectorNamespacedName.String())
+				i.log.Error(err, "failed to delete vm from vm cache, account: %v, selector: %v, vm: %v",
+					*accountNamespacedName, *selectorNamespacedName, cachedVm.Name)
 			} else {
 				numVmsToDelete++
 			}
@@ -192,35 +201,67 @@ func (i *Inventory) BuildVmCache(discoveredVmMap map[string]*runtimev1alpha1.Vir
 		}
 		if err != nil {
 			i.log.Error(err, "failed to update vm in vm cache", "vm", discoveredVm.Name,
-				"selector", selectorNamespacedName.String())
+				"account", accountNamespacedName, "selector", selectorNamespacedName)
 		}
 	}
 
 	if numVmsToAdd != 0 || numVmsToUpdate != 0 || numVmsToDelete != 0 {
-		i.log.Info("Vm poll statistics", "selector", selectorNamespacedName, "added", numVmsToAdd,
-			"update", numVmsToUpdate, "delete", numVmsToDelete)
+		i.log.Info("Vm poll statistics", "account", accountNamespacedName, "selector", selectorNamespacedName,
+			"added", numVmsToAdd, "update", numVmsToUpdate, "delete", numVmsToDelete)
 	}
 }
 
-// DeleteVmsFromCache deletes all entries from vm cache for a given account.
-func (i *Inventory) DeleteVmsFromCache(namespacedName *types.NamespacedName) error {
-	vmsInCache, err := i.vmStore.GetByIndex(indexer.VirtualMachineByNamespacedSelectorName, namespacedName.String())
+// DeleteAllVmsFromCache deletes all entries from vm cache for a given account.
+func (i *Inventory) DeleteAllVmsFromCache(accountNamespacedName *types.NamespacedName) error {
+	vmsInCache, err := i.vmStore.GetByIndex(indexer.VirtualMachineByAccountNamespacedName, accountNamespacedName.String())
 	if err != nil {
 		return err
 	}
 	var numVmsToDelete int
 	for _, cachedObject := range vmsInCache {
-		cachedVm := cachedObject.(*runtimev1alpha1.VirtualMachine)
+		cachedVm, ok := cachedObject.(*runtimev1alpha1.VirtualMachine)
+		if !ok {
+			continue
+		}
 		key := fmt.Sprintf("%v/%v", cachedVm.Namespace, cachedVm.Name)
 		if err := i.vmStore.Delete(key); err != nil {
-			i.log.Error(err, "failed to delete vm from vm cache, account: %v vm: %v", *namespacedName, cachedVm.Name)
+			i.log.Error(err, "failed to delete vm from vm cache, account: %v, vm: %v", *accountNamespacedName, cachedVm.Name)
 		} else {
 			numVmsToDelete++
 		}
 	}
 
 	if numVmsToDelete != 0 {
-		i.log.Info("Vm poll statistics", "account", namespacedName, "deleted", numVmsToDelete)
+		i.log.Info("Vm poll statistics", "account", accountNamespacedName, "deleted", numVmsToDelete)
+	}
+	return nil
+}
+
+// DeleteVmsFromCache deletes all entries from vm cache for a given selector.
+func (i *Inventory) DeleteVmsFromCache(accountNamespacedName *types.NamespacedName,
+	selectorNamespacedName *types.NamespacedName) error {
+	vmsInCache, err := i.vmStore.GetByIndex(indexer.VirtualMachineBySelectorNamespacedName, selectorNamespacedName.String())
+	if err != nil {
+		return err
+	}
+	var numVmsToDelete int
+	for _, cachedObject := range vmsInCache {
+		cachedVm, ok := cachedObject.(*runtimev1alpha1.VirtualMachine)
+		if !ok {
+			continue
+		}
+		key := fmt.Sprintf("%v/%v", cachedVm.Namespace, cachedVm.Name)
+		if err := i.vmStore.Delete(key); err != nil {
+			i.log.Error(err, "failed to delete vm from vm cache, account: %v, selector: %v, vm: %v",
+				*accountNamespacedName, *selectorNamespacedName, cachedVm.Name)
+		} else {
+			numVmsToDelete++
+		}
+	}
+
+	if numVmsToDelete != 0 {
+		i.log.Info("Vm poll statistics", "account", accountNamespacedName,
+			"selector", selectorNamespacedName, "deleted", numVmsToDelete)
 	}
 	return nil
 }

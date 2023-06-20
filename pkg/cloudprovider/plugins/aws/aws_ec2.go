@@ -28,49 +28,27 @@ import (
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloudprovider/plugins/internal"
+	nephetypes "antrea.io/nephe/pkg/types"
 )
 
 type ec2ServiceConfig struct {
-	accountNamespacedName  types.NamespacedName
-	apiClient              awsEC2Wrapper
-	credentials            *awsAccountConfig
-	resourcesCache         *internal.CloudServiceResourcesCache
-	inventoryStats         *internal.CloudServiceStats
-	selectorConfigMap      map[string]*selectorConfig
-	configChangedSelectors []*types.NamespacedName
-}
-
-// selectorConfig struct is meant for storing details about CES configuration, created query string etc.
-type selectorConfig struct { // TODO: Azure Come up with a better name.
-	namespacedName string
-	// instanceFilters has following possible values
-	// - empty map indicates no selectors configured for this account. NO cloud api call for inventory will be made.
-	// - non-empty map indicates selectors are configured. Cloud api call for inventory will be made.
-	// - key with nil value indicates no filters. Get all instances for account.
-	// - key with "some-filter-string" value indicates some filter. Get instances matching those filters only.
-	instanceFilters [][]*ec2.Filter
-
+	accountNamespacedName types.NamespacedName
+	apiClient             awsEC2Wrapper
+	credentials           *awsAccountConfig
+	resourcesCache        *internal.CloudServiceResourcesCache
+	inventoryStats        *internal.CloudServiceStats
+	instanceFilters       map[types.NamespacedName][][]*ec2.Filter
 	// selectors required for updating resource filters on account config update.
-	selector *crdv1alpha1.CloudEntitySelector
+	selectors map[types.NamespacedName]*crdv1alpha1.CloudEntitySelector
 }
 
-type selectorLevelCacheSnapshot struct {
-	instances map[internal.InstanceID]*ec2.Instance
-}
-
-type accountLevelCacheSnapshot struct {
-	vpcs        []*ec2.Vpc
-	vpcIDs      map[string]struct{}
-	vpcNameToID map[string]string
-	vpcPeers    map[string][]string
-}
-
-type cacheSnapshot struct {
-	// TODO: Aws
-	// vm resources for each CloudEntitySelector CR.
-	// TODO: Delete snaphost when CES is deleted.
-	vmSnapshot  map[string]*selectorLevelCacheSnapshot
-	vpcSnapshot *accountLevelCacheSnapshot
+// ec2ResourcesCacheSnapshot holds the results from querying for all instances.
+type ec2ResourcesCacheSnapshot struct {
+	vms           map[types.NamespacedName][]*ec2.Instance
+	vpcs          []*ec2.Vpc
+	managedVpcIDs map[string]struct{}
+	vpcNameToID   map[string]string
+	vpcPeers      map[string][]string
 }
 
 func newEC2ServiceConfig(accountNamespacedName types.NamespacedName, service awsServiceClientCreateInterface,
@@ -82,17 +60,17 @@ func newEC2ServiceConfig(accountNamespacedName types.NamespacedName, service aws
 	}
 
 	config := &ec2ServiceConfig{
-		apiClient:              apiClient,
-		accountNamespacedName:  accountNamespacedName,
-		resourcesCache:         &internal.CloudServiceResourcesCache{},
-		inventoryStats:         &internal.CloudServiceStats{},
-		credentials:            credentials,
-		configChangedSelectors: nil,
-		selectorConfigMap:      make(map[string]*selectorConfig),
+		apiClient:             apiClient,
+		accountNamespacedName: accountNamespacedName,
+		resourcesCache:        &internal.CloudServiceResourcesCache{},
+		inventoryStats:        &internal.CloudServiceStats{},
+		credentials:           credentials,
+		instanceFilters:       make(map[types.NamespacedName][][]*ec2.Filter),
+		selectors:             make(map[types.NamespacedName]*crdv1alpha1.CloudEntitySelector),
 	}
 
-	selectorSnapshot := make(map[string]*selectorLevelCacheSnapshot)
-	config.resourcesCache.UpdateSnapshot(&cacheSnapshot{selectorSnapshot, nil})
+	vmSnapshot := make(map[types.NamespacedName][]*ec2.Instance)
+	config.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{vmSnapshot, nil, nil, nil, nil})
 	return config, nil
 }
 
@@ -122,51 +100,34 @@ func (ec2Cfg *ec2ServiceConfig) waitForInventoryInit(duration time.Duration) err
 	return backoff.Retry(operation, b)
 }
 
-// getInstanceResourceFilters returns filters to be applied to describeInstances api if filters are configured.
-// Otherwise, returns (nil, false). false indicates no selectors configured for the account and hence no cloud api needs
-// to be made for instance inventory.
-func (ec2Cfg *ec2ServiceConfig) getInstanceResourceFilters(s *selectorConfig) ([][]*ec2.Filter, bool) {
-	for _, filters := range s.instanceFilters {
-		// if any selector found with nil filter, skip all other selectors, as nil indicates all.
-		if len(filters) == 0 {
-			return nil, true
-		}
-	}
-	return s.instanceFilters, true
-}
-
-// getCachedInstances returns instances from the cache for the account.
+// getCachedInstances returns instances from the cache applicable for the given selector.
 func (ec2Cfg *ec2ServiceConfig) getCachedInstances(selector *types.NamespacedName) []*ec2.Instance {
-	selectorSnapshot := ec2Cfg.getSelectorLevelSnapshot()
-	if selectorSnapshot == nil {
-		awsPluginLogger().V(4).Info("Selector cache snapshot nil", "account", ec2Cfg.accountNamespacedName)
+	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
+	if snapshot == nil {
+		awsPluginLogger().V(4).Info("Cache snapshot nil",
+			"type", providerType, "account", ec2Cfg.accountNamespacedName)
 		return []*ec2.Instance{}
 	}
-
-	vmSnapshot, found := selectorSnapshot[selector.String()]
+	instances, found := snapshot.(*ec2ResourcesCacheSnapshot).vms[*selector]
 	if !found {
 		awsPluginLogger().V(4).Info("Vm cache snapshot not found",
-			"account", ec2Cfg.accountNamespacedName, "selector", selector.String())
+			"account", ec2Cfg.accountNamespacedName, "selector", selector)
 		return []*ec2.Instance{}
 	}
-	instances := vmSnapshot.instances
 	instancesToReturn := make([]*ec2.Instance, 0, len(instances))
-	for _, instance := range instances {
-		instancesToReturn = append(instancesToReturn, instance)
-	}
+	instancesToReturn = append(instancesToReturn, instances...)
 	return instancesToReturn
 }
 
-// getManagedVpcIDs returns vpcIDs of vpcs containing managed vms.
+// getManagedVpcIDs returns vpcIDs of vpcs containing managed vms from cache.
 func (ec2Cfg *ec2ServiceConfig) getManagedVpcIDs() map[string]struct{} {
-	vpcSnapshot := ec2Cfg.getAccountLevelSnapshot()
-	if vpcSnapshot == nil {
-		awsPluginLogger().V(4).Info("Account cache snapshot nil", "account", ec2Cfg.accountNamespacedName)
-		return nil
-	}
-
 	vpcIDsCopy := make(map[string]struct{})
-	vpcIDsSet := vpcSnapshot.vpcIDs
+	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
+	if snapshot == nil {
+		awsPluginLogger().V(4).Info("Cache snapshot nil", "type", providerType, "account", ec2Cfg.accountNamespacedName)
+		return vpcIDsCopy
+	}
+	vpcIDsSet := snapshot.(*ec2ResourcesCacheSnapshot).managedVpcIDs
 
 	for vpcID := range vpcIDsSet {
 		vpcIDsCopy[vpcID] = struct{}{}
@@ -175,16 +136,16 @@ func (ec2Cfg *ec2ServiceConfig) getManagedVpcIDs() map[string]struct{} {
 	return vpcIDsCopy
 }
 
-// getManagedVpcs returns vpcs containing managed vms.
-func (ec2Cfg *ec2ServiceConfig) getManagedVpcs() map[string]*ec2.Vpc {
-	vpcSnapshot := ec2Cfg.getAccountLevelSnapshot()
-	if vpcSnapshot == nil {
-		awsPluginLogger().V(4).Info("Account cache snapshot nil", "account", ec2Cfg.accountNamespacedName)
-		return nil
+// getCachedVpcsMap returns vpcs from cache in map format.
+func (ec2Cfg *ec2ServiceConfig) getCachedVpcsMap() map[string]*ec2.Vpc {
+	vpcCopy := make(map[string]*ec2.Vpc)
+	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
+	if snapshot == nil {
+		awsPluginLogger().V(4).Info("Cache snapshot nil", "type", providerType, "account", ec2Cfg.accountNamespacedName)
+		return vpcCopy
 	}
 
-	vpcCopy := make(map[string]*ec2.Vpc)
-	for _, vpc := range vpcSnapshot.vpcs {
+	for _, vpc := range snapshot.(*ec2ResourcesCacheSnapshot).vpcs {
 		vpcCopy[strings.ToLower(*vpc.VpcId)] = vpc
 	}
 
@@ -193,14 +154,13 @@ func (ec2Cfg *ec2ServiceConfig) getManagedVpcs() map[string]*ec2.Vpc {
 
 // getCachedVpcNameToID returns the map vpcNameToID from the cache.
 func (ec2Cfg *ec2ServiceConfig) getCachedVpcNameToID() map[string]string {
-	vpcSnapshot := ec2Cfg.getAccountLevelSnapshot()
-	if vpcSnapshot == nil {
-		awsPluginLogger().V(4).Info("Account cache snapshot nil", "account", ec2Cfg.accountNamespacedName)
-		return nil
-	}
-
 	vpcNameToIDCopy := make(map[string]string)
-	vpcNameToID := vpcSnapshot.vpcNameToID
+	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
+	if snapshot == nil {
+		awsPluginLogger().V(4).Info("Cache snapshot nil", "type", providerType, "account", ec2Cfg.accountNamespacedName)
+		return vpcNameToIDCopy
+	}
+	vpcNameToID := snapshot.(*ec2ResourcesCacheSnapshot).vpcNameToID
 
 	for k, v := range vpcNameToID {
 		vpcNameToIDCopy[k] = v
@@ -210,13 +170,13 @@ func (ec2Cfg *ec2ServiceConfig) getCachedVpcNameToID() map[string]string {
 }
 
 // GetCachedVpcs returns VPCs from cached snapshot for the account.
-func (ec2Cfg *ec2ServiceConfig) GetCachedVpcs() []*ec2.Vpc {
-	vpcSnapshot := ec2Cfg.getAccountLevelSnapshot()
-	if vpcSnapshot == nil {
-		awsPluginLogger().V(4).Info("Account cache snapshot nil", "account", ec2Cfg.accountNamespacedName)
-		return nil
+func (ec2Cfg *ec2ServiceConfig) getCachedVpcs() []*ec2.Vpc {
+	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
+	if snapshot == nil {
+		awsPluginLogger().V(4).Info("Cache snapshot nil", "type", providerType, "account", ec2Cfg.accountNamespacedName)
+		return []*ec2.Vpc{}
 	}
-	vpcs := vpcSnapshot.vpcs
+	vpcs := snapshot.(*ec2ResourcesCacheSnapshot).vpcs
 	vpcsToReturn := make([]*ec2.Vpc, 0, len(vpcs))
 	vpcsToReturn = append(vpcsToReturn, vpcs...)
 
@@ -225,115 +185,46 @@ func (ec2Cfg *ec2ServiceConfig) GetCachedVpcs() []*ec2.Vpc {
 
 // getVpcPeers returns all the peers of a vpc.
 func (ec2Cfg *ec2ServiceConfig) getVpcPeers(vpcID string) []string {
-	vpcSnapshot := ec2Cfg.getAccountLevelSnapshot()
-	if vpcSnapshot == nil {
-		awsPluginLogger().V(4).Info("Account cache snapshot nil", "account", ec2Cfg.accountNamespacedName)
+	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
+	if snapshot == nil {
+		awsPluginLogger().V(4).Info("Cache snapshot nil", "type", providerType, "account", ec2Cfg.accountNamespacedName)
 		return nil
 	}
-
 	vpcPeersCopy := make([]string, 0)
-	if peers, ok := vpcSnapshot.vpcPeers[vpcID]; ok {
+	if peers, ok := snapshot.(*ec2ResourcesCacheSnapshot).vpcPeers[vpcID]; ok {
 		vpcPeersCopy = deepcopy.Copy(peers).([]string)
 	}
 	return vpcPeersCopy
 }
 
-// TODO: Azure getVirtualMachines should be able to retrieve VM based on VNET ids as well.
-// getInstances gets instance for the account from aws EC2 API.
-func (ec2Cfg *ec2ServiceConfig) getInstances() ([]*ec2.Instance, error) {
-	// Call cloud APIs only for CloudEntitySelectors which are changed. Default is to call for all CloudEntitySelectors.
-	cesConfigs := ec2Cfg.getSelectorConfigsToPoll()
-	if len(cesConfigs) == 0 {
-		awsPluginLogger().V(1).Info("Fetching vm resources from cloud skipped",
-			"account", ec2Cfg.accountNamespacedName, "resource-filters", "not-configured")
-		return nil, nil
+// getInstances gets instances from cloud matching the given selector configuration.
+func (ec2Cfg *ec2ServiceConfig) getInstances(namespacedName *types.NamespacedName) ([]*ec2.Instance, error) {
+	var instances []*ec2.Instance
+	filters, found := ec2Cfg.instanceFilters[*namespacedName]
+	if found && len(filters) != 0 {
+		awsPluginLogger().V(1).Info("Fetching vm resources from cloud", "account", ec2Cfg.accountNamespacedName,
+			"selector", namespacedName, "resource-filters", "configured")
 	}
-
-	var allVirtualMachines []*ec2.Instance
-	for _, cesConfig := range cesConfigs {
-		var instances []*ec2.Instance
-		var err error
-		filters, _ := ec2Cfg.getInstanceResourceFilters(cesConfig)
-		if len(filters) == 0 {
-			// TODO: Should we support this use-case?
-			awsPluginLogger().V(1).Info("Fetching vm resources from cloud",
-				"account", ec2Cfg.accountNamespacedName, "resource-filters", "all(nil)")
-			var validInstanceStateFilters []*ec2.Filter
-			validInstanceStateFilters = append(validInstanceStateFilters, buildEc2FilterForValidInstanceStates())
-			request := &ec2.DescribeInstancesInput{
-				MaxResults: aws.Int64(internal.MaxCloudResourceResponse),
-				Filters:    validInstanceStateFilters,
-			}
-			// If a filter is not set for a selector, then return all the VMs.
-			instances, err = ec2Cfg.apiClient.pagedDescribeInstancesWrapper(request)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			awsPluginLogger().V(1).Info("Fetching vm resources from cloud",
-				"account", ec2Cfg.accountNamespacedName, "resource-filters", "configured")
-			for _, filter := range filters {
-				if len(filter) > 0 {
-					if *filter[0].Name == awsCustomFilterKeyVPCName {
-						filter = buildFilterForVPCIDFromFilterForVPCName(filter, ec2Cfg.getCachedVpcNameToID())
-					}
-				}
-				request := &ec2.DescribeInstancesInput{
-					MaxResults: aws.Int64(internal.MaxCloudResourceResponse),
-					Filters:    filter,
-				}
-				filterInstances, err := ec2Cfg.apiClient.pagedDescribeInstancesWrapper(request)
-				if err != nil {
-					return nil, err
-				}
-				instances = append(instances, filterInstances...)
+	for _, filter := range filters {
+		if len(filter) > 0 {
+			if *filter[0].Name == awsCustomFilterKeyVPCName {
+				filter = buildFilterForVPCIDFromFilterForVPCName(filter, ec2Cfg.getCachedVpcNameToID())
 			}
 		}
-
-		// update VM snapshot of the current CloudEntitySelector.
-		snapshot := ec2Cfg.resourcesCache.GetSnapshot()
-		if snapshot == nil {
-			return nil, fmt.Errorf("account cache snapshot nil")
+		request := &ec2.DescribeInstancesInput{
+			MaxResults: aws.Int64(internal.MaxCloudResourceResponse),
+			Filters:    filter,
 		}
-		selectorSnapshot := snapshot.(*cacheSnapshot).vmSnapshot
-		if selectorSnapshot == nil {
-			return nil, fmt.Errorf("selector cache snapshot nil")
+		filterInstances, err := ec2Cfg.apiClient.pagedDescribeInstancesWrapper(request)
+		if err != nil {
+			return nil, err
 		}
-		vmIDToInfoMap := make(map[internal.InstanceID]*ec2.Instance)
-		for _, vm := range instances {
-			vmIDToInfoMap[internal.InstanceID(strings.ToLower(*vm.InstanceId))] = vm
-		}
-		vmSnapshot := &selectorLevelCacheSnapshot{instances: vmIDToInfoMap}
-		selectorSnapshot[cesConfig.namespacedName] = vmSnapshot
-		ec2Cfg.resourcesCache.UpdateSnapshot(&cacheSnapshot{selectorSnapshot,
-			snapshot.(*cacheSnapshot).vpcSnapshot})
-
-		allVirtualMachines = append(allVirtualMachines, instances...)
-		// TODO: Azure Should we log instances count per ces and dump ces info? i.e. when CES is changed.
-		awsPluginLogger().Info("Vm instances from cloud", "account", ec2Cfg.accountNamespacedName,
-			"selector", cesConfig.namespacedName, "instances", len(allVirtualMachines))
+		instances = append(instances, filterInstances...)
 	}
+	awsPluginLogger().Info("Vm instances from cloud", "account", ec2Cfg.accountNamespacedName,
+		"selector", namespacedName, "instances", len(instances))
 
-	return allVirtualMachines, nil
-}
-
-// getSelectorConfigsToPoll returns a list of selector configurations to poll the cloud.
-func (ec2Cfg *ec2ServiceConfig) getSelectorConfigsToPoll() []*selectorConfig {
-	var cesConfigs []*selectorConfig
-	if len(ec2Cfg.configChangedSelectors) == 0 {
-		// return all the available selector configs for this account.
-		for _, cesConfig := range ec2Cfg.selectorConfigMap {
-			cesConfigs = append(cesConfigs, cesConfig)
-		}
-	} else {
-		for _, namespacedName := range ec2Cfg.configChangedSelectors {
-			if cesConfig, ok := ec2Cfg.selectorConfigMap[namespacedName.String()]; ok {
-				cesConfigs = append(cesConfigs, cesConfig)
-			}
-		}
-		ec2Cfg.configChangedSelectors = nil
-	}
-	return cesConfigs
+	return instances, nil
 }
 
 // DoResourceInventory gets inventory from cloud for a given cloud account.
@@ -343,33 +234,33 @@ func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
 		awsPluginLogger().Error(err, "failed to fetch cloud resources", "account", ec2Cfg.accountNamespacedName)
 		return err
 	}
+	awsPluginLogger().V(1).Info("Vpcs from cloud", "account", ec2Cfg.accountNamespacedName,
+		"vpcs", len(vpcs))
+	vpcNameToID := ec2Cfg.buildMapVpcNameToID(vpcs)
+	vpcPeers, _ := ec2Cfg.buildMapVpcPeers()
+	allInstances := make(map[types.NamespacedName][]*ec2.Instance)
 
-	// TODO: Avoid updating snapshot twice i.e. once for vm and the other for vpc.
-	instances, err := ec2Cfg.getInstances()
-	if err != nil {
-		awsPluginLogger().Error(err, "failed to fetch cloud resources", "account", ec2Cfg.accountNamespacedName)
-		return err
-	} else {
-		vpcIDs := make(map[string]struct{})
-		instanceIDs := make(map[internal.InstanceID]*ec2.Instance)
-		vpcNameToID := ec2Cfg.buildMapVpcNameToID(vpcs)
-		vpcPeers, _ := ec2Cfg.buildMapVpcPeers()
-		for _, instance := range instances {
-			id := internal.InstanceID(strings.ToLower(aws.StringValue(instance.InstanceId)))
-			instanceIDs[id] = instance
-			vpcIDs[strings.ToLower(*instance.VpcId)] = struct{}{}
-		}
-
-		selectorSnapshot := ec2Cfg.getSelectorLevelSnapshot()
-		if selectorSnapshot == nil {
-			// Should never happen.
-			awsPluginLogger().Info("Selector cache snapshot nil", "account", ec2Cfg.accountNamespacedName)
-			return nil
-		}
-		// update vpc info in the snapshot.
-		vpcSnapshot := &accountLevelCacheSnapshot{vpcs, vpcIDs, vpcNameToID, vpcPeers}
-		ec2Cfg.resourcesCache.UpdateSnapshot(&cacheSnapshot{selectorSnapshot, vpcSnapshot})
+	// Call cloud APIs for the configured CloudEntitySelectors CRs.
+	if len(ec2Cfg.selectors) == 0 {
+		awsPluginLogger().V(1).Info("Fetching vm resources from cloud skipped",
+			"account", ec2Cfg.accountNamespacedName, "resource-filters", "not-configured")
+		ec2Cfg.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{allInstances, vpcs, nil, vpcNameToID, vpcPeers})
+		return nil
 	}
+
+	managedVpcIDs := make(map[string]struct{})
+	for namespacedName := range ec2Cfg.selectors {
+		instances, err := ec2Cfg.getInstances(&namespacedName)
+		if err != nil {
+			awsPluginLogger().Error(err, "failed to fetch cloud resources", "account", ec2Cfg.accountNamespacedName)
+			return err
+		}
+		for _, instance := range instances {
+			managedVpcIDs[strings.ToLower(*instance.VpcId)] = struct{}{}
+		}
+		allInstances[namespacedName] = instances
+	}
+	ec2Cfg.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{allInstances, vpcs, managedVpcIDs, vpcNameToID, vpcPeers})
 
 	return nil
 }
@@ -378,31 +269,24 @@ func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
 func (ec2Cfg *ec2ServiceConfig) AddResourceFilters(selector *crdv1alpha1.CloudEntitySelector) error {
 	namespacedName := types.NamespacedName{Namespace: selector.Namespace, Name: selector.Name}
 	if filters, ok := convertSelectorToEC2InstanceFilters(selector); ok {
-		ec2Cfg.configChangedSelectors = append(ec2Cfg.configChangedSelectors, &namespacedName)
-		ec2Cfg.selectorConfigMap[namespacedName.String()] = &selectorConfig{
-			namespacedName:  namespacedName.String(),
-			instanceFilters: filters,
-			selector:        selector.DeepCopy(),
-		}
+		ec2Cfg.instanceFilters[namespacedName] = filters
+		ec2Cfg.selectors[namespacedName] = selector.DeepCopy()
 	} else {
-		return fmt.Errorf("error creating resource query filters for selector: %v", namespacedName)
+		return fmt.Errorf("error creating resource query filters")
 	}
 	return nil
 }
 
 func (ec2Cfg *ec2ServiceConfig) RemoveResourceFilters(namespacedName *types.NamespacedName) {
-	delete(ec2Cfg.selectorConfigMap, namespacedName.String())
-	selectorSnapshot := ec2Cfg.getSelectorLevelSnapshot()
-	if selectorSnapshot != nil {
-		delete(selectorSnapshot, namespacedName.String())
-	}
-	// TODO: update snapshot.
+	delete(ec2Cfg.instanceFilters, *namespacedName)
+	delete(ec2Cfg.selectors, *namespacedName)
 }
 
-func (ec2Cfg *ec2ServiceConfig) GetInternalResourceObjects(accountNamespacedName *types.NamespacedName,
+// getVirtualMachineObjects converts cached virtual machines in cloud format to internal runtimev1alpha1.VirtualMachine format.
+func (ec2Cfg *ec2ServiceConfig) getVirtualMachineObjects(accountNamespacedName *types.NamespacedName,
 	selector *types.NamespacedName) map[string]*runtimev1alpha1.VirtualMachine {
 	instances := ec2Cfg.getCachedInstances(selector)
-	vpcs := ec2Cfg.getManagedVpcs()
+	vpcs := ec2Cfg.getCachedVpcsMap()
 
 	vmObjects := map[string]*runtimev1alpha1.VirtualMachine{}
 	for _, instance := range instances {
@@ -474,15 +358,15 @@ func (ec2Cfg *ec2ServiceConfig) getVpcs() ([]*ec2.Vpc, error) {
 	return result.Vpcs, nil
 }
 
-// GetVpcInventory generates vpc object for the vpcs stored in snapshot(in cloud format) and return a map of vpc runtime objects.
-func (ec2Cfg *ec2ServiceConfig) GetVpcInventory() map[string]*runtimev1alpha1.Vpc {
-	vpcs := ec2Cfg.GetCachedVpcs()
-	vpcIDs := ec2Cfg.getManagedVpcIDs()
+// getVpcObjects generates vpc object for the vpcs stored in snapshot(in cloud format) and return a map of vpc runtime objects.
+func (ec2Cfg *ec2ServiceConfig) getVpcObjects() map[string]*runtimev1alpha1.Vpc {
+	vpcs := ec2Cfg.getCachedVpcs()
+	managedVpcIDs := ec2Cfg.getManagedVpcIDs()
 	// Convert to kubernetes object and return a map indexed using VPC ID.
 	vpcMap := map[string]*runtimev1alpha1.Vpc{}
 	for _, vpc := range vpcs {
 		managed := false
-		if _, ok := vpcIDs[*vpc.VpcId]; ok {
+		if _, ok := managedVpcIDs[*vpc.VpcId]; ok {
 			managed = true
 		}
 		vpcObj := ec2VpcToInternalVpcObject(vpc, ec2Cfg.accountNamespacedName.Namespace, ec2Cfg.accountNamespacedName.Name,
@@ -492,20 +376,16 @@ func (ec2Cfg *ec2ServiceConfig) GetVpcInventory() map[string]*runtimev1alpha1.Vp
 	return vpcMap
 }
 
-func (ec2Cfg *ec2ServiceConfig) getAccountLevelSnapshot() *accountLevelCacheSnapshot {
-	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
-	if snapshot == nil {
-		awsPluginLogger().V(4).Info("Account cache snapshot nil", "account", ec2Cfg.accountNamespacedName)
-		return nil
+// GetCloudInventory fetches VM and VPC inventory from stored snapshot and converts from cloud format to internal format.
+func (ec2Cfg *ec2ServiceConfig) GetCloudInventory() *nephetypes.CloudInventory {
+	cloudInventory := nephetypes.CloudInventory{
+		VmMap:  map[types.NamespacedName]map[string]*runtimev1alpha1.VirtualMachine{},
+		VpcMap: map[string]*runtimev1alpha1.Vpc{},
 	}
-	return snapshot.(*cacheSnapshot).vpcSnapshot
-}
+	cloudInventory.VpcMap = ec2Cfg.getVpcObjects()
+	for namespacedName := range ec2Cfg.selectors {
+		cloudInventory.VmMap[namespacedName] = ec2Cfg.getVirtualMachineObjects(&ec2Cfg.accountNamespacedName, &namespacedName)
+	}
 
-func (ec2Cfg *ec2ServiceConfig) getSelectorLevelSnapshot() map[string]*selectorLevelCacheSnapshot {
-	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
-	if snapshot == nil {
-		awsPluginLogger().V(4).Info("Account cache snapshot nil", "account", ec2Cfg.accountNamespacedName)
-		return nil
-	}
-	return snapshot.(*cacheSnapshot).vmSnapshot
+	return &cloudInventory
 }
