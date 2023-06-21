@@ -140,7 +140,7 @@ func (a *appliedToSecurityGroup) sync(syncContent *cloudresource.Synchronization
 	// roughly count and compare rules in syncContent against nps.
 	// also updates cloudRuleIndexer in the process.
 	for _, rule := range syncContent.IngressRules {
-		if rule.NpNamespacedName != "" {
+		if rule.NpNamespacedName != "" && rule.Rule != nil {
 			iRule := rule.Rule.(*cloudresource.IngressRule)
 			countIngressRuleItems(iRule, items, true)
 		}
@@ -149,7 +149,7 @@ func (a *appliedToSecurityGroup) sync(syncContent *cloudresource.Synchronization
 		}
 	}
 	for _, rule := range syncContent.EgressRules {
-		if rule.NpNamespacedName != "" {
+		if rule.NpNamespacedName != "" && rule.Rule != nil {
 			eRule := rule.Rule.(*cloudresource.EgressRule)
 			countEgressRuleItems(eRule, items, true)
 		}

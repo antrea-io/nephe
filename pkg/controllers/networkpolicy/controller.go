@@ -694,7 +694,7 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		})
 	// cloudRuleIndexer stores the realized rules on the cloud.
 	r.cloudRuleIndexer = cache.NewIndexer(
-		// Each cloudRule is uniquely identified by its UUID.
+		// Each cloudRule is uniquely identified by its hash.
 		func(obj interface{}) (string, error) {
 			rule := obj.(*cloudresource.CloudRule)
 			return rule.Hash, nil
