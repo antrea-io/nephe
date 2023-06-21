@@ -23,10 +23,6 @@ import (
 	"antrea.io/nephe/pkg/cloudprovider/cloudapi/internal"
 )
 
-const (
-	azureComputeServiceNameCompute = internal.CloudServiceName("COMPUTE")
-)
-
 // azureServiceClientCreateInterface provides interface to create azure service clients.
 type azureServiceClientCreateInterface interface {
 	resourceGraph() (azureResourceGraphWrapper, error)
@@ -68,11 +64,9 @@ func (h *azureServicesHelperImpl) newServiceSdkConfigProvider(accCreds *azureAcc
 }
 
 func newAzureServiceConfigs(accountNamespacedName *types.NamespacedName, accCredentials interface{}, azureSpecificHelper interface{}) (
-	[]internal.CloudServiceInterface, error) {
+	internal.CloudServiceInterface, error) {
 	azureServicesHelper := azureSpecificHelper.(azureServicesHelper)
 	azureAccountCredentials := accCredentials.(*azureAccountConfig)
-
-	var serviceConfigs []internal.CloudServiceInterface
 
 	azureServiceClientCreator, err := azureServicesHelper.newServiceSdkConfigProvider(azureAccountCredentials)
 	if err != nil {
@@ -83,7 +77,6 @@ func newAzureServiceConfigs(accountNamespacedName *types.NamespacedName, accCred
 	if err != nil {
 		return nil, err
 	}
-	serviceConfigs = append(serviceConfigs, computeService)
 
-	return serviceConfigs, nil
+	return computeService, nil
 }

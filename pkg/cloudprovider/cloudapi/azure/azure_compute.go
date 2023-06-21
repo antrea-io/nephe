@@ -126,7 +126,7 @@ func (computeCfg *computeServiceConfig) getCachedVirtualMachines() []*virtualMac
 		instancesToReturn = append(instancesToReturn, virtualMachine)
 	}
 
-	azurePluginLogger().V(1).Info("Cached vm instances", "service", azureComputeServiceNameCompute, "account", computeCfg.account,
+	azurePluginLogger().V(1).Info("Cached vm instances", "account", computeCfg.account,
 		"instances", len(instancesToReturn))
 	return instancesToReturn
 }
@@ -205,7 +205,7 @@ func (computeCfg *computeServiceConfig) getVirtualMachines() ([]*virtualMachineT
 	}
 
 	azurePluginLogger().V(1).Info("Vm instances from cloud",
-		"service", azureComputeServiceNameCompute, "account", computeCfg.account, "instances", len(virtualMachines))
+		"account", computeCfg.account, "instances", len(virtualMachines))
 
 	return virtualMachines, nil
 }
@@ -296,18 +296,10 @@ func (computeCfg *computeServiceConfig) GetInternalResourceObjects(namespace str
 		vmObjects[vmObject.Name] = vmObject
 	}
 
-	azurePluginLogger().V(1).Info("Internal resource objects", "Service", azureComputeServiceNameCompute, "Account", computeCfg.account,
+	azurePluginLogger().V(1).Info("Internal resource objects", "account", computeCfg.account,
 		"VirtualMachine objects", len(vmObjects))
 
 	return vmObjects
-}
-
-func (computeCfg *computeServiceConfig) GetName() internal.CloudServiceName {
-	return azureComputeServiceNameCompute
-}
-
-func (computeCfg *computeServiceConfig) GetType() internal.CloudServiceType {
-	return internal.CloudServiceTypeCompute
 }
 
 func (computeCfg *computeServiceConfig) GetInventoryStats() *internal.CloudServiceStats {
@@ -396,8 +388,7 @@ func (computeCfg *computeServiceConfig) GetVpcInventory() map[string]*runtimev1a
 			vpcMap[strings.ToLower(*vpc.ID)] = vpcObj
 		}
 	}
-	azurePluginLogger().V(1).Info("Cached vpcs", "service", azureComputeServiceNameCompute,
-		"account", computeCfg.account, "vpc objects", len(vpcMap))
+	azurePluginLogger().V(1).Info("Cached vpcs", "account", computeCfg.account, "vpc objects", len(vpcMap))
 
 	return vpcMap
 }

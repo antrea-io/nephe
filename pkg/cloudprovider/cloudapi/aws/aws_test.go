@@ -455,8 +455,7 @@ var _ = Describe("AWS cloud", func() {
 				Expect(err).Should(BeNil())
 
 				accCfg, _ := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
-				serviceConfig, _ := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
-				filters := serviceConfig.(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
+				filters := accCfg.GetServiceConfig().(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
 				Expect(filters).To(Equal(expectedFilters))
 			})
 		})
@@ -487,8 +486,7 @@ var _ = Describe("AWS cloud", func() {
 			Expect(err).Should(BeNil())
 
 			accCfg, _ := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
-			serviceConfig, _ := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
-			filters := serviceConfig.(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
+			filters := accCfg.GetServiceConfig().(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
 			Expect(filters).To(Equal(expectedFilters))
 		})
 		It("Should match expected filter - multiple vpcName only match", func() {
@@ -518,8 +516,7 @@ var _ = Describe("AWS cloud", func() {
 			Expect(err).Should(BeNil())
 
 			accCfg, _ := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
-			serviceConfig, _ := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
-			filters := serviceConfig.(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
+			filters := accCfg.GetServiceConfig().(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
 			Expect(filters).To(Equal(expectedFilters))
 		})
 		It("Should match expected filter - multiple vpcID & vmName match", func() {
@@ -573,8 +570,7 @@ var _ = Describe("AWS cloud", func() {
 			Expect(err).Should(BeNil())
 
 			accCfg, _ := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
-			serviceConfig, _ := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
-			filters := serviceConfig.(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
+			filters := accCfg.GetServiceConfig().(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
 			Expect(filters).To(Equal(expectedFilters))
 		})
 		It("Should match expected filter - multiple with one all", func() {
@@ -600,8 +596,7 @@ var _ = Describe("AWS cloud", func() {
 			Expect(err).Should(BeNil())
 
 			accCfg, _ := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
-			serviceConfig, _ := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
-			filters := serviceConfig.(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
+			filters := accCfg.GetServiceConfig().(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
 			Expect(filters).To(Equal(expectedFilters))
 		})
 		It("Should match expected filter - multiple vm names only match", func() {
@@ -637,8 +632,7 @@ var _ = Describe("AWS cloud", func() {
 			Expect(err).Should(BeNil())
 
 			accCfg, _ := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
-			serviceConfig, _ := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
-			filters := serviceConfig.(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
+			filters := accCfg.GetServiceConfig().(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
 			Expect(filters).To(Equal(expectedFilters))
 		})
 		It("Should match expected filter - multiple vm IDs only match", func() {
@@ -674,8 +668,7 @@ var _ = Describe("AWS cloud", func() {
 			Expect(err).Should(BeNil())
 
 			accCfg, _ := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
-			serviceConfig, _ := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
-			filters := serviceConfig.(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
+			filters := accCfg.GetServiceConfig().(*ec2ServiceConfig).instanceFilters[testSelectorNamespacedName.String()]
 			Expect(filters).To(Equal(expectedFilters))
 		})
 	})
@@ -726,8 +719,7 @@ func checkAccountAddSuccessCondition(c *awsCloud, namespacedName types.Namespace
 			return true, errors.New("failed to find account")
 		}
 
-		serviceConfig, _ := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
-		instances := serviceConfig.(*ec2ServiceConfig).getCachedInstances()
+		instances := accCfg.GetServiceConfig().(*ec2ServiceConfig).getCachedInstances()
 		instanceIds := make([]string, 0, len(instances))
 		for _, instance := range instances {
 			instanceIds = append(instanceIds, *instance.InstanceId)
@@ -752,8 +744,7 @@ func checkVpcPollResult(c *awsCloud, namespacedName types.NamespacedName, ids []
 			return true, errors.New("failed to find account")
 		}
 
-		serviceConfig, _ := accCfg.GetServiceConfigByName(awsComputeServiceNameEC2)
-		vpcs := serviceConfig.(*ec2ServiceConfig).GetCachedVpcs()
+		vpcs := accCfg.GetServiceConfig().(*ec2ServiceConfig).GetCachedVpcs()
 		vpcIDs := make([]string, 0, len(vpcs))
 		for _, vpc := range vpcs {
 			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("vpc id %s", *vpc.VpcId)))

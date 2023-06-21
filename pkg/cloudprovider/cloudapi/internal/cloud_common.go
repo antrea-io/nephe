@@ -160,16 +160,7 @@ func (c *cloudCommon) GetCloudAccountComputeInternalResourceObjects(accountNames
 	if !found {
 		return nil, fmt.Errorf("unable to find cloud account config")
 	}
-
-	computeCRs := map[string]*runtimev1alpha1.VirtualMachine{}
-	serviceConfigs := accCfg.GetServiceConfigs()
-	for _, serviceConfig := range serviceConfigs {
-		if serviceConfig.getType() == CloudServiceTypeCompute {
-			return serviceConfig.getInternalResourceObjects(accCfg.GetNamespacedName().Namespace, accCfg.GetNamespacedName()), nil
-		}
-	}
-
-	return computeCRs, nil
+	return accCfg.GetServiceConfig().GetInternalResourceObjects(accCfg.GetNamespacedName().Namespace, accCfg.GetNamespacedName()), nil
 }
 
 func (c *cloudCommon) AddResourceFilters(accountNamespacedName *types.NamespacedName, selector *crdv1alpha1.CloudEntitySelector) error {
@@ -177,14 +168,7 @@ func (c *cloudCommon) AddResourceFilters(accountNamespacedName *types.Namespaced
 	if !found {
 		return fmt.Errorf("unable to find cloud account config")
 	}
-
-	for _, serviceCfg := range accCfg.GetServiceConfigs() {
-		if err := serviceCfg.addResourceFilters(selector); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return accCfg.GetServiceConfig().AddResourceFilters(selector)
 }
 
 func (c *cloudCommon) RemoveResourceFilters(accNamespacedName, selectorNamespacedName *types.NamespacedName) {
@@ -193,10 +177,7 @@ func (c *cloudCommon) RemoveResourceFilters(accNamespacedName, selectorNamespace
 		c.logger().Info("Cloud account config not found", "account", *accNamespacedName, "selector", selectorNamespacedName)
 		return
 	}
-
-	for _, serviceCfg := range accCfg.GetServiceConfigs() {
-		serviceCfg.removeResourceFilters(selectorNamespacedName)
-	}
+	accCfg.GetServiceConfig().RemoveResourceFilters(selectorNamespacedName)
 }
 
 func (c *cloudCommon) GetStatus(accountNamespacedName *types.NamespacedName) (*crdv1alpha1.CloudProviderAccountStatus, error) {
@@ -240,11 +221,5 @@ func (c *cloudCommon) GetVpcInventory(accountNamespacedName *types.NamespacedNam
 		return nil, fmt.Errorf("unable to find cloud account config")
 	}
 
-	serviceConfigs := accCfg.GetServiceConfigs()
-	for _, serviceConfig := range serviceConfigs {
-		if serviceConfig.getType() == CloudServiceTypeCompute {
-			return serviceConfig.getVpcInventory(), nil
-		}
-	}
-	return nil, nil
+	return accCfg.GetServiceConfig().GetVpcInventory(), nil
 }

@@ -870,11 +870,7 @@ func (c *azureCloud) CreateSecurityGroup(securityGroupIdentifier *securitygroup.
 	}
 
 	// create/get nsg/asg on/from cloud
-	serviceCfg, err := accCfg.GetServiceConfigByName(azureComputeServiceNameCompute)
-	if err != nil {
-		return nil, err
-	}
-	computeService := serviceCfg.(*computeServiceConfig)
+	computeService := accCfg.GetServiceConfig().(*computeServiceConfig)
 	location := computeService.credentials.region
 
 	if !membershipOnly {
@@ -917,11 +913,7 @@ func (c *azureCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *security
 	if !found {
 		return fmt.Errorf("azure account not found managing virtual network [%v]", vnetID)
 	}
-	serviceCfg, err := accCfg.GetServiceConfigByName(azureComputeServiceNameCompute)
-	if err != nil {
-		return err
-	}
-	computeService := serviceCfg.(*computeServiceConfig)
+	computeService := accCfg.GetServiceConfig().(*computeServiceConfig)
 	location := computeService.credentials.region
 
 	// extract resource-group-name from vnet ID
@@ -987,12 +979,7 @@ func (c *azureCloud) UpdateSecurityGroupMembers(securityGroupIdentifier *securit
 	if !found {
 		return fmt.Errorf("azure account not found managing virtual network [%v]", vnetID)
 	}
-	serviceCfg, err := accCfg.GetServiceConfigByName(azureComputeServiceNameCompute)
-	if err != nil {
-		return err
-	}
-	computeService := serviceCfg.(*computeServiceConfig)
-
+	computeService := accCfg.GetServiceConfig().(*computeServiceConfig)
 	return computeService.updateSecurityGroupMembers(&securityGroupIdentifier.CloudResourceID, computeResourceIdentifier, membershipOnly)
 }
 
@@ -1006,17 +993,13 @@ func (c *azureCloud) DeleteSecurityGroup(securityGroupIdentifier *securitygroup.
 	if !found {
 		return fmt.Errorf("azure account not found managing virtual network [%v]", vnetID)
 	}
-	serviceCfg, err := accCfg.GetServiceConfigByName(azureComputeServiceNameCompute)
-	if err != nil {
-		return err
-	}
-	computeService := serviceCfg.(*computeServiceConfig)
+	computeService := accCfg.GetServiceConfig().(*computeServiceConfig)
 	location := computeService.credentials.region
 
 	_ = computeService.updateSecurityGroupMembers(&securityGroupIdentifier.CloudResourceID, nil, membershipOnly)
 
 	var rgName string
-	_, rgName, _, err = extractFieldsFromAzureResourceID(securityGroupIdentifier.Vpc)
+	_, rgName, _, err := extractFieldsFromAzureResourceID(securityGroupIdentifier.Vpc)
 	if err != nil {
 		return err
 	}
@@ -1075,14 +1058,8 @@ func (c *azureCloud) GetEnforcedSecurity() []securitygroup.SynchronizationConten
 				return
 			}
 
-			serviceCfg, err := accCfg.GetServiceConfigByName(azureComputeServiceNameCompute)
-			if err != nil {
-				azurePluginLogger().Error(err, "nforced-security-cloud-view GET for account skipped", "account", accCfg.GetNamespacedName())
-				return
-			}
-			computeService := serviceCfg.(*computeServiceConfig)
-			err = computeService.waitForInventoryInit(inventoryInitWaitDuration)
-			if err != nil {
+			computeService := accCfg.GetServiceConfig().(*computeServiceConfig)
+			if err := computeService.waitForInventoryInit(inventoryInitWaitDuration); err != nil {
 				azurePluginLogger().Error(err, "enforced-security-cloud-view GET for account skipped", "account", accCfg.GetNamespacedName())
 				return
 			}

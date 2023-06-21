@@ -483,8 +483,7 @@ func getResourceGraphResult() resourcegraph.ClientResourcesResponse {
 
 func getFilters(c *azureCloud, selectorNamespacedName string) []*string {
 	accCfg, _ := c.cloudCommon.GetCloudAccountByName(&types.NamespacedName{Namespace: "namespace01", Name: "account01"})
-	serviceConfig, _ := accCfg.GetServiceConfigByName(azureComputeServiceNameCompute)
-	filters := serviceConfig.(*computeServiceConfig).computeFilters[selectorNamespacedName]
+	filters := accCfg.GetServiceConfig().(*computeServiceConfig).computeFilters[selectorNamespacedName]
 	return filters
 }
 func setupClientAndCloud(mockAzureServiceHelper *MockazureServicesHelper, account *v1alpha1.CloudProviderAccount, secret *corev1.Secret) (

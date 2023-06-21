@@ -27,10 +27,6 @@ import (
 	"antrea.io/nephe/pkg/cloudprovider/cloudapi/internal"
 )
 
-const (
-	awsComputeServiceNameEC2 = internal.CloudServiceName("EC2")
-)
-
 // awsServiceClientCreateInterface provides interface to create aws service clients.
 type awsServiceClientCreateInterface interface {
 	compute() (awsEC2Wrapper, error)
@@ -112,11 +108,9 @@ func (h *awsServicesHelperImpl) newServiceSdkConfigProvider(accConfig *awsAccoun
 }
 
 func newAwsServiceConfigs(accountNamespacedName *types.NamespacedName, accCredentials interface{}, awsSpecificHelper interface{}) (
-	[]internal.CloudServiceInterface, error) {
+	internal.CloudServiceInterface, error) {
 	awsServicesHelper := awsSpecificHelper.(awsServicesHelper)
 	awsAccountCredentials := accCredentials.(*awsAccountConfig)
-
-	var serviceConfigs []internal.CloudServiceInterface
 
 	awsServiceClientCreator, err := awsServicesHelper.newServiceSdkConfigProvider(awsAccountCredentials)
 	if err != nil {
@@ -127,7 +121,6 @@ func newAwsServiceConfigs(accountNamespacedName *types.NamespacedName, accCreden
 	if err != nil {
 		return nil, err
 	}
-	serviceConfigs = append(serviceConfigs, ec2Service)
 
-	return serviceConfigs, nil
+	return ec2Service, nil
 }
