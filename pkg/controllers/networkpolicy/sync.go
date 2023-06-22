@@ -99,6 +99,7 @@ func (a *appliedToSecurityGroup) sync(syncContent *cloudresource.Synchronization
 	for _, i := range nps {
 		np := i.(*networkPolicy)
 		if !np.rulesReady {
+			r.Log.V(1).Info("Compute rules", "networkPolicy", np.Name)
 			if !np.computeRules(r) {
 				log.V(1).Info("NetworkPolicy is not ready", "Name", np.Name, "Namespace", np.Namespace)
 			}

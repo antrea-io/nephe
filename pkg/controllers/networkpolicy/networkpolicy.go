@@ -421,7 +421,7 @@ func (s *securityGroupImpl) deleteImpl(c cloudSecurityGroup, membershipOnly bool
 			var err error
 			nps, err = r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAppliedToGrp, s.id.Name)
 			if err != nil {
-				return fmt.Errorf("get networkpolicy indexer with index=%v, name=%v: %v", networkPolicyIndexerByAppliedToGrp, s.id.Name, err)
+				return fmt.Errorf("failed to get from networkPolicy indexer %v with key %v: %w", networkPolicyIndexerByAppliedToGrp, s.id.Name, err)
 			}
 		}
 		if err := indexer.Delete(c); err != nil {
@@ -447,9 +447,11 @@ func (s *securityGroupImpl) deleteImpl(c cloudSecurityGroup, membershipOnly bool
 	ch := securitygroup.CloudSecurityGroup.DeleteSecurityGroup(&s.id, membershipOnly)
 	go func() {
 		err := <-ch
-		if err == nil && !membershipOnly {
-			s.deleteSgRulesFromIndexer(r)
-		}
+		// When an AtGroup is deleted, we will detach it from the network interface
+		// and then delete it. In most cases, the detachment should go through, but we
+		// may not be able to delete AtGroup. So delete the rules from the indexers,
+		// so that when AtGroup is re-added, rules can be realized again.
+		s.deleteSgRulesFromIndexer(r)
 		// Send rule realization even if appliedToGroup is getting deleted.
 		if !membershipOnly && len(nps) != 0 {
 			for _, obj := range nps {
@@ -588,7 +590,7 @@ func (a *addrSecurityGroup) isReady() bool {
 func (a *addrSecurityGroup) notify(op securityGroupOperation, status error, r *NetworkPolicyReconciler) error {
 	nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAddrGrp, a.id.Name)
 	if err != nil {
-		r.Log.Error(err, "get networkPolicy with key %s from indexer: %w", a.id.Name, err)
+		r.Log.Error(err, "failed to get from networkPolicy indexer", "indexer", networkPolicyIndexerByAddrGrp, "sg", a.id.Name)
 	}
 
 	defer func() {
@@ -655,7 +657,7 @@ func (a *addrSecurityGroup) notifyNetworkPolicyChange(r *NetworkPolicyReconciler
 	r.Log.V(1).Info("AddressGroup notifyNetworkPolicyChange", "AddressGroup", a.id.Name)
 	nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAddrGrp, a.id.Name)
 	if err != nil {
-		r.Log.Error(err, "get networkPolicy indexer", a.id.Name, err, "indexKey", networkPolicyIndexerByAddrGrp)
+		r.Log.Error(err, "failed to get from networkPolicy indexer", "indexer", networkPolicyIndexerByAddrGrp, "sg", a.id.Name)
 		return
 	}
 	if len(nps) == 0 {
@@ -693,7 +695,7 @@ func (a *addrSecurityGroup) removeStaleMembers(stales []*types.NamespacedName, r
 	for _, stale := range stales {
 		for k := range srcMap {
 			if strings.Contains(stale.Name, k) {
-				r.Log.V(1).Info("Remove stale members from SecurityGroup", "Stale", stale, "Name", a.id.Name)
+				r.Log.V(1).Info("Remove stale members from AddrSecurityGroup", "Stale", stale, "Name", a.id.Name)
 				delete(srcMap, k)
 			}
 		}
@@ -772,7 +774,7 @@ func (a *appliedToSecurityGroup) updateAllRules(r *NetworkPolicyReconciler) erro
 	}
 	nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAppliedToGrp, a.id.Name)
 	if err != nil {
-		return fmt.Errorf("unable to get networkPolicy with key %s from indexer: %w", a.id.Name, err)
+		return fmt.Errorf("failed to get from networkPolicy indexer %v with key %v: %w", networkPolicyIndexerByAppliedToGrp, a.id.Name, err)
 	}
 	if len(nps) == 0 {
 		a.clearMembers(r, nil)
@@ -812,7 +814,7 @@ func (a *appliedToSecurityGroup) updateANPRules(r *NetworkPolicyReconciler, np *
 
 	nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAppliedToGrp, a.id.Name)
 	if err != nil {
-		r.Log.Error(err, "get networkPolicy indexer", "sg", a.id.Name)
+		r.Log.Error(err, "failed to get from networkPolicy indexer", "indexer", networkPolicyIndexerByAppliedToGrp, "sg", a.id.Name)
 		err = fmt.Errorf("internal error when updating rules for sg %s anp %s", a.id.Name, np.getNamespacedName())
 		r.sendRuleRealizationStatus(&np.NetworkPolicy, err)
 		a.status = err
@@ -1028,7 +1030,7 @@ func (a *appliedToSecurityGroup) updateAddrGroupReference(r *NetworkPolicyReconc
 	// get latest irules and erules
 	rules, err := r.cloudRuleIndexer.ByIndex(cloudRuleIndexerByAppliedToGrp, a.id.CloudResourceID.String())
 	if err != nil {
-		return fmt.Errorf("unable to get cloud rules with key %s from indexer: %w", a.id.CloudResourceID.String(), err)
+		return fmt.Errorf("failed to get from networkPolicy indexer %v with key %v: %w", networkPolicyIndexerByAppliedToGrp, a.id.Name, err)
 	}
 
 	// combine rules to get latest addrGroupRefs.
@@ -1152,9 +1154,7 @@ func (a *appliedToSecurityGroup) processPendingNetworkPolicy(r *NetworkPolicyRec
 // notify calls into appliedToSecurityGroup to report operation status from cloud plug-in.
 func (a *appliedToSecurityGroup) notify(op securityGroupOperation, status error, r *NetworkPolicyReconciler) error {
 	defer func() {
-		if err := a.updateNPTracker(r); err != nil {
-			return
-		}
+		_ = a.updateNPTracker(r)
 		a.notifyImpl(a, false, op, status, r)
 		// Process pending Network Policies.
 		a.processPendingNetworkPolicy(r)
@@ -1228,7 +1228,7 @@ func (a *appliedToSecurityGroup) removeStaleMembers(stales []*types.NamespacedNa
 		for name := range srcMap {
 			if strings.Contains(stale.Name, name) {
 				// remove member np tracker.
-				r.Log.V(1).Info("Remove stale members from SecurityGroup", "Stale", stale, "Name", a.id.Name)
+				r.Log.V(1).Info("Remove stale members from AppliedToGroup", "Stale", stale, "Name", a.id.Name)
 				if tracker := r.getCloudResourceNPTracker(srcMap[name], false); tracker != nil {
 					_ = tracker.update(a, true, r)
 				}
@@ -1418,6 +1418,7 @@ func (n *networkPolicy) update(anp *antreanetworking.NetworkPolicy, recompute bo
 	modifiedAddr := make([]string, 0)
 	if recompute {
 		addedAddr, _ = diffAddressGrp(nil, anp.Rules)
+		r.Log.V(1).Info("Compute rules", "networkPolicy", n.Name)
 		if ok := n.computeRules(r); !ok {
 			r.Log.V(1).Info("NetworkPolicy is not ready", "networkPolicy", n.Name)
 			return
@@ -1439,7 +1440,7 @@ func (n *networkPolicy) update(anp *antreanetworking.NetworkPolicy, recompute bo
 			if err := r.networkPolicyIndexer.Add(n); err != nil {
 				r.Log.Error(err, "add networkPolicy indexer", "Name", n.Name)
 			}
-			// Recompute the rules.
+			r.Log.V(1).Info("NetworkPolicy rules changed, recompute rules", "networkPolicy", n.Name)
 			if ok := n.computeRules(r); !ok {
 				// Reset new appliedTo if rule computation fails.
 				addedAppliedTo = nil
@@ -1461,7 +1462,7 @@ func (n *networkPolicy) update(anp *antreanetworking.NetworkPolicy, recompute bo
 			if err := r.networkPolicyIndexer.Add(n); err != nil {
 				r.Log.Error(err, "add networkPolicy indexer", "Name", n.Name)
 			}
-			// Recompute the rules and reset new appliedTo if rule computation fails.
+			r.Log.V(1).Info("NetworkPolicy appliedToGroups changed, recompute rules", "networkPolicy", n.Name)
 			if ok := n.computeRules(r); !ok {
 				addedAppliedTo = nil
 			}
@@ -1591,6 +1592,7 @@ func (n *networkPolicy) notifyAddressGroupChange(r *NetworkPolicyReconciler, gro
 			"addressGroup", groupName, "np", n.Name)
 		return nil
 	}
+	r.Log.V(1).Info("AddressGroup changed, recompute rules", "addressGroup", groupName, "networkPolicy", n.Name)
 	if ruleReady := n.computeRules(r); !ruleReady {
 		return nil
 	}
@@ -1612,7 +1614,6 @@ func (n *networkPolicy) notifyAddressGroupChange(r *NetworkPolicyReconciler, gro
 
 // computeRules computes ingress and egress rules associated with networkPolicy.
 func (n *networkPolicy) computeRules(rr *NetworkPolicyReconciler) bool {
-	rr.Log.V(1).Info("Compute rules", "networkPolicy", n.Name)
 	n.ingressRules = nil
 	n.egressRules = nil
 	n.rulesReady = false

@@ -427,7 +427,7 @@ func (r *NetworkPolicyReconciler) processNetworkPolicy(event watch.Event) error 
 	var np *networkPolicy
 	isCreate := false
 	npKey := types.NamespacedName{Name: anp.Name, Namespace: anp.Namespace}.String()
-	if i, ok, _ := r.networkPolicyIndexer.GetByKey(npKey); !ok {
+	if obj, ok, _ := r.networkPolicyIndexer.GetByKey(npKey); !ok {
 		np = &networkPolicy{}
 		anp.DeepCopyInto(&np.NetworkPolicy)
 		if err := r.networkPolicyIndexer.Add(np); err != nil {
@@ -435,7 +435,7 @@ func (r *NetworkPolicyReconciler) processNetworkPolicy(event watch.Event) error 
 		}
 		isCreate = true
 	} else {
-		np = i.(*networkPolicy)
+		np = obj.(*networkPolicy)
 	}
 	if event.Type == watch.Deleted {
 		_ = np.delete(r)
