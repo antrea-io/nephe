@@ -252,6 +252,6 @@ func convertFromIPPermissionProtocol(proto string) *int {
 	if strings.Compare(proto, awsAnyProtocolValue) == 0 {
 		return nil
 	}
-	protoNum := cloudresource.ProtocolNameNumMap[strings.ToLower(proto)]
+	protoNum := protocolNameNumMap[strings.ToLower(proto)]
 	return &protoNum
 }

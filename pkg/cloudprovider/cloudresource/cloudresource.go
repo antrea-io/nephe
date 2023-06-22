@@ -32,14 +32,6 @@ var (
 	ControllerAppliedToPrefix    string
 )
 
-var ProtocolNameNumMap = map[string]int{
-	"icmp":   1,
-	"igmp":   2,
-	"tcp":    6,
-	"udp":    17,
-	"icmpv6": 58,
-}
-
 // CloudResourceType specifies the type of cloud resource.
 type CloudResourceType string
 

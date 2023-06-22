@@ -19,6 +19,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -33,6 +34,7 @@ var (
 	VirtualMachineRuntimeObjectKind = reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()
 
 	MaxCloudResourceResponse  int64 = 100
+	InventoryInitWaitDuration       = time.Second * 30
 	AccountCredentialsDefault       = "default"
 )
 
@@ -171,6 +173,8 @@ func (c *cloudCommon) GetCloudAccountComputeInternalResourceObjects(accountNames
 	if !found {
 		return nil, fmt.Errorf("unable to find cloud account config")
 	}
+	accCfg.LockMutex()
+	defer accCfg.UnlockMutex()
 	return accCfg.GetServiceConfig().GetInternalResourceObjects(accCfg.GetNamespacedName().Namespace, accCfg.GetNamespacedName()), nil
 }
 
@@ -179,6 +183,8 @@ func (c *cloudCommon) AddResourceFilters(accountNamespacedName *types.Namespaced
 	if !found {
 		return fmt.Errorf("unable to find cloud account config")
 	}
+	accCfg.LockMutex()
+	defer accCfg.UnlockMutex()
 	return accCfg.GetServiceConfig().AddResourceFilters(selector)
 }
 
@@ -188,6 +194,8 @@ func (c *cloudCommon) RemoveResourceFilters(accNamespacedName, selectorNamespace
 		c.logger().Info("Cloud account config not found", "account", *accNamespacedName, "selector", selectorNamespacedName)
 		return
 	}
+	accCfg.LockMutex()
+	defer accCfg.UnlockMutex()
 	accCfg.GetServiceConfig().RemoveResourceFilters(selectorNamespacedName)
 }
 
@@ -206,12 +214,10 @@ func (c *cloudCommon) DoInventoryPoll(accountNamespacedName *types.NamespacedNam
 	if !found {
 		return fmt.Errorf("unable to find cloud account config: %v", *accountNamespacedName)
 	}
+	accCfg.LockMutex()
+	defer accCfg.UnlockMutex()
 
-	if err := accCfg.performInventorySync(); err != nil {
-		return err
-	}
-
-	return nil
+	return accCfg.performInventorySync()
 }
 
 // ResetInventoryCache resets cloud snapshot and poll stats to nil.
@@ -220,6 +226,8 @@ func (c *cloudCommon) ResetInventoryCache(accountNamespacedName *types.Namespace
 	if !found {
 		return fmt.Errorf("unable to find cloud account config %v", *accountNamespacedName)
 	}
+	accCfg.LockMutex()
+	defer accCfg.UnlockMutex()
 
 	accCfg.resetInventoryCache()
 	return nil
@@ -231,6 +239,8 @@ func (c *cloudCommon) GetVpcInventory(accountNamespacedName *types.NamespacedNam
 	if !found {
 		return nil, fmt.Errorf("unable to find cloud account config")
 	}
+	accCfg.LockMutex()
+	defer accCfg.UnlockMutex()
 
 	return accCfg.GetServiceConfig().GetVpcInventory(), nil
 }

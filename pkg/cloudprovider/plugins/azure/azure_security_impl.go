@@ -19,22 +19,19 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	"github.com/Azure/go-autorest/autorest/to"
 	"k8s.io/apimachinery/pkg/types"
 
 	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
+	"antrea.io/nephe/pkg/cloudprovider/plugins/internal"
 )
 
 // CreateSecurityGroup invokes cloud api and creates the cloud security group based on securityGroupIdentifier.
 // For addressGroup it will attempt to create an asg, for appliedTo groups it will attempt to create both nsg and asg.
 func (c *azureCloud) CreateSecurityGroup(securityGroupIdentifier *cloudresource.CloudResource, membershipOnly bool) (*string, error) {
-	mutex.Lock()
-	defer mutex.Unlock()
 	var cloudSecurityGroupID string
-
 	// find account managing the vnet
 	vnetID := securityGroupIdentifier.Vpc
 	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
@@ -42,6 +39,8 @@ func (c *azureCloud) CreateSecurityGroup(securityGroupIdentifier *cloudresource.
 		azurePluginLogger().Info("Azure account not found managing virtual network", vnetID, "vnetID")
 		return nil, fmt.Errorf("azure account not found managing virtual network [%v]", vnetID)
 	}
+	accCfg.LockMutex()
+	defer accCfg.UnlockMutex()
 
 	// extract resource-group-name from vnet ID
 	_, rgName, _, err := extractFieldsFromAzureResourceID(securityGroupIdentifier.Vpc)
@@ -84,15 +83,15 @@ func (c *azureCloud) CreateSecurityGroup(securityGroupIdentifier *cloudresource.
 // UpdateSecurityGroupRules invokes cloud api and updates cloud security group with allRules.
 func (c *azureCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *cloudresource.CloudResource,
 	addRules, rmRules []*cloudresource.CloudRule) error {
-	mutex.Lock()
-	defer mutex.Unlock()
-
 	// find account managing the vnet and get compute service config
 	vnetID := appliedToGroupIdentifier.Vpc
 	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&appliedToGroupIdentifier.AccountID)
 	if !found {
 		return fmt.Errorf("azure account not found managing virtual network [%v]", vnetID)
 	}
+	accCfg.LockMutex()
+	defer accCfg.UnlockMutex()
+
 	computeService := accCfg.GetServiceConfig().(*computeServiceConfig)
 	location := computeService.credentials.region
 
@@ -151,28 +150,28 @@ func (c *azureCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *cloudres
 // UpdateSecurityGroupMembers invokes cloud api and attaches/detaches nics to/from the cloud security group.
 func (c *azureCloud) UpdateSecurityGroupMembers(securityGroupIdentifier *cloudresource.CloudResource,
 	computeResourceIdentifier []*cloudresource.CloudResource, membershipOnly bool) error {
-	mutex.Lock()
-	defer mutex.Unlock()
-
 	vnetID := securityGroupIdentifier.Vpc
 	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
 	if !found {
 		return fmt.Errorf("azure account not found managing virtual network [%v]", vnetID)
 	}
+	accCfg.LockMutex()
+	defer accCfg.UnlockMutex()
+
 	computeService := accCfg.GetServiceConfig().(*computeServiceConfig)
 	return computeService.updateSecurityGroupMembers(&securityGroupIdentifier.CloudResourceID, computeResourceIdentifier, membershipOnly)
 }
 
 // DeleteSecurityGroup invokes cloud api and deletes the cloud application security group.
 func (c *azureCloud) DeleteSecurityGroup(securityGroupIdentifier *cloudresource.CloudResource, membershipOnly bool) error {
-	mutex.Lock()
-	defer mutex.Unlock()
-
 	vnetID := securityGroupIdentifier.Vpc
 	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
 	if !found {
 		return fmt.Errorf("azure account not found managing virtual network [%v]", vnetID)
 	}
+	accCfg.LockMutex()
+	defer accCfg.UnlockMutex()
+
 	computeService := accCfg.GetServiceConfig().(*computeServiceConfig)
 	location := computeService.credentials.region
 
@@ -203,11 +202,6 @@ func (c *azureCloud) DeleteSecurityGroup(securityGroupIdentifier *cloudresource.
 }
 
 func (c *azureCloud) GetEnforcedSecurity() []cloudresource.SynchronizationContent {
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	inventoryInitWaitDuration := 30 * time.Second
-
 	var accNamespacedNames []types.NamespacedName
 	accountConfigs := c.cloudCommon.GetCloudAccounts()
 	for _, accCfg := range accountConfigs {
@@ -239,7 +233,7 @@ func (c *azureCloud) GetEnforcedSecurity() []cloudresource.SynchronizationConten
 			}
 
 			computeService := accCfg.GetServiceConfig().(*computeServiceConfig)
-			if err := computeService.waitForInventoryInit(inventoryInitWaitDuration); err != nil {
+			if err := computeService.waitForInventoryInit(internal.InventoryInitWaitDuration); err != nil {
 				azurePluginLogger().Error(err, "enforced-security-cloud-view GET for account skipped", "account", accCfg.GetNamespacedName())
 				return
 			}
