@@ -31,7 +31,7 @@ import (
 	"antrea.io/nephe/pkg/accountmanager"
 	"antrea.io/nephe/pkg/apiserver"
 	nephewebhook "antrea.io/nephe/pkg/apiserver/webhook"
-	"antrea.io/nephe/pkg/cloudprovider/securitygroup"
+	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
 	"antrea.io/nephe/pkg/controllers/cloudentityselector"
 	"antrea.io/nephe/pkg/controllers/cloudprovideraccount"
 	"antrea.io/nephe/pkg/controllers/networkpolicy"
@@ -82,7 +82,7 @@ func main() {
 	}
 
 	setupLog.Info("Nephe ConfigMap", "ControllerConfig", opts.config)
-	securitygroup.SetCloudResourcePrefix(opts.config.CloudResourcePrefix)
+	cloudresource.SetCloudResourcePrefix(opts.config.CloudResourcePrefix)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,

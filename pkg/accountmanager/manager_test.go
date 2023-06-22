@@ -32,7 +32,7 @@ import (
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
-	"antrea.io/nephe/pkg/cloudprovider"
+	"antrea.io/nephe/pkg/cloudprovider/cloud"
 	"antrea.io/nephe/pkg/inventory"
 	"antrea.io/nephe/pkg/util"
 )
@@ -149,7 +149,7 @@ var _ = Describe("Account Manager", func() {
 		It("Add/Remove Account Poller", func() {
 			// Add account poller.
 			config := accountManager.addAccountConfig(&testAccountNamespacedName, accountCloudType)
-			cloudInterface, err := cloudprovider.GetCloudInterface(config.providerType)
+			cloudInterface, err := cloud.GetCloudInterface(config.providerType)
 			Expect(err).ShouldNot(HaveOccurred())
 			_, exists := accountManager.addAccountPoller(cloudInterface, &testAccountNamespacedName, account)
 			Expect(exists).To(Equal(false))

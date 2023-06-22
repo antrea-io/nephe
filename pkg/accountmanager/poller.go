@@ -30,7 +30,7 @@ import (
 
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
-	"antrea.io/nephe/pkg/cloudprovider/cloudapi/common"
+	"antrea.io/nephe/pkg/cloudprovider/cloud"
 	"antrea.io/nephe/pkg/inventory"
 )
 
@@ -44,7 +44,7 @@ type accountPoller struct {
 
 	PollIntvInSeconds uint
 	PollDone          bool
-	cloudInterface    common.CloudInterface
+	cloudInterface    cloud.CloudInterface
 	namespacedName    *types.NamespacedName
 	selector          *crdv1alpha1.CloudEntitySelector
 	vmSelector        cache.Indexer
@@ -180,7 +180,7 @@ func (p *accountPoller) doAccountPolling() {
 }
 
 // updateAccountStatus updates status of a CPA object when it's changed.
-func (p *accountPoller) updateAccountStatus(cloudInterface common.CloudInterface) {
+func (p *accountPoller) updateAccountStatus(cloudInterface cloud.CloudInterface) {
 	discoveredStatus := crdv1alpha1.CloudProviderAccountStatus{}
 	status, err := cloudInterface.GetAccountStatus(p.namespacedName)
 	if err != nil {
@@ -217,7 +217,7 @@ func (p *accountPoller) updateAgentState(vms map[string]*runtimev1alpha1.Virtual
 	}
 }
 
-func (p *accountPoller) getComputeResources(cloudInterface common.CloudInterface) map[string]*runtimev1alpha1.VirtualMachine {
+func (p *accountPoller) getComputeResources(cloudInterface cloud.CloudInterface) map[string]*runtimev1alpha1.VirtualMachine {
 	virtualMachines, e := cloudInterface.InstancesGivenProviderAccount(p.namespacedName)
 	if e != nil {
 		p.log.Error(e, "failed to discover compute resources", "account", p.namespacedName)

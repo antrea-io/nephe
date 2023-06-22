@@ -20,13 +20,14 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
 	"antrea.io/nephe/pkg/cloudprovider/securitygroup"
 	"antrea.io/nephe/pkg/inventory/indexer"
 )
 
 // syncImpl synchronizes securityGroup memberships with cloud.
 // Return true if cloud and controller has same membership.
-func (s *securityGroupImpl) syncImpl(csg cloudSecurityGroup, syncContent *securitygroup.SynchronizationContent,
+func (s *securityGroupImpl) syncImpl(csg cloudSecurityGroup, syncContent *cloudresource.SynchronizationContent,
 	membershipOnly bool, r *NetworkPolicyReconciler) bool {
 	log := r.Log.WithName("CloudSync")
 	if syncContent == nil {
@@ -35,13 +36,13 @@ func (s *securityGroupImpl) syncImpl(csg cloudSecurityGroup, syncContent *securi
 		s.state = securityGroupStateInit
 	} else if syncContent != nil {
 		s.state = securityGroupStateCreated
-		syncMembers := make([]*securitygroup.CloudResource, 0, len(syncContent.Members))
+		syncMembers := make([]*cloudresource.CloudResource, 0, len(syncContent.Members))
 		for i := range syncContent.Members {
 			syncMembers = append(syncMembers, &syncContent.Members[i])
 		}
 
 		cachedMembers := s.members
-		if len(syncMembers) > 0 && syncMembers[0].Type == securitygroup.CloudResourceTypeNIC {
+		if len(syncMembers) > 0 && syncMembers[0].Type == cloudresource.CloudResourceTypeNIC {
 			cachedMembers, _ = r.getNICsOfCloudResources(s.members)
 		}
 		if compareCloudResources(cachedMembers, syncMembers) {
@@ -68,7 +69,7 @@ func (s *securityGroupImpl) syncImpl(csg cloudSecurityGroup, syncContent *securi
 }
 
 // sync synchronizes addressSecurityGroup with cloud.
-func (a *addrSecurityGroup) sync(syncContent *securitygroup.SynchronizationContent, r *NetworkPolicyReconciler) {
+func (a *addrSecurityGroup) sync(syncContent *cloudresource.SynchronizationContent, r *NetworkPolicyReconciler) {
 	log := r.Log.WithName("CloudSync")
 	if a.deletePending {
 		log.V(1).Info("AddressSecurityGroup pending delete", "Name", a.id.Name)
@@ -78,7 +79,7 @@ func (a *addrSecurityGroup) sync(syncContent *securitygroup.SynchronizationConte
 }
 
 // sync synchronizes appliedToSecurityGroup with cloud.
-func (a *appliedToSecurityGroup) sync(syncContent *securitygroup.SynchronizationContent, r *NetworkPolicyReconciler) {
+func (a *appliedToSecurityGroup) sync(syncContent *cloudresource.SynchronizationContent, r *NetworkPolicyReconciler) {
 	log := r.Log.WithName("CloudSync")
 	if a.deletePending {
 		log.V(1).Info("AppliedSecurityGroup pending delete", "Name", a.id.Name)
@@ -129,9 +130,9 @@ func (a *appliedToSecurityGroup) sync(syncContent *securitygroup.Synchronization
 		return
 	}
 	indexerUpdate := false
-	cloudRuleMap := make(map[string]*securitygroup.CloudRule)
+	cloudRuleMap := make(map[string]*cloudresource.CloudRule)
 	for _, obj := range rules {
-		rule := obj.(*securitygroup.CloudRule)
+		rule := obj.(*cloudresource.CloudRule)
 		cloudRuleMap[rule.Hash] = rule
 	}
 
@@ -139,7 +140,7 @@ func (a *appliedToSecurityGroup) sync(syncContent *securitygroup.Synchronization
 	// also updates cloudRuleIndexer in the process.
 	for _, rule := range syncContent.IngressRules {
 		if rule.NpNamespacedName != "" {
-			iRule := rule.Rule.(*securitygroup.IngressRule)
+			iRule := rule.Rule.(*cloudresource.IngressRule)
 			countIngressRuleItems(iRule, items, true)
 		}
 		if a.checkAndUpdateIndexer(r, rule, cloudRuleMap) {
@@ -148,7 +149,7 @@ func (a *appliedToSecurityGroup) sync(syncContent *securitygroup.Synchronization
 	}
 	for _, rule := range syncContent.EgressRules {
 		if rule.NpNamespacedName != "" {
-			eRule := rule.Rule.(*securitygroup.EgressRule)
+			eRule := rule.Rule.(*cloudresource.EgressRule)
 			countEgressRuleItems(eRule, items, true)
 		}
 		if a.checkAndUpdateIndexer(r, rule, cloudRuleMap) {
@@ -195,9 +196,9 @@ func (r *NetworkPolicyReconciler) syncWithCloud() {
 		return
 	}
 	ch := securitygroup.CloudSecurityGroup.GetSecurityGroupSyncChan()
-	cloudAddrSGs := make(map[securitygroup.CloudResourceID]*securitygroup.SynchronizationContent)
-	cloudAppliedToSGs := make(map[securitygroup.CloudResourceID]*securitygroup.SynchronizationContent)
-	rscWithUnknownSGs := make(map[securitygroup.CloudResource]struct{})
+	cloudAddrSGs := make(map[cloudresource.CloudResourceID]*cloudresource.SynchronizationContent)
+	cloudAppliedToSGs := make(map[cloudresource.CloudResourceID]*cloudresource.SynchronizationContent)
+	rscWithUnknownSGs := make(map[cloudresource.CloudResource]struct{})
 	removeAddrSgs := make([]*addrSecurityGroup, 0)
 	for content := range ch {
 		log.V(1).Info("Sync from cloud", "SecurityGroup", content)
@@ -206,7 +207,7 @@ func (r *NetworkPolicyReconciler) syncWithCloud() {
 			_, ok, _ := r.addrSGIndexer.GetByKey(content.Resource.CloudResourceID.String())
 			if !ok {
 				state := securityGroupStateCreated
-				sg := newAddrSecurityGroup(&content.Resource, []*securitygroup.CloudResource{}, &state).(*addrSecurityGroup)
+				sg := newAddrSecurityGroup(&content.Resource, []*cloudresource.CloudResource{}, &state).(*addrSecurityGroup)
 				sg.deletePending = true
 				removeAddrSgs = append(removeAddrSgs, sg)
 				// add unknown address group in indexer for future network policy notify.
@@ -217,7 +218,7 @@ func (r *NetworkPolicyReconciler) syncWithCloud() {
 			// remove unknown appliedTo groups.
 			log.V(0).Info("Delete appliedTo security group not found in cache", "Name", content.Resource.Name)
 			state := securityGroupStateCreated
-			_ = newAppliedToSecurityGroup(&content.Resource, []*securitygroup.CloudResource{}, &state).delete(r)
+			_ = newAppliedToSecurityGroup(&content.Resource, []*cloudresource.CloudResource{}, &state).delete(r)
 			continue
 		}
 		// copy channel reference content to a local variable because we use pointer to reference to cloud sg.
@@ -275,16 +276,16 @@ func (r *NetworkPolicyReconciler) processBookMark(event watch.EventType) bool {
 }
 
 // getNICsOfCloudResources returns NICs of cloud resources if available.
-func (r *NetworkPolicyReconciler) getNICsOfCloudResources(resources []*securitygroup.CloudResource) (
-	[]*securitygroup.CloudResource, error) {
+func (r *NetworkPolicyReconciler) getNICsOfCloudResources(resources []*cloudresource.CloudResource) (
+	[]*cloudresource.CloudResource, error) {
 	if len(resources) == 0 {
 		return nil, nil
 	}
-	if resources[0].Type == securitygroup.CloudResourceTypeNIC {
+	if resources[0].Type == cloudresource.CloudResourceTypeNIC {
 		return resources, nil
 	}
 
-	nics := make([]*securitygroup.CloudResource, 0, len(resources))
+	nics := make([]*cloudresource.CloudResource, 0, len(resources))
 	for _, rsc := range resources {
 		id := rsc.Name
 		vmItems, err := r.Inventory.GetVmFromIndexer(indexer.VirtualMachineByCloudId, id)
@@ -296,8 +297,8 @@ func (r *NetworkPolicyReconciler) getNICsOfCloudResources(resources []*securityg
 		for _, item := range vmItems {
 			vm := item.(*runtimev1alpha1.VirtualMachine)
 			for _, nic := range vm.Status.NetworkInterfaces {
-				nics = append(nics, &securitygroup.CloudResource{Type: securitygroup.CloudResourceTypeNIC,
-					CloudResourceID: securitygroup.CloudResourceID{Name: nic.Name, Vpc: rsc.Vpc}})
+				nics = append(nics, &cloudresource.CloudResource{Type: cloudresource.CloudResourceTypeNIC,
+					CloudResourceID: cloudresource.CloudResourceID{Name: nic.Name, Vpc: rsc.Vpc}})
 			}
 		}
 	}
@@ -306,8 +307,8 @@ func (r *NetworkPolicyReconciler) getNICsOfCloudResources(resources []*securityg
 
 // checkAndUpdateIndexer checks if rule is present in indexer and updates the indexer if not present.
 // Returns true if indexer is updated.
-func (a *appliedToSecurityGroup) checkAndUpdateIndexer(r *NetworkPolicyReconciler, rule securitygroup.CloudRule,
-	existingRuleMap map[string]*securitygroup.CloudRule) bool {
+func (a *appliedToSecurityGroup) checkAndUpdateIndexer(r *NetworkPolicyReconciler, rule cloudresource.CloudRule,
+	existingRuleMap map[string]*cloudresource.CloudRule) bool {
 	indexerUpdate := false
 
 	// update rule if not found in indexer, otherwise remove from map to indicate a matching rule is found.
@@ -323,7 +324,7 @@ func (a *appliedToSecurityGroup) checkAndUpdateIndexer(r *NetworkPolicyReconcile
 }
 
 // countIngressRuleItems updates the count of corresponding items in the given map based on contents of the specified ingress rule.
-func countIngressRuleItems(iRule *securitygroup.IngressRule, items map[string]int, subtract bool) {
+func countIngressRuleItems(iRule *cloudresource.IngressRule, items map[string]int, subtract bool) {
 	proto := 0
 	if iRule.Protocol != nil {
 		proto = *iRule.Protocol
@@ -345,7 +346,7 @@ func countIngressRuleItems(iRule *securitygroup.IngressRule, items map[string]in
 }
 
 // countEgressRuleItems updates the count of corresponding items in the given map based on contents of the specified egress rule.
-func countEgressRuleItems(eRule *securitygroup.EgressRule, items map[string]int, subtract bool) {
+func countEgressRuleItems(eRule *cloudresource.EgressRule, items map[string]int, subtract bool) {
 	proto := 0
 	if eRule.Protocol != nil {
 		proto = *eRule.Protocol

@@ -22,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
-	"antrea.io/nephe/pkg/cloudprovider/securitygroup"
+	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
 	"antrea.io/nephe/pkg/inventory/indexer"
 )
 
@@ -31,9 +31,9 @@ const (
 )
 
 var (
-	resourceNPStatusSetter = map[securitygroup.CloudResourceType]func(tracker *cloudResourceNPTracker,
+	resourceNPStatusSetter = map[cloudresource.CloudResourceType]func(tracker *cloudResourceNPTracker,
 		reconciler *NetworkPolicyReconciler) (bool, error){
-		securitygroup.CloudResourceTypeVM: vmNPStatusSetter,
+		cloudresource.CloudResourceTypeVM: vmNPStatusSetter,
 	}
 )
 
@@ -119,7 +119,7 @@ func newNetworkPolicyStatus(namespace, name string) *NetworkPolicyStatus {
 // cloudResourceNPTracker tracks NetworkPolicies applied on cloud resource.
 type cloudResourceNPTracker struct {
 	// cloudResource is a cloud resource
-	cloudResource securitygroup.CloudResource
+	cloudResource cloudresource.CloudResource
 	// if dirty is true, cloud resource needs to recompute NetworkPolicy status.
 	dirty atomic.Value
 	// appliedToSGs is list of appliedToSecurityGroup to which cloud resource is a member.
@@ -128,7 +128,7 @@ type cloudResourceNPTracker struct {
 	prevAppliedToSGs map[string]*appliedToSecurityGroup
 }
 
-func (r *NetworkPolicyReconciler) newCloudResourceNPTracker(rsc *securitygroup.CloudResource) *cloudResourceNPTracker {
+func (r *NetworkPolicyReconciler) newCloudResourceNPTracker(rsc *cloudresource.CloudResource) *cloudResourceNPTracker {
 	log := r.Log.WithName("NPTracker")
 	tracker := &cloudResourceNPTracker{
 		appliedToSGs:     make(map[string]*appliedToSecurityGroup),
@@ -142,7 +142,7 @@ func (r *NetworkPolicyReconciler) newCloudResourceNPTracker(rsc *securitygroup.C
 	return tracker
 }
 
-func (r *NetworkPolicyReconciler) getCloudResourceNPTracker(rsc *securitygroup.CloudResource, create bool) *cloudResourceNPTracker {
+func (r *NetworkPolicyReconciler) getCloudResourceNPTracker(rsc *cloudresource.CloudResource, create bool) *cloudResourceNPTracker {
 	if obj, found, _ := r.cloudResourceNPTrackerIndexer.GetByKey(rsc.String()); found {
 		return obj.(*cloudResourceNPTracker)
 	} else if create {

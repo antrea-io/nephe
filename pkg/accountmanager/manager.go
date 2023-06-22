@@ -29,8 +29,7 @@ import (
 
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
-	"antrea.io/nephe/pkg/cloudprovider"
-	"antrea.io/nephe/pkg/cloudprovider/cloudapi/common"
+	"antrea.io/nephe/pkg/cloudprovider/cloud"
 	ctrlsync "antrea.io/nephe/pkg/controllers/sync"
 	"antrea.io/nephe/pkg/inventory"
 	"antrea.io/nephe/pkg/util"
@@ -66,7 +65,7 @@ type AccountManager struct {
 
 type accountConfig struct {
 	namespacedName *types.NamespacedName
-	providerType   common.ProviderType
+	providerType   runtimev1alpha1.CloudProvider
 	// Indicates account initialization state.
 	initialized bool
 	// Indicates credentials are valid or not.
@@ -91,7 +90,7 @@ func (a *AccountManager) AddAccount(namespacedName *types.NamespacedName, accoun
 	// Create account config.
 	config := a.addAccountConfig(namespacedName, accountCloudType)
 	// Cloud Provider Type is used to fetch the cloud interface.
-	cloudInterface, err := cloudprovider.GetCloudInterface(config.providerType)
+	cloudInterface, err := cloud.GetCloudInterface(config.providerType)
 	if err != nil {
 		return false, err
 	}
@@ -148,7 +147,7 @@ func (a *AccountManager) RemoveAccount(namespacedName *types.NamespacedName) err
 		return nil
 	}
 
-	cloudInterface, err := cloudprovider.GetCloudInterface(cloudProviderType)
+	cloudInterface, err := cloud.GetCloudInterface(cloudProviderType)
 	if err != nil {
 		return err
 	}
@@ -167,7 +166,7 @@ func (a *AccountManager) AddResourceFiltersToAccount(accNamespacedName *types.Na
 		return true, fmt.Errorf(fmt.Sprintf("failed to add or update selector %v, account %v: "+
 			"provider type not found", selectorNamespacedName, accNamespacedName))
 	}
-	cloudInterface, _ := cloudprovider.GetCloudInterface(cloudProviderType)
+	cloudInterface, _ := cloud.GetCloudInterface(cloudProviderType)
 	if !replay {
 		// Update the selector config only when the reconciler processes the CR request.
 		if err := a.addSelectorToAccountConfig(accNamespacedName, selectorNamespacedName, selector); err != nil {
@@ -209,7 +208,7 @@ func (a *AccountManager) RemoveResourceFiltersFromAccount(accNamespacedName *typ
 		return fmt.Errorf(fmt.Sprintf("failed to delete selector %v, account %v: provider type not found",
 			selectorNamespacedName, accNamespacedName))
 	}
-	cloudInterface, _ := cloudprovider.GetCloudInterface(cloudProviderType)
+	cloudInterface, _ := cloud.GetCloudInterface(cloudProviderType)
 	a.Log.V(1).Info("Removing selectors for account", "name", accNamespacedName)
 	cloudInterface.RemoveAccountResourcesSelector(accNamespacedName, selectorNamespacedName)
 	// Delete selector config from the account config.
@@ -236,7 +235,7 @@ func (a *AccountManager) IsAccountCredentialsValid(namespacedName *types.Namespa
 }
 
 // addAccountPoller creates an account poller for a given account.
-func (a *AccountManager) addAccountPoller(cloudInterface common.CloudInterface, namespacedName *types.NamespacedName,
+func (a *AccountManager) addAccountPoller(cloudInterface cloud.CloudInterface, namespacedName *types.NamespacedName,
 	account *crdv1alpha1.CloudProviderAccount) (*accountPoller, bool) {
 	// Set poller interval to default if not specified.
 	if account.Spec.PollIntervalInSeconds == nil {
@@ -319,7 +318,7 @@ func (a *AccountManager) addAccountConfig(name *types.NamespacedName, provider r
 	// Create a new account config.
 	config = &accountConfig{
 		namespacedName:   name,
-		providerType:     common.ProviderType(provider),
+		providerType:     provider,
 		initialized:      false,
 		credentialsValid: false,
 		retry:            false,
@@ -377,7 +376,7 @@ func (a *AccountManager) removeSelectorFromAccountConfig(accountNamespacedName, 
 	delete(acctConfig.selectorMap, *selectorNamespacedName)
 }
 
-func (a *AccountManager) getAccountProviderType(namespacedName *types.NamespacedName) (common.ProviderType, bool) {
+func (a *AccountManager) getAccountProviderType(namespacedName *types.NamespacedName) (runtimev1alpha1.CloudProvider, bool) {
 	acctConfig := a.getAccountConfig(namespacedName)
 	if acctConfig != nil {
 		return acctConfig.providerType, true
