@@ -45,7 +45,9 @@ import (
 	antreafakeclientset "antrea.io/antrea/pkg/client/clientset/versioned/fake"
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
 	"antrea.io/nephe/pkg/cloudprovider/securitygroup"
+	"antrea.io/nephe/pkg/cloudprovider/utils"
 	"antrea.io/nephe/pkg/converter/target"
 	"antrea.io/nephe/pkg/labels"
 	cloudtest "antrea.io/nephe/pkg/testing/cloudsecurity"
@@ -57,7 +59,7 @@ var (
 	mockCtrl             *mock.Controller
 	mockClient           *controllerruntimeclient.MockClient
 	mockInventory        *inventory.MockInterface
-	mockCloudSecurityAPI *cloudtest.MockCloudSecurityGroupAPI
+	mockCloudSecurityAPI *cloudtest.MockCloudSecurityGroupInterface
 	scheme               = runtime.NewScheme()
 )
 
@@ -99,20 +101,20 @@ var _ = Describe("NetworkPolicy", func() {
 		vpc                    = "test-vpc"
 		addrGrpNames           = []string{"addr-grp-1", "addr-grp-2"}
 		addrGrps               []*antreanetworking.AddressGroup
-		addrGrpIDs             map[string]*securitygroup.CloudResourceID
+		addrGrpIDs             map[string]*cloudresource.CloudResourceID
 		appliedToGrpsNames     = []string{"applied-grp-1", "applied-grp-2"}
 		appliedToGrps          []*antreanetworking.AppliedToGroup
-		appliedToGrpIDs        map[string]*securitygroup.CloudResourceID
+		appliedToGrpIDs        map[string]*cloudresource.CloudResourceID
 		vmNames                = []string{"vm-1", "vm-2", "vm-3", "vm-4", "vm-5", "vm-6"}
 		vmNamePrefix           = "id-"
 		vmNameToIDMap          map[string]string
 		vmExternalEntities     map[string]*antreatypes.ExternalEntity
 		vmNameToVirtualMachine map[string]*runtimev1alpha1.VirtualMachine
-		vmMembers              map[string]*securitygroup.CloudResource
-		ingressRule            []*securitygroup.IngressRule
-		egressRule             []*securitygroup.EgressRule
+		vmMembers              map[string]*cloudresource.CloudResource
+		ingressRule            []*cloudresource.IngressRule
+		egressRule             []*cloudresource.EgressRule
 		patchVMIdx             int
-		syncContents           []securitygroup.SynchronizationContent
+		syncContents           []cloudresource.SynchronizationContent
 
 		// tunable
 		sgConfig securityGroupConfig
@@ -122,7 +124,7 @@ var _ = Describe("NetworkPolicy", func() {
 		mockCtrl = mock.NewController(GinkgoT())
 		mockClient = controllerruntimeclient.NewMockClient(mockCtrl)
 		mockInventory = inventory.NewMockInterface(mockCtrl)
-		mockCloudSecurityAPI = cloudtest.NewMockCloudSecurityGroupAPI(mockCtrl)
+		mockCloudSecurityAPI = cloudtest.NewMockCloudSecurityGroupInterface(mockCtrl)
 		securitygroup.CloudSecurityGroup = mockCloudSecurityAPI
 		reconciler = &NetworkPolicyReconciler{
 			Log:             logf.Log,
@@ -134,7 +136,7 @@ var _ = Describe("NetworkPolicy", func() {
 
 		err := reconciler.SetupWithManager(nil)
 		Expect(err).ToNot(HaveOccurred())
-		vmMembers = make(map[string]*securitygroup.CloudResource)
+		vmMembers = make(map[string]*cloudresource.CloudResource)
 		vmExternalEntities = make(map[string]*antreatypes.ExternalEntity)
 		vmNameToVirtualMachine = make(map[string]*runtimev1alpha1.VirtualMachine)
 		vmNameToIDMap = make(map[string]string)
@@ -158,9 +160,9 @@ var _ = Describe("NetworkPolicy", func() {
 			eeLabels[labels.ExternalEntityLabelKeyOwnerVmVpc] = vpc
 			ee.Labels = eeLabels
 			vmExternalEntities[vmName] = &ee
-			vmMembers[vmName] = &securitygroup.CloudResource{
-				Type: securitygroup.CloudResourceTypeVM,
-				CloudResourceID: securitygroup.CloudResourceID{
+			vmMembers[vmName] = &cloudresource.CloudResource{
+				Type: cloudresource.CloudResourceTypeVM,
+				CloudResourceID: cloudresource.CloudResourceID{
 					Name: vmID,
 					Vpc:  vpc,
 				},
@@ -180,7 +182,7 @@ var _ = Describe("NetworkPolicy", func() {
 		}
 
 		// AddressGroups
-		addrGrpIDs = make(map[string]*securitygroup.CloudResourceID)
+		addrGrpIDs = make(map[string]*cloudresource.CloudResourceID)
 		vmIdx := 0
 		ingressIdx := 0
 		addrGrps = nil
@@ -189,19 +191,19 @@ var _ = Describe("NetworkPolicy", func() {
 			ag := &antreanetworking.AddressGroup{}
 			ag.Name = n
 			efvm := &antreanetworking.ExternalEntityReference{Name: vmExternalEntities[vmNames[vmIdx]].Name, Namespace: namespace}
-			syncContent := securitygroup.SynchronizationContent{}
-			syncContent.Resource = securitygroup.CloudResource{
-				Type: securitygroup.CloudResourceTypeVM,
-				CloudResourceID: securitygroup.CloudResourceID{
+			syncContent := cloudresource.SynchronizationContent{}
+			syncContent.Resource = cloudresource.CloudResource{
+				Type: cloudresource.CloudResourceTypeVM,
+				CloudResourceID: cloudresource.CloudResourceID{
 					Name: ag.Name,
 					Vpc:  vpc,
 				},
 				AccountID: accountID,
 			}
-			syncContent.Members = []securitygroup.CloudResource{
+			syncContent.Members = []cloudresource.CloudResource{
 				{
-					Type: securitygroup.CloudResourceTypeVM,
-					CloudResourceID: securitygroup.CloudResourceID{
+					Type: cloudresource.CloudResourceTypeVM,
+					CloudResourceID: cloudresource.CloudResourceID{
 						Name: vmNameToIDMap[vmNames[vmIdx]],
 						Vpc:  vpc,
 					},
@@ -216,29 +218,29 @@ var _ = Describe("NetworkPolicy", func() {
 				{ExternalEntity: efvm},
 			}
 			addrGrps = append(addrGrps, ag)
-			addrGrpIDs[n] = &securitygroup.CloudResourceID{Name: n, Vpc: vpc}
+			addrGrpIDs[n] = &cloudresource.CloudResourceID{Name: n, Vpc: vpc}
 		}
 		// AppliedToGroups
-		appliedToGrpIDs = make(map[string]*securitygroup.CloudResourceID)
+		appliedToGrpIDs = make(map[string]*cloudresource.CloudResourceID)
 		appliedToGrps = nil
 		appliedToVMIdx := vmIdx
 		for _, n := range appliedToGrpsNames {
 			ag := &antreanetworking.AppliedToGroup{}
 			ag.Name = n
 			ef := &antreanetworking.ExternalEntityReference{Name: vmExternalEntities[vmNames[vmIdx]].Name, Namespace: namespace}
-			syncContent := securitygroup.SynchronizationContent{}
-			syncContent.Resource = securitygroup.CloudResource{
-				Type: securitygroup.CloudResourceTypeVM,
-				CloudResourceID: securitygroup.CloudResourceID{
+			syncContent := cloudresource.SynchronizationContent{}
+			syncContent.Resource = cloudresource.CloudResource{
+				Type: cloudresource.CloudResourceTypeVM,
+				CloudResourceID: cloudresource.CloudResourceID{
 					Name: ag.Name,
 					Vpc:  vpc,
 				},
 				AccountID: accountID,
 			}
-			syncContent.Members = []securitygroup.CloudResource{
+			syncContent.Members = []cloudresource.CloudResource{
 				{
-					Type: securitygroup.CloudResourceTypeVM,
-					CloudResourceID: securitygroup.CloudResourceID{
+					Type: cloudresource.CloudResourceTypeVM,
+					CloudResourceID: cloudresource.CloudResourceID{
 						Name: vmNameToIDMap[vmNames[vmIdx]],
 						Vpc:  vpc,
 					},
@@ -249,7 +251,7 @@ var _ = Describe("NetworkPolicy", func() {
 			vmIdx++
 			ag.GroupMembers = []antreanetworking.GroupMember{{ExternalEntity: ef}}
 			appliedToGrps = append(appliedToGrps, ag)
-			appliedToGrpIDs[n] = &securitygroup.CloudResourceID{Name: n, Vpc: vpc}
+			appliedToGrpIDs[n] = &cloudresource.CloudResourceID{Name: n, Vpc: vpc}
 		}
 		patchVMIdx = vmIdx
 		// NetworkPolicy
@@ -288,7 +290,7 @@ var _ = Describe("NetworkPolicy", func() {
 		// rules
 		tcp := 6
 		portInt := int(port.IntVal)
-		ingressRule = []*securitygroup.IngressRule{
+		ingressRule = []*cloudresource.IngressRule{
 			{
 				FromPort:  &portInt,
 				Protocol:  &tcp,
@@ -297,10 +299,10 @@ var _ = Describe("NetworkPolicy", func() {
 			{
 				FromPort:           &portInt,
 				Protocol:           &tcp,
-				FromSecurityGroups: []*securitygroup.CloudResourceID{addrGrpIDs[addrGrps[0].Name]},
+				FromSecurityGroups: []*cloudresource.CloudResourceID{addrGrpIDs[addrGrps[0].Name]},
 			},
 		}
-		egressRule = []*securitygroup.EgressRule{
+		egressRule = []*cloudresource.EgressRule{
 			{
 				ToPort:   &portInt,
 				Protocol: &tcp,
@@ -309,14 +311,14 @@ var _ = Describe("NetworkPolicy", func() {
 			{
 				ToPort:           &portInt,
 				Protocol:         &tcp,
-				ToSecurityGroups: []*securitygroup.CloudResourceID{addrGrpIDs[addrGrps[1].Name]},
+				ToSecurityGroups: []*cloudresource.CloudResourceID{addrGrpIDs[addrGrps[1].Name]},
 			},
 		}
 
 		for i := appliedToVMIdx; i < patchVMIdx; i++ {
 			for _, rule := range ingressRule {
-				copyRule := deepcopy.Copy(rule).(*securitygroup.IngressRule)
-				cloudRule := securitygroup.CloudRule{
+				copyRule := deepcopy.Copy(rule).(*cloudresource.IngressRule)
+				cloudRule := cloudresource.CloudRule{
 					Rule:             copyRule,
 					NpNamespacedName: types.NamespacedName{Namespace: anp.Namespace, Name: anp.Name}.String(),
 					AppliedToGrp:     appliedToGrpsNames[i-appliedToVMIdx] + "/" + vpc,
@@ -325,8 +327,8 @@ var _ = Describe("NetworkPolicy", func() {
 				syncContents[i].IngressRules = append(syncContents[i].IngressRules, cloudRule)
 			}
 			for _, rule := range egressRule {
-				copyRule := deepcopy.Copy(rule).(*securitygroup.EgressRule)
-				cloudRule := securitygroup.CloudRule{
+				copyRule := deepcopy.Copy(rule).(*cloudresource.EgressRule)
+				cloudRule := cloudresource.CloudRule{
 					Rule:             copyRule,
 					NpNamespacedName: types.NamespacedName{Namespace: anp.Namespace, Name: anp.Name}.String(),
 					AppliedToGrp:     appliedToGrpsNames[i-appliedToVMIdx] + "/" + vpc,
@@ -348,13 +350,13 @@ var _ = Describe("NetworkPolicy", func() {
 	})
 
 	// returns cloud resources associated with K8s GroupMembers.
-	getGrpMembers := func(gms []antreanetworking.GroupMember) []*securitygroup.CloudResource {
-		ret := make([]*securitygroup.CloudResource, 0)
+	getGrpMembers := func(gms []antreanetworking.GroupMember) []*cloudresource.CloudResource {
+		ret := make([]*cloudresource.CloudResource, 0)
 		for _, gm := range gms {
 			if vm := strings.TrimPrefix(gm.ExternalEntity.Name, "virtualmachine-"+vmNamePrefix); vm != gm.ExternalEntity.Name {
-				ret = append(ret, &securitygroup.CloudResource{
-					Type: securitygroup.CloudResourceTypeVM,
-					CloudResourceID: securitygroup.CloudResourceID{
+				ret = append(ret, &cloudresource.CloudResource{
+					Type: cloudresource.CloudResourceTypeVM,
+					CloudResourceID: cloudresource.CloudResourceID{
 						Name: vmNameToIDMap[vm],
 						Vpc:  vpc,
 					},
@@ -409,9 +411,9 @@ var _ = Describe("NetworkPolicy", func() {
 		}
 		for vpc := range getGrpVPCs(ag.GroupMembers) {
 			ch := make(chan error)
-			grpID := &securitygroup.CloudResource{
-				Type: securitygroup.CloudResourceTypeVM,
-				CloudResourceID: securitygroup.CloudResourceID{
+			grpID := &cloudresource.CloudResource{
+				Type: cloudresource.CloudResourceTypeVM,
+				CloudResourceID: cloudresource.CloudResourceID{
 					Name: addrGrpIDs[ag.Name].Name,
 					Vpc:  vpc,
 				},
@@ -432,19 +434,19 @@ var _ = Describe("NetworkPolicy", func() {
 		}
 	}
 
-	checkRules := func(grpID *securitygroup.CloudResource, add, rm []*securitygroup.CloudRule) {
-		addIngress, addEgress := securitygroup.SplitCloudRulesByDirection(add)
-		rmIngress, rmEgress := securitygroup.SplitCloudRulesByDirection(rm)
+	checkRules := func(grpID *cloudresource.CloudResource, add, rm []*cloudresource.CloudRule) {
+		addIngress, addEgress := utils.SplitCloudRulesByDirection(add)
+		rmIngress, rmEgress := utils.SplitCloudRulesByDirection(rm)
 		list, _ := reconciler.cloudRuleIndexer.ByIndex(cloudRuleIndexerByAppliedToGrp, grpID.CloudResourceID.String())
-		currentIngress := make([]*securitygroup.IngressRule, 0)
-		currentEgress := make([]*securitygroup.EgressRule, 0)
+		currentIngress := make([]*cloudresource.IngressRule, 0)
+		currentEgress := make([]*cloudresource.EgressRule, 0)
 		for _, obj := range list {
-			rule := obj.(*securitygroup.CloudRule)
+			rule := obj.(*cloudresource.CloudRule)
 			switch rule.Rule.(type) {
-			case *securitygroup.IngressRule:
-				currentIngress = append(currentIngress, rule.Rule.(*securitygroup.IngressRule))
-			case *securitygroup.EgressRule:
-				currentEgress = append(currentEgress, rule.Rule.(*securitygroup.EgressRule))
+			case *cloudresource.IngressRule:
+				currentIngress = append(currentIngress, rule.Rule.(*cloudresource.IngressRule))
+			case *cloudresource.EgressRule:
+				currentEgress = append(currentEgress, rule.Rule.(*cloudresource.EgressRule))
 			}
 		}
 		// number of current rules + number of adding rules - number of removing rules should equal to number of total target rules.
@@ -489,9 +491,9 @@ var _ = Describe("NetworkPolicy", func() {
 		}
 		for vpc := range getGrpVPCs(ag.GroupMembers) {
 			ch := make(chan error)
-			grpID := &securitygroup.CloudResource{
-				Type: securitygroup.CloudResourceTypeVM,
-				CloudResourceID: securitygroup.CloudResourceID{
+			grpID := &cloudresource.CloudResource{
+				Type: cloudresource.CloudResourceTypeVM,
+				CloudResourceID: cloudresource.CloudResourceID{
 					Name: appliedToGrpIDs[ag.Name].Name,
 					Vpc:  vpc,
 				},
@@ -509,14 +511,14 @@ var _ = Describe("NetworkPolicy", func() {
 				ruleCall = mockCloudSecurityAPI.EXPECT().UpdateSecurityGroupRules(
 					grpID, mock.Any(), mock.Any()).
 					Return(ch).After(createCall).MaxTimes(sgConfig.appSgRuleTimes).
-					Do(func(id *securitygroup.CloudResource, add, rm []*securitygroup.CloudRule) {
+					Do(func(id *cloudresource.CloudResource, add, rm []*cloudresource.CloudRule) {
 						checkRules(grpID, add, rm)
 					})
 			} else {
 				ruleCall = mockCloudSecurityAPI.EXPECT().UpdateSecurityGroupRules(
 					grpID, mock.Any(), mock.Any()).
 					Return(ch).After(createCall).Times(sgConfig.appSgRuleTimes).
-					Do(func(id *securitygroup.CloudResource, add, rm []*securitygroup.CloudRule) {
+					Do(func(id *cloudresource.CloudResource, add, rm []*cloudresource.CloudRule) {
 						checkRules(grpID, add, rm)
 					})
 			}
@@ -541,9 +543,9 @@ var _ = Describe("NetworkPolicy", func() {
 		var chans []chan error
 		for vpc := range getGrpVPCs(ag.GroupMembers) {
 			ch := make(chan error)
-			grpID := &securitygroup.CloudResource{
-				Type: securitygroup.CloudResourceTypeVM,
-				CloudResourceID: securitygroup.CloudResourceID{
+			grpID := &cloudresource.CloudResource{
+				Type: cloudresource.CloudResourceTypeVM,
+				CloudResourceID: cloudresource.CloudResourceID{
 					Name: addrGrpIDs[ag.Name].Name,
 					Vpc:  vpc,
 				},
@@ -565,9 +567,9 @@ var _ = Describe("NetworkPolicy", func() {
 	checkAppliedGroupDel := func(ag *antreanetworking.AppliedToGroup, outOrder bool) []chan error {
 		var chans []chan error
 		for vpc := range getGrpVPCs(ag.GroupMembers) {
-			grpID := &securitygroup.CloudResource{
-				Type: securitygroup.CloudResourceTypeVM,
-				CloudResourceID: securitygroup.CloudResourceID{
+			grpID := &cloudresource.CloudResource{
+				Type: cloudresource.CloudResourceTypeVM,
+				CloudResourceID: cloudresource.CloudResourceID{
 					Name: appliedToGrpIDs[ag.Name].Name,
 					Vpc:  vpc,
 				},
@@ -637,9 +639,9 @@ var _ = Describe("NetworkPolicy", func() {
 		if !staleMember {
 			for vpc := range getGrpVPCs(members) {
 				ch := make(chan error)
-				grpID := &securitygroup.CloudResource{
-					Type: securitygroup.CloudResourceTypeVM,
-					CloudResourceID: securitygroup.CloudResourceID{
+				grpID := &cloudresource.CloudResource{
+					Type: cloudresource.CloudResourceTypeVM,
+					CloudResourceID: cloudresource.CloudResourceID{
 						Name: grpName,
 						Vpc:  vpc,
 					},
@@ -658,9 +660,9 @@ var _ = Describe("NetworkPolicy", func() {
 		for _, ag := range apgs {
 			for vpc := range getGrpVPCs(ag.GroupMembers) {
 				ch := make(chan error)
-				grpID := &securitygroup.CloudResource{
-					Type: securitygroup.CloudResourceTypeVM,
-					CloudResourceID: securitygroup.CloudResourceID{
+				grpID := &cloudresource.CloudResource{
+					Type: cloudresource.CloudResourceTypeVM,
+					CloudResourceID: cloudresource.CloudResourceID{
 						Name: appliedToGrpIDs[ag.Name].Name,
 						Vpc:  vpc,
 					},
@@ -669,7 +671,7 @@ var _ = Describe("NetworkPolicy", func() {
 				mockCloudSecurityAPI.EXPECT().UpdateSecurityGroupRules(
 					grpID, mock.Any(), mock.Any()).
 					Return(ch).
-					Do(func(_ *securitygroup.CloudResource, add, rm []*securitygroup.CloudRule) {
+					Do(func(_ *cloudresource.CloudResource, add, rm []*cloudresource.CloudRule) {
 						checkRules(grpID, add, rm)
 					})
 				go func(ret chan error) {
@@ -1029,7 +1031,7 @@ var _ = Describe("NetworkPolicy", func() {
 		ag.Name = "ag-patch"
 		efvm := &antreanetworking.ExternalEntityReference{Name: vmExternalEntities[vmNames[patchVMIdx]].Name, Namespace: namespace}
 		ag.GroupMembers = []antreanetworking.GroupMember{{ExternalEntity: efvm}}
-		addrGrpIDs[ag.Name] = &securitygroup.CloudResourceID{Name: ag.Name, Vpc: vpc}
+		addrGrpIDs[ag.Name] = &cloudresource.CloudResourceID{Name: ag.Name, Vpc: vpc}
 
 		anp.Rules[0].From.AddressGroups = append(anp.Rules[0].From.AddressGroups, "ag-patch")
 
@@ -1056,7 +1058,7 @@ var _ = Describe("NetworkPolicy", func() {
 		ag.Name = "ag-patch"
 		efvm := &antreanetworking.ExternalEntityReference{Name: vmExternalEntities[vmNames[patchVMIdx]].Name, Namespace: namespace}
 		ag.GroupMembers = []antreanetworking.GroupMember{{ExternalEntity: efvm}}
-		appliedToGrpIDs[ag.Name] = &securitygroup.CloudResourceID{Name: ag.Name, Vpc: vpc}
+		appliedToGrpIDs[ag.Name] = &cloudresource.CloudResourceID{Name: ag.Name, Vpc: vpc}
 
 		anp.AppliedToGroups = append(anp.AppliedToGroups, "ag-patch")
 
@@ -1369,10 +1371,10 @@ var _ = Describe("NetworkPolicy", func() {
 
 	DescribeTable("NetworkPolicy synchronize with cloud",
 		func(cloudRet int) {
-			extraSG := securitygroup.SynchronizationContent{
-				Resource: securitygroup.CloudResource{
+			extraSG := cloudresource.SynchronizationContent{
+				Resource: cloudresource.CloudResource{
 					Type: "",
-					CloudResourceID: securitygroup.CloudResourceID{
+					CloudResourceID: cloudresource.CloudResourceID{
 						Name: "Extra",
 						Vpc:  vpc,
 					},
@@ -1382,9 +1384,9 @@ var _ = Describe("NetworkPolicy", func() {
 			if cloudRet == cloudReturnDiffMemberSG {
 				for i := 0; i < len(addrGrpNames); i++ {
 					syncContents[i].Members = append(syncContents[0].Members,
-						securitygroup.CloudResource{
-							Type: securitygroup.CloudResourceTypeVM,
-							CloudResourceID: securitygroup.CloudResourceID{
+						cloudresource.CloudResource{
+							Type: cloudresource.CloudResourceTypeVM,
+							CloudResourceID: cloudresource.CloudResourceID{
 								Name: vmNameToIDMap[vmNames[patchVMIdx]],
 								Vpc:  vpc,
 							},
@@ -1394,13 +1396,13 @@ var _ = Describe("NetworkPolicy", func() {
 				}
 			} else if cloudRet == cloudReturnDiffRuleSG {
 				for i := len(addrGrpNames); i < len(addrGrpNames)+len(appliedToGrpsNames); i++ {
-					syncContents[i].IngressRules[0].Rule.(*securitygroup.IngressRule).FromPort = nil
+					syncContents[i].IngressRules[0].Rule.(*cloudresource.IngressRule).FromPort = nil
 					syncContents[i].IngressRules[0].Hash = syncContents[i].IngressRules[0].GetHash()
 				}
 			} else if cloudRet == cloudReturnExtraSG {
 				syncContents = append(syncContents, extraSG)
 			}
-			ch := make(chan securitygroup.SynchronizationContent)
+			ch := make(chan cloudresource.SynchronizationContent)
 			mockCloudSecurityAPI.EXPECT().GetSecurityGroupSyncChan().Return(ch)
 			go func() {
 				if cloudRet != cloudReturnNoSG {

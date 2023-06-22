@@ -35,6 +35,7 @@ import (
 	antreav1alpha1 "antrea.io/antrea/pkg/apis/crd/v1alpha1"
 	antreav1alpha2 "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	antreanetworkingclient "antrea.io/antrea/pkg/client/clientset/versioned/typed/controlplane/v1beta2"
+	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
 	"antrea.io/nephe/pkg/cloudprovider/securitygroup"
 	"antrea.io/nephe/pkg/config"
 	"antrea.io/nephe/pkg/controllers/sync"
@@ -246,7 +247,7 @@ func (r *NetworkPolicyReconciler) processGroup(groupName string, eventType watch
 	}
 
 	var indexer cache.Indexer
-	var creatorFunc func(*securitygroup.CloudResource, interface{}, *securityGroupState) cloudSecurityGroup
+	var creatorFunc func(*cloudresource.CloudResource, interface{}, *securityGroupState) cloudSecurityGroup
 	if isAddrGrp {
 		indexer = r.addrSGIndexer
 		creatorFunc = newAddrSecurityGroup
@@ -254,7 +255,7 @@ func (r *NetworkPolicyReconciler) processGroup(groupName string, eventType watch
 		indexer = r.appliedToSGIndexer
 		creatorFunc = newAppliedToSecurityGroup
 	}
-	var addedMembers, removedMembers map[string][]*securitygroup.CloudResource
+	var addedMembers, removedMembers map[string][]*cloudresource.CloudResource
 	var notFoundMember []*types.NamespacedName
 	if eventType == watch.Added {
 		if addedMembers, notFoundMember, err = vpcsFromGroupMembers(added, r); err != nil {
@@ -305,7 +306,7 @@ func (r *NetworkPolicyReconciler) processGroup(groupName string, eventType watch
 	for vpc, members := range addedMembers {
 		// AddressGroup and AppliedToGroup cache key is 'Name of the group and VPC ID'. If the Group extends multiple
 		// VPCs, multiple entries will be added in cache for each VPC.
-		key := &securitygroup.CloudResourceID{Name: groupName, Vpc: vpc}
+		key := &cloudresource.CloudResourceID{Name: groupName, Vpc: vpc}
 		var sg cloudSecurityGroup
 		if i, ok, _ := indexer.GetByKey(key.String()); ok {
 			sg = i.(cloudSecurityGroup)
@@ -323,8 +324,8 @@ func (r *NetworkPolicyReconciler) processGroup(groupName string, eventType watch
 			}
 		} else {
 			// All members in a vpc will share same AccountID and CloudProvider.
-			cloudRsrc := securitygroup.CloudResource{
-				Type:            securitygroup.CloudResourceTypeVM,
+			cloudRsrc := cloudresource.CloudResource{
+				Type:            cloudresource.CloudResourceTypeVM,
 				CloudResourceID: *key,
 				AccountID:       members[0].AccountID,
 				CloudProvider:   members[0].CloudProvider,
@@ -341,7 +342,7 @@ func (r *NetworkPolicyReconciler) processGroup(groupName string, eventType watch
 		}
 	}
 	for vpc, members := range removedMembers {
-		key := (&securitygroup.CloudResourceID{Name: groupName, Vpc: vpc}).String()
+		key := (&cloudresource.CloudResourceID{Name: groupName, Vpc: vpc}).String()
 		i, ok, err := indexer.GetByKey(key)
 		if !ok {
 			r.Log.Error(err, "get from indexer", "key", key)
@@ -695,13 +696,13 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.cloudRuleIndexer = cache.NewIndexer(
 		// Each cloudRule is uniquely identified by its UUID.
 		func(obj interface{}) (string, error) {
-			rule := obj.(*securitygroup.CloudRule)
+			rule := obj.(*cloudresource.CloudRule)
 			return rule.Hash, nil
 		},
 		// cloudRules indexed by appliedToSecurityGroup.
 		cache.Indexers{
 			cloudRuleIndexerByAppliedToGrp: func(obj interface{}) ([]string, error) {
-				rule := obj.(*securitygroup.CloudRule)
+				rule := obj.(*cloudresource.CloudRule)
 				return []string{rule.AppliedToGrp}, nil
 			},
 		})

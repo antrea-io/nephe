@@ -16,9 +16,11 @@ package utils
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
 )
 
 func GenerateShortResourceIdentifier(id string, prefixToAdd string) string {
@@ -48,4 +50,101 @@ func GetCloudResourceCRName(providerType, name string) string {
 	default:
 		return name
 	}
+}
+
+// IsNepheControllerCreatedSG checks an SG is created by nephe
+// and returns if it's an AppliedToGroup/AddressGroup sg and the sg name.
+func IsNepheControllerCreatedSG(cloudSgName string) (string, bool, bool) {
+	var sgName string
+	isNepheControllerCreatedAddressGroup := false
+	isNepheControllerCreatedAppliedToGroup := false
+
+	suffix := strings.TrimPrefix(cloudSgName, cloudresource.GetControllerAddressGroupPrefix())
+	if len(suffix) < len(cloudSgName) {
+		isNepheControllerCreatedAddressGroup = true
+		sgName = strings.ToLower(suffix)
+	}
+
+	if !isNepheControllerCreatedAddressGroup {
+		suffix := strings.TrimPrefix(cloudSgName, cloudresource.GetControllerAppliedToPrefix())
+		if len(suffix) < len(cloudSgName) {
+			isNepheControllerCreatedAppliedToGroup = true
+			sgName = strings.ToLower(suffix)
+		}
+	}
+	return sgName, isNepheControllerCreatedAddressGroup, isNepheControllerCreatedAppliedToGroup
+}
+
+func FindResourcesBasedOnKind(cloudResources []*cloudresource.CloudResource) (map[string]struct{}, map[string]struct{}) {
+	virtualMachineIDs := make(map[string]struct{})
+	networkInterfaceIDs := make(map[string]struct{})
+
+	for _, cloudResource := range cloudResources {
+		if strings.Compare(string(cloudResource.Type), string(cloudresource.CloudResourceTypeVM)) == 0 {
+			virtualMachineIDs[strings.ToLower(cloudResource.Name)] = struct{}{}
+		}
+		if strings.Compare(string(cloudResource.Type), string(cloudresource.CloudResourceTypeNIC)) == 0 {
+			networkInterfaceIDs[strings.ToLower(cloudResource.Name)] = struct{}{}
+		}
+	}
+	return virtualMachineIDs, networkInterfaceIDs
+}
+
+// SplitCloudRulesByDirection splits the given CloudRule slice into two, one for ingress rules and one for egress rules.
+func SplitCloudRulesByDirection(rules []*cloudresource.CloudRule) ([]*cloudresource.CloudRule, []*cloudresource.CloudRule) {
+	ingressRules := make([]*cloudresource.CloudRule, 0)
+	egressRules := make([]*cloudresource.CloudRule, 0)
+	for _, rule := range rules {
+		switch rule.Rule.(type) {
+		case *cloudresource.IngressRule:
+			ingressRules = append(ingressRules, rule)
+		case *cloudresource.EgressRule:
+			egressRules = append(egressRules, rule)
+		}
+	}
+	return ingressRules, egressRules
+}
+
+// GenerateCloudDescription generates a CloudRuleDescription object and converts to string.
+func GenerateCloudDescription(namespacedName string) (string, error) {
+	tokens := strings.Split(namespacedName, "/")
+	if len(tokens) != 2 {
+		return "", fmt.Errorf("invalid namespacedname %v", namespacedName)
+	}
+	desc := cloudresource.CloudRuleDescription{
+		Name:      tokens[1],
+		Namespace: tokens[0],
+	}
+	return desc.String(), nil
+}
+
+// ExtractCloudDescription converts a string to a CloudRuleDescription object.
+func ExtractCloudDescription(description *string) (*cloudresource.CloudRuleDescription, bool) {
+	if description == nil {
+		return nil, false
+	}
+	numKeyValuePair := reflect.TypeOf(cloudresource.CloudRuleDescription{}).NumField()
+	descMap := map[string]string{}
+	tempSlice := strings.Split(*description, ",")
+	if len(tempSlice) != numKeyValuePair {
+		return nil, false
+	}
+	// each key and value are separated by ":"
+	for i := range tempSlice {
+		keyValuePair := strings.Split(strings.TrimSpace(tempSlice[i]), ":")
+		if len(keyValuePair) == 2 {
+			descMap[keyValuePair[0]] = keyValuePair[1]
+		}
+	}
+
+	// check if any of the fields are empty.
+	if descMap[cloudresource.Name] == "" || descMap[cloudresource.Namespace] == "" {
+		return nil, false
+	}
+
+	desc := &cloudresource.CloudRuleDescription{
+		Name:      descMap[cloudresource.Name],
+		Namespace: descMap[cloudresource.Namespace],
+	}
+	return desc, true
 }

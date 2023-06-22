@@ -30,6 +30,7 @@ import (
 	antreanetworking "antrea.io/antrea/pkg/apis/controlplane/v1beta2"
 	antreanetcore "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
 	"antrea.io/nephe/pkg/cloudprovider/securitygroup"
 	"antrea.io/nephe/pkg/cloudprovider/utils"
 	"antrea.io/nephe/pkg/labels"
@@ -81,17 +82,17 @@ type securityGroupStatus struct {
 	err error
 }
 
-// cloudSecurityGroup is the common interface for addrSecurityGroup and appliedToSecurityGroup.
+// cloudSecurityGroup is the cloud interface for addrSecurityGroup and appliedToSecurityGroup.
 type cloudSecurityGroup interface {
 	add(r *NetworkPolicyReconciler) error
 	delete(r *NetworkPolicyReconciler) error
-	update(added, removed []*securitygroup.CloudResource, r *NetworkPolicyReconciler) error
+	update(added, removed []*cloudresource.CloudResource, r *NetworkPolicyReconciler) error
 	notify(op securityGroupOperation, status error, r *NetworkPolicyReconciler) error
 	isReady() bool
-	getID() securitygroup.CloudResourceID
-	getMembers() []*securitygroup.CloudResource
+	getID() cloudresource.CloudResourceID
+	getMembers() []*cloudresource.CloudResource
 	notifyNetworkPolicyChange(r *NetworkPolicyReconciler)
-	sync(c *securitygroup.SynchronizationContent, r *NetworkPolicyReconciler)
+	sync(c *cloudresource.SynchronizationContent, r *NetworkPolicyReconciler)
 }
 
 var (
@@ -149,6 +150,26 @@ func getAppliedToGroups(n *networkPolicy) []string {
 		}
 	}
 	return uniqueAppliedTo
+}
+
+// setAppliedToGroup set appliedToGroup on ingress or egress rule from rule or policy level.
+func setAppliedToGroup(ruleAppliedTo []string, policyAppliedTo []string, r cloudresource.Rule) {
+	var appliedTos []string
+	if len(ruleAppliedTo) > 0 {
+		appliedTos = ruleAppliedTo
+	} else {
+		appliedTos = policyAppliedTo
+	}
+
+	if iRule, ok := r.(*cloudresource.IngressRule); ok {
+		for _, appliedToGroup := range appliedTos {
+			iRule.AppliedToGroup[appliedToGroup] = struct{}{}
+		}
+	} else if eRule, ok := r.(*cloudresource.EgressRule); ok {
+		for _, appliedToGroup := range appliedTos {
+			eRule.AppliedToGroup[appliedToGroup] = struct{}{}
+		}
+	}
 }
 
 // diffAppliedToGrp returned added and removed groups from appliedToGroup a to b.
@@ -216,8 +237,8 @@ func diffAddressGrp(a, b []antreanetworking.NetworkPolicyRule) ([]string, []stri
 }
 
 // mergeCloudResources added and removed CloudResources from src.
-func mergeCloudResources(src, added, removed []*securitygroup.CloudResource) (list []*securitygroup.CloudResource) {
-	srcMap := make(map[string]*securitygroup.CloudResource)
+func mergeCloudResources(src, added, removed []*cloudresource.CloudResource) (list []*cloudresource.CloudResource) {
+	srcMap := make(map[string]*cloudresource.CloudResource)
 	for _, s := range src {
 		srcMap[s.CloudResourceID.String()] = s
 	}
@@ -235,7 +256,7 @@ func mergeCloudResources(src, added, removed []*securitygroup.CloudResource) (li
 }
 
 // compareCloudResources returns true if content in cloudResource lists s1 and s2 are the same.
-func compareCloudResources(s1, s2 []*securitygroup.CloudResource) bool {
+func compareCloudResources(s1, s2 []*cloudresource.CloudResource) bool {
 	if len(s1) != len(s2) {
 		return false
 	}
@@ -245,8 +266,8 @@ func compareCloudResources(s1, s2 []*securitygroup.CloudResource) bool {
 // vpcsFromGroupMembers, provided with a list of ExternalEntityReferences, returns corresponding CloudResources keyed by VPC.
 // If an ExternalEntity does not correspond to a CloudResource, its IP(s) is returned.
 func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPolicyReconciler) (
-	map[string][]*securitygroup.CloudResource, []*types.NamespacedName, error) {
-	vpcs := make(map[string][]*securitygroup.CloudResource)
+	map[string][]*cloudresource.CloudResource, []*types.NamespacedName, error) {
+	vpcs := make(map[string][]*cloudresource.CloudResource)
 	var notFoundMember []*types.NamespacedName
 	for _, m := range members {
 		if m.ExternalEntity == nil {
@@ -289,9 +310,9 @@ func vpcsFromGroupMembers(members []antreanetworking.GroupMember, r *NetworkPoli
 			continue
 		}
 
-		cloudRsc := securitygroup.CloudResource{
-			Type:            securitygroup.CloudResourceTypeVM,
-			CloudResourceID: securitygroup.CloudResourceID{Name: ownerVm.Status.CloudId, Vpc: ownerVm.Status.CloudVpcId},
+		cloudRsc := cloudresource.CloudResource{
+			Type:            cloudresource.CloudResourceTypeVM,
+			CloudResourceID: cloudresource.CloudResourceID{Name: ownerVm.Status.CloudId, Vpc: ownerVm.Status.CloudVpcId},
 			AccountID:       types.NamespacedName{Name: cloudAccountName, Namespace: cloudAccountNamespace}.String(),
 			CloudProvider:   string(ownerVm.Status.Provider),
 		}
@@ -313,12 +334,12 @@ func getOwnerVm(e *antreanetcore.ExternalEntity, r *NetworkPolicyReconciler) (*r
 	return vm, nil
 }
 
-// securityGroupImpl supplies common implementations for addrSecurityGroup and appliedToSecurityGroup.
+// securityGroupImpl supplies cloud implementations for addrSecurityGroup and appliedToSecurityGroup.
 type securityGroupImpl struct {
 	// Members of this SecurityGroup.
-	members []*securitygroup.CloudResource
+	members []*cloudresource.CloudResource
 	// SecurityGroup identifier.
-	id securitygroup.CloudResource
+	id cloudresource.CloudResource
 	// Current state of this SecurityGroup.
 	state securityGroupState
 	// To be deleted.
@@ -334,12 +355,12 @@ type securityGroupImpl struct {
 }
 
 // getID returns securityGroup ID.
-func (s *securityGroupImpl) getID() securitygroup.CloudResourceID {
+func (s *securityGroupImpl) getID() cloudresource.CloudResourceID {
 	return s.id.CloudResourceID
 }
 
 // getMembers returns securityGroup members.
-func (s *securityGroupImpl) getMembers() []*securitygroup.CloudResource {
+func (s *securityGroupImpl) getMembers() []*cloudresource.CloudResource {
 	return s.members
 }
 
@@ -442,7 +463,7 @@ func (s *securityGroupImpl) deleteImpl(c cloudSecurityGroup, membershipOnly bool
 }
 
 // updateImpl invokes cloud plug-in to update a SecurityGroup's membership.
-func (s *securityGroupImpl) updateImpl(c cloudSecurityGroup, added, removed []*securitygroup.CloudResource,
+func (s *securityGroupImpl) updateImpl(c cloudSecurityGroup, added, removed []*cloudresource.CloudResource,
 	membershipOnly bool, r *NetworkPolicyReconciler) error {
 	if len(added)+len(removed)+len(s.members) == 0 {
 		// Membership is empty with no additional changes, do nothing.
@@ -452,7 +473,7 @@ func (s *securityGroupImpl) updateImpl(c cloudSecurityGroup, added, removed []*s
 	if s.state != securityGroupStateCreated {
 		return nil
 	}
-	members := deepcopy.Copy(s.members).([]*securitygroup.CloudResource)
+	members := deepcopy.Copy(s.members).([]*cloudresource.CloudResource)
 	// Wait for ongoing retry operation.
 	if s.retryOp != nil {
 		return nil
@@ -521,9 +542,9 @@ type addrSecurityGroup struct {
 }
 
 // newAddrSecurityGroup creates a new addSecurityGroup from Antrea AddressGroup.
-func newAddrSecurityGroup(id *securitygroup.CloudResource, data interface{}, state *securityGroupState) cloudSecurityGroup {
+func newAddrSecurityGroup(id *cloudresource.CloudResource, data interface{}, state *securityGroupState) cloudSecurityGroup {
 	sg := &addrSecurityGroup{}
-	members, ok := data.([]*securitygroup.CloudResource)
+	members, ok := data.([]*cloudresource.CloudResource)
 	if !ok {
 		return nil
 	}
@@ -552,7 +573,7 @@ func (a *addrSecurityGroup) delete(r *NetworkPolicyReconciler) error {
 }
 
 // update invokes cloud plug-in to update an addrSecurityGroup.
-func (a *addrSecurityGroup) update(added, removed []*securitygroup.CloudResource, r *NetworkPolicyReconciler) error {
+func (a *addrSecurityGroup) update(added, removed []*cloudresource.CloudResource, r *NetworkPolicyReconciler) error {
 	// reUsed will be reset upon any new or updated Address Group event.
 	a.reUsed = false
 	return a.updateImpl(a, added, removed, true, r)
@@ -665,7 +686,7 @@ func (a *addrSecurityGroup) removeStaleMembers(stales []*types.NamespacedName, r
 	if len(a.members) == 0 {
 		return
 	}
-	srcMap := make(map[string]*securitygroup.CloudResource)
+	srcMap := make(map[string]*cloudresource.CloudResource)
 	for _, m := range a.members {
 		srcMap[m.Name] = m
 	}
@@ -677,7 +698,7 @@ func (a *addrSecurityGroup) removeStaleMembers(stales []*types.NamespacedName, r
 			}
 		}
 	}
-	var members []*securitygroup.CloudResource
+	var members []*cloudresource.CloudResource
 	for _, m := range srcMap {
 		members = append(members, m)
 	}
@@ -694,8 +715,8 @@ type appliedToSecurityGroup struct {
 }
 
 // newAddrAppliedGroup creates a new addSecurityGroup from Antrea AddressGroup membership.
-func newAppliedToSecurityGroup(id *securitygroup.CloudResource, data interface{}, state *securityGroupState) cloudSecurityGroup {
-	members, ok := data.([]*securitygroup.CloudResource)
+func newAppliedToSecurityGroup(id *cloudresource.CloudResource, data interface{}, state *securityGroupState) cloudSecurityGroup {
+	members, ok := data.([]*cloudresource.CloudResource)
 	if !ok {
 		return nil
 	}
@@ -861,8 +882,8 @@ func (a *appliedToSecurityGroup) clearMembers(r *NetworkPolicyReconciler, np *ne
 }
 
 // getCloudRulesFromNps converts and combines all rules from given anps to securitygroup.CloudRule.
-func (a *appliedToSecurityGroup) getCloudRulesFromNps(nps []interface{}) []*securitygroup.CloudRule {
-	rules := make([]*securitygroup.CloudRule, 0)
+func (a *appliedToSecurityGroup) getCloudRulesFromNps(nps []interface{}) []*cloudresource.CloudRule {
+	rules := make([]*cloudresource.CloudRule, 0)
 	for _, i := range nps {
 		np := i.(*networkPolicy)
 		if !np.rulesReady {
@@ -874,9 +895,9 @@ func (a *appliedToSecurityGroup) getCloudRulesFromNps(nps []interface{}) []*secu
 				continue
 			}
 			// Reset AppliedToGroup so that it's not added in hash.
-			ruleCopy := deepcopy.Copy(r).(*securitygroup.IngressRule)
+			ruleCopy := deepcopy.Copy(r).(*cloudresource.IngressRule)
 			ruleCopy.AppliedToGroup = nil
-			rule := &securitygroup.CloudRule{
+			rule := &cloudresource.CloudRule{
 				Rule:             ruleCopy,
 				NpNamespacedName: npNamespacedName,
 				AppliedToGrp:     a.id.CloudResourceID.String(),
@@ -889,9 +910,9 @@ func (a *appliedToSecurityGroup) getCloudRulesFromNps(nps []interface{}) []*secu
 				continue
 			}
 			// Reset AppliedToGroup so that it's not added in hash.
-			ruleCopy := deepcopy.Copy(r).(*securitygroup.EgressRule)
+			ruleCopy := deepcopy.Copy(r).(*cloudresource.EgressRule)
 			ruleCopy.AppliedToGroup = nil
-			rule := &securitygroup.CloudRule{
+			rule := &cloudresource.CloudRule{
 				Rule:             ruleCopy,
 				NpNamespacedName: npNamespacedName,
 				AppliedToGrp:     a.id.CloudResourceID.String(),
@@ -904,8 +925,8 @@ func (a *appliedToSecurityGroup) getCloudRulesFromNps(nps []interface{}) []*secu
 }
 
 // computeCloudRulesFromNp computes the rule update delta of an ANP by comparing current rules in np and realized rules in indexer.
-func (a *appliedToSecurityGroup) computeCloudRulesFromNp(r *NetworkPolicyReconciler, np *networkPolicy) ([]*securitygroup.CloudRule,
-	[]*securitygroup.CloudRule, error) {
+func (a *appliedToSecurityGroup) computeCloudRulesFromNp(r *NetworkPolicyReconciler, np *networkPolicy) ([]*cloudresource.CloudRule,
+	[]*cloudresource.CloudRule, error) {
 	realizedRules, err := r.cloudRuleIndexer.ByIndex(cloudRuleIndexerByAppliedToGrp, a.id.CloudResourceID.String())
 	if err != nil {
 		r.Log.Error(err, "get cloudRule indexer", "sg", a.id.CloudResourceID.String())
@@ -914,7 +935,7 @@ func (a *appliedToSecurityGroup) computeCloudRulesFromNp(r *NetworkPolicyReconci
 
 	// get current rules for given np to compute rule update delta.
 	currentRules := a.getCloudRulesFromNps([]interface{}{np})
-	currentRuleMap := make(map[string]*securitygroup.CloudRule)
+	currentRuleMap := make(map[string]*cloudresource.CloudRule)
 	for _, rule := range currentRules {
 		currentRuleMap[rule.Hash] = rule
 	}
@@ -924,10 +945,10 @@ func (a *appliedToSecurityGroup) computeCloudRulesFromNp(r *NetworkPolicyReconci
 	// no rule with same np found                     -> rule removed, delete.
 	// same rule with different np found              -> duplicate rules with other np, err.
 	// no rule with different np found                -> no-op.
-	addRules := make([]*securitygroup.CloudRule, 0)
-	removeRules := make([]*securitygroup.CloudRule, 0)
+	addRules := make([]*cloudresource.CloudRule, 0)
+	removeRules := make([]*cloudresource.CloudRule, 0)
 	for _, obj := range realizedRules {
-		realizedRule := obj.(*securitygroup.CloudRule)
+		realizedRule := obj.(*cloudresource.CloudRule)
 		npNamespacedName := np.getNamespacedName()
 
 		sameNP := realizedRule.NpNamespacedName == npNamespacedName
@@ -961,9 +982,9 @@ func (a *appliedToSecurityGroup) checkRealization(r *NetworkPolicyReconciler, np
 		return err
 	}
 
-	realizedRuleMap := make(map[string]*securitygroup.CloudRule)
+	realizedRuleMap := make(map[string]*cloudresource.CloudRule)
 	for _, obj := range realizedRules {
-		rule := obj.(*securitygroup.CloudRule)
+		rule := obj.(*cloudresource.CloudRule)
 		// sg might have rules from other nps, ignore those rules.
 		if rule.NpNamespacedName != np.getNamespacedName() {
 			continue
@@ -972,7 +993,7 @@ func (a *appliedToSecurityGroup) checkRealization(r *NetworkPolicyReconciler, np
 	}
 
 	for _, irule := range np.ingressRules {
-		desiredRule := securitygroup.CloudRule{
+		desiredRule := cloudresource.CloudRule{
 			Rule:         irule,
 			AppliedToGrp: a.id.CloudResourceID.String(),
 		}
@@ -984,7 +1005,7 @@ func (a *appliedToSecurityGroup) checkRealization(r *NetworkPolicyReconciler, np
 		delete(realizedRuleMap, desiredRule.Hash)
 	}
 	for _, erule := range np.egressRules {
-		desiredRule := securitygroup.CloudRule{
+		desiredRule := cloudresource.CloudRule{
 			Rule:         erule,
 			AppliedToGrp: a.id.CloudResourceID.String(),
 		}
@@ -1013,14 +1034,14 @@ func (a *appliedToSecurityGroup) updateAddrGroupReference(r *NetworkPolicyReconc
 	// combine rules to get latest addrGroupRefs.
 	currentRefs := make(map[string]struct{})
 	for _, obj := range rules {
-		rule := obj.(*securitygroup.CloudRule)
+		rule := obj.(*cloudresource.CloudRule)
 		switch rule.Rule.(type) {
-		case *securitygroup.IngressRule:
-			for _, sg := range rule.Rule.(*securitygroup.IngressRule).FromSecurityGroups {
+		case *cloudresource.IngressRule:
+			for _, sg := range rule.Rule.(*cloudresource.IngressRule).FromSecurityGroups {
 				currentRefs[sg.String()] = struct{}{}
 			}
-		case *securitygroup.EgressRule:
-			for _, sg := range rule.Rule.(*securitygroup.EgressRule).ToSecurityGroups {
+		case *cloudresource.EgressRule:
+			for _, sg := range rule.Rule.(*cloudresource.EgressRule).ToSecurityGroups {
 				currentRefs[sg.String()] = struct{}{}
 			}
 		}
@@ -1069,7 +1090,7 @@ func (a *appliedToSecurityGroup) notifyAddrGroups(addrGroups []string, r *Networ
 }
 
 // update invokes cloud plug-in to update appliedToSecurityGroup's membership.
-func (a *appliedToSecurityGroup) update(added, removed []*securitygroup.CloudResource, r *NetworkPolicyReconciler) error {
+func (a *appliedToSecurityGroup) update(added, removed []*cloudresource.CloudResource, r *NetworkPolicyReconciler) error {
 	for _, rsc := range removed {
 		if tracker := r.getCloudResourceNPTracker(rsc, false); tracker != nil {
 			_ = tracker.update(a, true, r)
@@ -1198,7 +1219,7 @@ func (a *appliedToSecurityGroup) removeStaleMembers(stales []*types.NamespacedNa
 	if len(a.members) == 0 {
 		return
 	}
-	srcMap := make(map[string]*securitygroup.CloudResource)
+	srcMap := make(map[string]*cloudresource.CloudResource)
 	for _, m := range a.members {
 		name := utils.GetCloudResourceCRName(m.CloudProvider, m.Name)
 		srcMap[name] = m
@@ -1222,7 +1243,7 @@ func (a *appliedToSecurityGroup) removeStaleMembers(stales []*types.NamespacedNa
 			}
 		}
 	}
-	var members []*securitygroup.CloudResource
+	var members []*cloudresource.CloudResource
 	for _, m := range srcMap {
 		members = append(members, m)
 	}
@@ -1236,20 +1257,20 @@ type networkPolicyRule struct {
 
 // rules generate cloud plug-in ingressRule and/or egressRule from an networkPolicyRule.
 func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, policyAppliedToGroups []string) (
-	ingressList []*securitygroup.IngressRule, egressList []*securitygroup.EgressRule, ready bool) {
+	ingressList []*cloudresource.IngressRule, egressList []*cloudresource.EgressRule, ready bool) {
 	ready = true
 	rule := r.rule
 	if rule.Direction == antreanetworking.DirectionIn {
-		iRules := make([]*securitygroup.IngressRule, 0)
+		iRules := make([]*cloudresource.IngressRule, 0)
 		for _, ip := range rule.From.IPBlocks {
-			ingress := &securitygroup.IngressRule{}
+			ingress := &cloudresource.IngressRule{}
 			ingress.AppliedToGroup = make(map[string]struct{}, 0)
 			ipNet := net.IPNet{IP: net.IP(ip.CIDR.IP), Mask: net.CIDRMask(int(ip.CIDR.PrefixLength), 8*net.IPv4len)}
 			if ipNet.IP.To4() == nil {
 				ipNet = net.IPNet{IP: net.IP(ip.CIDR.IP), Mask: net.CIDRMask(int(ip.CIDR.PrefixLength), 8*net.IPv6len)}
 			}
 			ingress.FromSrcIP = append(ingress.FromSrcIP, &ipNet)
-			securitygroup.SetAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, ingress)
+			setAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, ingress)
 			iRules = append(iRules, ingress)
 		}
 		for _, ag := range rule.From.AddressGroups {
@@ -1267,10 +1288,10 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, policyAppliedToGr
 				sg := i.(*addrSecurityGroup)
 				id := sg.getID()
 				if len(id.Vpc) > 0 {
-					ingress := &securitygroup.IngressRule{}
+					ingress := &cloudresource.IngressRule{}
 					ingress.AppliedToGroup = make(map[string]struct{}, 0)
 					ingress.FromSecurityGroups = append(ingress.FromSecurityGroups, &id)
-					securitygroup.SetAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, ingress)
+					setAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, ingress)
 					iRules = append(iRules, ingress)
 				}
 			}
@@ -1295,7 +1316,7 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, policyAppliedToGr
 				fromPort = &port
 			}
 			for _, ingress := range iRules {
-				i := deepcopy.Copy(ingress).(*securitygroup.IngressRule)
+				i := deepcopy.Copy(ingress).(*cloudresource.IngressRule)
 				i.FromPort = fromPort
 				i.Protocol = protocol
 				ingressList = append(ingressList, i)
@@ -1303,16 +1324,16 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, policyAppliedToGr
 		}
 		return
 	}
-	eRules := make([]*securitygroup.EgressRule, 0)
+	eRules := make([]*cloudresource.EgressRule, 0)
 	for _, ip := range rule.To.IPBlocks {
-		egress := &securitygroup.EgressRule{}
+		egress := &cloudresource.EgressRule{}
 		egress.AppliedToGroup = make(map[string]struct{}, 0)
 		ipNet := net.IPNet{IP: net.IP(ip.CIDR.IP), Mask: net.CIDRMask(int(ip.CIDR.PrefixLength), 8*net.IPv4len)}
 		if ipNet.IP.To4() == nil {
 			ipNet = net.IPNet{IP: net.IP(ip.CIDR.IP), Mask: net.CIDRMask(int(ip.CIDR.PrefixLength), 8*net.IPv6len)}
 		}
 		egress.ToDstIP = append(egress.ToDstIP, &ipNet)
-		securitygroup.SetAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, egress)
+		setAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, egress)
 		eRules = append(eRules, egress)
 	}
 	for _, ag := range rule.To.AddressGroups {
@@ -1330,10 +1351,10 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, policyAppliedToGr
 			sg := i.(*addrSecurityGroup)
 			id := sg.getID()
 			if len(id.Vpc) > 0 {
-				egress := &securitygroup.EgressRule{}
+				egress := &cloudresource.EgressRule{}
 				egress.AppliedToGroup = make(map[string]struct{}, 0)
 				egress.ToSecurityGroups = append(egress.ToSecurityGroups, &id)
-				securitygroup.SetAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, egress)
+				setAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, egress)
 				eRules = append(eRules, egress)
 			}
 		}
@@ -1358,7 +1379,7 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, policyAppliedToGr
 			fromPort = &port
 		}
 		for _, egress := range eRules {
-			e := deepcopy.Copy(egress).(*securitygroup.EgressRule)
+			e := deepcopy.Copy(egress).(*cloudresource.EgressRule)
 			e.ToPort = fromPort
 			e.Protocol = protocol
 			egressList = append(egressList, e)
@@ -1370,8 +1391,8 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, policyAppliedToGr
 // networkPolicy describe an Antrea internal/user facing networkPolicy.
 type networkPolicy struct {
 	antreanetworking.NetworkPolicy
-	ingressRules []*securitygroup.IngressRule
-	egressRules  []*securitygroup.EgressRule
+	ingressRules []*cloudresource.IngressRule
+	egressRules  []*cloudresource.EgressRule
 	rulesReady   bool
 }
 

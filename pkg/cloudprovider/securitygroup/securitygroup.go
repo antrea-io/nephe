@@ -14,18 +14,6 @@
 
 package securitygroup
 
-import (
-	"crypto/sha1"
-	"encoding/hex"
-	"encoding/json"
-	"fmt"
-	"net"
-	"reflect"
-	"strings"
-
-	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
-)
-
 /*
 This module maps Antrea internal NetworkPolicy in antrea.io/antrea/pkg/apis/controlplane/v1beta2
 to cloud security group.
@@ -101,185 +89,37 @@ Antrea internal NetworkPolicy To SecurityGroup Mapping strategy
 -- Calls into cloud securityGroup are asynchronous for better performance/scalability.
 */
 
-const (
-	// Used to create a rule description.
-	Name      = "Name"
-	Namespace = "Ns"
+import (
+	"fmt"
+	"sync"
+
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/cloudprovider/cloud"
+	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
 )
 
-var (
-	ControllerPrefix             string
-	ControllerAddressGroupPrefix string
-	ControllerAppliedToPrefix    string
-)
-
-var ProtocolNameNumMap = map[string]int{
-	"icmp":   1,
-	"igmp":   2,
-	"tcp":    6,
-	"udp":    17,
-	"icmpv6": 58,
-}
-
-// CloudResourceType specifies the type of cloud resource.
-type CloudResourceType string
-
-var (
-	CloudResourceTypeVM  = CloudResourceType(reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name())
-	CloudResourceTypeNIC = CloudResourceType(reflect.TypeOf(runtimev1alpha1.NetworkInterface{}).Name())
-)
-
-var (
-	// CloudSecurityGroup is global entry point to configure cloud specific security group.
-	CloudSecurityGroup CloudSecurityGroupAPI
-)
-
-func SetCloudResourcePrefix(CloudResourcePrefix string) {
-	ControllerPrefix = CloudResourcePrefix
-}
-
-func GetControllerAddressGroupPrefix() string {
-	ControllerAddressGroupPrefix = ControllerPrefix + "-ag-"
-	return ControllerAddressGroupPrefix
-}
-
-func GetControllerAppliedToPrefix() string {
-	ControllerAppliedToPrefix = ControllerPrefix + "-at-"
-	return ControllerAppliedToPrefix
-}
-
-type CloudResourceID struct {
-	Name string
-	Vpc  string
-}
-
-// CloudResource uniquely identify a cloud resource.
-type CloudResource struct {
-	Type CloudResourceType
-	CloudResourceID
-	// TODO: Rename AccountID to AccountNameSpacedName.
-	AccountID     string
-	CloudProvider string
-}
-
-func (c *CloudResource) String() string {
-	return string(c.Type) + "/" + c.CloudResourceID.String()
-}
-
-func (c *CloudResourceID) GetCloudName(membershipOnly bool) string {
-	if membershipOnly {
-		return fmt.Sprintf("%v%v", GetControllerAddressGroupPrefix(), strings.ToLower(c.Name))
-	}
-	return fmt.Sprintf("%v%v", GetControllerAppliedToPrefix(), strings.ToLower(c.Name))
-}
-
-func (c *CloudResourceID) String() string {
-	return c.Name + "/" + c.Vpc
-}
-
-type CloudRuleDescription struct {
-	Name      string
-	Namespace string
-}
-
-func (r *CloudRuleDescription) String() string {
-	return Name + ":" + r.Name + ", " +
-		Namespace + ":" + r.Namespace
-}
-
-type Rule interface {
-	isRule()
-}
-
-// IngressRule specifies one ingress rule of cloud SecurityGroup.
-type IngressRule struct {
-	FromPort           *int
-	FromSrcIP          []*net.IPNet
-	FromSecurityGroups []*CloudResourceID
-	Protocol           *int
-	AppliedToGroup     map[string]struct{}
-}
-
-func (i *IngressRule) isRule() {}
-
-// EgressRule specifies one egress rule of cloud SecurityGroup.
-type EgressRule struct {
-	ToPort           *int
-	ToDstIP          []*net.IPNet
-	ToSecurityGroups []*CloudResourceID
-	Protocol         *int
-	AppliedToGroup   map[string]struct{}
-}
-
-func (e *EgressRule) isRule() {}
-
-// SetAppliedToGroup set appliedToGroup on ingress or egress rule from rule or policy level.
-func SetAppliedToGroup(ruleAppliedTo []string, policyAppliedTo []string, r Rule) {
-	var appliedTos []string
-	if len(ruleAppliedTo) > 0 {
-		appliedTos = ruleAppliedTo
-	} else {
-		appliedTos = policyAppliedTo
-	}
-
-	if iRule, ok := r.(*IngressRule); ok {
-		for _, appliedToGroup := range appliedTos {
-			iRule.AppliedToGroup[appliedToGroup] = struct{}{}
-		}
-	} else if eRule, ok := r.(*EgressRule); ok {
-		for _, appliedToGroup := range appliedTos {
-			eRule.AppliedToGroup[appliedToGroup] = struct{}{}
-		}
-	}
-}
-
-type CloudRule struct {
-	Hash             string `json:"-"`
-	Rule             Rule
-	NpNamespacedName string `json:"-"`
-	AppliedToGrp     string
-}
-
-func (c *CloudRule) GetHash() string {
-	hash := sha1.New()
-	bytes, _ := json.Marshal(c)
-	hash.Write(bytes)
-	hashValue := hex.EncodeToString(hash.Sum(nil))
-	return hashValue
-}
-
-// SynchronizationContent returns a SecurityGroup content in cloud.
-type SynchronizationContent struct {
-	Resource                   CloudResource
-	MembershipOnly             bool
-	Members                    []CloudResource
-	MembersWithOtherSGAttached []CloudResource
-	IngressRules               []CloudRule
-	EgressRules                []CloudRule
-}
-
-// CloudSecurityGroupAPI declares interface to program cloud security groups.
-type CloudSecurityGroupAPI interface {
+// CloudSecurityGroupInterface declares interface to program cloud security groups.
+type CloudSecurityGroupInterface interface {
 	// CreateSecurityGroup request to create SecurityGroup name.
 	// membershipOnly is true if the SecurityGroup is used for membership tracking, not
 	// applying ingress/egress rules.
 	// Caller expects to wait on returned channel for status
-	CreateSecurityGroup(name *CloudResource, membershipOnly bool) <-chan error
+	CreateSecurityGroup(name *cloudresource.CloudResource, membershipOnly bool) <-chan error
 
 	// UpdateSecurityGroupRules updates SecurityGroup name's ingress/egress rules in entirety.
 	// SecurityGroup name must already been created. SecurityGroups referred to in ingressRules and
 	// egressRules must have been already created.
-	UpdateSecurityGroupRules(name *CloudResource, addRules, rmRules []*CloudRule) <-chan error
+	UpdateSecurityGroupRules(name *cloudresource.CloudResource, addRules, rmRules []*cloudresource.CloudRule) <-chan error
 
 	// UpdateSecurityGroupMembers updates SecurityGroup name with members.
 	// SecurityGroup name must already have been created.
 	// For appliedSecurityGroup, UpdateSecurityGroupMembers is called only if SG has
 	// rules configured.
-	UpdateSecurityGroupMembers(name *CloudResource, members []*CloudResource, membershipOnly bool) <-chan error
+	UpdateSecurityGroupMembers(name *cloudresource.CloudResource, members []*cloudresource.CloudResource, membershipOnly bool) <-chan error
 
 	// DeleteSecurityGroup deletes SecurityGroup name.
 	// SecurityGroup name must already been created, is empty.
-	DeleteSecurityGroup(name *CloudResource, membershipOnly bool) <-chan error
+	DeleteSecurityGroup(name *cloudresource.CloudResource, membershipOnly bool) <-chan error
 
 	// GetSecurityGroupSyncChan returns a channel that networkPolicy controller waits on to retrieve complete SGs
 	// configured by cloud plug-in.
@@ -290,5 +130,166 @@ type CloudSecurityGroupAPI interface {
 	// 4. Controller, upon receive entire SGs set, proceed to reconcile between K8s configuration and cloud configuration.
 	// This API ensures cloud plug-in stays stateless.
 	// - Correct SGs accidentally changed by customers via cloud API/console directly.
-	GetSecurityGroupSyncChan() <-chan SynchronizationContent
+	GetSecurityGroupSyncChan() <-chan cloudresource.SynchronizationContent
+}
+
+type CloudSecurityGroupImpl struct{}
+
+var (
+	// CloudSecurityGroup is global entry point to configure cloud specific security group.
+	CloudSecurityGroup CloudSecurityGroupInterface
+)
+
+func init() {
+	CloudSecurityGroup = &CloudSecurityGroupImpl{}
+}
+
+// getCloudInterfaceForCloudResource fetches Cloud Interface using Cloud Provider Type present in CloudResource.
+func getCloudInterfaceForCloudResource(securityGroupIdentifier *cloudresource.CloudResource) (cloud.CloudInterface, error) {
+	providerType := runtimev1alpha1.CloudProvider(securityGroupIdentifier.CloudProvider)
+	cloudInterface, err := cloud.GetCloudInterface(providerType)
+	if err != nil {
+		//cloudprovider.corePluginLogger().Error(err, "get cloud interface failed", "providerType", providerType)
+		return nil, fmt.Errorf("virtual private cloud [%v] not managed by supported clouds", securityGroupIdentifier.Vpc)
+	}
+	return cloudInterface, nil
+}
+
+func (sg *CloudSecurityGroupImpl) CreateSecurityGroup(securityGroupIdentifier *cloudresource.CloudResource,
+	membershipOnly bool) <-chan error {
+	ch := make(chan error)
+
+	go func() {
+		defer close(ch)
+
+		cloudInterface, err := getCloudInterfaceForCloudResource(securityGroupIdentifier)
+		if err != nil {
+			ch <- err
+			return
+		}
+
+		_, err = cloudInterface.CreateSecurityGroup(securityGroupIdentifier, membershipOnly)
+		if err != nil {
+			ch <- err
+			return
+		}
+
+		ch <- nil
+	}()
+
+	return ch
+}
+
+func (sg *CloudSecurityGroupImpl) UpdateSecurityGroupRules(appliedToGroupIdentifier *cloudresource.CloudResource,
+	addRules, rmRules []*cloudresource.CloudRule) <-chan error {
+	ch := make(chan error)
+
+	go func() {
+		defer close(ch)
+
+		cloudInterface, err := getCloudInterfaceForCloudResource(appliedToGroupIdentifier)
+		if err != nil {
+			ch <- err
+			return
+		}
+
+		err = cloudInterface.UpdateSecurityGroupRules(appliedToGroupIdentifier, addRules, rmRules)
+		if err != nil {
+			ch <- err
+			return
+		}
+
+		ch <- nil
+	}()
+
+	return ch
+}
+
+func (sg *CloudSecurityGroupImpl) UpdateSecurityGroupMembers(securityGroupIdentifier *cloudresource.CloudResource,
+	members []*cloudresource.CloudResource, membershipOnly bool) <-chan error {
+	ch := make(chan error)
+
+	go func() {
+		defer close(ch)
+
+		cloudInterface, err := getCloudInterfaceForCloudResource(securityGroupIdentifier)
+		if err != nil {
+			ch <- err
+			return
+		}
+
+		err = cloudInterface.UpdateSecurityGroupMembers(securityGroupIdentifier, members, membershipOnly)
+		if err != nil {
+			ch <- err
+			return
+		}
+
+		ch <- nil
+	}()
+
+	return ch
+}
+
+func (sg *CloudSecurityGroupImpl) DeleteSecurityGroup(securityGroupIdentifier *cloudresource.CloudResource,
+	membershipOnly bool) <-chan error {
+	ch := make(chan error)
+
+	go func() {
+		defer close(ch)
+
+		cloudInterface, err := getCloudInterfaceForCloudResource(securityGroupIdentifier)
+		if err != nil {
+			ch <- err
+			return
+		}
+
+		err = cloudInterface.DeleteSecurityGroup(securityGroupIdentifier, membershipOnly)
+		if err != nil {
+			ch <- err
+			return
+		}
+
+		ch <- nil
+	}()
+
+	return ch
+}
+
+func (sg *CloudSecurityGroupImpl) GetSecurityGroupSyncChan() <-chan cloudresource.SynchronizationContent {
+	retCh := make(chan cloudresource.SynchronizationContent)
+
+	go func() {
+		defer close(retCh)
+
+		var wg sync.WaitGroup
+		ch := make(chan []cloudresource.SynchronizationContent)
+		providerTypes := cloud.GetSupportedCloudProviderTypes()
+
+		wg.Add(len(providerTypes))
+		go func() {
+			wg.Wait()
+			close(ch)
+		}()
+
+		for _, providerType := range providerTypes {
+			cloudInterface, err := cloud.GetCloudInterface(providerType)
+			if err != nil {
+				wg.Done()
+				continue
+			}
+
+			go func() {
+				ch <- cloudInterface.GetEnforcedSecurity()
+				wg.Done()
+			}()
+		}
+
+		for val := range ch {
+			for _, sg := range val {
+				retCh <- sg
+			}
+		}
+	}()
+
+	return retCh
 }
