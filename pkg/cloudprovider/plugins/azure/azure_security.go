@@ -28,10 +28,6 @@ import (
 	"antrea.io/nephe/pkg/cloudprovider/utils"
 )
 
-var (
-	mutex sync.Mutex
-)
-
 type networkInterfaceInternal struct {
 	armnetwork.Interface
 	vnetID string

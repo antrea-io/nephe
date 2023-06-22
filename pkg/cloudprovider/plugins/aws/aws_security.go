@@ -36,12 +36,18 @@ const (
 )
 
 var (
-	mutex sync.Mutex
-
 	awsAnyProtocolValue = "-1"
 	tcpUDPPortStart     = 0
 	tcpUDPPortEnd       = 65535
 )
+
+var protocolNameNumMap = map[string]int{
+	"icmp":   1,
+	"igmp":   2,
+	"tcp":    6,
+	"udp":    17,
+	"icmpv6": 58,
+}
 
 var vpcIDToDefaultSecurityGroup = make(map[string]string)
 

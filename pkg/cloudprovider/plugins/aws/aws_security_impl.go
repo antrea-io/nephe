@@ -17,25 +17,24 @@ package aws
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"k8s.io/apimachinery/pkg/types"
 
 	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
+	"antrea.io/nephe/pkg/cloudprovider/plugins/internal"
 	"antrea.io/nephe/pkg/cloudprovider/utils"
 )
 
 // CreateSecurityGroup invokes cloud api and creates the cloud security group based on securityGroupIdentifier.
 func (c *awsCloud) CreateSecurityGroup(securityGroupIdentifier *cloudresource.CloudResource, membershipOnly bool) (*string, error) {
-	mutex.Lock()
-	defer mutex.Unlock()
-
 	vpcID := securityGroupIdentifier.Vpc
 	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
 	if !found {
 		return nil, fmt.Errorf("aws account not found managing virtual private cloud [%v]", vpcID)
 	}
+	accCfg.LockMutex()
+	defer accCfg.UnlockMutex()
 
 	cloudSgName := securityGroupIdentifier.GetCloudName(membershipOnly)
 	ec2Service := accCfg.GetServiceConfig().(*ec2ServiceConfig)
@@ -51,9 +50,6 @@ func (c *awsCloud) CreateSecurityGroup(securityGroupIdentifier *cloudresource.Cl
 // UpdateSecurityGroupRules invokes cloud api and updates cloud security group with addRules and rmRules.
 func (c *awsCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *cloudresource.CloudResource,
 	addRules, rmRules []*cloudresource.CloudRule) error {
-	mutex.Lock()
-	defer mutex.Unlock()
-
 	addIRule, addERule := utils.SplitCloudRulesByDirection(addRules)
 	rmIRule, rmERule := utils.SplitCloudRulesByDirection(rmRules)
 
@@ -62,6 +58,8 @@ func (c *awsCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *cloudresou
 	if !found {
 		return fmt.Errorf("aws account not found managing virtual private cloud [%v]", vpcID)
 	}
+	accCfg.LockMutex()
+	defer accCfg.UnlockMutex()
 
 	// build from addressGroups, cloudSgNames from rules
 	cloudSgNames := buildEc2CloudSgNamesFromRules(&appliedToGroupIdentifier.CloudResourceID, append(addIRule, rmIRule...),
@@ -124,14 +122,13 @@ func (c *awsCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *cloudresou
 // UpdateSecurityGroupMembers invokes cloud api and attaches/detaches nics to/from the cloud security group.
 func (c *awsCloud) UpdateSecurityGroupMembers(securityGroupIdentifier *cloudresource.CloudResource,
 	cloudResourceIdentifiers []*cloudresource.CloudResource, membershipOnly bool) error {
-	mutex.Lock()
-	defer mutex.Unlock()
-
 	vpcID := securityGroupIdentifier.Vpc
 	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
 	if !found {
 		return fmt.Errorf("aws account not found managing virtual private cloud [%v]", vpcID)
 	}
+	accCfg.LockMutex()
+	defer accCfg.UnlockMutex()
 
 	// get addressGroup cloudSgID
 	cloudSgName := securityGroupIdentifier.GetCloudName(membershipOnly)
@@ -158,14 +155,13 @@ func (c *awsCloud) UpdateSecurityGroupMembers(securityGroupIdentifier *cloudreso
 
 // DeleteSecurityGroup invokes cloud api and deletes the cloud security group. Any attached resource will be moved to default sg.
 func (c *awsCloud) DeleteSecurityGroup(securityGroupIdentifier *cloudresource.CloudResource, membershipOnly bool) error {
-	mutex.Lock()
-	defer mutex.Unlock()
-
 	vpcID := securityGroupIdentifier.Vpc
 	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
 	if !found {
 		return fmt.Errorf("aws account not found managing virtual private cloud [%v]", vpcID)
 	}
+	accCfg.LockMutex()
+	defer accCfg.UnlockMutex()
 
 	// check if sg exists in cloud and get its cloud sg id to delete
 	vpcIDs := []string{vpcID}
@@ -196,8 +192,6 @@ func (c *awsCloud) DeleteSecurityGroup(securityGroupIdentifier *cloudresource.Cl
 }
 
 func (c *awsCloud) GetEnforcedSecurity() []cloudresource.SynchronizationContent {
-	inventoryInitWaitDuration := 30 * time.Second
-
 	var accNamespacedNames []types.NamespacedName
 	accountConfigs := c.cloudCommon.GetCloudAccounts()
 	for _, accCfg := range accountConfigs {
@@ -227,9 +221,11 @@ func (c *awsCloud) GetEnforcedSecurity() []cloudresource.SynchronizationContent 
 				awsPluginLogger().Info("Enforced-security-cloud-view GET for account skipped (account no longer exists)", "account", name)
 				return
 			}
+			accCfg.LockMutex()
+			defer accCfg.UnlockMutex()
 
 			ec2Service := accCfg.GetServiceConfig().(*ec2ServiceConfig)
-			if err := ec2Service.waitForInventoryInit(inventoryInitWaitDuration); err != nil {
+			if err := ec2Service.waitForInventoryInit(internal.InventoryInitWaitDuration); err != nil {
 				awsPluginLogger().Error(err, "Enforced-security-cloud-view GET for account skipped", "account", accCfg.GetNamespacedName())
 				return
 			}

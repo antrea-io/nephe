@@ -29,7 +29,8 @@ type CloudAccountInterface interface {
 	GetNamespacedName() *types.NamespacedName
 	GetServiceConfig() CloudServiceInterface
 	GetStatus() *crdv1alpha1.CloudProviderAccountStatus
-
+	LockMutex()
+	UnlockMutex()
 	performInventorySync() error
 	resetInventoryCache()
 }
@@ -116,9 +117,6 @@ func (c *cloudCommon) updateCloudAccountConfig(client client.Client, credentials
 }
 
 func (accCfg *cloudAccountConfig) performInventorySync() error {
-	accCfg.mutex.Lock()
-	defer accCfg.mutex.Unlock()
-
 	err := accCfg.serviceConfig.DoResourceInventory()
 	if err != nil {
 		// set the error status to be used later in `CloudProviderAccount` CR.
@@ -142,4 +140,12 @@ func (accCfg *cloudAccountConfig) GetStatus() *crdv1alpha1.CloudProviderAccountS
 
 func (accCfg *cloudAccountConfig) resetInventoryCache() {
 	accCfg.serviceConfig.ResetInventoryCache()
+}
+
+func (accCfg *cloudAccountConfig) LockMutex() {
+	accCfg.mutex.Lock()
+}
+
+func (accCfg *cloudAccountConfig) UnlockMutex() {
+	accCfg.mutex.Unlock()
 }
