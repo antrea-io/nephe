@@ -118,9 +118,11 @@ func (c *cloudCommon) updateCloudAccountConfig(client client.Client, credentials
 
 func (accCfg *cloudAccountConfig) performInventorySync() error {
 	err := accCfg.serviceConfig.DoResourceInventory()
+	// set the error status to be used later in `CloudProviderAccount` CR.
 	if err != nil {
-		// set the error status to be used later in `CloudProviderAccount` CR.
 		accCfg.Status.Error = err.Error()
+	} else {
+		accCfg.Status.Error = ""
 	}
 	accCfg.serviceConfig.GetInventoryStats().UpdateInventoryPollStats(err)
 	return err
