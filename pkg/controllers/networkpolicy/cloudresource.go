@@ -38,7 +38,7 @@ var (
 )
 
 const (
-	AppliedSecurityGroupDeleteError = "Deleting/Detaching appliedTo sg %v: %v"
+	AppliedSecurityGroupDeleteError = "Detaching/Deleting security group %v: %v"
 )
 
 func vmNPStatusSetter(tracker *cloudResourceNPTracker, r *NetworkPolicyReconciler) (bool, error) {
@@ -53,18 +53,14 @@ func vmNPStatusSetter(tracker *cloudResourceNPTracker, r *NetworkPolicyReconcile
 	}
 	for _, item := range vmItems {
 		vm := item.(*runtimev1alpha1.VirtualMachine)
+		// Check if network policies are available for VM namespace.
 		npStatus, ok := status[vm.Namespace]
-		if len(status[""]) > 0 {
-			if npStatus == nil {
-				npStatus = make(map[string]string)
-			}
-			for k, v := range status[""] {
-				npStatus[k] = v
-			}
-		}
+
+		// Check if VMP object exists.
 		indexKey := types.NamespacedName{Namespace: vm.Namespace, Name: vm.Name}
 		obj, found, _ := r.virtualMachinePolicyIndexer.GetByKey(indexKey.String())
-		// no policy to update.
+
+		// No VMP object and no NPStatus for Namespace, ignore.
 		if !ok && !found {
 			continue
 		}
@@ -126,6 +122,8 @@ type cloudResourceNPTracker struct {
 	appliedToSGs map[string]*appliedToSecurityGroup
 	// previously appliedToSGs to track sg clean up.
 	prevAppliedToSGs map[string]*appliedToSecurityGroup
+	// store appliedTo to network policies mapping.
+	appliedToToNpMap map[string][]types.NamespacedName
 }
 
 func (r *NetworkPolicyReconciler) newCloudResourceNPTracker(rsc *cloudresource.CloudResource) *cloudResourceNPTracker {
@@ -133,6 +131,7 @@ func (r *NetworkPolicyReconciler) newCloudResourceNPTracker(rsc *cloudresource.C
 	tracker := &cloudResourceNPTracker{
 		appliedToSGs:     make(map[string]*appliedToSecurityGroup),
 		prevAppliedToSGs: make(map[string]*appliedToSecurityGroup),
+		appliedToToNpMap: make(map[string][]types.NamespacedName),
 		cloudResource:    *rsc,
 	}
 	if err := r.cloudResourceNPTrackerIndexer.Add(tracker); err != nil {
@@ -208,6 +207,7 @@ func (c *cloudResourceNPTracker) computeNPStatus(r *NetworkPolicyReconciler) map
 
 	// retrieve all network policies related to cloud resource's applied groups
 	npMap := make(map[interface{}]string)
+	appliedToToNpMap := make(map[string][]types.NamespacedName)
 	for key, asg := range c.appliedToSGs {
 		nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAppliedToGrp, asg.id.Name)
 		if err != nil {
@@ -217,6 +217,8 @@ func (c *cloudResourceNPTracker) computeNPStatus(r *NetworkPolicyReconciler) map
 		}
 		// Not considering cloud resources belongs to multiple AppliedToGroups of same NetworkPolicy.
 		for _, i := range nps {
+			namespacedName := types.NamespacedName{Namespace: i.(*networkPolicy).Namespace, Name: i.(*networkPolicy).Name}
+			appliedToToNpMap[asg.id.Name] = append(appliedToToNpMap[asg.id.Name], namespacedName)
 			npMap[i] = key
 		}
 	}
@@ -257,6 +259,7 @@ func (c *cloudResourceNPTracker) computeNPStatus(r *NetworkPolicyReconciler) map
 
 	for _, asg := range newPrevSgs {
 		if asg.status == nil {
+			delete(c.appliedToToNpMap, asg.id.CloudResourceID.String())
 			delete(newPrevSgs, asg.id.CloudResourceID.String())
 			continue
 		}
@@ -267,25 +270,33 @@ func (c *cloudResourceNPTracker) computeNPStatus(r *NetworkPolicyReconciler) map
 			continue
 		}
 		errMsg := fmt.Sprintf(AppliedSecurityGroupDeleteError, asg.id.CloudResourceID.String(), asg.status.Error())
-		for _, i := range nps {
-			np := i.(*networkPolicy)
-			npList, ok := ret[np.Namespace]
-			if !ok {
-				npList = make(map[string]string)
-				ret[np.Namespace] = npList
+		if len(nps) != 0 {
+			for _, i := range nps {
+				np := i.(*networkPolicy)
+				npList, ok := ret[np.Namespace]
+				if !ok {
+					npList = make(map[string]string)
+					ret[np.Namespace] = npList
+				}
+				npList[np.Name] = errMsg
 			}
-			npList[np.Name] = errMsg
-		}
-		if len(nps) == 0 {
-			// handle dangling appliedToGroups with no namespaces.
-			npList, ok := ret[""]
-			if !ok {
-				npList = make(map[string]string)
-				ret[""] = npList
+		} else {
+			if namespacedNames, ok := c.appliedToToNpMap[asg.id.Name]; ok {
+				for _, namespacedName := range namespacedNames {
+					npList, ok := ret[namespacedName.Namespace]
+					if !ok {
+						npList = make(map[string]string)
+						ret[namespacedName.Namespace] = npList
+					}
+					npList[namespacedName.Name] = errMsg
+					appliedToToNpMap[asg.id.Name] = append(appliedToToNpMap[asg.id.Name], namespacedName)
+				}
 			}
-			npList[asg.id.CloudResourceID.String()] = errMsg
 		}
 	}
+	// Update the map with the latest data.
+	c.appliedToToNpMap = appliedToToNpMap
+
 	if len(newPrevSgs) != len(c.prevAppliedToSGs) {
 		_ = r.cloudResourceNPTrackerIndexer.Delete(c)
 		c.prevAppliedToSGs = newPrevSgs
