@@ -525,7 +525,7 @@ spec:
     spec:
       containers:
       - args:
-        - --config=/tmp/nephe/nephe-controller.conf
+        - --config=/etc/nephe/nephe-controller.conf
         - --enable-debug-log
         command:
         - /nephe-controller
@@ -549,23 +549,16 @@ spec:
             cpu: 200m
             memory: 500Mi
         volumeMounts:
-        - mountPath: /tmp/k8s-webhook-server/serving-certs
+        - mountPath: /var/run/nephe/nephe-controller-tls
           name: cert
           readOnly: true
-        - mountPath: /tmp/k8s-apiserver/serving-certs
-          name: apiserver-cert
-          readOnly: true
-        - mountPath: /tmp/nephe/nephe-controller.conf
+        - mountPath: /etc/nephe/nephe-controller.conf
           name: nephe-config
           readOnly: true
           subPath: nephe-controller.conf
       terminationGracePeriodSeconds: 10
       volumes:
       - name: cert
-        secret:
-          defaultMode: 420
-          secretName: serving-cert
-      - name: apiserver-cert
         secret:
           defaultMode: 420
           secretName: serving-cert

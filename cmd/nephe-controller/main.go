@@ -90,6 +90,7 @@ func main() {
 		Port:               9443,
 		LeaderElection:     enableLeaderElection,
 		LeaderElectionID:   electionID,
+		CertDir:            defaultCertDir,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -153,7 +154,7 @@ func main() {
 	}
 
 	if err = (&apiserver.NepheControllerAPIServer{}).SetupWithManager(mgr,
-		npController.GetVirtualMachinePolicyIndexer(), cloudInventory, logging.GetLogger("apiServer")); err != nil {
+		npController.GetVirtualMachinePolicyIndexer(), cloudInventory, defaultCertDir, logging.GetLogger("apiServer")); err != nil {
 		setupLog.Error(err, "unable to create APIServer")
 		os.Exit(1)
 	}
