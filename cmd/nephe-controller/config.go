@@ -19,4 +19,5 @@ const (
 	defaultLeaderElectionFlag = false
 	defaultMetricsAddress     = ":8080"
 	defaultDebugLogFlag       = false
+	defaultCertDir            = "/var/run/nephe/nephe-controller-tls"
 )

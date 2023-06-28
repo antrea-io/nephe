@@ -58,14 +58,15 @@ type Config struct {
 	ExtraConfig   ExtraConfig
 }
 
-func NewConfig(codecs serializer.CodecFactory, vmpIndexer cache.Indexer, cloudInventory inventory.Interface) (*Config, error) {
+func NewConfig(codecs serializer.CodecFactory, vmpIndexer cache.Indexer, cloudInventory inventory.Interface,
+	certDir string) (*Config, error) {
 	recommend := genericoptions.NewRecommendedOptions("", nil)
 	serverConfig := genericapiserver.NewRecommendedConfig(codecs)
 	recommend.SecureServing.BindPort = apiServerPort
 
 	// tls.crt and tls.key is populated by cert-manager injector.
 	recommend.SecureServing.ServerCert.PairName = "tls"
-	recommend.SecureServing.ServerCert.CertDirectory = "/tmp/k8s-apiserver/serving-certs"
+	recommend.SecureServing.ServerCert.CertDirectory = certDir
 	if err := recommend.SecureServing.MaybeDefaultWithSelfSignedCerts(nepheControllerSvcName,
 		[]string{}, []net.IP{net.ParseIP("127.0.0.1")}); err != nil {
 		return nil, err
@@ -123,11 +124,12 @@ func (s *NepheControllerAPIServer) SetupWithManager(
 	mgr controllerruntime.Manager,
 	vmpIndexer cache.Indexer,
 	cloudInventory inventory.Interface,
+	certDir string,
 	logger logger.Logger) error {
 	s.logger = logger
 	codecs := serializer.NewCodecFactory(mgr.GetScheme())
 
-	apiConfig, err := NewConfig(codecs, vmpIndexer, cloudInventory)
+	apiConfig, err := NewConfig(codecs, vmpIndexer, cloudInventory, certDir)
 	if err != nil {
 		s.logger.Error(err, "unable to create APIServer config")
 		return err

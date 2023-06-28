@@ -50,7 +50,7 @@ spec:
       - command:
         - /nephe-controller
         args:
-        - --config=/tmp/nephe/nephe-controller.conf
+        - --config=/etc/nephe/nephe-controller.conf
         - --enable-debug-log
         image: "antrea/nephe:latest"
         imagePullPolicy: IfNotPresent
@@ -68,15 +68,15 @@ spec:
             cpu: 200m
             memory: 500Mi
         volumeMounts:
-          - name: apiserver-cert
-            mountPath: /tmp/k8s-apiserver/serving-certs
+          - name: cert
+            mountPath: /var/run/nephe/nephe-controller-tls
             readOnly: true
           - name: nephe-config
-            mountPath: /tmp/nephe/nephe-controller.conf
+            mountPath: /etc/nephe/nephe-controller.conf
             subPath: nephe-controller.conf
             readOnly: true
       volumes:
-        - name: apiserver-cert
+        - name: cert
           secret:
             defaultMode: 420
             secretName: serving-cert
