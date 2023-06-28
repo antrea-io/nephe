@@ -15,6 +15,7 @@
 package apiserver
 
 import (
+	"bytes"
 	"context"
 	"net"
 	"os"
@@ -29,6 +30,7 @@ import (
 	genericoptions "k8s.io/apiserver/pkg/server/options"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
+	aggregatorclientset "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 	controllerruntime "sigs.k8s.io/controller-runtime"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
@@ -43,6 +45,10 @@ var (
 	apiServerPort = 5443
 	// Match Nephe Controller Service Name
 	nepheControllerSvcName = "nephe-controller-service"
+	// nepheServedLabel includes the labels used to select resources served by nephe-controller.
+	nepheServedLabel = map[string]string{
+		"served-by": "nephe-controller",
+	}
 )
 
 // ExtraConfig holds custom apiserver config.
@@ -134,16 +140,67 @@ func (s *NepheControllerAPIServer) SetupWithManager(
 		s.logger.Error(err, "unable to create APIServer config")
 		return err
 	}
-
-	s.genericAPIServer, err = apiConfig.Complete().New(mgr.GetScheme(), codecs, s.logger)
-	if err != nil {
+	if s.genericAPIServer, err = apiConfig.Complete().New(mgr.GetScheme(), codecs, s.logger); err != nil {
 		s.logger.Error(err, "unable to create APIServer")
+		return err
+	}
+	if err = s.syncAPIServices(certDir); err != nil {
+		s.logger.Error(err, "failed to sync CA cert with APIService")
 		return err
 	}
 	if err = mgr.Add(s); err != nil {
 		return err
 	}
 	return nil
+}
+
+// syncAPIServices updates nephe controller APIService with CA bundle.
+func (s *NepheControllerAPIServer) syncAPIServices(certDir string) error {
+	clientset, err := aggregatorclientset.NewForConfig(controllerruntime.GetConfigOrDie())
+	if err != nil {
+		return err
+	}
+
+	listOption := metav1.ListOptions{
+		LabelSelector: metav1.FormatLabelSelector(&metav1.LabelSelector{
+			MatchLabels: nepheServedLabel})}
+	nepheAPIServices, err := clientset.ApiregistrationV1().APIServices().List(context.TODO(), listOption)
+	if err != nil {
+		return err
+	}
+
+	if len(nepheAPIServices.Items) == 0 {
+		return nil
+	}
+
+	s.logger.Info("Syncing CA certificate with APIServices")
+	caCert, err := getCaCert(certDir)
+	if err != nil {
+		return err
+	}
+	for i := range nepheAPIServices.Items {
+		apiService := nepheAPIServices.Items[i]
+		if bytes.Equal(apiService.Spec.CABundle, caCert) {
+			continue
+		}
+		apiService.Spec.CABundle = caCert
+		if _, err := clientset.ApiregistrationV1().APIServices().Update(context.TODO(), &apiService, metav1.UpdateOptions{}); err != nil {
+			s.logger.Error(err, "failed to update CA cert of APIService", "name", apiService.Name)
+			return err
+		}
+		s.logger.Info("Updated CA cert of APIService", "name", apiService.Name)
+	}
+	return nil
+}
+
+// getCaCert gets the content of CA bundle from cert file.
+func getCaCert(certDir string) ([]byte, error) {
+	filePath := certDir + "/ca.crt"
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+	return content, nil
 }
 
 type completedConfig struct {

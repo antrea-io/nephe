@@ -27,6 +27,7 @@ require (
 	k8s.io/apimachinery v0.26.4
 	k8s.io/apiserver v0.26.4
 	k8s.io/client-go v0.26.4
+	k8s.io/kube-aggregator v0.26.4
 	sigs.k8s.io/controller-runtime v0.14.6
 )
 
