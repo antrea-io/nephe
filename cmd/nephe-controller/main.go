@@ -163,7 +163,7 @@ func main() {
 	}
 
 	if err = (&apiserver.NepheControllerAPIServer{}).SetupWithManager(mgr,
-		npController.GetVirtualMachinePolicyIndexer(), cloudInventory, defaultCertDir, logging.GetLogger("apiServer")); err != nil {
+		npController.GetNpTrackerIndexer(), cloudInventory, defaultCertDir, logging.GetLogger("apiServer")); err != nil {
 		setupLog.Error(err, "unable to create APIServer")
 		os.Exit(1)
 	}

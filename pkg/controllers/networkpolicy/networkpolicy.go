@@ -36,15 +36,20 @@ import (
 	"antrea.io/nephe/pkg/labels"
 )
 
+const (
+	InProgressStr = "in-progress"
+	NoneStr       = "<none>"
+)
+
 // InProgress indicates a securityGroup operation is in progress.
 type InProgress struct{}
 
 func (i *InProgress) String() string {
-	return "in-progress"
+	return InProgressStr
 }
 
 func (i *InProgress) Error() string {
-	return "in-progress"
+	return InProgressStr
 }
 
 // securityGroupOperation specified operations sent to cloud plug-in.
@@ -408,7 +413,7 @@ func (s *securityGroupImpl) deleteImpl(c cloudSecurityGroup, membershipOnly bool
 		if len(s.members) > 0 {
 			accountId = s.members[0].AccountID
 		}
-		r.pendingDeleteGroups.Add(guName, &pendingGroup{id: guName, refCnt: new(int), account: accountId})
+		r.pendingDeleteGroups.Add(guName, &pendingGroup{id: guName, refCnt: new(int), accountId: accountId})
 	}
 	var nps []interface{}
 	if s.state != securityGroupStateGarbageCollectState {
@@ -534,14 +539,6 @@ func (s *securityGroupImpl) deleteSgRulesFromIndexer(r *NetworkPolicyReconciler)
 	}
 }
 
-func (s *securityGroupImpl) markDirty(r *NetworkPolicyReconciler, create bool) {
-	for _, rsc := range s.members {
-		if tracker := r.getCloudResourceNPTracker(rsc, create); tracker != nil {
-			tracker.markDirty()
-		}
-	}
-}
-
 // addrSecurityGroup keeps track of membership within a SecurityGroup in a VPC.
 type addrSecurityGroup struct {
 	securityGroupImpl
@@ -603,8 +600,9 @@ func (a *addrSecurityGroup) notify(op securityGroupOperation, status error, r *N
 	defer func() {
 		if a.isReady() {
 			for _, i := range nps {
-				np := i.(*networkPolicy)
-				np.markDirty(r)
+				if np := i.(*networkPolicy); np != nil {
+					np.markDirty(r)
+				}
 			}
 		}
 		a.notifyImpl(a, true, op, status, r)
@@ -744,7 +742,7 @@ func newAppliedToSecurityGroup(id *cloudresource.CloudResource, data interface{}
 // add invokes cloud plug-in to create an appliedToSecurityGroup.
 func (a *appliedToSecurityGroup) add(r *NetworkPolicyReconciler) error {
 	for _, rsc := range a.members {
-		if tracker := r.getCloudResourceNPTracker(rsc, true); tracker != nil {
+		if tracker := r.getCloudResourceNpTracker(rsc, true); tracker != nil {
 			_ = tracker.update(a, false, r)
 		}
 	}
@@ -755,11 +753,10 @@ func (a *appliedToSecurityGroup) add(r *NetworkPolicyReconciler) error {
 
 // delete invokes cloud plug-in to delete an appliedToSecurityGroup.
 func (a *appliedToSecurityGroup) delete(r *NetworkPolicyReconciler) error {
-	if a.hasMembers {
-		for _, rsc := range a.members {
-			if tracker := r.getCloudResourceNPTracker(rsc, false); tracker != nil {
-				_ = tracker.update(a, true, r)
-			}
+	// TODO: In a particular scenario, hasMembers is not set, while SG has members.
+	for _, rsc := range a.members {
+		if tracker := r.getCloudResourceNpTracker(rsc, false); tracker != nil {
+			_ = tracker.update(a, true, r)
 		}
 	}
 	return a.deleteImpl(a, false, r)
@@ -1106,12 +1103,12 @@ func (a *appliedToSecurityGroup) notifyAddrGroups(addrGroups []string, r *Networ
 // update invokes cloud plug-in to update appliedToSecurityGroup's membership.
 func (a *appliedToSecurityGroup) update(added, removed []*cloudresource.CloudResource, r *NetworkPolicyReconciler) error {
 	for _, rsc := range removed {
-		if tracker := r.getCloudResourceNPTracker(rsc, false); tracker != nil {
+		if tracker := r.getCloudResourceNpTracker(rsc, false); tracker != nil {
 			_ = tracker.update(a, true, r)
 		}
 	}
 	for _, rsc := range added {
-		if tracker := r.getCloudResourceNPTracker(rsc, true); tracker != nil {
+		if tracker := r.getCloudResourceNpTracker(rsc, true); tracker != nil {
 			_ = tracker.update(a, false, r)
 		}
 	}
@@ -1129,18 +1126,30 @@ func (a *appliedToSecurityGroup) getStatus() error {
 	return &InProgress{}
 }
 
+// updateNPTracker updates all the NP trackers that have this appliedToGroup as dirty.
 func (a *appliedToSecurityGroup) updateNPTracker(r *NetworkPolicyReconciler) error {
-	trackers, err := r.cloudResourceNPTrackerIndexer.ByIndex(cloudResourceNPTrackerIndexerByAppliedToGrp,
+	trackers, err := r.npTrackerIndexer.ByIndex(npTrackerIndexerByAppliedToGrp,
 		a.id.CloudResourceID.String())
 	if err != nil {
 		r.Log.Error(err, "get cloud resource tracker indexer", "Key", a.id.Name)
 		return err
 	}
 	for _, i := range trackers {
-		tracker := i.(*cloudResourceNPTracker)
+		tracker, ok := i.(*CloudResourceNpTracker)
+		if !ok {
+			continue
+		}
 		tracker.markDirty()
 	}
 	return nil
+}
+
+func (a *appliedToSecurityGroup) markDirty(r *NetworkPolicyReconciler, create bool) { // nolint: unparam
+	for _, rsc := range a.members {
+		if tracker := r.getCloudResourceNpTracker(rsc, create); tracker != nil {
+			tracker.markDirty()
+		}
+	}
 }
 
 // processPendingNetworkPolicy reads pending NetworkPolicy queue and process the item.
@@ -1176,7 +1185,7 @@ func (a *appliedToSecurityGroup) notify(op securityGroupOperation, status error,
 		a.status = status
 	}
 	if status != nil {
-		r.Log.Error(status, "appliedToSecurityGroup operation failed", "Name", a.id.Name, "Op", op)
+		r.Log.Error(status, "appliedToSecurityGroup received operation failed", "Name", a.id.Name, "Op", op)
 		return nil
 	}
 	r.Log.V(1).Info("AppliedToSecurityGroup received operation ok", "Name", a.id.Name, "state",
@@ -1241,14 +1250,8 @@ func (a *appliedToSecurityGroup) removeStaleMembers(stales []*types.NamespacedNa
 			if strings.Contains(stale.Name, name) {
 				// remove member np tracker.
 				r.Log.V(1).Info("Remove stale members from AppliedToGroup", "Stale", stale, "Name", a.id.Name)
-				if tracker := r.getCloudResourceNPTracker(srcMap[name], false); tracker != nil {
+				if tracker := r.getCloudResourceNpTracker(srcMap[name], false); tracker != nil {
 					_ = tracker.update(a, true, r)
-				}
-				// remove member vmp.
-				vmNamespacedName := types.NamespacedName{Name: name, Namespace: stale.Namespace}
-				if obj, found, _ := r.virtualMachinePolicyIndexer.GetByKey(vmNamespacedName.String()); found {
-					r.Log.V(1).Info("Delete vmp status", "resource", vmNamespacedName.String())
-					_ = r.virtualMachinePolicyIndexer.Delete(obj)
 				}
 				// remove member from sg.
 				delete(srcMap, name)
@@ -1520,6 +1523,7 @@ func (n *networkPolicy) delete(r *NetworkPolicyReconciler) error {
 	if err := r.networkPolicyIndexer.Delete(n); err != nil {
 		r.Log.Error(err, "delete from networkPolicy indexer", "Name", n.Name, "Namespace", n.Namespace)
 	}
+
 	for _, gname := range getAppliedToGroups(n) {
 		sgs, err := r.appliedToSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, gname)
 		if err != nil {
@@ -1588,7 +1592,7 @@ func (n *networkPolicy) computeRulesReady(withStatus bool, r *NetworkPolicyRecon
 				}
 			}
 		}
-		// Dont update rulesReady state if called with withStatus set.
+		// Don't update rulesReady state if called with withStatus set.
 		if !withStatus {
 			n.rulesReady = true
 		}
@@ -1605,7 +1609,7 @@ func (n *networkPolicy) notifyAddressGroupChange(r *NetworkPolicyReconciler, gro
 		return nil
 	}
 	r.Log.V(1).Info("AddressGroup changed, recompute rules", "addressGroup", groupName, "networkPolicy", n.Name)
-	if ruleReady := n.computeRules(r); !ruleReady {
+	if rulesReady := n.computeRules(r); !rulesReady {
 		return nil
 	}
 
