@@ -96,8 +96,11 @@ func (a *appliedToSecurityGroup) sync(syncContent *cloudresource.Synchronization
 		return
 	}
 	items := make(map[string]int)
-	for _, i := range nps {
-		np := i.(*networkPolicy)
+	for _, obj := range nps {
+		np, ok := obj.(*networkPolicy)
+		if !ok {
+			continue
+		}
 		if !np.rulesReady {
 			r.Log.V(1).Info("Compute rules", "networkPolicy", np.Name)
 			if !np.computeRules(r) {
@@ -133,7 +136,10 @@ func (a *appliedToSecurityGroup) sync(syncContent *cloudresource.Synchronization
 	indexerUpdate := false
 	cloudRuleMap := make(map[string]*cloudresource.CloudRule)
 	for _, obj := range rules {
-		rule := obj.(*cloudresource.CloudRule)
+		rule, ok := obj.(*cloudresource.CloudRule)
+		if !ok {
+			continue
+		}
 		cloudRuleMap[rule.Hash] = rule
 	}
 

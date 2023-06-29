@@ -455,7 +455,10 @@ func (s *securityGroupImpl) deleteImpl(c cloudSecurityGroup, membershipOnly bool
 		// Send rule realization even if appliedToGroup is getting deleted.
 		if !membershipOnly && len(nps) != 0 {
 			for _, obj := range nps {
-				np := obj.(*networkPolicy)
+				np, ok := obj.(*networkPolicy)
+				if !ok {
+					continue
+				}
 				r.sendRuleRealizationStatus(&np.NetworkPolicy, err)
 			}
 		}
@@ -595,8 +598,11 @@ func (a *addrSecurityGroup) notify(op securityGroupOperation, status error, r *N
 
 	defer func() {
 		if a.isReady() {
-			for _, i := range nps {
-				np := i.(*networkPolicy)
+			for _, obj := range nps {
+				np, ok := obj.(*networkPolicy)
+				if !ok {
+					continue
+				}
 				np.markDirty(r)
 			}
 		}
@@ -782,7 +788,10 @@ func (a *appliedToSecurityGroup) updateAllRules(r *NetworkPolicyReconciler) erro
 	}
 
 	for _, obj := range nps {
-		np := obj.(*networkPolicy)
+		np, ok := obj.(*networkPolicy)
+		if !ok {
+			continue
+		}
 		a.updateANPRules(r, np)
 	}
 
@@ -950,7 +959,10 @@ func (a *appliedToSecurityGroup) computeCloudRulesFromNp(r *NetworkPolicyReconci
 	addRules := make([]*cloudresource.CloudRule, 0)
 	removeRules := make([]*cloudresource.CloudRule, 0)
 	for _, obj := range realizedRules {
-		realizedRule := obj.(*cloudresource.CloudRule)
+		realizedRule, ok := obj.(*cloudresource.CloudRule)
+		if !ok {
+			continue
+		}
 		npNamespacedName := np.getNamespacedName()
 
 		sameNP := realizedRule.NpNamespacedName == npNamespacedName
@@ -986,7 +998,10 @@ func (a *appliedToSecurityGroup) checkRealization(r *NetworkPolicyReconciler, np
 
 	realizedRuleMap := make(map[string]*cloudresource.CloudRule)
 	for _, obj := range realizedRules {
-		rule := obj.(*cloudresource.CloudRule)
+		rule, ok := obj.(*cloudresource.CloudRule)
+		if !ok {
+			continue
+		}
 		// sg might have rules from other nps, ignore those rules.
 		if rule.NpNamespacedName != np.getNamespacedName() {
 			continue
@@ -1036,7 +1051,10 @@ func (a *appliedToSecurityGroup) updateAddrGroupReference(r *NetworkPolicyReconc
 	// combine rules to get latest addrGroupRefs.
 	currentRefs := make(map[string]struct{})
 	for _, obj := range rules {
-		rule := obj.(*cloudresource.CloudRule)
+		rule, ok := obj.(*cloudresource.CloudRule)
+		if !ok {
+			continue
+		}
 		switch rule.Rule.(type) {
 		case *cloudresource.IngressRule:
 			for _, sg := range rule.Rule.(*cloudresource.IngressRule).FromSecurityGroups {
@@ -1124,8 +1142,11 @@ func (a *appliedToSecurityGroup) updateNPTracker(r *NetworkPolicyReconciler) err
 		r.Log.Error(err, "get cloud resource tracker indexer", "Key", a.id.Name)
 		return err
 	}
-	for _, i := range trackers {
-		tracker := i.(*cloudResourceNPTracker)
+	for _, obj := range trackers {
+		tracker, ok := obj.(*cloudResourceNPTracker)
+		if !ok {
+			continue
+		}
 		tracker.markDirty()
 	}
 	return nil
@@ -1284,8 +1305,11 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, policyAppliedToGr
 				ready = false
 				return
 			}
-			for _, i := range sgs {
-				sg := i.(*addrSecurityGroup)
+			for _, obj := range sgs {
+				sg, ok := obj.(*addrSecurityGroup)
+				if !ok {
+					continue
+				}
 				id := sg.getID()
 				if len(id.Vpc) > 0 {
 					ingress := &cloudresource.IngressRule{}
@@ -1347,8 +1371,11 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, policyAppliedToGr
 			ready = false
 			return
 		}
-		for _, i := range sgs {
-			sg := i.(*addrSecurityGroup)
+		for _, obj := range sgs {
+			sg, ok := obj.(*addrSecurityGroup)
+			if !ok {
+				continue
+			}
 			id := sg.getID()
 			if len(id.Vpc) > 0 {
 				egress := &cloudresource.EgressRule{}
@@ -1478,8 +1505,11 @@ func (n *networkPolicy) update(anp *antreanetworking.NetworkPolicy, recompute bo
 			r.Log.Error(err, "indexer error for", "AddressGroup", id)
 			continue
 		}
-		for _, i := range sgs {
-			sg := i.(*addrSecurityGroup)
+		for _, obj := range sgs {
+			sg, ok := obj.(*addrSecurityGroup)
+			if !ok {
+				continue
+			}
 			sg.notifyNetworkPolicyChange(r)
 		}
 	}
@@ -1493,8 +1523,11 @@ func (n *networkPolicy) update(anp *antreanetworking.NetworkPolicy, recompute bo
 			r.Log.Error(err, "indexer error for", "AppliedToGroup", id)
 			continue
 		}
-		for _, i := range sgs {
-			sg := i.(*appliedToSecurityGroup)
+		for _, obj := range sgs {
+			sg, ok := obj.(*appliedToSecurityGroup)
+			if !ok {
+				continue
+			}
 			sg.updateANPRules(r, n)
 		}
 	}
@@ -1513,8 +1546,11 @@ func (n *networkPolicy) delete(r *NetworkPolicyReconciler) error {
 		if err != nil {
 			return fmt.Errorf("unable to get appliedToSGs %s from indexer: %w", gname, err)
 		}
-		for _, i := range sgs {
-			sg := i.(*appliedToSecurityGroup)
+		for _, obj := range sgs {
+			sg, ok := obj.(*appliedToSecurityGroup)
+			if !ok {
+				continue
+			}
 			sg.updateANPRules(r, n)
 		}
 	}
@@ -1528,8 +1564,11 @@ func (n *networkPolicy) delete(r *NetworkPolicyReconciler) error {
 		if err != nil {
 			return fmt.Errorf("unable to get addrSGs %s from indexer: %w", gname, err)
 		}
-		for _, i := range sgs {
-			sg := i.(*addrSecurityGroup)
+		for _, obj := range sgs {
+			sg, ok := obj.(*addrSecurityGroup)
+			if !ok {
+				continue
+			}
 			sg.notifyNetworkPolicyChange(r)
 		}
 	}
@@ -1562,8 +1601,11 @@ func (n *networkPolicy) computeRulesReady(withStatus bool, r *NetworkPolicyRecon
 					"networkPolicy", n.Name, "AddressSecurityGroup", name)
 				return nil
 			}
-			for _, i := range sgs {
-				sg := i.(*addrSecurityGroup)
+			for _, obj := range sgs {
+				sg, ok := obj.(*addrSecurityGroup)
+				if !ok {
+					continue
+				}
 				if withStatus {
 					if status := sg.getStatus(); status != nil {
 						return fmt.Errorf("%v=%v", sg.id.String(), status.Error())
@@ -1602,8 +1644,11 @@ func (n *networkPolicy) notifyAddressGroupChange(r *NetworkPolicyReconciler, gro
 		if err != nil {
 			return fmt.Errorf("unable to get appliedToSGs %s from indexer: %w", gname, err)
 		}
-		for _, i := range sgs {
-			sg := i.(*appliedToSecurityGroup)
+		for _, obj := range sgs {
+			sg, ok := obj.(*appliedToSecurityGroup)
+			if !ok {
+				continue
+			}
 			r.Log.V(1).Info("Updating NetworkPolicy rules due to change in AddressGroup",
 				"addressGroup", groupName, "np", n.Name)
 			sg.updateANPRules(r, n)
@@ -1643,8 +1688,11 @@ func (n *networkPolicy) markDirty(r *NetworkPolicyReconciler) {
 			r.Log.Error(err, "get appliedToSecurityGroup indexer", "Key", key)
 			return
 		}
-		for _, i := range sgs {
-			asg := i.(*appliedToSecurityGroup)
+		for _, obj := range sgs {
+			asg, ok := obj.(*appliedToSecurityGroup)
+			if !ok {
+				continue
+			}
 			asg.markDirty(r, false)
 		}
 	}

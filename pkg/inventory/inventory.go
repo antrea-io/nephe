@@ -59,8 +59,11 @@ func (i *Inventory) BuildVpcCache(discoveredVpcMap map[string]*runtimev1alpha1.V
 	vpcsInCache, _ := i.vpcStore.GetByIndex(indexer.VpcByNamespacedAccountName, namespacedName.String())
 
 	// Remove vpcs in vpc cache which are not found in vpc list fetched from cloud.
-	for _, object := range vpcsInCache {
-		vpc := object.(*runtimev1alpha1.Vpc)
+	for _, obj := range vpcsInCache {
+		vpc, ok := obj.(*runtimev1alpha1.Vpc)
+		if !ok {
+			continue
+		}
 		if _, found := discoveredVpcMap[vpc.Status.CloudId]; !found {
 			if err := i.vpcStore.Delete(fmt.Sprintf("%v/%v-%v", vpc.Namespace,
 				vpc.Labels[nephelabels.CloudAccountName], vpc.Status.CloudId)); err != nil {
@@ -111,8 +114,11 @@ func (i *Inventory) DeleteVpcsFromCache(namespacedName *types.NamespacedName) er
 		return err
 	}
 	var numVpcsToDelete int
-	for _, object := range vpcsInCache {
-		vpc := object.(*runtimev1alpha1.Vpc)
+	for _, obj := range vpcsInCache {
+		vpc, ok := obj.(*runtimev1alpha1.Vpc)
+		if !ok {
+			continue
+		}
 		key := fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[nephelabels.CloudAccountName], vpc.Status.CloudId)
 		if err := i.vpcStore.Delete(key); err != nil {
 			i.log.Error(err, "failed to delete vpc from vpc cache, account: %v", *namespacedName)
@@ -152,7 +158,10 @@ func (i *Inventory) BuildVmCache(discoveredVmMap map[string]*runtimev1alpha1.Vir
 	vmsInCache, _ := i.vmStore.GetByIndex(indexer.VirtualMachineByNamespacedAccountName, namespacedName.String())
 	// Remove vm from vm cache which are not found in vm map fetched from cloud.
 	for _, cachedObject := range vmsInCache {
-		cachedVm := cachedObject.(*runtimev1alpha1.VirtualMachine)
+		cachedVm, ok := cachedObject.(*runtimev1alpha1.VirtualMachine)
+		if !ok {
+			continue
+		}
 		if _, found := discoveredVmMap[cachedVm.Name]; !found {
 			key := fmt.Sprintf("%v/%v", cachedVm.Namespace, cachedVm.Name)
 			if err := i.vmStore.Delete(key); err != nil {
@@ -210,7 +219,10 @@ func (i *Inventory) DeleteVmsFromCache(namespacedName *types.NamespacedName) err
 	}
 	var numVmsToDelete int
 	for _, cachedObject := range vmsInCache {
-		cachedVm := cachedObject.(*runtimev1alpha1.VirtualMachine)
+		cachedVm, ok := cachedObject.(*runtimev1alpha1.VirtualMachine)
+		if !ok {
+			continue
+		}
 		key := fmt.Sprintf("%v/%v", cachedVm.Namespace, cachedVm.Name)
 		if err := i.vmStore.Delete(key); err != nil {
 			i.log.Error(err, "failed to delete vm from vm cache, account: %v vm: %v", *namespacedName, cachedVm.Name)

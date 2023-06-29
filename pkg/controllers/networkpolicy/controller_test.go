@@ -441,7 +441,10 @@ var _ = Describe("NetworkPolicy", func() {
 		currentIngress := make([]*cloudresource.IngressRule, 0)
 		currentEgress := make([]*cloudresource.EgressRule, 0)
 		for _, obj := range list {
-			rule := obj.(*cloudresource.CloudRule)
+			rule, ok := obj.(*cloudresource.CloudRule)
+			if !ok {
+				continue
+			}
 			switch rule.Rule.(type) {
 			case *cloudresource.IngressRule:
 				currentIngress = append(currentIngress, rule.Rule.(*cloudresource.IngressRule))

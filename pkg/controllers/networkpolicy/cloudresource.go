@@ -216,10 +216,14 @@ func (c *cloudResourceNPTracker) computeNPStatus(r *NetworkPolicyReconciler) map
 			continue
 		}
 		// Not considering cloud resources belongs to multiple AppliedToGroups of same NetworkPolicy.
-		for _, i := range nps {
-			namespacedName := types.NamespacedName{Namespace: i.(*networkPolicy).Namespace, Name: i.(*networkPolicy).Name}
+		for _, obj := range nps {
+			np, ok := obj.(*networkPolicy)
+			if !ok {
+				continue
+			}
+			namespacedName := types.NamespacedName{Namespace: np.Namespace, Name: np.Name}
 			appliedToToNpMap[asg.id.Name] = append(appliedToToNpMap[asg.id.Name], namespacedName)
-			npMap[i] = key
+			npMap[np] = key
 		}
 	}
 
@@ -271,8 +275,11 @@ func (c *cloudResourceNPTracker) computeNPStatus(r *NetworkPolicyReconciler) map
 		}
 		errMsg := fmt.Sprintf(AppliedSecurityGroupDeleteError, asg.id.CloudResourceID.String(), asg.status.Error())
 		if len(nps) != 0 {
-			for _, i := range nps {
-				np := i.(*networkPolicy)
+			for _, obj := range nps {
+				np, ok := obj.(*networkPolicy)
+				if !ok {
+					continue
+				}
 				npList, ok := ret[np.Namespace]
 				if !ok {
 					npList = make(map[string]string)

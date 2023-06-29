@@ -96,7 +96,11 @@ func (r *REST) List(ctx context.Context, _ *internalversion.ListOptions) (runtim
 	}
 	vmpList := &runtimev1alpha1.VirtualMachinePolicyList{}
 	for _, obj := range objs {
-		vmp := r.convertToVMP(obj.(*networkpolicy.NetworkPolicyStatus))
+		npStatus, ok := obj.(*networkpolicy.NetworkPolicyStatus)
+		if !ok {
+			continue
+		}
+		vmp := r.convertToVMP(npStatus)
 		vmpList.Items = append(vmpList.Items, *vmp)
 	}
 	return vmpList, nil

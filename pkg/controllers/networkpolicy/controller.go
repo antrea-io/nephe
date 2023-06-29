@@ -153,7 +153,10 @@ func (r *NetworkPolicyReconciler) updateRuleRealizationStatus(currentSgID string
 			return
 		}
 		for _, obj := range sgs {
-			sg := obj.(*appliedToSecurityGroup)
+			sg, ok := obj.(*appliedToSecurityGroup)
+			if !ok {
+				continue
+			}
 			if sg.id.CloudResourceID.String() == currentSgID {
 				continue
 			}
@@ -278,12 +281,20 @@ func (r *NetworkPolicyReconciler) processGroup(groupName string, eventType watch
 		}
 		if len(notFoundMember) > 0 {
 			sgs, _ := r.addrSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, groupName)
-			for _, i := range sgs {
-				i.(*addrSecurityGroup).removeStaleMembers(notFoundMember, r)
+			for _, obj := range sgs {
+				sg, ok := obj.(*addrSecurityGroup)
+				if !ok {
+					continue
+				}
+				sg.removeStaleMembers(notFoundMember, r)
 			}
-			sgs1, _ := r.appliedToSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, groupName)
-			for _, i := range sgs1 {
-				i.(*appliedToSecurityGroup).removeStaleMembers(notFoundMember, r)
+			sgs, _ = r.appliedToSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, groupName)
+			for _, obj := range sgs {
+				sg, ok := obj.(*appliedToSecurityGroup)
+				if !ok {
+					continue
+				}
+				sg.removeStaleMembers(notFoundMember, r)
 			}
 		}
 	} else if eventType == watch.Deleted {
@@ -291,8 +302,11 @@ func (r *NetworkPolicyReconciler) processGroup(groupName string, eventType watch
 		if err != nil {
 			return err
 		}
-		for _, i := range sgs {
-			sg := i.(cloudSecurityGroup)
+		for _, obj := range sgs {
+			sg, ok := obj.(cloudSecurityGroup)
+			if !ok {
+				continue
+			}
 			if err := sg.delete(r); err != nil {
 				r.Log.Error(err, "delete SecurityGroup on cloud", "key", sg.getID())
 			}

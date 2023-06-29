@@ -183,7 +183,10 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(vmListByIndex).Should(HaveLen(len(vmList)))
 			for _, i := range vmListByIndex {
-				vm := i.(*runtimev1alpha1.VirtualMachine)
+				vm, ok := i.(*runtimev1alpha1.VirtualMachine)
+				if !ok {
+					continue
+				}
 				Expect(vm.Name).To(Equal(testVmID01))
 			}
 		})
@@ -195,7 +198,10 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(vmListByIndex).Should(HaveLen(len(vmList)))
 			for _, i := range vmListByIndex {
-				vm := i.(*runtimev1alpha1.VirtualMachine)
+				vm, ok := i.(*runtimev1alpha1.VirtualMachine)
+				if !ok {
+					continue
+				}
 				Expect(vm.Name).To(Equal(testVmID01))
 			}
 

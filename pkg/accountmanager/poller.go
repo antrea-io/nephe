@@ -229,8 +229,11 @@ func (p *accountPoller) getComputeResources(cloudInterface cloud.CloudInterface)
 // getVmSelectorMatch returns a VMSelector for a VirtualMachine only if it is agented.
 func (p *accountPoller) getVmSelectorMatch(vm *runtimev1alpha1.VirtualMachine) *crdv1alpha1.VirtualMachineSelector {
 	vmSelectors, _ := p.vmSelector.ByIndex(virtualMachineSelectorMatchIndexerByID, vm.Status.CloudId)
-	for _, i := range vmSelectors {
-		vmSelector := i.(*crdv1alpha1.VirtualMachineSelector)
+	for _, obj := range vmSelectors {
+		vmSelector, ok := obj.(*crdv1alpha1.VirtualMachineSelector)
+		if !ok {
+			continue
+		}
 		return vmSelector
 	}
 
@@ -239,8 +242,11 @@ func (p *accountPoller) getVmSelectorMatch(vm *runtimev1alpha1.VirtualMachine) *
 	// VM intended to match a selector with only vmMatch selector, falls under partial match.
 	var partialMatchSelector *crdv1alpha1.VirtualMachineSelector = nil
 	vmSelectors, _ = p.vmSelector.ByIndex(virtualMachineSelectorMatchIndexerByName, vm.Status.CloudName)
-	for _, i := range vmSelectors {
-		vmSelector := i.(*crdv1alpha1.VirtualMachineSelector)
+	for _, obj := range vmSelectors {
+		vmSelector, ok := obj.(*crdv1alpha1.VirtualMachineSelector)
+		if !ok {
+			continue
+		}
 		if vmSelector.VpcMatch != nil {
 			if vmSelector.VpcMatch.MatchID == vm.Status.CloudVpcId {
 				// Prioritize exact match(along with vpcMatch) over VM name only match.
@@ -255,8 +261,11 @@ func (p *accountPoller) getVmSelectorMatch(vm *runtimev1alpha1.VirtualMachine) *
 	}
 
 	vmSelectors, _ = p.vmSelector.ByIndex(virtualMachineSelectorMatchIndexerByVPC, vm.Status.CloudVpcId)
-	for _, i := range vmSelectors {
-		vmSelector := i.(*crdv1alpha1.VirtualMachineSelector)
+	for _, obj := range vmSelectors {
+		vmSelector, ok := obj.(*crdv1alpha1.VirtualMachineSelector)
+		if !ok {
+			continue
+		}
 		return vmSelector
 	}
 	return nil
