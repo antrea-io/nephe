@@ -195,6 +195,20 @@ func (mr *MockInterfaceMockRecorder) GetVpcsFromIndexer(arg0, arg1 interface{}) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetVpcsFromIndexer", reflect.TypeOf((*MockInterface)(nil).GetVpcsFromIndexer), arg0, arg1)
 }
 
+// UpdateVm mocks base method.
+func (m *MockInterface) UpdateVm(arg0 *v1alpha1.VirtualMachine) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateVm", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateVm indicates an expected call of UpdateVm.
+func (mr *MockInterfaceMockRecorder) UpdateVm(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateVm", reflect.TypeOf((*MockInterface)(nil).UpdateVm), arg0)
+}
+
 // WatchVms mocks base method.
 func (m *MockInterface) WatchVms(arg0 context.Context, arg1 string, arg2 labels.Selector, arg3 fields.Selector) (watch.Interface, error) {
 	m.ctrl.T.Helper()

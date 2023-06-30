@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/endpoints/request"
+	"k8s.io/apiserver/pkg/registry/rest"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/inventory"
@@ -44,7 +45,24 @@ func TestVirtualMachine(t *testing.T) {
 	RunSpecs(t, "Virtual Machine Suite")
 }
 
+type mockUpdatedObjectInfo struct {
+	rest.UpdatedObjectInfo
+}
+
+var (
+	updateTags = map[string]string{"Tag1": "Value1"}
+)
+
+func (m *mockUpdatedObjectInfo) UpdatedObject(_ context.Context, oldobj runtime.Object) (runtime.Object, error) {
+	// Implement the UpdatedObjectMeta method as per your test requirements
+	vm := oldobj.(*runtimev1alpha1.VirtualMachine)
+	vm.Spec.Tags = updateTags
+	// Test
+	return vm, nil
+}
+
 var _ = Describe("Virtual Machine", func() {
+
 	l := logging.GetLogger("Virtual Machine test")
 	cloudInventory := inventory.InitInventory()
 	accountNamespacedName := types.NamespacedName{Name: "accountid1", Namespace: "default"}
@@ -136,7 +154,29 @@ var _ = Describe("Virtual Machine", func() {
 				}
 			}
 		})
+	})
 
+	Describe("Test Update function of Rest", func() {
+		for _, cachedVM := range cachedVMs {
+			vmMap := make(map[string]*runtimev1alpha1.VirtualMachine)
+			vmMap[cachedVM.Name] = cachedVM
+			accountNamespacedName := types.NamespacedName{Namespace: cacheTest1.Namespace, Name: "accountID"}
+			namespacedName := types.NamespacedName{Namespace: accountNamespacedName.Namespace, Name: "selector01"}
+			cloudInventory.BuildVmCache(vmMap, &accountNamespacedName, &namespacedName)
+
+			objInfo := &mockUpdatedObjectInfo{}
+			cachedVM.Spec.Tags = updateTags
+			rest := NewREST(cloudInventory, l)
+			_, _, err := rest.Update(request.NewDefaultContext(), cachedVM.Name, objInfo, nil, nil, false, &metav1.UpdateOptions{})
+			if cachedVM.Name == "targetId-nondefault" {
+				Expect(err).To(Equal(errors.NewNotFound(runtimev1alpha1.Resource("virtualmachine"), cachedVM.Name)))
+			} else {
+				actualVM, err := rest.Get(request.NewDefaultContext(), cachedVM.Name, &metav1.GetOptions{})
+				Expect(err).Should(BeNil())
+				Expect(actualVM).To(Equal(cachedVM))
+			}
+			cachedVM.Spec.Tags = nil
+		}
 	})
 
 	Describe("Test List function of Rest", func() {

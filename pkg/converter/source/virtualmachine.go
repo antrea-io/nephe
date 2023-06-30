@@ -54,7 +54,14 @@ func (v *VirtualMachineSource) GetEndPointPort(_ client.Client) []antreatypes.Na
 
 // GetTags returns tags of VirtualMachine.
 func (v *VirtualMachineSource) GetTags() map[string]string {
-	return v.Status.Tags
+	tags := make(map[string]string)
+	for key, value := range v.Status.Tags {
+		tags[key] = value
+	}
+	for key, value := range v.Spec.Tags {
+		tags[key] = value
+	}
+	return tags
 }
 
 // GetLabelsFromClient returns VirtualMachine specific labels.

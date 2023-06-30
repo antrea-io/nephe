@@ -55,6 +55,7 @@ var (
 	_ rest.Getter  = &REST{}
 	_ rest.Watcher = &REST{}
 	_ rest.Lister  = &REST{}
+	_ rest.Updater = &REST{}
 )
 
 // NewREST returns a REST object that will work against API services.
@@ -81,6 +82,37 @@ func (r *REST) NewList() runtime.Object {
 
 func (r *REST) ShortNames() []string {
 	return []string{"vm"}
+}
+
+func (r *REST) Update(ctx context.Context, name string, objInfo rest.UpdatedObjectInfo, _ rest.ValidateObjectFunc,
+	_ rest.ValidateObjectUpdateFunc, _ bool, options *metav1.UpdateOptions) (runtime.Object, bool, error) {
+	ns, ok := request.NamespaceFrom(ctx)
+	if !ok || len(ns) == 0 {
+		return nil, false, errors.NewBadRequest("namespace cannot be empty.")
+	}
+	r.logger.Info("Received update for vm", "vm", name)
+	namespacedName := ns + "/" + name
+	cachedVm, ok := r.cloudInventory.GetVmByKey(namespacedName)
+	if !ok {
+		return nil, false, errors.NewNotFound(runtimev1alpha1.Resource("virtualmachine"), name)
+	}
+
+	updatedObject, err := objInfo.UpdatedObject(context.TODO(), cachedVm)
+	if err != nil {
+		return nil, false, err
+	}
+
+	updatedVm, ok := updatedObject.(*runtimev1alpha1.VirtualMachine)
+	if !ok {
+		return nil, false, errors.NewBadRequest("invalid resource object")
+	}
+	if !reflect.DeepEqual(updatedVm.Spec, cachedVm.Spec) {
+		err = r.cloudInventory.UpdateVm(updatedVm)
+		if err != nil {
+			return nil, false, errors.NewInternalError(fmt.Errorf("failed to update the resource"))
+		}
+	}
+	return updatedVm, false, nil
 }
 
 func (r *REST) Get(ctx context.Context, name string, _ *metav1.GetOptions) (runtime.Object, error) {

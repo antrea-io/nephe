@@ -17,6 +17,7 @@ package virtualmachine
 import (
 	"context"
 	"os"
+	"strings"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/fields"
@@ -104,23 +105,24 @@ func (r *VirtualMachineController) Start() error {
 }
 
 // getNamespacedNameVms returns a map of NamespacedName objects of all VMs.
-func (r *VirtualMachineController) getNamespacedNameVms() map[types.NamespacedName]struct{} {
+func (r *VirtualMachineController) getNamespacedNameVms() map[types.NamespacedName]*runtimev1alpha1.VirtualMachine {
 	vmObjList := r.Inventory.GetAllVms()
-	vmNamespaceNameMap := map[types.NamespacedName]struct{}{}
+	vmNamespaceNameMap := make(map[types.NamespacedName]*runtimev1alpha1.VirtualMachine)
 	for _, vmObj := range vmObjList {
 		vm := vmObj.(*runtimev1alpha1.VirtualMachine)
 		vmNamespaceNameKey := types.NamespacedName{
 			Name:      vm.Name,
 			Namespace: vm.Namespace,
 		}
-		vmNamespaceNameMap[vmNamespaceNameKey] = struct{}{}
+		vmNamespaceNameMap[vmNamespaceNameKey] = vm
 	}
 	return vmNamespaceNameMap
 }
 
 // syncExternalEntities validates that each EE has corresponding VM. If it does not exist then
 // the EE will be deleted.
-func (r *VirtualMachineController) syncExternalEntities(vmNamespacedNameMap map[types.NamespacedName]struct{}) error {
+func (r *VirtualMachineController) syncExternalEntities(
+	vmNamespacedNameMap map[types.NamespacedName]*runtimev1alpha1.VirtualMachine) error {
 	eeList := &antreav1alpha2.ExternalEntityList{}
 	if err := r.Client.List(context.TODO(), eeList, &client.ListOptions{}); err != nil {
 		return err
@@ -139,19 +141,23 @@ func (r *VirtualMachineController) syncExternalEntities(vmNamespacedNameMap map[
 			Name:      eeLabelKeyName,
 			Namespace: ee.Namespace,
 		}
-		if _, ok := vmNamespacedNameMap[eeNamespacedName]; !ok {
+
+		cachedVm, ok := vmNamespacedNameMap[eeNamespacedName]
+		if !ok {
 			r.Log.Info("Could not find matching VM object, deleting ExternalEntity", "namespacedName", eeNamespacedName)
 			// Delete the ExternalEntity, since no matching VM found.
 			_ = r.Client.Delete(context.TODO(), &ee)
 			continue
 		}
+		r.syncTags(ee.Labels, cachedVm)
 	}
 	return nil
 }
 
 // syncExternalNodes validates that each EN has corresponding VM. If it does not exist then
 // the EN will be deleted.
-func (r *VirtualMachineController) syncExternalNodes(vmNamespacedNameMap map[types.NamespacedName]struct{}) error {
+func (r *VirtualMachineController) syncExternalNodes(
+	vmNamespacedNameMap map[types.NamespacedName]*runtimev1alpha1.VirtualMachine) error {
 	enList := &antreav1alpha1.ExternalNodeList{}
 	if err := r.Client.List(context.TODO(), enList, &client.ListOptions{}); err != nil {
 		return err
@@ -166,14 +172,44 @@ func (r *VirtualMachineController) syncExternalNodes(vmNamespacedNameMap map[typ
 			Name:      enLabelKeyName,
 			Namespace: en.Namespace,
 		}
-		if _, ok := vmNamespacedNameMap[enNamespacedName]; !ok {
+		cachedVm, ok := vmNamespacedNameMap[enNamespacedName]
+		if !ok {
 			r.Log.Info("Could not find matching VM object, deleting ExternalNode", "namespacedName", enNamespacedName)
 			// Delete the ExternalNode, since no matching VM found.
 			_ = r.Client.Delete(context.TODO(), &en)
 			continue
 		}
+		r.syncTags(en.Labels, cachedVm)
 	}
 	return nil
+}
+
+// syncTags constructs tags from srcLabel and syncs virtual machine object in the inventory.
+func (r *VirtualMachineController) syncTags(srcLabels map[string]string, destVm *runtimev1alpha1.VirtualMachine) {
+	sourceTags := make(map[string]string)
+	// Extract tags key.
+	for key, value := range srcLabels {
+		result := strings.TrimPrefix(key, nephelabels.LabelPrefixNephe+nephelabels.ExternalEntityLabelKeyTagPrefix)
+		if strings.Compare(result, key) != 0 {
+			sourceTags[result] = value
+		}
+	}
+
+	destTags := make(map[string]string)
+	for key, value := range sourceTags {
+		if _, ok := destVm.Status.Tags[key]; !ok {
+			// Tag not found on VM. Treat it as user tag.
+			destTags[key] = value
+		}
+	}
+	if len(destTags) > 0 {
+		newVM := *destVm
+		newVM.Spec.Tags = destTags
+		// Update the VM in Cloud Inventory.
+		if err := r.Inventory.UpdateVm(&newVM); err != nil {
+			r.Log.Error(err, "failed to sync tags on virtual machine", "namespace", newVM.Namespace, "name", newVM.Name)
+		}
+	}
 }
 
 // resetWatcher sets a watcher to watch VM events.
