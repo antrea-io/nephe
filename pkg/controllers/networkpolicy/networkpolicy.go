@@ -956,7 +956,11 @@ func (a *appliedToSecurityGroup) computeCloudRulesFromNp(r *NetworkPolicyReconci
 		sameNP := realizedRule.NpNamespacedName == npNamespacedName
 		currentRule, sameRule := currentRuleMap[realizedRule.Hash]
 		if sameRule && !sameNP {
-			err = fmt.Errorf("duplicate rules with anp %s", realizedRule.NpNamespacedName)
+			if realizedRule.NpNamespacedName != "" {
+				err = fmt.Errorf("duplicate rules with anp %s", realizedRule.NpNamespacedName)
+			} else {
+				err = fmt.Errorf("duplicate rules with user rule %+v", realizedRule)
+			}
 			r.Log.Error(err, "unable to compute rules", "rule", currentRule, "anp", npNamespacedName)
 			return nil, nil, err
 		}

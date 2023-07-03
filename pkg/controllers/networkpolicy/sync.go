@@ -34,7 +34,7 @@ func (s *securityGroupImpl) syncImpl(csg cloudSecurityGroup, syncContent *cloudr
 		// If syncContent is nil, explicitly set internal sg state to init, so that
 		// AddressGroup or AppliedToGroup in cloud can be recreated.
 		s.state = securityGroupStateInit
-	} else if syncContent != nil {
+	} else {
 		s.state = securityGroupStateCreated
 		syncMembers := make([]*cloudresource.CloudResource, 0, len(syncContent.Members))
 		for i := range syncContent.Members {
@@ -45,15 +45,15 @@ func (s *securityGroupImpl) syncImpl(csg cloudSecurityGroup, syncContent *cloudr
 		if len(syncMembers) > 0 && syncMembers[0].Type == cloudresource.CloudResourceTypeNIC {
 			cachedMembers, _ = r.getNICsOfCloudResources(s.members)
 		}
-		if compareCloudResources(cachedMembers, syncMembers) {
+		if !membershipOnly && len(syncContent.MembersWithOtherSGAttached) > 0 {
+			log.V(1).Info("AppliedTo members have non-nephe sg attached", "Name", s.id.Name, "State", s.state,
+				"members", syncContent.MembersWithOtherSGAttached)
+		} else if compareCloudResources(cachedMembers, syncMembers) {
 			return true
 		} else {
 			log.V(1).Info("Members are not in sync with cloud", "Name", s.id.Name, "State", s.state,
 				"Sync members", syncMembers, "Cached SG members", cachedMembers)
 		}
-	} else if len(s.members) == 0 {
-		log.V(1).Info("Empty memberships", "Name", s.id.Name)
-		return true
 	}
 
 	if s.state == securityGroupStateCreated {
@@ -199,7 +199,6 @@ func (r *NetworkPolicyReconciler) syncWithCloud() {
 	ch := securitygroup.CloudSecurityGroup.GetSecurityGroupSyncChan()
 	cloudAddrSGs := make(map[cloudresource.CloudResourceID]*cloudresource.SynchronizationContent)
 	cloudAppliedToSGs := make(map[cloudresource.CloudResourceID]*cloudresource.SynchronizationContent)
-	rscWithUnknownSGs := make(map[cloudresource.CloudResource]struct{})
 	removeAddrSgs := make([]*addrSecurityGroup, 0)
 	for content := range ch {
 		log.V(1).Info("Sync from cloud", "SecurityGroup", content)
@@ -228,9 +227,6 @@ func (r *NetworkPolicyReconciler) syncWithCloud() {
 			cloudAddrSGs[content.Resource.CloudResourceID] = &cc
 		} else {
 			cloudAppliedToSGs[content.Resource.CloudResourceID] = &cc
-			for _, rsc := range content.MembersWithOtherSGAttached {
-				rscWithUnknownSGs[rsc] = struct{}{}
-			}
 		}
 	}
 	r.syncedWithCloud = true
@@ -246,20 +242,6 @@ func (r *NetworkPolicyReconciler) syncWithCloud() {
 	for _, sg := range removeAddrSgs {
 		log.V(0).Info("Delete address security group not found in cache", "Name", sg.id.Name)
 		_ = sg.delete(r)
-	}
-	// For cloud resource with any non nephe created SG, tricking plug-in to remove them by explicitly
-	// updating a single instance of associated security group.
-	for rsc := range rscWithUnknownSGs {
-		i, ok, _ := r.cloudResourceNPTrackerIndexer.GetByKey(rsc.String())
-		if !ok {
-			log.Info("Unable to find resource in tracker", "CloudResource", rsc)
-			continue
-		}
-		tracker := i.(*cloudResourceNPTracker)
-		for _, sg := range tracker.appliedToSGs {
-			_ = sg.update(nil, nil, r)
-			break
-		}
 	}
 }
 
