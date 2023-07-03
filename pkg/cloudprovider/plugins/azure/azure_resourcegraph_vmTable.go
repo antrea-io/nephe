@@ -278,36 +278,6 @@ func getVMsByVMIDsMatchQuery(vmIDs []string, subscriptionIDs []string, tenantIDs
 	return queryString, nil
 }
 
-func getVMsBySubscriptionIDsAndTenantIDsAndLocationsMatchQuery(subscriptionIDs []string, tenantIDs []string,
-	locations []string) (*string, error) {
-	commaSeparatedSubscriptionIDs := convertStrSliceToLowercaseCommaSeparatedStr(subscriptionIDs)
-	if len(commaSeparatedSubscriptionIDs) == 0 {
-		return nil, fmt.Errorf(subscriptionIDsNotFoundErrorMsg)
-	}
-
-	commaSeparatedTenantIDs := convertStrSliceToLowercaseCommaSeparatedStr(tenantIDs)
-	if len(commaSeparatedTenantIDs) == 0 {
-		return nil, fmt.Errorf(tenantIDsNotFoundErrorMsg)
-	}
-
-	commaSeparatedLocations := convertStrSliceToLowercaseCommaSeparatedStr(locations)
-	if len(commaSeparatedLocations) == 0 {
-		return nil, fmt.Errorf(locationsNotFoundErrorMsg)
-	}
-
-	queryParams := &vmTableQueryParameters{
-		SubscriptionIDs: &commaSeparatedSubscriptionIDs,
-		TenantIDs:       &commaSeparatedTenantIDs,
-		Locations:       &commaSeparatedLocations,
-	}
-
-	queryString, err := buildVmsTableQueryWithParams("getVMsBySubscriptionIDsAndTenantIDsAndLocationsMatchQuery", queryParams)
-	if err != nil {
-		return nil, err
-	}
-	return queryString, nil
-}
-
 func getVMsByVnetAndOtherMatchesQuery(vnetIDs []string, vmNames []string, vmIDs []string, subscriptionIDs []string,
 	tenantIDs []string, locations []string) (*string, error) {
 	var queryParams *vmTableQueryParameters

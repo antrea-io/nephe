@@ -34,7 +34,6 @@ import (
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
-	"antrea.io/nephe/pkg/cloudprovider/plugins/internal"
 	"antrea.io/nephe/pkg/config"
 )
 
@@ -86,9 +85,6 @@ var _ = Describe("Azure Cloud Security", func() {
 
 		testNsgID = fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Network/applicationSecurityGroups/%v",
 			testSubID, testRG, nsgID)
-		testVM01   = "testVM01"
-		testVMID01 = fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Network/virtualMachines/%v",
-			testSubID, testRG, testVM01)
 	)
 
 	Context("SecurityGroup", func() {
@@ -151,7 +147,8 @@ var _ = Describe("Azure Cloud Security", func() {
 					Namespace: testAccountNamespacedName.Namespace,
 				},
 				Spec: crdv1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []crdv1alpha1.VirtualMachineSelector{
 						{
 							VpcMatch: &crdv1alpha1.EntityMatch{
@@ -243,9 +240,9 @@ var _ = Describe("Azure Cloud Security", func() {
 			vpcPeers[testVnetPeerID01] = [][]string{
 				{strings.ToLower(testVnetPeerID01), "destinationID", "sourceID"},
 			}
-			vmIDToInfoMap := make(map[internal.InstanceID]*virtualMachineTable)
+			vmInfo := make([]*virtualMachineTable, 0)
 
-			vmIDToInfoMap[internal.InstanceID(testVMID01)] = &virtualMachineTable{
+			vmInfo = append(vmInfo, &virtualMachineTable{
 				VnetID: &testVnetPeerID01,
 				NetworkInterfaces: []*networkInterface{
 					{
@@ -254,7 +251,7 @@ var _ = Describe("Azure Cloud Security", func() {
 						},
 					},
 				},
-			}
+			})
 
 			cloudresource.SetCloudResourcePrefix(config.DefaultCloudResourcePrefix)
 
@@ -263,8 +260,15 @@ var _ = Describe("Azure Cloud Security", func() {
 			vnet.Name = &testVnet01
 			vnet.ID = &testVnetID01
 			vnetList = append(vnetList, *vnet)
+			vmSnapshot := make(map[types.NamespacedName][]*virtualMachineTable)
 			serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{
-				vmIDToInfoMap, vnetList, vnetIDs, vpcPeers})
+				vmSnapshot, vnetList, vnetIDs, vpcPeers})
+			snapshot := serviceConfig.(*computeServiceConfig).resourcesCache.GetSnapshot()
+			selectorNamespacedName := types.NamespacedName{Namespace: selector.Namespace, Name: selector.Name}
+			vmSnapshot[selectorNamespacedName] = vmInfo
+			serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(
+				&computeResourcesCacheSnapshot{vmSnapshot, snapshot.(*computeResourcesCacheSnapshot).vnets,
+					snapshot.(*computeResourcesCacheSnapshot).managedVnetIDs, snapshot.(*computeResourcesCacheSnapshot).vnetPeers})
 		})
 
 		AfterEach(func() {
@@ -609,8 +613,8 @@ var _ = Describe("Azure Cloud Security", func() {
 				testNetworkInterface := networkInterface{
 					ID: &nItfID,
 				}
-				vmToUpdateMap := make(map[internal.InstanceID]*virtualMachineTable)
-				vmToUpdateMap["vm"] = &virtualMachineTable{
+				vmToUpdate := make([]*virtualMachineTable, 0)
+				vmToUpdate = append(vmToUpdate, &virtualMachineTable{
 					ID:   &vmID,
 					Name: &vmName,
 					Tags: tags,
@@ -618,13 +622,18 @@ var _ = Describe("Azure Cloud Security", func() {
 						&testNetworkInterface,
 					},
 					VnetID: &testVnetID03,
-				}
+				})
 
 				accCfg, _ := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
 				serviceConfig := accCfg.GetServiceConfig()
-				serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{vmToUpdateMap, nil, nil, nil})
-
-				serviceConfig.(*computeServiceConfig).GetInternalResourceObjects(testAccountNamespacedName.Namespace, testAccountNamespacedName)
+				snapshot := serviceConfig.(*computeServiceConfig).resourcesCache.GetSnapshot()
+				selectorNamespacedName := types.NamespacedName{Namespace: selector.Namespace, Name: selector.Name}
+				vmSnapshot := snapshot.(*computeResourcesCacheSnapshot).vms
+				vmSnapshot[selectorNamespacedName] = vmToUpdate
+				serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(
+					&computeResourcesCacheSnapshot{vmSnapshot, snapshot.(*computeResourcesCacheSnapshot).vnets,
+						snapshot.(*computeResourcesCacheSnapshot).managedVnetIDs, snapshot.(*computeResourcesCacheSnapshot).vnetPeers})
+				serviceConfig.(*computeServiceConfig).getVirtualMachineObjects(testAccountNamespacedName, &selectorNamespacedName)
 			})
 		})
 

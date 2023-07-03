@@ -104,7 +104,7 @@ func (c *azureCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *cloudres
 
 	vnetPeerPairs := computeService.getVnetPeers(vnetID)
 	vnetCachedIDs := computeService.getManagedVnetIDs()
-	vnetVMs, _ := computeService.getVirtualMachines()
+	vnetVMs := computeService.getAllCachedVirtualMachines()
 	// ruleIP := vnetVMs[len(vnetVMs)-1].NetworkInterfaces[0].PrivateIps[0]
 	// AT sg name per vnet is fixed and predefined. Get azure nsg name for it.
 	tokens := strings.Split(appliedToGroupIdentifier.Vpc, "/")
@@ -119,7 +119,7 @@ func (c *azureCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *cloudres
 		if _, ok := vnetCachedIDs[vnetPeerID]; ok {
 			var ruleIP *string
 			for _, vnetVM := range vnetVMs {
-				azurePluginLogger().Info("Accessing VM network interfaces", vnetVM.Name)
+				azurePluginLogger().Info("Accessing VM network interfaces", "VM", vnetVM.Name)
 				if *vnetVM.VnetID == vnetID {
 					ruleIP = vnetVM.NetworkInterfaces[0].PrivateIps[0]
 				}

@@ -27,6 +27,7 @@ import (
 	"antrea.io/nephe/pkg/cloudprovider/plugins/aws"
 	"antrea.io/nephe/pkg/cloudprovider/plugins/azure"
 	"antrea.io/nephe/pkg/logging"
+	nephetypes "antrea.io/nephe/pkg/types"
 )
 
 // CloudInterface is an abstract providing set of methods to be implemented by cloud providers.
@@ -57,15 +58,12 @@ type AccountMgmtInterface interface {
 	DoInventoryPoll(accountNamespacedName *types.NamespacedName) error
 	// ResetInventoryCache resets cloud snapshot and poll stats to nil.
 	ResetInventoryCache(accountNamespacedName *types.NamespacedName) error
-	// GetVpcInventory gets vpc inventory from internal stored snapshot.
-	GetVpcInventory(accountNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.Vpc, error)
 }
 
-// ComputeInterface is an abstract providing set of methods to get Instance details to be implemented by cloud providers.
+// ComputeInterface is an abstract providing set of methods to get inventory details to be implemented by cloud providers.
 type ComputeInterface interface {
-	// InstancesGivenProviderAccount returns all VM instances of a given cloud provider account, as a map of
-	// runtime VirtualMachine objects.
-	InstancesGivenProviderAccount(namespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.VirtualMachine, error)
+	// GetCloudInventory gets VPC and VM inventory from plugin snapshot for a given cloud provider account.
+	GetCloudInventory(accountNamespacedName *types.NamespacedName) (*nephetypes.CloudInventory, error)
 }
 
 type SecurityInterface interface {

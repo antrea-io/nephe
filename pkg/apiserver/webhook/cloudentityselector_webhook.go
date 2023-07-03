@@ -23,11 +23,9 @@ import (
 
 	"github.com/go-logr/logr"
 	admissionv1 "k8s.io/api/admission/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	controllerclient "sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
@@ -48,10 +46,11 @@ var (
 		"use vpc matchID instead of vpc matchName"
 	errorMsgMatchIDNameTogether = "matchID and matchName are not supported together, " +
 		"configure either matchID or matchName in an EntityMatch"
-	errorMsgAccountNameUpdate    = "account name update not allowed"
-	errorMsgSameAccountUsage     = "account in a namespace can be owner of only one CloudEntitySelector"
-	errorMsgOwnerAccountNotFound = "failed to find owner account"
-	errorMsgInvalidCloudType     = "invalid cloud provider type"
+	errorMsgAccountNameUpdate         = "account name update not allowed"
+	errorMsgAccountNamespaceUpdate    = "account namespace update not allowed"
+	errorMsgReferencedAccountNotFound = "failed to find the referenced CloudProviderAccount"
+	errorMsgInvalidCloudType          = "invalid cloud provider type"
+	errorMsgVpcOrVmMatchNotAvailable  = "either vpcMatch or vmMatch is mandatory"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -76,20 +75,20 @@ func (v *CESMutator) Handle(_ context.Context, req admission.Request) admission.
 	}
 
 	v.Log.V(1).Info("CES Mutator", "name", selector.Name)
-	// make sure selector has owner reference.
-	// set owner account only if resource CloudProviderAccount with CloudEntitySelector account name in this Namespace exists.
-	ownerReference := metav1.GetControllerOf(selector)
+	// make sure referenced CloudProviderAccount exists.
 	accountNameSpacedName := &types.NamespacedName{
-		Namespace: selector.Namespace,
+		Namespace: selector.Spec.AccountNamespace,
 		Name:      selector.Spec.AccountName,
 	}
-	ownerAccount := &v1alpha1.CloudProviderAccount{}
-	err = v.Client.Get(context.TODO(), *accountNameSpacedName, ownerAccount)
+	referencedAccount := &v1alpha1.CloudProviderAccount{}
+	err = v.Client.Get(context.TODO(), *accountNameSpacedName, referencedAccount)
 	if err != nil {
-		v.Log.Error(err, errorMsgOwnerAccountNotFound, "account", *accountNameSpacedName)
-		return admission.Errored(http.StatusBadRequest, err)
+		v.Log.Error(err, errorMsgReferencedAccountNotFound, "CloudEntitySelector", selector, "Account name", selector.Spec.AccountName,
+			"Account namespace", selector.Spec.AccountNamespace)
+		return admission.Errored(http.StatusBadRequest, fmt.Errorf("%s, account name : %s, account namespace: %s",
+			errorMsgReferencedAccountNotFound, selector.Spec.AccountName, selector.Spec.AccountNamespace))
 	}
-	cloudProviderType, err := util.GetAccountProviderType(ownerAccount)
+	cloudProviderType, err := util.GetAccountProviderType(referencedAccount)
 	if err != nil {
 		v.Log.Error(err, errorMsgInvalidCloudType)
 		return admission.Errored(http.StatusBadRequest, err)
@@ -106,13 +105,6 @@ func (v *CESMutator) Handle(_ context.Context, req admission.Request) admission.
 				vmMatch.MatchID = strings.ToLower(vmMatch.MatchID)
 				vmMatch.MatchName = strings.ToLower(vmMatch.MatchName)
 			}
-		}
-	}
-	if ownerReference == nil {
-		err = controllerutil.SetControllerReference(ownerAccount, selector, v.Sh)
-		if err != nil {
-			v.Log.Error(err, "failed to set owner account", "CloudEntitySelector", selector, "account", *accountNameSpacedName)
-			return admission.Errored(http.StatusBadRequest, err)
 		}
 	}
 
@@ -173,16 +165,6 @@ func (v *CESValidator) validateCreate(req admission.Request) admission.Response 
 		v.Log.Error(err, "Failed to decode CloudEntitySelector", "CESValidator", req.Name)
 		return admission.Errored(http.StatusBadRequest, err)
 	}
-	// make sure owner exists. Default will try to populate if owner with provided account name exists.
-	if selector.GetObjectMeta().GetOwnerReferences() == nil {
-		return admission.Errored(http.StatusBadRequest, fmt.Errorf("%s %v", errorMsgOwnerAccountNotFound,
-			selector.Spec.AccountName))
-	}
-
-	// make sure no existing CloudEntitySelector has same account as this CloudEntitySelector as its owner.
-	if err := v.validateNoOwnerConflict(selector); err != nil {
-		return admission.Errored(http.StatusBadRequest, err)
-	}
 
 	// make sure unsupported match combinations are not configured.
 	if err := v.validateMatchSections(selector); err != nil {
@@ -190,26 +172,6 @@ func (v *CESValidator) validateCreate(req admission.Request) admission.Response 
 	}
 
 	return admission.Allowed("")
-}
-
-// validateNoOwnerConflict makes sure no two CloudEntitySelectors have same account owner.
-func (r *CESValidator) validateNoOwnerConflict(selector *v1alpha1.CloudEntitySelector) error {
-	cloudEntitySelectorList := &v1alpha1.CloudEntitySelectorList{}
-	err := r.Client.List(context.TODO(), cloudEntitySelectorList, controllerclient.InNamespace(selector.Namespace))
-	if err != nil {
-		return err
-	}
-
-	namespace := selector.GetNamespace()
-	accName := selector.Spec.AccountName
-	for _, item := range cloudEntitySelectorList.Items {
-		if strings.Compare(strings.TrimSpace(item.Spec.AccountName), strings.TrimSpace(accName)) == 0 {
-			return fmt.Errorf("CloudEntitySelector %v/%v with owner as account %v/%v already exists."+
-				"(%s)", namespace, item.GetName(), namespace, accName, errorMsgSameAccountUsage)
-		}
-	}
-
-	return nil
 }
 
 // ValidateUpdate implements webhook validations for CES update operation.
@@ -228,12 +190,25 @@ func (v *CESValidator) validateUpdate(req admission.Request) admission.Response 
 		}
 	}
 
-	// account name update not allowed.
-	oldAccName := strings.TrimSpace(oldSelector.Spec.AccountName)
-	newAccountName := strings.TrimSpace(newSelector.Spec.AccountName)
-	if strings.Compare(oldAccName, newAccountName) != 0 {
-		return admission.Errored(http.StatusBadRequest, fmt.Errorf(
-			"%s (old:%v, new:%v)", errorMsgAccountNameUpdate, oldAccName, newAccountName))
+	// TODO: remove null string check for name and namespace later.
+	// account Name update not allowed.
+	if oldSelector.Spec.AccountName != "" {
+		oldAccName := strings.TrimSpace(oldSelector.Spec.AccountName)
+		newAccountName := strings.TrimSpace(newSelector.Spec.AccountName)
+		if strings.Compare(oldAccName, newAccountName) != 0 {
+			return admission.Errored(http.StatusBadRequest, fmt.Errorf(
+				"%s (old:%v, new:%v)", errorMsgAccountNameUpdate, oldAccName, newAccountName))
+		}
+	}
+
+	// account Namespace update not allowed.
+	if oldSelector.Spec.AccountNamespace != "" {
+		oldAccNamespace := strings.TrimSpace(oldSelector.Spec.AccountNamespace)
+		newAccountNamespace := strings.TrimSpace(newSelector.Spec.AccountNamespace)
+		if strings.Compare(oldAccNamespace, newAccountNamespace) != 0 {
+			return admission.Errored(http.StatusBadRequest, fmt.Errorf(
+				"%s (old:%v, new:%v)", errorMsgAccountNamespaceUpdate, oldAccNamespace, newAccountNamespace))
+		}
 	}
 
 	// make sure unsupported match combinations are not configured.
@@ -250,24 +225,31 @@ func (v *CESValidator) validateDelete(_ admission.Request) admission.Response { 
 	return admission.Allowed("")
 }
 
-// GetOwnerAccount fetches the CPA account owning the current CES.
-func (v *CESValidator) GetOwnerAccount(selector *v1alpha1.CloudEntitySelector) (*v1alpha1.CloudProviderAccount, error) {
-	accountNameSpacedName := &types.NamespacedName{
-		Namespace: selector.Namespace,
+// getReferencedAccount fetches the CPA account referenced by the current CES.
+func (v *CESValidator) getReferencedAccount(selector *v1alpha1.CloudEntitySelector) (*v1alpha1.CloudProviderAccount, error) {
+	accountNamespacedName := &types.NamespacedName{
+		Namespace: selector.Spec.AccountNamespace,
 		Name:      selector.Spec.AccountName,
 	}
-	ownerAccount := &v1alpha1.CloudProviderAccount{}
-	err := v.Client.Get(context.TODO(), *accountNameSpacedName, ownerAccount)
+	referencedAccount := &v1alpha1.CloudProviderAccount{}
+	err := v.Client.Get(context.TODO(), *accountNamespacedName, referencedAccount)
 	if err != nil {
-		v.Log.Error(err, errorMsgOwnerAccountNotFound, "CloudEntitySelector", selector,
-			"account", *accountNameSpacedName)
+		v.Log.Error(err, errorMsgReferencedAccountNotFound, "CloudEntitySelector", selector,
+			"Account name", selector.Spec.AccountName, "Account namespace", selector.Spec.AccountNamespace)
 		return nil, err
 	}
-	return ownerAccount, err
+	return referencedAccount, err
 }
 
 // validateMatchSections checks for unsupported selector match combinations and errors out.
 func (v *CESValidator) validateMatchSections(selector *v1alpha1.CloudEntitySelector) error {
+	// Empty vpcMatch and empty vmMatch section are not supported.
+	for _, m := range selector.Spec.VMSelector {
+		if m.VpcMatch == nil && len(m.VMMatch) == 0 {
+			return fmt.Errorf("%s", errorMsgVpcOrVmMatchNotAvailable)
+		}
+	}
+
 	// MatchID and MatchName are not supported together in an EntityMatch, applicable for both vpcMatch, vmMatch section.
 	for _, m := range selector.Spec.VMSelector {
 		if m.VpcMatch != nil {
@@ -284,11 +266,11 @@ func (v *CESValidator) validateMatchSections(selector *v1alpha1.CloudEntitySelec
 		}
 	}
 
-	ownerAccount, err := v.GetOwnerAccount(selector)
+	referencedAccount, err := v.getReferencedAccount(selector)
 	if err != nil {
 		return err
 	}
-	cloudProviderType, err := util.GetAccountProviderType(ownerAccount)
+	cloudProviderType, err := util.GetAccountProviderType(referencedAccount)
 	if err != nil {
 		v.Log.Error(err, errorMsgInvalidCloudType)
 		return err

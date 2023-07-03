@@ -21,7 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
-	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	nephetypes "antrea.io/nephe/pkg/types"
 )
 
 // CloudServiceInterface needs to be implemented by every cloud-service to be added for a cloud-plugin.
@@ -41,12 +41,10 @@ type CloudServiceInterface interface {
 	DoResourceInventory() error
 	// GetInventoryStats returns Inventory statistics for the service.
 	GetInventoryStats() *CloudServiceStats
-	// GetInternalResourceObjects returns VM instances saved in CloudServiceResourcesCache in terms of runtimev1alpha1.VirtualMachine.
-	GetInternalResourceObjects(namespace string, accountId *types.NamespacedName) map[string]*runtimev1alpha1.VirtualMachine
 	// ResetInventoryCache clears any internal state built by the service as part of cloud resource discovery.
 	ResetInventoryCache()
-	// GetVpcInventory copies VPCs stored in internal snapshot(in cloud specific format) to runtimev1alpha1.Vpc format.
-	GetVpcInventory() map[string]*runtimev1alpha1.Vpc
+	// GetCloudInventory copies VPCs and VMs stored in internal snapshot(in cloud specific format) to internal format.
+	GetCloudInventory() *nephetypes.CloudInventory
 }
 
 // CloudServiceResourcesCache is cache used by all services. Each service can maintain

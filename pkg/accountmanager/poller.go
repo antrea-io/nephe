@@ -32,6 +32,7 @@ import (
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloudprovider/cloud"
 	"antrea.io/nephe/pkg/inventory"
+	nephetypes "antrea.io/nephe/pkg/types"
 )
 
 const (
@@ -42,15 +43,14 @@ type accountPoller struct {
 	client.Client
 	log logr.Logger
 
-	PollIntvInSeconds uint
-	PollDone          bool
-	cloudInterface    cloud.CloudInterface
-	namespacedName    *types.NamespacedName
-	selector          *crdv1alpha1.CloudEntitySelector
-	vmSelector        cache.Indexer
-	ch                chan struct{}
-	mutex             sync.RWMutex
-	inventory         inventory.Interface
+	pollIntvInSeconds     uint
+	pollDone              bool
+	cloudInterface        cloud.CloudInterface
+	accountNamespacedName *types.NamespacedName
+	vmSelector            cache.Indexer
+	ch                    chan struct{}
+	mutex                 sync.RWMutex
+	inventory             inventory.Interface
 }
 
 // initVmSelectorCache inits account poller selector cache and its indexers.
@@ -126,16 +126,6 @@ func (p *accountPoller) addOrUpdateSelector(selector *crdv1alpha1.CloudEntitySel
 			}
 		}
 	}
-
-	// Store selector to filter cloud resources based on selector.
-	p.selector = selector
-}
-
-// removeSelector reset selector in account poller.
-func (p *accountPoller) removeSelector(accountNamespacedName *types.NamespacedName) {
-	p.selector = nil
-	// Remove VMs from the cache when selectors are removed.
-	_ = p.inventory.DeleteVmsFromCache(accountNamespacedName)
 }
 
 // doAccountPolling calls the cloud plugin and fetches the cloud inventory. Once successful poll, updates the cloud
@@ -145,44 +135,42 @@ func (p *accountPoller) doAccountPolling() {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
-	p.PollDone = false
+	p.pollDone = false
 	// Ignoring error since it is captured in the CloudProviderAccount CR's status field.
-	_ = p.cloudInterface.DoInventoryPoll(p.namespacedName)
+	_ = p.cloudInterface.DoInventoryPoll(p.accountNamespacedName)
 
 	defer func() {
-		p.PollDone = true
+		p.pollDone = true
 		// Update status on CPA CR after polling.
 		p.updateAccountStatus(p.cloudInterface)
 	}()
 
-	// TODO: Avoid calling plugin to get VPC inventory from snapshot.
-	vpcMap, err := p.cloudInterface.GetVpcInventory(p.namespacedName)
+	cloudInventory, err := p.cloudInterface.GetCloudInventory(p.accountNamespacedName)
 	if err != nil {
-		p.log.Error(err, "failed to fetch cloud vpc list from internal snapshot", "account",
-			p.namespacedName.String())
+		p.log.Error(err, "failed to fetch cloud inventory from internal snapshot", "account",
+			p.accountNamespacedName)
 		return
 	}
-	_ = p.inventory.BuildVpcCache(vpcMap, p.namespacedName)
 
-	// Perform VM Operations only when CES is added.
-	vmCount := 0
-	if p.selector != nil {
-		// TODO: Avoid calling plugin to get VM inventory from snapshot.
-		virtualMachines := p.getComputeResources(p.cloudInterface)
-		// TODO: We are walking thru virtual map twice. Once here and second one in BuildVmCAche.
-		// May be expose Add, Delete, Update routine in inventory and we do the calculation here.
+	p.processCloudInventory(cloudInventory)
+}
+
+// processCloudInventory fetches vpc and vm inventory from the snapshot and updates respective cache inventory.
+func (p *accountPoller) processCloudInventory(cloudInventory *nephetypes.CloudInventory) {
+	_ = p.inventory.BuildVpcCache(cloudInventory.VpcMap, p.accountNamespacedName)
+
+	// VMs are stored per selector in the VmMap.
+	for selectorNamespacedName, virtualMachines := range cloudInventory.VmMap {
+		// Maybe expose, Add, Delete, Update routine in inventory, and do the calculation here.
 		p.updateAgentState(virtualMachines)
-		p.inventory.BuildVmCache(virtualMachines, p.namespacedName)
-		vmCount = len(virtualMachines)
+		p.inventory.BuildVmCache(virtualMachines, p.accountNamespacedName, &selectorNamespacedName)
 	}
-	p.log.Info("Discovered compute resources statistics", "Account", p.namespacedName,
-		"Vpcs", len(vpcMap), "VirtualMachines", vmCount)
 }
 
 // updateAccountStatus updates status of a CPA object when it's changed.
 func (p *accountPoller) updateAccountStatus(cloudInterface cloud.CloudInterface) {
 	discoveredStatus := crdv1alpha1.CloudProviderAccountStatus{}
-	status, err := cloudInterface.GetAccountStatus(p.namespacedName)
+	status, err := cloudInterface.GetAccountStatus(p.accountNamespacedName)
 	if err != nil {
 		discoveredStatus.Error = fmt.Sprintf("failed to get account status, err %v", err)
 	} else if status != nil {
@@ -191,14 +179,14 @@ func (p *accountPoller) updateAccountStatus(cloudInterface cloud.CloudInterface)
 
 	updateStatusFunc := func() error {
 		account := &crdv1alpha1.CloudProviderAccount{}
-		if err := p.Get(context.TODO(), *p.namespacedName, account); err != nil {
+		if err := p.Get(context.TODO(), *p.accountNamespacedName, account); err != nil {
 			return nil
 		}
 		if account.Status != discoveredStatus {
 			account.Status.Error = discoveredStatus.Error
-			p.log.Info("Setting CPA status", "account", p.namespacedName, "message", discoveredStatus.Error)
+			p.log.Info("Setting CPA status", "account", p.accountNamespacedName, "message", discoveredStatus.Error)
 			if err = p.Client.Status().Update(context.TODO(), account); err != nil {
-				p.log.Error(err, "failed to update CPA status, retrying", "account", p.namespacedName)
+				p.log.Error(err, "failed to update CPA status, retrying", "account", p.accountNamespacedName)
 				return err
 			}
 		}
@@ -206,7 +194,7 @@ func (p *accountPoller) updateAccountStatus(cloudInterface cloud.CloudInterface)
 	}
 
 	if err := retry.RetryOnConflict(retry.DefaultRetry, updateStatusFunc); err != nil {
-		p.log.Error(err, "failed to update CPA status", "account", p.namespacedName)
+		p.log.Error(err, "failed to update CPA status", "account", p.accountNamespacedName)
 	}
 }
 
@@ -215,15 +203,6 @@ func (p *accountPoller) updateAgentState(vms map[string]*runtimev1alpha1.Virtual
 	for _, vm := range vms {
 		vm.Status.Agented = p.isVmAgented(vm)
 	}
-}
-
-func (p *accountPoller) getComputeResources(cloudInterface cloud.CloudInterface) map[string]*runtimev1alpha1.VirtualMachine {
-	virtualMachines, e := cloudInterface.InstancesGivenProviderAccount(p.namespacedName)
-	if e != nil {
-		p.log.Error(e, "failed to discover compute resources", "account", p.namespacedName)
-		return map[string]*runtimev1alpha1.VirtualMachine{}
-	}
-	return virtualMachines
 }
 
 // getVmSelectorMatch returns a VMSelector for a VirtualMachine only if it is agented.
@@ -278,7 +257,7 @@ func (p *accountPoller) waitForPollDone(accountNamespacedName *types.NamespacedN
 	if err := wait.PollImmediate(100*time.Millisecond, defaultPollTimeout, func() (done bool, err error) {
 		p.mutex.RLock()
 		defer p.mutex.RUnlock()
-		if p.PollDone {
+		if p.pollDone {
 			return true, nil
 		}
 		return false, nil
@@ -300,7 +279,7 @@ func (p *accountPoller) restartPoller(name *types.NamespacedName) {
 
 	p.log.Info("Restarting account poller", "account", name)
 	p.ch = make(chan struct{})
-	go wait.Until(p.doAccountPolling, time.Duration(p.PollIntvInSeconds)*time.Second, p.ch)
+	go wait.Until(p.doAccountPolling, time.Duration(p.pollIntvInSeconds)*time.Second, p.ch)
 }
 
 // stopPoller stops account poller thread if it's running.

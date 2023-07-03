@@ -17,13 +17,10 @@ package aws
 import (
 	"k8s.io/apimachinery/pkg/types"
 
-	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	nephetypes "antrea.io/nephe/pkg/types"
 )
 
-// InstancesGivenProviderAccount returns all VM instances of a given cloud provider account, as a map of
-// runtime VirtualMachine objects.
-func (c *awsCloud) InstancesGivenProviderAccount(accountNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.VirtualMachine,
-	error) {
-	vmInternalObjectsMap, err := c.cloudCommon.GetCloudAccountComputeInternalResourceObjects(accountNamespacedName)
-	return vmInternalObjectsMap, err
+// GetCloudInventory pulls cloud vpc and vm inventory from internal snapshot.
+func (c *awsCloud) GetCloudInventory(accountNamespacedName *types.NamespacedName) (*nephetypes.CloudInventory, error) {
+	return c.cloudCommon.GetCloudInventory(accountNamespacedName)
 }

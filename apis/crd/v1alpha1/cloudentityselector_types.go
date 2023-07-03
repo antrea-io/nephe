@@ -45,9 +45,9 @@ type VirtualMachineSelector struct {
 // CloudEntitySelectorSpec defines the desired state of CloudEntitySelector.
 type CloudEntitySelectorSpec struct {
 	// AccountName specifies the name of CloudProviderAccount.
-	AccountName string `json:"accountName,omitempty"`
+	AccountName string `json:"accountName"`
 	// AccountNamespace specifies the namespace of CloudProviderAccount.
-	AccountNamespace string `json:"accountNamespace,omitempty"`
+	AccountNamespace string `json:"accountNamespace"`
 	// VMSelector selects the VirtualMachines the user has modify privilege.
 	// VMSelector is mandatory, at least one selector under VMSelector is required.
 	// It is an array, VirtualMachines satisfying any item on VMSelector are selected(ORed).

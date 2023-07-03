@@ -31,8 +31,9 @@ import (
 )
 
 type azureVPC struct {
-	output             map[string]interface{}
-	currentAccountName string
+	output                  map[string]interface{}
+	currentAccountName      string
+	currentAccountNamespace string
 }
 
 // createAzureSVPC creates Azure VPC that contains some VMs. It returns VPC id if successful.
@@ -219,6 +220,7 @@ func (p *azureVPC) Reapply(timeout time.Duration, withAgent bool) error {
 
 func (p *azureVPC) GetCloudAccountParameters(name, namespace string, useInvalidCred bool) k8stemplates.CloudAccountParameters {
 	p.currentAccountName = name
+	p.currentAccountNamespace = namespace
 	out := k8stemplates.CloudAccountParameters{
 		Name:      name,
 		Namespace: namespace,
@@ -252,11 +254,12 @@ func (p *azureVPC) GetCloudAccountParameters(name, namespace string, useInvalidC
 // All VMs in the VPC will be imported if vms is nil.
 func (p *azureVPC) GetEntitySelectorParameters(name, namespace, kind string, vms []string) k8stemplates.CloudEntitySelectorParameters {
 	out := k8stemplates.CloudEntitySelectorParameters{
-		Name:             name,
-		Namespace:        namespace,
-		Selector:         &k8stemplates.SelectorParameters{VPC: p.GetVPCID()},
-		CloudAccountName: p.currentAccountName,
-		Kind:             kind,
+		Name:                  name,
+		Namespace:             namespace,
+		Selector:              &k8stemplates.SelectorParameters{VPC: p.GetVPCID()},
+		CloudAccountName:      p.currentAccountName,
+		CloudAccountNamespace: p.currentAccountNamespace,
+		Kind:                  kind,
 	}
 	if vms != nil {
 		out.Selector = &k8stemplates.SelectorParameters{VMs: vms}

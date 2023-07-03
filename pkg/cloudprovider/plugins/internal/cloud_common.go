@@ -27,6 +27,7 @@ import (
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/logging"
+	nephetypes "antrea.io/nephe/pkg/types"
 )
 
 var (
@@ -56,9 +57,6 @@ type CloudCommonInterface interface {
 	GetCloudAccountByAccountId(accountID *string) (CloudAccountInterface, bool)
 	GetCloudAccounts() map[types.NamespacedName]CloudAccountInterface
 
-	GetCloudAccountComputeInternalResourceObjects(namespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.VirtualMachine,
-		error)
-
 	AddCloudAccount(client client.Client, account *crdv1alpha1.CloudProviderAccount, credentials interface{}) error
 	RemoveCloudAccount(namespacedName *types.NamespacedName)
 
@@ -71,7 +69,7 @@ type CloudCommonInterface interface {
 
 	ResetInventoryCache(accountNamespacedName *types.NamespacedName) error
 
-	GetVpcInventory(accountNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.Vpc, error)
+	GetCloudInventory(accountNamespacedName *types.NamespacedName) (*nephetypes.CloudInventory, error)
 }
 
 type cloudCommon struct {
@@ -118,7 +116,6 @@ func (c *cloudCommon) AddCloudAccount(client client.Client, account *crdv1alpha1
 	}
 
 	c.accountConfigs[*config.GetNamespacedName()] = config
-
 	return nil
 }
 
@@ -165,17 +162,6 @@ func (c *cloudCommon) GetCloudAccounts() map[types.NamespacedName]CloudAccountIn
 		accountConfigs[namespacedName] = accCfg
 	}
 	return accountConfigs
-}
-
-func (c *cloudCommon) GetCloudAccountComputeInternalResourceObjects(accountNamespacedName *types.NamespacedName) (
-	map[string]*runtimev1alpha1.VirtualMachine, error) {
-	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
-	if !found {
-		return nil, fmt.Errorf("unable to find cloud account config")
-	}
-	accCfg.LockMutex()
-	defer accCfg.UnlockMutex()
-	return accCfg.GetServiceConfig().GetInternalResourceObjects(accCfg.GetNamespacedName().Namespace, accCfg.GetNamespacedName()), nil
 }
 
 func (c *cloudCommon) AddResourceFilters(accountNamespacedName *types.NamespacedName, selector *crdv1alpha1.CloudEntitySelector) error {
@@ -233,8 +219,8 @@ func (c *cloudCommon) ResetInventoryCache(accountNamespacedName *types.Namespace
 	return nil
 }
 
-// GetVpcInventory gets a map of vpcs applicable for the account.
-func (c *cloudCommon) GetVpcInventory(accountNamespacedName *types.NamespacedName) (map[string]*runtimev1alpha1.Vpc, error) {
+// GetCloudInventory gets VPC and VM inventory from plugin snapshot for a given cloud provider account.
+func (c *cloudCommon) GetCloudInventory(accountNamespacedName *types.NamespacedName) (*nephetypes.CloudInventory, error) {
 	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
 	if !found {
 		return nil, fmt.Errorf("unable to find cloud account config")
@@ -242,5 +228,5 @@ func (c *cloudCommon) GetVpcInventory(accountNamespacedName *types.NamespacedNam
 	accCfg.LockMutex()
 	defer accCfg.UnlockMutex()
 
-	return accCfg.GetServiceConfig().GetVpcInventory(), nil
+	return accCfg.GetServiceConfig().GetCloudInventory(), nil
 }

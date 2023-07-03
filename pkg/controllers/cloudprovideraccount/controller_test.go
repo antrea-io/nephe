@@ -144,6 +144,26 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 			mockAccManager.EXPECT().RemoveAccount(&testAccountNamespacedName).Return(nil).Times(1)
 			err = reconciler.processCreateOrUpdate(&testAccountNamespacedName, account)
 			Expect(err).ShouldNot(HaveOccurred())
+
+			selector := &v1alpha1.CloudEntitySelector{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      "selector01",
+					Namespace: testSecretNamespacedName.Namespace,
+				},
+				Spec: v1alpha1.CloudEntitySelectorSpec{
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
+					VMSelector: []v1alpha1.VirtualMachineSelector{
+						{
+							VpcMatch: &v1alpha1.EntityMatch{
+								MatchID: "xyzq",
+							},
+						},
+					},
+				},
+			}
+			_ = fakeClient.Create(context.Background(), selector)
+
 			err = reconciler.processDelete(&testAccountNamespacedName)
 			Expect(err).ShouldNot(HaveOccurred())
 		})

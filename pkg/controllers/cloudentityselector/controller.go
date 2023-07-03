@@ -128,8 +128,13 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *crdv1alp
 	selectorNamespacedName *types.NamespacedName) error {
 	r.Log.Info("Received request", "selector", selectorNamespacedName, "operation", "create/update")
 
+	var accountNamespace = selector.Spec.AccountNamespace
+	// For upgrade purpose, use selector namespace as account namespace when not available, remove later.
+	if accountNamespace == "" {
+		accountNamespace = selector.Namespace
+	}
 	accountNamespacedName := &types.NamespacedName{
-		Namespace: selector.Namespace,
+		Namespace: accountNamespace,
 		Name:      selector.Spec.AccountName,
 	}
 	r.selectorToAccountMap[*selectorNamespacedName] = *accountNamespacedName

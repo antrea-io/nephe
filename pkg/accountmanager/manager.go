@@ -55,8 +55,7 @@ type Interface interface {
 
 type AccountManager struct {
 	client.Client
-	Log logr.Logger
-
+	Log              logr.Logger
 	mutex            sync.RWMutex
 	Inventory        inventory.Interface
 	accPollers       map[types.NamespacedName]*accountPoller
@@ -105,7 +104,7 @@ func (a *AccountManager) AddAccount(namespacedName *types.NamespacedName, accoun
 	if !exists {
 		if !util.DoesCesCrExistsForAccount(a.Client, namespacedName) {
 			a.Log.Info("Starting account poller", "account", namespacedName)
-			go wait.Until(accPoller.doAccountPolling, time.Duration(accPoller.PollIntvInSeconds)*time.Second, accPoller.ch)
+			go wait.Until(accPoller.doAccountPolling, time.Duration(accPoller.pollIntvInSeconds)*time.Second, accPoller.ch)
 		} else {
 			a.Log.V(1).Info("Ignoring start of account poller", "account", namespacedName)
 			if ctrlsync.GetControllerSyncStatusInstance().IsControllerSynced(ctrlsync.ControllerTypeCPA) && !config.initialized {
@@ -131,9 +130,8 @@ func (a *AccountManager) RemoveAccount(namespacedName *types.NamespacedName) err
 	// Stop and remove the poller.
 	_ = a.removeAccountPoller(namespacedName)
 
-	// Cleanup inventory data for this account.
+	// Cleanup vpc inventory data for this account, vm inventory is deleted in removeAccountPoller.
 	_ = a.Inventory.DeleteVpcsFromCache(namespacedName)
-	_ = a.Inventory.DeleteVmsFromCache(namespacedName)
 
 	defer func() {
 		// Remove account config.
@@ -204,12 +202,11 @@ func (a *AccountManager) RemoveResourceFiltersFromAccount(accNamespacedName *typ
 	selectorNamespacedName *types.NamespacedName) error {
 	cloudProviderType, ok := a.getAccountProviderType(accNamespacedName)
 	if !ok {
-		// If we cannot find cloud provider type, that means CPA may not be added or it's already removed.
+		// If we cannot find cloud provider type, that means CPA may not be added, or it's already removed.
 		return fmt.Errorf(fmt.Sprintf("failed to delete selector %v, account %v: provider type not found",
 			selectorNamespacedName, accNamespacedName))
 	}
 	cloudInterface, _ := cloud.GetCloudInterface(cloudProviderType)
-	a.Log.V(1).Info("Removing selectors for account", "name", accNamespacedName)
 	cloudInterface.RemoveAccountResourcesSelector(accNamespacedName, selectorNamespacedName)
 	// Delete selector config from the account config.
 	a.removeSelectorFromAccountConfig(accNamespacedName, selectorNamespacedName)
@@ -220,7 +217,7 @@ func (a *AccountManager) RemoveResourceFiltersFromAccount(accNamespacedName *typ
 		return fmt.Errorf(fmt.Sprintf("failed to delete selector %v, account %v: %v",
 			selectorNamespacedName, accNamespacedName, errorMsgAccountPollerNotFound))
 	}
-	accPoller.removeSelector(accNamespacedName)
+	_ = accPoller.inventory.DeleteVmsFromCache(accNamespacedName, selectorNamespacedName)
 	accPoller.restartPoller(accNamespacedName)
 	return nil
 }
@@ -247,20 +244,19 @@ func (a *AccountManager) addAccountPoller(cloudInterface cloud.CloudInterface, n
 	accPoller, exists := a.getAccountPoller(namespacedName)
 	if exists {
 		// Update the polling interval.
-		accPoller.PollIntvInSeconds = *account.Spec.PollIntervalInSeconds
+		accPoller.pollIntvInSeconds = *account.Spec.PollIntervalInSeconds
 		return accPoller, true
 	}
 
 	// Add and init the new poller.
 	poller := &accountPoller{
-		Client:            a.Client,
-		log:               a.Log.WithName("Poller"),
-		PollIntvInSeconds: *account.Spec.PollIntervalInSeconds,
-		cloudInterface:    cloudInterface,
-		namespacedName:    namespacedName,
-		selector:          nil,
-		ch:                make(chan struct{}),
-		inventory:         a.Inventory,
+		Client:                a.Client,
+		log:                   a.Log.WithName("Poller"),
+		pollIntvInSeconds:     *account.Spec.PollIntervalInSeconds,
+		cloudInterface:        cloudInterface,
+		accountNamespacedName: namespacedName,
+		ch:                    make(chan struct{}),
+		inventory:             a.Inventory,
 	}
 	poller.initVmSelectorCache()
 
@@ -277,7 +273,7 @@ func (a *AccountManager) removeAccountPoller(namespacedName *types.NamespacedNam
 	if !exists {
 		return fmt.Errorf(fmt.Sprintf("%v %v", errorMsgAccountPollerNotFound, namespacedName))
 	}
-	accPoller.removeSelector(namespacedName)
+	_ = accPoller.inventory.DeleteAllVmsFromCache(namespacedName)
 	accPoller.stopPoller()
 
 	a.mutex.Lock()
@@ -391,7 +387,7 @@ func (a *AccountManager) handleAddProviderAccountError(namespacedName *types.Nam
 	// Account poller is removed upon any error in the plug-in.
 	_ = a.removeAccountPoller(namespacedName)
 	_ = a.Inventory.DeleteVpcsFromCache(namespacedName)
-	_ = a.Inventory.DeleteVmsFromCache(namespacedName)
+	_ = a.Inventory.DeleteAllVmsFromCache(namespacedName)
 	// TODO: require lock to write into account config structure.
 	config.initialized = false
 	if strings.Contains(err.Error(), util.ErrorMsgSecretReference) {

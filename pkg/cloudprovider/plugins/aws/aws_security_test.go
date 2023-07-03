@@ -96,7 +96,8 @@ var _ = Describe("AWS Cloud Security", func() {
 				Namespace: testAccountNamespacedName.Namespace,
 			},
 			Spec: crdv1alpha1.CloudEntitySelectorSpec{
-				AccountName: testAccountNamespacedName.Name,
+				AccountName:      testAccountNamespacedName.Name,
+				AccountNamespace: testAccountNamespacedName.Namespace,
 				VMSelector: []crdv1alpha1.VirtualMachineSelector{
 					{
 						VpcMatch: &crdv1alpha1.EntityMatch{

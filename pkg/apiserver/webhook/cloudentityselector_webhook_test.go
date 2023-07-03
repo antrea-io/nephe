@@ -40,24 +40,26 @@ import (
 var _ = Describe("CloudEntitySelectorWebhook", func() {
 	Context("Validation of CES webhook workflow", func() {
 		var (
-			testAccountNamespacedName  = types.NamespacedName{Namespace: "namespace01", Name: "account01"}
-			testAccountNamespacedName2 = types.NamespacedName{Namespace: "namespace01", Name: "account02"}
-			testSecretNamespacedName   = types.NamespacedName{Namespace: "namespace01", Name: "secret01"}
-			credentials                = "credentials"
-			testAbc                    = "abc"
-			testDef                    = "def"
-			testXyz                    = "xyz"
-			account                    *v1alpha1.CloudProviderAccount
-			selector                   *v1alpha1.CloudEntitySelector
-			validator                  *CESValidator
-			mutator                    *CESMutator
-			fakeClient                 k8sclient.WithWatch
-			err                        error
-			newScheme                  *runtime.Scheme
-			pollIntv                   uint = 1
-			encodedSelector            []byte
-			decoder                    *admission.Decoder
-			selectorReq                admission.Request
+			testAccountNamespacedName      = types.NamespacedName{Namespace: "namespace01", Name: "account01"}
+			testAccountDifferentNamespace  = types.NamespacedName{Namespace: "namespace02", Name: "account02"}
+			testSelectorNamespacedName     = types.NamespacedName{Namespace: "namespace01", Name: "selector01"}
+			testSelectorDifferentNamespace = types.NamespacedName{Namespace: "namespace02", Name: "selector02"}
+			testSecretNamespacedName       = types.NamespacedName{Namespace: "namespace01", Name: "secret01"}
+			credentials                    = "credentials"
+			testAbc                        = "abc"
+			testDef                        = "def"
+			testXyz                        = "xyz"
+			account                        *v1alpha1.CloudProviderAccount
+			selector                       *v1alpha1.CloudEntitySelector
+			validator                      *CESValidator
+			mutator                        *CESMutator
+			fakeClient                     k8sclient.WithWatch
+			err                            error
+			newScheme                      *runtime.Scheme
+			pollIntv                       uint = 1
+			encodedSelector                []byte
+			decoder                        *admission.Decoder
+			selectorReq                    admission.Request
 		)
 
 		BeforeEach(func() {
@@ -81,18 +83,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 
 			selector = &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VpcMatch: &v1alpha1.EntityMatch{
@@ -136,18 +132,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 
 			selector = &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VpcMatch: &v1alpha1.EntityMatch{
@@ -175,8 +165,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Create,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -196,18 +186,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 
 			oldSelector := &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VpcMatch: &v1alpha1.EntityMatch{
@@ -219,18 +203,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			}
 			selector = &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName2.Name,
-					Namespace: testAccountNamespacedName2.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account02",
-						},
-					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName2.Name,
+					AccountName:      testAccountDifferentNamespace.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VpcMatch: &v1alpha1.EntityMatch{
@@ -254,8 +232,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Update,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -278,18 +256,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 
 			selector = &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VpcMatch: &v1alpha1.EntityMatch{
@@ -313,8 +285,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Create,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -333,13 +305,6 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testAccountNamespacedName.Name,
 					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
 				},
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
@@ -358,18 +323,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 
 			selector = &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VpcMatch: &v1alpha1.EntityMatch{
@@ -392,8 +351,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Create,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -413,18 +372,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 
 			selector = &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VpcMatch: &v1alpha1.EntityMatch{
@@ -452,8 +405,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Create,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -472,18 +425,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 
 			selector = &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VpcMatch: &v1alpha1.EntityMatch{
@@ -518,8 +465,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Create,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -538,18 +485,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 
 			selector = &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VMMatch: []v1alpha1.EntityMatch{
@@ -584,8 +525,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Create,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -604,18 +545,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 
 			selector = &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VpcMatch: &v1alpha1.EntityMatch{
@@ -654,8 +589,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Create,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -674,18 +609,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 
 			selector = &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VMMatch: []v1alpha1.EntityMatch{
@@ -717,8 +646,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Create,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -737,18 +666,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 
 			selector = &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VMMatch: []v1alpha1.EntityMatch{
@@ -780,8 +703,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Create,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -799,18 +722,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 
 			selector = &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VpcMatch: &v1alpha1.EntityMatch{
@@ -848,8 +765,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Create,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -868,18 +785,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 
 			selector = &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VpcMatch: &v1alpha1.EntityMatch{
@@ -917,8 +828,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Create,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -937,18 +848,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 
 			selector = &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VpcMatch: &v1alpha1.EntityMatch{
@@ -983,8 +888,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Create,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -1002,18 +907,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 
 			selector = &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VMMatch: []v1alpha1.EntityMatch{
@@ -1045,8 +944,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Create,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -1065,18 +964,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 
 			selector = &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VMMatch: []v1alpha1.EntityMatch{
@@ -1108,8 +1001,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Create,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -1121,7 +1014,7 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 			Expect(response.AdmissionResponse.Allowed).To(BeTrue())
 		})
-		It("Mutator Workflow when owner account is not found", func() {
+		It("Mutator Workflow when referenced account is not found", func() {
 			encodedSelector, _ = json.Marshal(selector)
 			selectorReq = admission.Request{
 				AdmissionRequest: v1.AdmissionRequest{
@@ -1135,8 +1028,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Create,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -1154,13 +1047,6 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testAccountNamespacedName.Name,
 					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
 				},
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
@@ -1179,18 +1065,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 
 			selector = &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VpcMatch: &v1alpha1.EntityMatch{
@@ -1221,8 +1101,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Create,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -1239,13 +1119,6 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testAccountNamespacedName.Name,
 					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
 				},
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
@@ -1267,8 +1140,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Create,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -1297,8 +1170,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Create,
 					Object:    runtime.RawExtension{},
 				},
@@ -1325,8 +1198,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Create,
 					Object:    runtime.RawExtension{},
 				},
@@ -1338,7 +1211,7 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			Expect(response.Result.Code).Should(BeEquivalentTo(400))
 
 		})
-		It("Validate CES with already existing CES with same owner account", func() {
+		It("Validate multiple CES for a CPA", func() {
 			err = fakeClient.Create(context.Background(), account)
 			Expect(err).Should(BeNil())
 
@@ -1346,18 +1219,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			Expect(err).Should(BeNil())
 			newSelector := &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
+					Name:      testSelectorDifferentNamespace.Name,
+					Namespace: testSelectorDifferentNamespace.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VpcMatch: &v1alpha1.EntityMatch{
@@ -1381,8 +1248,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorDifferentNamespace.Name,
+					Namespace: testSelectorDifferentNamespace.Namespace,
 					Operation: v1.Create,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -1391,8 +1258,7 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			}
 			response := validator.Handle(context.Background(), selectorReq)
 			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
-			Expect(response.AdmissionResponse.Allowed).To(BeFalse())
-			Expect(response.String()).Should(ContainSubstring(errorMsgSameAccountUsage))
+			Expect(response.AdmissionResponse.Allowed).To(BeTrue())
 		})
 		It("Validate update during CES Update with vpcMatch matchID matchName in same selector", func() {
 			err = fakeClient.Create(context.Background(), account)
@@ -1400,18 +1266,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 
 			oldSelector := &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VpcMatch: &v1alpha1.EntityMatch{
@@ -1423,18 +1283,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			}
 			selector = &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VpcMatch: &v1alpha1.EntityMatch{
@@ -1459,8 +1313,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Update,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -1482,18 +1336,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 
 			oldSelector := &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VpcMatch: &v1alpha1.EntityMatch{
@@ -1518,8 +1366,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Update,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -1552,8 +1400,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Update,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -1586,8 +1434,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Update,
 					Object:    runtime.RawExtension{},
 					OldObject: runtime.RawExtension{
@@ -1601,24 +1449,109 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			Expect(response.AdmissionResponse.Allowed).To(BeFalse())
 			Expect(response.Result.Code).Should(BeEquivalentTo(400))
 		})
+		It("Validate empty vmMatch sections", func() {
+			err = fakeClient.Create(context.Background(), account)
+			Expect(err).Should(BeNil())
+
+			selector = &v1alpha1.CloudEntitySelector{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
+				},
+				Spec: v1alpha1.CloudEntitySelectorSpec{
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
+					VMSelector: []v1alpha1.VirtualMachineSelector{
+						{
+							VMMatch: []v1alpha1.EntityMatch{},
+						},
+					},
+				},
+			}
+			encodedSelector, _ = json.Marshal(selector)
+			selectorReq = admission.Request{
+				AdmissionRequest: v1.AdmissionRequest{
+					Kind: metav1.GroupVersionKind{
+						Group:   "",
+						Version: "v1alpha1",
+						Kind:    "CloudEntitySelector",
+					},
+					Resource: metav1.GroupVersionResource{
+						Group:    "",
+						Version:  "v1alpha1",
+						Resource: "CloudEntitySelectors",
+					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
+					Operation: v1.Create,
+					Object: runtime.RawExtension{
+						Raw: encodedSelector,
+					},
+				},
+			}
+
+			response := validator.Handle(context.Background(), selectorReq)
+			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
+			Expect(response.AdmissionResponse.Allowed).To(BeFalse())
+			Expect(response.String()).Should(ContainSubstring(errorMsgVpcOrVmMatchNotAvailable))
+		})
+		It("Validate empty vpcMatch section", func() {
+			err = fakeClient.Create(context.Background(), account)
+			Expect(err).Should(BeNil())
+
+			selector = &v1alpha1.CloudEntitySelector{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
+				},
+				Spec: v1alpha1.CloudEntitySelectorSpec{
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
+					VMSelector: []v1alpha1.VirtualMachineSelector{
+						{
+							VpcMatch: nil,
+						},
+					},
+				},
+			}
+			encodedSelector, _ = json.Marshal(selector)
+			selectorReq = admission.Request{
+				AdmissionRequest: v1.AdmissionRequest{
+					Kind: metav1.GroupVersionKind{
+						Group:   "",
+						Version: "v1alpha1",
+						Kind:    "CloudEntitySelector",
+					},
+					Resource: metav1.GroupVersionResource{
+						Group:    "",
+						Version:  "v1alpha1",
+						Resource: "CloudEntitySelectors",
+					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
+					Operation: v1.Create,
+					Object: runtime.RawExtension{
+						Raw: encodedSelector,
+					},
+				},
+			}
+			response := validator.Handle(context.Background(), selectorReq)
+			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
+			Expect(response.AdmissionResponse.Allowed).To(BeFalse())
+			Expect(response.String()).Should(ContainSubstring(errorMsgVpcOrVmMatchNotAvailable))
+		})
 		It("Validate vmMatch matchID matchName in same selector", func() {
 			err = fakeClient.Create(context.Background(), account)
 			Expect(err).Should(BeNil())
 
 			selector = &v1alpha1.CloudEntitySelector{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: "crd.cloud.antrea.io/v1alpha1",
-							Kind:       "CloudProviderAccount",
-							Name:       "account01",
-						},
-					},
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 				},
 				Spec: v1alpha1.CloudEntitySelectorSpec{
-					AccountName: testAccountNamespacedName.Name,
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
 					VMSelector: []v1alpha1.VirtualMachineSelector{
 						{
 							VMMatch: []v1alpha1.EntityMatch{
@@ -1644,8 +1577,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Create,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -1682,8 +1615,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Create,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -1695,7 +1628,7 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			Expect(response.AdmissionResponse.Allowed).To(BeFalse())
 			Expect(response.String()).Should(ContainSubstring(util.ErrorMsgUnknownCloudProvider))
 		})
-		It("Validate when owner account not found", func() {
+		It("Validate when referenced account not found", func() {
 			encodedSelector, _ = json.Marshal(selector)
 			selectorReq = admission.Request{
 				AdmissionRequest: v1.AdmissionRequest{
@@ -1709,8 +1642,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Create,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -1736,8 +1669,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 						Version:  "v1alpha1",
 						Resource: "CloudEntitySelectors",
 					},
-					Name:      testAccountNamespacedName.Name,
-					Namespace: testAccountNamespacedName.Namespace,
+					Name:      testSelectorNamespacedName.Name,
+					Namespace: testSelectorNamespacedName.Namespace,
 					Operation: v1.Connect,
 					Object: runtime.RawExtension{
 						Raw: encodedSelector,
@@ -1753,18 +1686,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			BeforeEach(func() {
 				selector = &v1alpha1.CloudEntitySelector{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      testAccountNamespacedName.Name,
-						Namespace: testAccountNamespacedName.Namespace,
-						OwnerReferences: []metav1.OwnerReference{
-							{
-								APIVersion: "crd.cloud.antrea.io/v1alpha1",
-								Kind:       "CloudProviderAccount",
-								Name:       "account01",
-							},
-						},
+						Name:      testSelectorNamespacedName.Name,
+						Namespace: testSelectorNamespacedName.Namespace,
 					},
 					Spec: v1alpha1.CloudEntitySelectorSpec{
-						AccountName: testAccountNamespacedName.Name,
+						AccountName:      testAccountNamespacedName.Name,
+						AccountNamespace: testAccountNamespacedName.Namespace,
 						VMSelector: []v1alpha1.VirtualMachineSelector{
 							{
 								VpcMatch: &v1alpha1.EntityMatch{
@@ -1792,8 +1719,8 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 							Version:  "v1alpha1",
 							Resource: "CloudEntitySelectors",
 						},
-						Name:      testAccountNamespacedName.Name,
-						Namespace: testAccountNamespacedName.Namespace,
+						Name:      testSelectorNamespacedName.Name,
+						Namespace: testSelectorNamespacedName.Namespace,
 						Operation: v1.Create,
 						Object: runtime.RawExtension{
 							Raw: encodedSelector,
@@ -1812,18 +1739,12 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 			It("Validate update CES CR failure", func() {
 				oldSelector := &v1alpha1.CloudEntitySelector{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      testAccountNamespacedName.Name,
-						Namespace: testAccountNamespacedName.Namespace,
-						OwnerReferences: []metav1.OwnerReference{
-							{
-								APIVersion: "crd.cloud.antrea.io/v1alpha1",
-								Kind:       "CloudProviderAccount",
-								Name:       "account01",
-							},
-						},
+						Name:      testSelectorNamespacedName.Name,
+						Namespace: testSelectorNamespacedName.Namespace,
 					},
 					Spec: v1alpha1.CloudEntitySelectorSpec{
-						AccountName: testAccountNamespacedName.Name,
+						AccountName:      testAccountNamespacedName.Name,
+						AccountNamespace: testAccountNamespacedName.Namespace,
 						VMSelector: []v1alpha1.VirtualMachineSelector{
 							{
 								VpcMatch: &v1alpha1.EntityMatch{
@@ -1863,6 +1784,173 @@ var _ = Describe("CloudEntitySelectorWebhook", func() {
 				Expect(response.AdmissionResponse.Allowed).To(BeFalse())
 				Expect(response.String()).Should(ContainSubstring(sync.ErrorMsgControllerInitializing))
 			})
+		})
+		It("Validate CES update when CPA, CES are in different namespace", func() {
+			err = fakeClient.Create(context.Background(), account)
+			Expect(err).Should(BeNil())
+
+			oldSelector := &v1alpha1.CloudEntitySelector{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testSelectorDifferentNamespace.Name,
+					Namespace: testSelectorDifferentNamespace.Namespace,
+				},
+				Spec: v1alpha1.CloudEntitySelectorSpec{
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
+					VMSelector: []v1alpha1.VirtualMachineSelector{
+						{
+							VpcMatch: &v1alpha1.EntityMatch{
+								MatchID: testXyz,
+							},
+						},
+					},
+				},
+			}
+
+			encodedOldSelector, _ := json.Marshal(oldSelector)
+			encodedSelector, _ = json.Marshal(selector)
+			selectorReq = admission.Request{
+				AdmissionRequest: v1.AdmissionRequest{
+					Kind: metav1.GroupVersionKind{
+						Group:   "",
+						Version: "v1alpha1",
+						Kind:    "CloudEntitySelector",
+					},
+					Resource: metav1.GroupVersionResource{
+						Group:    "",
+						Version:  "v1alpha1",
+						Resource: "CloudEntitySelectors",
+					},
+					Name:      testSelectorDifferentNamespace.Name,
+					Namespace: testSelectorDifferentNamespace.Namespace,
+					Operation: v1.Update,
+					Object: runtime.RawExtension{
+						Raw: encodedSelector,
+					},
+					OldObject: runtime.RawExtension{
+						Raw: encodedOldSelector,
+					},
+				},
+			}
+
+			response := validator.Handle(context.Background(), selectorReq)
+			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
+			Expect(response.AdmissionResponse.Allowed).To(BeTrue())
+		})
+		It("Validate CES add when CPA, CES are in different namespace", func() {
+			err = fakeClient.Create(context.Background(), account)
+			Expect(err).Should(BeNil())
+			selector = &v1alpha1.CloudEntitySelector{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testSelectorDifferentNamespace.Name,
+					Namespace: testSelectorDifferentNamespace.Namespace,
+				},
+				Spec: v1alpha1.CloudEntitySelectorSpec{
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
+					VMSelector: []v1alpha1.VirtualMachineSelector{
+						{
+							VpcMatch: &v1alpha1.EntityMatch{
+								MatchID: testAbc,
+							},
+						},
+					},
+				},
+			}
+
+			encodedSelector, _ = json.Marshal(selector)
+			selectorReq = admission.Request{
+				AdmissionRequest: v1.AdmissionRequest{
+					Kind: metav1.GroupVersionKind{
+						Group:   "",
+						Version: "v1alpha1",
+						Kind:    "CloudEntitySelector",
+					},
+					Resource: metav1.GroupVersionResource{
+						Group:    "",
+						Version:  "v1alpha1",
+						Resource: "CloudEntitySelectors",
+					},
+					Name:      testSelectorDifferentNamespace.Name,
+					Namespace: testSelectorDifferentNamespace.Namespace,
+					Operation: v1.Create,
+					Object: runtime.RawExtension{
+						Raw: encodedSelector,
+					},
+				},
+			}
+			response := validator.Handle(context.Background(), selectorReq)
+			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
+			Expect(response.AdmissionResponse.Allowed).To(BeTrue())
+		})
+		It("Validate CPA account namespace update during CES Update", func() {
+			err = fakeClient.Create(context.Background(), account)
+			Expect(err).Should(BeNil())
+
+			oldSelector := &v1alpha1.CloudEntitySelector{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testSelectorDifferentNamespace.Name,
+					Namespace: testSelectorDifferentNamespace.Namespace,
+				},
+				Spec: v1alpha1.CloudEntitySelectorSpec{
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountNamespacedName.Namespace,
+					VMSelector: []v1alpha1.VirtualMachineSelector{
+						{
+							VpcMatch: &v1alpha1.EntityMatch{
+								MatchID: testAbc,
+							},
+						},
+					},
+				},
+			}
+			selector = &v1alpha1.CloudEntitySelector{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testSelectorDifferentNamespace.Name,
+					Namespace: testSelectorDifferentNamespace.Namespace,
+				},
+				Spec: v1alpha1.CloudEntitySelectorSpec{
+					AccountName:      testAccountNamespacedName.Name,
+					AccountNamespace: testAccountDifferentNamespace.Namespace,
+					VMSelector: []v1alpha1.VirtualMachineSelector{
+						{
+							VpcMatch: &v1alpha1.EntityMatch{
+								MatchID: testDef,
+							},
+						},
+					},
+				},
+			}
+			encodedOldSelector, _ := json.Marshal(oldSelector)
+			encodedSelector, _ = json.Marshal(selector)
+			selectorReq = admission.Request{
+				AdmissionRequest: v1.AdmissionRequest{
+					Kind: metav1.GroupVersionKind{
+						Group:   "",
+						Version: "v1alpha1",
+						Kind:    "CloudEntitySelector",
+					},
+					Resource: metav1.GroupVersionResource{
+						Group:    "",
+						Version:  "v1alpha1",
+						Resource: "CloudEntitySelectors",
+					},
+					Name:      testSelectorDifferentNamespace.Name,
+					Namespace: testSelectorDifferentNamespace.Namespace,
+					Operation: v1.Update,
+					Object: runtime.RawExtension{
+						Raw: encodedSelector,
+					},
+					OldObject: runtime.RawExtension{
+						Raw: encodedOldSelector,
+					},
+				},
+			}
+
+			response := validator.Handle(context.Background(), selectorReq)
+			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
+			Expect(response.AdmissionResponse.Allowed).To(BeFalse())
+			Expect(response.String()).Should(ContainSubstring(errorMsgAccountNamespaceUpdate))
 		})
 	})
 })
