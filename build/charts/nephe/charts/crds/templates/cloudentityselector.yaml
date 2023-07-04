@@ -108,6 +108,8 @@ spec:
                   type: object
                 type: array
             required:
+            - accountName
+            - accountNamespace
             - vmSelector
             type: object
           status:
