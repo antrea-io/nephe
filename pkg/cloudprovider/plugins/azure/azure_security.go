@@ -338,8 +338,12 @@ func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(ap
 		}
 
 		// check if the rule is Nephe rules based on ruleStartPriority and description.
-		_, ok := utils.ExtractCloudDescription(rule.Properties.Description)
-		if *rule.Properties.Priority >= ruleStartPriority && ok {
+		if *rule.Properties.Priority >= ruleStartPriority {
+			_, ok := utils.ExtractCloudDescription(rule.Properties.Description)
+			// remove user rule that is in Nephe priority range.
+			if !ok {
+				continue
+			}
 			// check if the rule is created by current processing appliedToGroup.
 			if isAzureRuleAttachedToAtSg(rule, appliedToGroupNepheControllerName) {
 				// skip the rule if found in remove list.
@@ -691,7 +695,7 @@ func (computeCfg *computeServiceConfig) getATGroupView(nepheControllerATSGNameTo
 		if networkSecurityGroup.Properties == nil {
 			continue
 		}
-		nepheControllerATSgNameToIngressRulesMap, nepheControllerATSgNameToEgressRulesMap :=
+		nepheControllerATSgNameToIngressRulesMap, nepheControllerATSgNameToEgressRulesMap, removeUserRules :=
 			convertToCloudRulesByAppliedToSGName(networkSecurityGroup.Properties.SecurityRules, vnetIDLowercase)
 
 		for atSgName := range appliedToSgNameSet {
@@ -710,6 +714,14 @@ func (computeCfg *computeServiceConfig) getATGroupView(nepheControllerATSGNameTo
 				Members:        nepheControllerATSGNameToCloudResourcesMap[atSgName],
 				IngressRules:   nepheControllerATSgNameToIngressRulesMap[atSgName],
 				EgressRules:    nepheControllerATSgNameToEgressRulesMap[atSgName],
+			}
+			// If there are user rules needs to be removed, trick the sync to trigger a rule update by adding an empty valid rule.
+			// In case of no AT or NP for valid rule, it implies Nephe is not actively managing the Vnet, therefore user rules are ignored.
+			if removeUserRules {
+				if rule := getEmptyCloudRule(&groupSyncObj); rule != nil {
+					groupSyncObj.IngressRules = append(groupSyncObj.IngressRules, *rule)
+					removeUserRules = false
+				}
 			}
 			enforcedSecurityCloudView = append(enforcedSecurityCloudView, groupSyncObj)
 		}

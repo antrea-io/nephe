@@ -446,6 +446,9 @@ func (ec2Cfg *ec2ServiceConfig) updateSecurityGroupMembers(groupCloudSgID *strin
 				}
 
 				networkInterfacesToModify[*networkInterface.NetworkInterfaceId] = networkInterfaceCloudSgsSetToAttach
+			} else if !membershipOnly && len(networkInterfaceOtherCloudSgsSet) > 0 {
+				// remove non-nephe sgs if AT is attached.
+				networkInterfacesToModify[*networkInterface.NetworkInterfaceId] = networkInterfaceNepheControllerCreatedCloudSgsSet
 			}
 		} else {
 			if isNicAttachedToMemberVM || isNicMemberNetworkInterface {

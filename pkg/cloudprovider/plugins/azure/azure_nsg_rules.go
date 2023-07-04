@@ -69,6 +69,22 @@ func isAzureRuleAttachedToAtSg(rule *armnetwork.SecurityRule, asg string) bool {
 	return false
 }
 
+// getEmptyCloudRule returns a *securitygroup.CloudRule object with valid fields based on sync content, except nil for the rule field.
+// If no valid options are available, nil is returned.
+func getEmptyCloudRule(syncContent *cloudresource.SynchronizationContent) *cloudresource.CloudRule {
+	for _, rule := range append(syncContent.IngressRules, syncContent.EgressRules...) {
+		if rule.NpNamespacedName != "" {
+			emptyRule := &cloudresource.CloudRule{
+				NpNamespacedName: rule.NpNamespacedName,
+				AppliedToGrp:     rule.AppliedToGrp,
+			}
+			emptyRule.Hash = emptyRule.GetHash()
+			return emptyRule
+		}
+	}
+	return nil
+}
+
 // getUnusedPriority finds and returns the first unused priority starting from startPriority.
 func getUnusedPriority(existingRulePriority map[int32]struct{}, startPriority int32) int32 {
 	_, ok := existingRulePriority[startPriority]
@@ -496,69 +512,77 @@ func convertToAzureAddressPrefix(ruleIPs []*net.IPNet) (*string, []*string) {
 }
 
 // convertToCloudRulesByAppliedToSGName converts Azure rules to securitygroup.CloudRule and split them by security group names.
+// It also returns a boolean as the third value indicating whether there are user rules in Nephe priority range or not.
 func convertToCloudRulesByAppliedToSGName(azureSecurityRules []*armnetwork.SecurityRule,
-	vnetID string) (map[string][]cloudresource.CloudRule, map[string][]cloudresource.CloudRule) {
+	vnetID string) (map[string][]cloudresource.CloudRule, map[string][]cloudresource.CloudRule, bool) {
 	nepheControllerATSgNameToIngressRules := make(map[string][]cloudresource.CloudRule)
 	nepheControllerATSgNameToEgressRules := make(map[string][]cloudresource.CloudRule)
+	removeUserRules := false
 	for _, azureSecurityRule := range azureSecurityRules {
-		if azureSecurityRule.Properties == nil {
+		if azureSecurityRule.Properties == nil || *azureSecurityRule.Properties.Priority == vnetToVnetDenyRulePriority {
 			continue
 		}
 
-		desc, _ := utils.ExtractCloudDescription(azureSecurityRule.Properties.Description)
-
 		// Nephe inbound rule implies destination is AT sg. Nephe outbound rule implies source is AT sg.
-		// we don't care about syncing rules that doesn't match above pattern, as they will not conflict with any Nephe rules.
-		if *azureSecurityRule.Properties.Direction == armnetwork.SecurityRuleDirectionInbound {
-			for _, asg := range azureSecurityRule.Properties.DestinationApplicationSecurityGroups {
-				_, _, asgName, err := extractFieldsFromAzureResourceID(*asg.ID)
-				if err != nil {
-					azurePluginLogger().Error(err, "failed to extract asg name from resource id", "id", *asg.ID)
-				}
-				sgName, _, isATSg := utils.IsNepheControllerCreatedSG(asgName)
-				if !isATSg {
-					continue
-				}
-				sgID := cloudresource.CloudResourceID{
-					Name: sgName,
-					Vpc:  vnetID,
-				}
-				ingressRule, err := convertFromAzureIngressSecurityRuleToCloudRule(*azureSecurityRule, sgID.String(), vnetID, desc)
-				if err != nil {
-					azurePluginLogger().Error(err, "failed to convert to ingress cloud rule", "ruleName", azureSecurityRule.Name)
-					continue
-				}
-				rules := nepheControllerATSgNameToIngressRules[sgName]
-				rules = append(rules, ingressRule...)
-				nepheControllerATSgNameToIngressRules[sgName] = rules
+		atAsgs := azureSecurityRule.Properties.DestinationApplicationSecurityGroups
+		ruleMap := nepheControllerATSgNameToIngressRules
+		convertFunc := convertFromAzureIngressSecurityRuleToCloudRule
+		if *azureSecurityRule.Properties.Direction == armnetwork.SecurityRuleDirectionOutbound {
+			atAsgs = azureSecurityRule.Properties.SourceApplicationSecurityGroups
+			ruleMap = nepheControllerATSgNameToEgressRules
+			convertFunc = convertFromAzureEgressSecurityRuleToCloudRule
+		}
+		isInNephePriorityRange := *azureSecurityRule.Properties.Priority >= ruleStartPriority
+
+		// Nephe rule has correct description.
+		desc, ok := utils.ExtractCloudDescription(azureSecurityRule.Properties.Description)
+		if !ok {
+			removeUserRules = removeUserRules || isInNephePriorityRange
+			// Skip converting user rule that is in Nephe priority range, as they will be removed.
+			if isInNephePriorityRange {
+				continue
 			}
-		} else {
-			for _, asg := range azureSecurityRule.Properties.SourceApplicationSecurityGroups {
-				_, _, asgName, err := extractFieldsFromAzureResourceID(*asg.ID)
-				if err != nil {
-					azurePluginLogger().Error(err, "failed to extract asg name from resource id", "id", *asg.ID)
-				}
-				sgName, _, isATSg := utils.IsNepheControllerCreatedSG(asgName)
-				if !isATSg {
-					continue
-				}
-				sgID := cloudresource.CloudResourceID{
-					Name: sgName,
-					Vpc:  vnetID,
-				}
-				egressRule, err := convertFromAzureEgressSecurityRuleToCloudRule(*azureSecurityRule, sgID.String(), vnetID, desc)
-				if err != nil {
-					azurePluginLogger().Error(err, "failed to convert to egress cloud rule", "ruleName", azureSecurityRule.Name)
-					continue
-				}
-				rules := nepheControllerATSgNameToEgressRules[sgName]
-				rules = append(rules, egressRule...)
-				nepheControllerATSgNameToEgressRules[sgName] = rules
+		}
+
+		// Nephe rule has AT sg. We skip syncing rules that doesn't have a Nephe AT sg, as they will not conflict with any Nephe rules.
+		if len(atAsgs) == 0 {
+			removeUserRules = removeUserRules || isInNephePriorityRange
+			continue
+		}
+		for _, asg := range atAsgs {
+			// Nephe rule has the correct AT sg naming format.
+			_, _, asgName, err := extractFieldsFromAzureResourceID(*asg.ID)
+			if err != nil {
+				azurePluginLogger().Error(err, "failed to extract asg name from resource id", "id", *asg.ID)
+				removeUserRules = removeUserRules || isInNephePriorityRange
+				continue
 			}
+			sgName, _, isATSg := utils.IsNepheControllerCreatedSG(asgName)
+			if !isATSg {
+				removeUserRules = removeUserRules || isInNephePriorityRange
+				continue
+			}
+
+			sgID := cloudresource.CloudResourceID{
+				Name: sgName,
+				Vpc:  vnetID,
+			}
+
+			rule, err := convertFunc(*azureSecurityRule, sgID.String(), vnetID, desc)
+			if err != nil {
+				azurePluginLogger().Error(err, "failed to convert to cloud rule",
+					"direction", azureSecurityRule.Properties.Direction, "ruleName", azureSecurityRule.Name)
+				removeUserRules = removeUserRules || isInNephePriorityRange
+				continue
+			}
+
+			rules := ruleMap[sgName]
+			rules = append(rules, rule...)
+			ruleMap[sgName] = rules
 		}
 	}
 
-	return nepheControllerATSgNameToIngressRules, nepheControllerATSgNameToEgressRules
+	return nepheControllerATSgNameToIngressRules, nepheControllerATSgNameToEgressRules, removeUserRules
 }
 
 // convertFromAzureIngressSecurityRuleToCloudRule converts Azure ingress rules from armnetwork.SecurityRule to securitygroup.CloudRule.
