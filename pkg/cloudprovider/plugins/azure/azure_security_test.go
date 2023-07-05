@@ -231,6 +231,10 @@ var _ = Describe("Azure Cloud Security", func() {
 
 			accCfg, _ := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
 			serviceConfig := accCfg.GetServiceConfig()
+			selectorNamespacedName := types.NamespacedName{Namespace: selector.Namespace, Name: selector.Name}
+			inventory := serviceConfig.(*computeServiceConfig).GetCloudInventory()
+			Expect(len(inventory.VmMap[selectorNamespacedName])).To(Equal(0))
+			Expect(len(inventory.VpcMap)).To(Equal(0))
 
 			vnetIDs := make(map[string]struct{})
 			vnetIDs[strings.ToLower(testVnetID01)] = struct{}{}
@@ -264,7 +268,6 @@ var _ = Describe("Azure Cloud Security", func() {
 			serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{
 				vmSnapshot, vnetList, vnetIDs, vpcPeers})
 			snapshot := serviceConfig.(*computeServiceConfig).resourcesCache.GetSnapshot()
-			selectorNamespacedName := types.NamespacedName{Namespace: selector.Namespace, Name: selector.Name}
 			vmSnapshot[selectorNamespacedName] = vmInfo
 			serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(
 				&computeResourcesCacheSnapshot{vmSnapshot, snapshot.(*computeResourcesCacheSnapshot).vnets,
@@ -626,14 +629,16 @@ var _ = Describe("Azure Cloud Security", func() {
 
 				accCfg, _ := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
 				serviceConfig := accCfg.GetServiceConfig()
-				snapshot := serviceConfig.(*computeServiceConfig).resourcesCache.GetSnapshot()
 				selectorNamespacedName := types.NamespacedName{Namespace: selector.Namespace, Name: selector.Name}
+				snapshot := serviceConfig.(*computeServiceConfig).resourcesCache.GetSnapshot()
 				vmSnapshot := snapshot.(*computeResourcesCacheSnapshot).vms
 				vmSnapshot[selectorNamespacedName] = vmToUpdate
 				serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(
 					&computeResourcesCacheSnapshot{vmSnapshot, snapshot.(*computeResourcesCacheSnapshot).vnets,
 						snapshot.(*computeResourcesCacheSnapshot).managedVnetIDs, snapshot.(*computeResourcesCacheSnapshot).vnetPeers})
-				serviceConfig.(*computeServiceConfig).getVirtualMachineObjects(testAccountNamespacedName, &selectorNamespacedName)
+				inventory := serviceConfig.(*computeServiceConfig).GetCloudInventory()
+				Expect(len(inventory.VmMap[selectorNamespacedName])).To(Equal(1))
+				Expect(len(inventory.VpcMap)).To(Equal(1))
 			})
 		})
 
