@@ -63,8 +63,7 @@ type AccountManager struct {
 }
 
 type accountConfig struct {
-	namespacedName *types.NamespacedName
-	providerType   runtimev1alpha1.CloudProvider
+	providerType runtimev1alpha1.CloudProvider
 	// Indicates account initialization state.
 	initialized bool
 	// Indicates credentials are valid or not.
@@ -313,7 +312,6 @@ func (a *AccountManager) addAccountConfig(name *types.NamespacedName, provider r
 	}
 	// Create a new account config.
 	config = &accountConfig{
-		namespacedName:   name,
 		providerType:     provider,
 		initialized:      false,
 		credentialsValid: false,

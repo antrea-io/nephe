@@ -1512,7 +1512,7 @@ func (n *networkPolicy) delete(r *NetworkPolicyReconciler) error {
 	if err := r.networkPolicyIndexer.Delete(n); err != nil {
 		r.Log.Error(err, "delete from networkPolicy indexer", "Name", n.Name, "Namespace", n.Namespace)
 	}
-	for _, gname := range n.AppliedToGroups {
+	for _, gname := range getAppliedToGroups(n) {
 		sgs, err := r.appliedToSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, gname)
 		if err != nil {
 			return fmt.Errorf("unable to get appliedToSGs %s from indexer: %w", gname, err)
