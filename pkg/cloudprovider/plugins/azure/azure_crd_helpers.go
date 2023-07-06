@@ -26,7 +26,7 @@ import (
 	"antrea.io/nephe/pkg/cloudprovider/plugins/internal"
 	"antrea.io/nephe/pkg/cloudprovider/utils"
 	"antrea.io/nephe/pkg/labels"
-	"antrea.io/nephe/pkg/util/k8s"
+	"antrea.io/nephe/pkg/util/k8s/tags"
 )
 
 var azureStateMap = map[string]runtimev1alpha1.VMState{
@@ -47,7 +47,7 @@ func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable
 	for key, value := range instance.Tags {
 		vmTags[key] = *value
 	}
-	importedTags := k8s.ImportTags(vmTags)
+	importedTags := tags.ImportTags(vmTags)
 
 	// Network interfaces associated with Virtual machine
 	instNetworkInterfaces := instance.NetworkInterfaces

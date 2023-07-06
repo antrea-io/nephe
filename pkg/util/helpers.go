@@ -15,11 +15,7 @@
 package util
 
 import (
-	"context"
 	"fmt"
-
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
@@ -52,22 +48,4 @@ func GetAccountProviderType(account *crdv1alpha1.CloudProviderAccount) (runtimev
 	} else {
 		return "", fmt.Errorf("%s", ErrorMsgUnknownCloudProvider)
 	}
-}
-
-// DoesCesCrExistsForAccount returns true if there is a CloudEntitySelector CR for a given account.
-func DoesCesCrExistsForAccount(k8sClient client.Client, namespacedName *types.NamespacedName) bool {
-	cesList := &crdv1alpha1.CloudEntitySelectorList{}
-	listOptions := &client.ListOptions{
-		Namespace: namespacedName.Namespace,
-	}
-	if err := k8sClient.List(context.TODO(), cesList, listOptions); err != nil {
-		return false
-	}
-
-	for _, ces := range cesList.Items {
-		if ces.Spec.AccountName == namespacedName.Name {
-			return true
-		}
-	}
-	return false
 }
