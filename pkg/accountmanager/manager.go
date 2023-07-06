@@ -33,6 +33,7 @@ import (
 	ctrlsync "antrea.io/nephe/pkg/controllers/sync"
 	"antrea.io/nephe/pkg/inventory"
 	"antrea.io/nephe/pkg/util"
+	"antrea.io/nephe/pkg/util/k8s/crd"
 )
 
 const (
@@ -101,7 +102,7 @@ func (a *AccountManager) AddAccount(namespacedName *types.NamespacedName, accoun
 	// Create an account poller for polling cloud inventory.
 	accPoller, exists := a.addAccountPoller(cloudInterface, namespacedName, account)
 	if !exists {
-		if !util.DoesCesCrExistsForAccount(a.Client, namespacedName) {
+		if !crd.DoesCesCrExistsForAccount(a.Client, namespacedName) {
 			a.Log.Info("Starting account poller", "account", namespacedName)
 			go wait.Until(accPoller.doAccountPolling, time.Duration(accPoller.pollIntvInSeconds)*time.Second, accPoller.ch)
 		} else {

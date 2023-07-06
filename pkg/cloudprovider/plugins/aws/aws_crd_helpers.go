@@ -25,7 +25,7 @@ import (
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	common "antrea.io/nephe/pkg/cloudprovider/plugins/internal"
 	"antrea.io/nephe/pkg/labels"
-	"antrea.io/nephe/pkg/util/k8s"
+	"antrea.io/nephe/pkg/util/k8s/tags"
 )
 
 const ResourceNameTagKey = "Name"
@@ -40,7 +40,7 @@ func ec2InstanceToInternalVirtualMachineObject(instance *ec2.Instance, vpcs map[
 			vmTags[*tag.Key] = *tag.Value
 		}
 	}
-	importedTags := k8s.ImportTags(vmTags)
+	importedTags := tags.ImportTags(vmTags)
 
 	// Network interfaces associated with Virtual machine
 	instNetworkInterfaces := instance.NetworkInterfaces

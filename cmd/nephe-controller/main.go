@@ -39,6 +39,7 @@ import (
 	"antrea.io/nephe/pkg/controllers/virtualmachine"
 	"antrea.io/nephe/pkg/inventory"
 	"antrea.io/nephe/pkg/logging"
+	"antrea.io/nephe/pkg/util/k8s/crd"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -94,6 +95,13 @@ func main() {
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
+		os.Exit(1)
+	}
+
+	// Wait for CRD to be present.
+	setupLog.Info("Checking for CRDs existence")
+	if err = crd.CheckCRDExistence(setupLog); err != nil {
+		setupLog.Info("failed to check for CRDs", "err", err)
 		os.Exit(1)
 	}
 
