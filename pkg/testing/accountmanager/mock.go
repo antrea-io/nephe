@@ -123,3 +123,31 @@ func (mr *MockInterfaceMockRecorder) RemoveResourceFiltersFromAccount(arg0, arg1
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveResourceFiltersFromAccount", reflect.TypeOf((*MockInterface)(nil).RemoveResourceFiltersFromAccount), arg0, arg1)
 }
+
+// UpdatePendingCesCount mocks base method.
+func (m *MockInterface) UpdatePendingCesCount(arg0 *types.NamespacedName) int {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdatePendingCesCount", arg0)
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// UpdatePendingCesCount indicates an expected call of UpdatePendingCesCount.
+func (mr *MockInterfaceMockRecorder) UpdatePendingCesCount(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePendingCesCount", reflect.TypeOf((*MockInterface)(nil).UpdatePendingCesCount), arg0)
+}
+
+// WaitForPollDone mocks base method.
+func (m *MockInterface) WaitForPollDone(arg0 *types.NamespacedName) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WaitForPollDone", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WaitForPollDone indicates an expected call of WaitForPollDone.
+func (mr *MockInterfaceMockRecorder) WaitForPollDone(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WaitForPollDone", reflect.TypeOf((*MockInterface)(nil).WaitForPollDone), arg0)
+}

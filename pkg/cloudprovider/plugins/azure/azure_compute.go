@@ -50,7 +50,7 @@ type computeResourcesCacheSnapshot struct {
 	// vm resources for each CloudEntitySelector CR.
 	vms            map[types.NamespacedName][]*virtualMachineTable
 	vnets          []armnetwork.VirtualNetwork
-	managedVnetIDs map[string]struct{}
+	managedVnetIds map[string]struct{}
 	vnetPeers      map[string][][]string
 }
 
@@ -157,22 +157,22 @@ func (computeCfg *computeServiceConfig) getAllCachedVirtualMachines() []*virtual
 	return instancesToReturn
 }
 
-// getManagedVnetIDs returns vnetIDs of vnets containing managed vms.
-func (computeCfg *computeServiceConfig) getManagedVnetIDs() map[string]struct{} {
-	vnetIDsCopy := make(map[string]struct{})
+// getManagedVnetIds returns vnet IDs of vnets containing managed vms.
+func (computeCfg *computeServiceConfig) getManagedVnetIds() map[string]struct{} {
+	vnetIdsCopy := make(map[string]struct{})
 	snapshot := computeCfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
 		azurePluginLogger().Info("Cache snapshot nil",
 			"type", providerType, "account", computeCfg.accountNamespacedName)
-		return vnetIDsCopy
+		return vnetIdsCopy
 	}
-	vnetIDsSet := snapshot.(*computeResourcesCacheSnapshot).managedVnetIDs
+	vnetIdsSet := snapshot.(*computeResourcesCacheSnapshot).managedVnetIds
 
-	for vnetID := range vnetIDsSet {
-		vnetIDsCopy[vnetID] = struct{}{}
+	for vnetId := range vnetIdsSet {
+		vnetIdsCopy[vnetId] = struct{}{}
 	}
 
-	return vnetIDsCopy
+	return vnetIdsCopy
 }
 
 // getCachedVnetsMap returns vnets from cache in map format.
@@ -192,7 +192,7 @@ func (computeCfg *computeServiceConfig) getCachedVnetsMap() map[string]armnetwor
 	return vnetCopy
 }
 
-func (computeCfg *computeServiceConfig) getVnetPeers(vnetID string) [][]string {
+func (computeCfg *computeServiceConfig) getVnetPeers(vnetId string) [][]string {
 	snapshot := computeCfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
 		azurePluginLogger().Info("Cache snapshot nil",
@@ -201,7 +201,7 @@ func (computeCfg *computeServiceConfig) getVnetPeers(vnetID string) [][]string {
 	}
 
 	vnetPeersCopy := make([][]string, 0)
-	if peers, ok := snapshot.(*computeResourcesCacheSnapshot).vnetPeers[vnetID]; ok {
+	if peers, ok := snapshot.(*computeResourcesCacheSnapshot).vnetPeers[vnetId]; ok {
 		vnetPeersCopy = deepcopy.Copy(peers).([][]string)
 	}
 	return vnetPeersCopy
@@ -251,7 +251,7 @@ func (computeCfg *computeServiceConfig) DoResourceInventory() error {
 		return nil
 	}
 
-	managedVnetIDs := make(map[string]struct{})
+	managedVnetIds := make(map[string]struct{})
 	for namespacedName := range computeCfg.selectors {
 		virtualMachines, err := computeCfg.getVirtualMachines(&namespacedName)
 		if err != nil {
@@ -259,11 +259,11 @@ func (computeCfg *computeServiceConfig) DoResourceInventory() error {
 			return err
 		}
 		for _, vm := range virtualMachines {
-			managedVnetIDs[*vm.VnetID] = struct{}{}
+			managedVnetIds[*vm.VnetID] = struct{}{}
 		}
 		allVirtualMachines[namespacedName] = virtualMachines
 	}
-	computeCfg.resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{allVirtualMachines, vnets, managedVnetIDs, vnetPeers})
+	computeCfg.resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{allVirtualMachines, vnets, managedVnetIds, vnetPeers})
 	return nil
 }
 
@@ -354,22 +354,22 @@ func (computeCfg *computeServiceConfig) buildMapVpcPeers(results []armnetwork.Vi
 		properties := result.Properties
 		if len(properties.VirtualNetworkPeerings) > 0 {
 			for _, peerConn := range properties.VirtualNetworkPeerings {
-				var requesterID, destinationID, sourceID string
-				accepterID := strings.ToLower(*result.ID)
+				var requesterId, destinationId, sourceId string
+				accepterId := strings.ToLower(*result.ID)
 				peerProperties := peerConn.Properties
 				if peerProperties != nil && peerProperties.RemoteVirtualNetwork != nil {
-					requesterID = strings.ToLower(*peerConn.Properties.RemoteVirtualNetwork.ID)
+					requesterId = strings.ToLower(*peerConn.Properties.RemoteVirtualNetwork.ID)
 				}
 
 				if peerProperties != nil && peerProperties.RemoteAddressSpace != nil &&
 					len(peerProperties.RemoteAddressSpace.AddressPrefixes) > 0 {
-					destinationID = strings.ToLower(*peerProperties.RemoteAddressSpace.AddressPrefixes[0])
+					destinationId = strings.ToLower(*peerProperties.RemoteAddressSpace.AddressPrefixes[0])
 				}
 				if properties.AddressSpace != nil && len(properties.AddressSpace.AddressPrefixes) > 0 {
-					sourceID = strings.ToLower(*properties.AddressSpace.AddressPrefixes[0])
+					sourceId = strings.ToLower(*properties.AddressSpace.AddressPrefixes[0])
 				}
 
-				vpcPeers[accepterID] = append(vpcPeers[accepterID], []string{requesterID, destinationID, sourceID})
+				vpcPeers[accepterId] = append(vpcPeers[accepterId], []string{requesterId, destinationId, sourceId})
 			}
 		}
 	}
@@ -392,7 +392,7 @@ func (computeCfg *computeServiceConfig) GetCloudInventory() *nephetypes.CloudInv
 
 // getVpcObjects generates vpc object for the vpcs stored in snapshot(in cloud format) and return a map of vpc runtime objects.
 func (computeCfg *computeServiceConfig) getVpcObjects() map[string]*runtimev1alpha1.Vpc {
-	managedVnetIDs := computeCfg.getManagedVnetIDs()
+	managedVnetIds := computeCfg.getManagedVnetIds()
 	snapshot := computeCfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
 		azurePluginLogger().Info("Cache snapshot nil",
@@ -400,11 +400,11 @@ func (computeCfg *computeServiceConfig) getVpcObjects() map[string]*runtimev1alp
 		return nil
 	}
 
-	// Convert to kubernetes object and return a map indexed using VnetID.
+	// Convert to kubernetes object and return a map indexed using vnet ID.
 	vpcMap := map[string]*runtimev1alpha1.Vpc{}
 	for _, vpc := range snapshot.(*computeResourcesCacheSnapshot).vnets {
 		managed := false
-		if _, ok := managedVnetIDs[strings.ToLower(*vpc.ID)]; ok {
+		if _, ok := managedVnetIds[strings.ToLower(*vpc.ID)]; ok {
 			managed = true
 		}
 		vpcObj := ComputeVpcToInternalVpcObject(&vpc, computeCfg.accountNamespacedName.Namespace,

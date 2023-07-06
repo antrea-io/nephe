@@ -52,6 +52,8 @@ type Interface interface {
 	IsAccountCredentialsValid(namespacedName *types.NamespacedName) (bool, error)
 	AddResourceFiltersToAccount(*types.NamespacedName, *types.NamespacedName, *crdv1alpha1.CloudEntitySelector, bool) (bool, error)
 	RemoveResourceFiltersFromAccount(*types.NamespacedName, *types.NamespacedName) error
+	UpdatePendingCesCount(namespacedName *types.NamespacedName) int
+	WaitForPollDone(namespacedName *types.NamespacedName) error
 }
 
 type AccountManager struct {
@@ -61,6 +63,9 @@ type AccountManager struct {
 	Inventory        inventory.Interface
 	accPollers       map[types.NamespacedName]*accountPoller
 	accountConfigMap map[types.NamespacedName]*accountConfig
+	// accountToSelectorCount stores number of configured CloudEntitySelector CRs for a given account.
+	// This is required for handling nephe restart case when multiple CloudEntitySelector CRs exist.
+	accountToSelectorCount map[types.NamespacedName]int
 }
 
 type accountConfig struct {
@@ -80,6 +85,7 @@ func (a *AccountManager) ConfigureAccountManager() {
 	// Init maps.
 	a.accPollers = make(map[types.NamespacedName]*accountPoller)
 	a.accountConfigMap = make(map[types.NamespacedName]*accountConfig)
+	a.accountToSelectorCount = make(map[types.NamespacedName]int)
 }
 
 // AddAccount consumes CloudProviderAccount CR and calls cloud plugin to add account. It also creates and starts account
@@ -102,11 +108,13 @@ func (a *AccountManager) AddAccount(namespacedName *types.NamespacedName, accoun
 	// Create an account poller for polling cloud inventory.
 	accPoller, exists := a.addAccountPoller(cloudInterface, namespacedName, account)
 	if !exists {
-		if !crd.DoesCesCrExistsForAccount(a.Client, namespacedName) {
+		count := crd.GetCesCrCountForAccount(a.Client, namespacedName)
+		if count == 0 {
 			a.Log.Info("Starting account poller", "account", namespacedName)
 			go wait.Until(accPoller.doAccountPolling, time.Duration(accPoller.pollIntvInSeconds)*time.Second, accPoller.ch)
 		} else {
 			a.Log.V(1).Info("Ignoring start of account poller", "account", namespacedName)
+			a.accountToSelectorCount[*namespacedName] = count
 			if ctrlsync.GetControllerSyncStatusInstance().IsControllerSynced(ctrlsync.ControllerTypeCPA) && !config.initialized {
 				// Replay CES CR only when account init state is changed from failure to success.
 				a.replaySelectorsForAccount(namespacedName, config)
@@ -162,7 +170,7 @@ func (a *AccountManager) AddResourceFiltersToAccount(accNamespacedName *types.Na
 	cloudProviderType, ok := a.getAccountProviderType(accNamespacedName)
 	if !ok {
 		return true, fmt.Errorf(fmt.Sprintf("failed to add or update selector %v, account %v: "+
-			"provider type not found", selectorNamespacedName, accNamespacedName))
+			"account config not found", selectorNamespacedName, accNamespacedName))
 	}
 	cloudInterface, _ := cloud.GetCloudInterface(cloudProviderType)
 	if !replay {
@@ -192,9 +200,7 @@ func (a *AccountManager) AddResourceFiltersToAccount(accNamespacedName *types.Na
 		accPoller.addOrUpdateSelector(selectorCopy)
 	}
 
-	accPoller.restartPoller(accNamespacedName)
-	// wait for polling to complete after restart.
-	return false, accPoller.waitForPollDone(accNamespacedName)
+	return false, nil
 }
 
 // RemoveResourceFiltersFromAccount removes selector from cloud plugin and restart the poller.
@@ -203,7 +209,7 @@ func (a *AccountManager) RemoveResourceFiltersFromAccount(accNamespacedName *typ
 	cloudProviderType, ok := a.getAccountProviderType(accNamespacedName)
 	if !ok {
 		// If we cannot find cloud provider type, that means CPA may not be added, or it's already removed.
-		return fmt.Errorf(fmt.Sprintf("failed to delete selector %v, account %v: provider type not found",
+		return fmt.Errorf(fmt.Sprintf("failed to delete selector %v, account %v: account config not found",
 			selectorNamespacedName, accNamespacedName))
 	}
 	cloudInterface, _ := cloud.GetCloudInterface(cloudProviderType)
@@ -273,12 +279,13 @@ func (a *AccountManager) removeAccountPoller(namespacedName *types.NamespacedNam
 	if !exists {
 		return fmt.Errorf(fmt.Sprintf("%v %v", errorMsgAccountPollerNotFound, namespacedName))
 	}
-	_ = accPoller.inventory.DeleteAllVmsFromCache(namespacedName)
-	accPoller.stopPoller()
 
 	a.mutex.Lock()
 	defer a.mutex.Unlock()
 	delete(a.accPollers, *namespacedName)
+
+	accPoller.stopPoller()
+	_ = accPoller.inventory.DeleteAllVmsFromCache(namespacedName)
 	return nil
 }
 
@@ -409,6 +416,10 @@ func (a *AccountManager) replaySelectorsForAccount(accNamespacedName *types.Name
 		// set status with the latest error message or clear status.
 		a.updateSelectorStatus(&namespacedName, err)
 	}
+	accPoller, exists := a.getAccountPoller(accNamespacedName)
+	if exists {
+		accPoller.restartPoller(accNamespacedName)
+	}
 }
 
 // updateSelectorStatus updates the status on the CloudEntitySelector CR.
@@ -437,4 +448,33 @@ func (a *AccountManager) updateSelectorStatus(namespacedName *types.NamespacedNa
 	if err := retry.RetryOnConflict(retry.DefaultRetry, updateStatusFunc); err != nil {
 		a.Log.Error(err, "failed to update CES status", "selector", namespacedName)
 	}
+}
+
+// UpdatePendingCesCount decrements pending CES count.
+// Upon restart, wait for all CES to be added before starting cloud inventory poll.
+// In restart case, accountToSelectorMap holds number of CES CRs if any CES CR is present in etcd.
+func (a *AccountManager) UpdatePendingCesCount(namespacedName *types.NamespacedName) int {
+	var cesCount int
+
+	if _, found := a.accountToSelectorCount[*namespacedName]; !found {
+		return cesCount
+	}
+	a.accountToSelectorCount[*namespacedName]--
+	cesCount = a.accountToSelectorCount[*namespacedName]
+	if cesCount == 0 {
+		delete(a.accountToSelectorCount, *namespacedName)
+	}
+
+	return cesCount
+}
+
+// WaitForPollDone restarts account poller and waits till inventory poll is done.
+func (a *AccountManager) WaitForPollDone(namespacedName *types.NamespacedName) error {
+	accPoller, exists := a.getAccountPoller(namespacedName)
+	if exists {
+		accPoller.restartPoller(namespacedName)
+		// wait for polling to complete after poller restart.
+		return accPoller.waitForPollDone(namespacedName)
+	}
+	return nil
 }

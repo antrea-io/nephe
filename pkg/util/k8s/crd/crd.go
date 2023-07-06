@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"time"
 
-	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/go-logr/logr"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -27,24 +26,24 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 )
 
-// DoesCesCrExistsForAccount returns true if there is a CloudEntitySelector CR for a given account.
-func DoesCesCrExistsForAccount(k8sClient client.Client, namespacedName *types.NamespacedName) bool {
+// GetCesCrCountForAccount returns number of CloudEntitySelector CR for a given account.
+func GetCesCrCountForAccount(k8sClient client.Client, namespacedName *types.NamespacedName) int {
+	var cesCount int
 	cesList := &crdv1alpha1.CloudEntitySelectorList{}
-	listOptions := &client.ListOptions{
-		Namespace: namespacedName.Namespace,
-	}
-	if err := k8sClient.List(context.TODO(), cesList, listOptions); err != nil {
-		return false
+	if err := k8sClient.List(context.TODO(), cesList); err != nil {
+		return cesCount
 	}
 
 	for _, ces := range cesList.Items {
-		if ces.Spec.AccountName == namespacedName.Name {
-			return true
+		if ces.Spec.AccountName == namespacedName.Name && ces.Spec.AccountNamespace == namespacedName.Namespace {
+			cesCount++
 		}
 	}
-	return false
+	return cesCount
 }
 
 // CheckCRDExistence checks if the custom resource definitions are installed on the API server.

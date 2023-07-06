@@ -81,12 +81,11 @@ func (v *CESMutator) Handle(_ context.Context, req admission.Request) admission.
 		Name:      selector.Spec.AccountName,
 	}
 	referencedAccount := &v1alpha1.CloudProviderAccount{}
-	err = v.Client.Get(context.TODO(), *accountNameSpacedName, referencedAccount)
-	if err != nil {
-		v.Log.Error(err, errorMsgReferencedAccountNotFound, "CloudEntitySelector", selector, "Account name", selector.Spec.AccountName,
-			"Account namespace", selector.Spec.AccountNamespace)
-		return admission.Errored(http.StatusBadRequest, fmt.Errorf("%s, account name : %s, account namespace: %s",
-			errorMsgReferencedAccountNotFound, selector.Spec.AccountName, selector.Spec.AccountNamespace))
+	if err = v.Client.Get(context.TODO(), *accountNameSpacedName, referencedAccount); err != nil {
+		errorMsg := fmt.Sprintf("%s, account name : %s, account namespace: %s",
+			errorMsgReferencedAccountNotFound, selector.Spec.AccountName, selector.Spec.AccountNamespace)
+		v.Log.Error(err, errorMsg, "CloudEntitySelector", selector)
+		return admission.Errored(http.StatusBadRequest, fmt.Errorf(errorMsg))
 	}
 	cloudProviderType, err := util.GetAccountProviderType(referencedAccount)
 	if err != nil {

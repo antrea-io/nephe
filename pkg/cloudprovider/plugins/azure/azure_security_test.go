@@ -281,7 +281,7 @@ var _ = Describe("Azure Cloud Security", func() {
 			vmSnapshot[selectorNamespacedName] = vmInfo
 			serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(
 				&computeResourcesCacheSnapshot{vmSnapshot, snapshot.(*computeResourcesCacheSnapshot).vnets,
-					snapshot.(*computeResourcesCacheSnapshot).managedVnetIDs, snapshot.(*computeResourcesCacheSnapshot).vnetPeers})
+					snapshot.(*computeResourcesCacheSnapshot).managedVnetIds, snapshot.(*computeResourcesCacheSnapshot).vnetPeers})
 		})
 
 		AfterEach(func() {
@@ -903,7 +903,7 @@ var _ = Describe("Azure Cloud Security", func() {
 				vmSnapshot[selectorNamespacedName] = vmToUpdate
 				serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(
 					&computeResourcesCacheSnapshot{vmSnapshot, snapshot.(*computeResourcesCacheSnapshot).vnets,
-						snapshot.(*computeResourcesCacheSnapshot).managedVnetIDs, snapshot.(*computeResourcesCacheSnapshot).vnetPeers})
+						snapshot.(*computeResourcesCacheSnapshot).managedVnetIds, snapshot.(*computeResourcesCacheSnapshot).vnetPeers})
 				inventory := serviceConfig.(*computeServiceConfig).GetCloudInventory()
 				Expect(len(inventory.VmMap[selectorNamespacedName])).To(Equal(1))
 				Expect(len(inventory.VpcMap)).To(Equal(1))
