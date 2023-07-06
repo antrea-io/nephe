@@ -95,7 +95,7 @@ func (i *Inventory) BuildVpcCache(discoveredVpcMap map[string]*runtimev1alpha1.V
 			}
 		}
 		if err != nil {
-			i.log.Error(err, "failed to update vpc in vpc cache", "vpc", discoveredVpc.Status.CloudId,
+			i.log.Error(err, "failed to update vpc in vpc cache", "vpc id", discoveredVpc.Status.CloudId,
 				"account", namespacedName.String())
 		}
 	}
@@ -121,7 +121,7 @@ func (i *Inventory) DeleteVpcsFromCache(namespacedName *types.NamespacedName) er
 		}
 		key := fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[nephelabels.CloudAccountName], vpc.Status.CloudId)
 		if err := i.vpcStore.Delete(key); err != nil {
-			i.log.Error(err, "failed to delete vpc from vpc cache, account: %v", *namespacedName)
+			i.log.Error(err, "failed to delete vpc from vpc cache", "vpc id", vpc.Status.CloudId, "account", *namespacedName)
 		} else {
 			numVpcsToDelete++
 		}
@@ -165,8 +165,8 @@ func (i *Inventory) BuildVmCache(discoveredVmMap map[string]*runtimev1alpha1.Vir
 		if _, found := discoveredVmMap[cachedVm.Name]; !found {
 			key := fmt.Sprintf("%v/%v", cachedVm.Namespace, cachedVm.Name)
 			if err := i.vmStore.Delete(key); err != nil {
-				i.log.Error(err, "failed to delete vm from vm cache, account: %v, selector: %v, vm: %v",
-					*accountNamespacedName, *selectorNamespacedName, cachedVm.Name)
+				i.log.Error(err, "failed to delete vm from vm cache", "vm", cachedVm.Name, "account",
+					*accountNamespacedName, "selector", *selectorNamespacedName)
 			} else {
 				numVmsToDelete++
 			}
@@ -225,7 +225,7 @@ func (i *Inventory) DeleteAllVmsFromCache(accountNamespacedName *types.Namespace
 		}
 		key := fmt.Sprintf("%v/%v", cachedVm.Namespace, cachedVm.Name)
 		if err := i.vmStore.Delete(key); err != nil {
-			i.log.Error(err, "failed to delete vm from vm cache, account: %v, vm: %v", *accountNamespacedName, cachedVm.Name)
+			i.log.Error(err, "failed to delete vm from vm cache", "vm", cachedVm.Name, "account", *accountNamespacedName)
 		} else {
 			numVmsToDelete++
 		}
@@ -252,8 +252,8 @@ func (i *Inventory) DeleteVmsFromCache(accountNamespacedName *types.NamespacedNa
 		}
 		key := fmt.Sprintf("%v/%v", cachedVm.Namespace, cachedVm.Name)
 		if err := i.vmStore.Delete(key); err != nil {
-			i.log.Error(err, "failed to delete vm from vm cache, account: %v, selector: %v, vm: %v",
-				*accountNamespacedName, *selectorNamespacedName, cachedVm.Name)
+			i.log.Error(err, "failed to delete vm from vm cache", "vm", cachedVm.Name, "account",
+				*accountNamespacedName, "selector", *selectorNamespacedName)
 		} else {
 			numVmsToDelete++
 		}
@@ -297,7 +297,7 @@ func (i *Inventory) WatchVms(ctx context.Context, key string, labelSelector labe
 }
 
 // compareVirtualMachineObjects compare if two virtual machine objects are the same. Return true if same.
-func (i Inventory) compareVirtualMachineObjects(cached, discovered runtimev1alpha1.VirtualMachineStatus) bool {
+func (i *Inventory) compareVirtualMachineObjects(cached, discovered runtimev1alpha1.VirtualMachineStatus) bool {
 	// 1. Check if objects are same.
 	if reflect.DeepEqual(cached, discovered) {
 		return true
