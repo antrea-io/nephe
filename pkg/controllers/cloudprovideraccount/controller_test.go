@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/watch"
 	fakewatch "k8s.io/client-go/kubernetes/fake"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -40,25 +41,27 @@ import (
 	antreanetworking "antrea.io/antrea/pkg/apis/controlplane/v1beta2"
 	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	"antrea.io/nephe/apis/crd/v1alpha1"
-	cloud "antrea.io/nephe/apis/crd/v1alpha1"
+	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	ctrlsync "antrea.io/nephe/pkg/controllers/sync"
 	mockaccmanager "antrea.io/nephe/pkg/testing/accountmanager"
+	mocknpcontroller "antrea.io/nephe/pkg/testing/networkpolicy"
 	"antrea.io/nephe/pkg/util"
 	"antrea.io/nephe/pkg/util/env"
 )
 
 var (
-	mockCtrl       *mock.Controller
-	mockAccManager *mockaccmanager.MockInterface
-	scheme         = runtime.NewScheme()
+	mockCtrl         *mock.Controller
+	mockAccManager   *mockaccmanager.MockInterface
+	mockNpController *mocknpcontroller.MockNetworkPolicyController
+	scheme           = runtime.NewScheme()
 )
 
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 	_ = clientgoscheme.AddToScheme(scheme)
 	_ = antreatypes.AddToScheme(scheme)
-	_ = cloud.AddToScheme(scheme)
+	_ = crdv1alpha1.AddToScheme(scheme)
 	_ = antreanetworking.AddToScheme(scheme)
 })
 
@@ -88,12 +91,14 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 			fakeClient = fake.NewClientBuilder().WithScheme(newScheme).Build()
 			mockCtrl = mock.NewController(GinkgoT())
 			mockAccManager = mockaccmanager.NewMockInterface(mockCtrl)
+			mockNpController = mocknpcontroller.NewMockNetworkPolicyController(mockCtrl)
 			reconciler = &CloudProviderAccountReconciler{
-				Log:        logf.Log,
-				Client:     fakeClient,
-				Scheme:     scheme,
-				mutex:      sync.Mutex{},
-				AccManager: mockAccManager,
+				Log:          logf.Log,
+				Client:       fakeClient,
+				Scheme:       scheme,
+				mutex:        sync.Mutex{},
+				AccManager:   mockAccManager,
+				NpController: mockNpController,
 			}
 
 			pollIntv = 1
@@ -142,6 +147,10 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			mockAccManager.EXPECT().AddAccount(&testAccountNamespacedName, accountCloudType, account).Return(false, nil).Times(1)
 			mockAccManager.EXPECT().RemoveAccount(&testAccountNamespacedName).Return(nil).Times(1)
+			deletedCpa := &crdv1alpha1.CloudProviderAccount{
+				ObjectMeta: v1.ObjectMeta{Name: testAccountNamespacedName.Name, Namespace: testAccountNamespacedName.Namespace},
+			}
+			mockNpController.EXPECT().LocalEvent(watch.Event{Type: watch.Deleted, Object: deletedCpa}).Times(1)
 			err = reconciler.processCreateOrUpdate(&testAccountNamespacedName, account)
 			Expect(err).ShouldNot(HaveOccurred())
 

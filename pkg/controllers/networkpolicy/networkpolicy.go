@@ -402,7 +402,11 @@ func (s *securityGroupImpl) deleteImpl(c cloudSecurityGroup, membershipOnly bool
 	uName := getGroupUniqueName(s.id.CloudResourceID.String(), membershipOnly)
 	guName := getGroupUniqueName(s.id.Name, membershipOnly)
 	if !r.pendingDeleteGroups.Has(guName) {
-		r.pendingDeleteGroups.Add(guName, &pendingGroup{refCnt: new(int)})
+		var accountId string
+		if len(s.members) > 0 {
+			accountId = s.members[0].AccountID
+		}
+		r.pendingDeleteGroups.Add(guName, &pendingGroup{id: guName, refCnt: new(int), account: accountId})
 	}
 	var nps []interface{}
 	if s.state != securityGroupStateGarbageCollectState {
