@@ -35,6 +35,7 @@ import (
 	antreav1alpha1 "antrea.io/antrea/pkg/apis/crd/v1alpha1"
 	antreav1alpha2 "antrea.io/antrea/pkg/apis/crd/v1alpha2"
 	antreanetworkingclient "antrea.io/antrea/pkg/client/clientset/versioned/typed/controlplane/v1beta2"
+	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
 	"antrea.io/nephe/pkg/cloudprovider/securitygroup"
 	"antrea.io/nephe/pkg/config"
@@ -45,6 +46,7 @@ import (
 const (
 	NetworkPolicyStatusIndexerByNamespace       = "namespace"
 	addrAppliedToIndexerByGroupID               = "GroupID"
+	addrAppliedToIndexerByAccountId             = "AccountId"
 	appliedToIndexerByAddrGroupRef              = "AddressGrp"
 	networkPolicyIndexerByAddrGrp               = "AddressGrp"
 	networkPolicyIndexerByAppliedToGrp          = "AppliedToGrp"
@@ -56,7 +58,7 @@ const (
 	cloudResponseChBuffer = 50
 
 	// NetworkPolicy controller is ready to sync after it receives bookmarks from
-	// networkpolicy, addrssGroup and appliedToGroup.
+	// networkpolicy, addressGroup and appliedToGroup.
 	npSyncReadyBookMarkCnt = 3
 )
 
@@ -466,7 +468,9 @@ func (r *NetworkPolicyReconciler) processLocalEvent(event watch.Event) error {
 		return r.processAppliedToGroup(event)
 	case *antreanetworking.AppliedToGroupPatch:
 		return r.processAppliedToGroup(event)
-
+	case *crdv1alpha1.CloudProviderAccount:
+		cpa := event.Object.(*crdv1alpha1.CloudProviderAccount)
+		return r.removeIndexerObjectsByAccount(types.NamespacedName{Name: cpa.Name, Namespace: cpa.Namespace}.String())
 	default:
 		r.Log.Error(nil, "Unknown local event", "Event", event)
 	}
@@ -622,6 +626,13 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				addrGrp := obj.(*addrSecurityGroup)
 				return []string{addrGrp.id.Name}, nil
 			},
+			addrAppliedToIndexerByAccountId: func(obj interface{}) ([]string, error) {
+				addrGrp := obj.(*addrSecurityGroup)
+				for _, member := range addrGrp.members {
+					return []string{member.AccountID}, nil
+				}
+				return []string{}, nil
+			},
 		})
 	r.appliedToSGIndexer = cache.NewIndexer(
 		// Each appliedToSecurityGroup is uniquely identified by its ID.
@@ -642,6 +653,13 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					addrGrps = append(addrGrps, sg)
 				}
 				return addrGrps, nil
+			},
+			addrAppliedToIndexerByAccountId: func(obj interface{}) ([]string, error) {
+				appliedToGrp := obj.(*appliedToSecurityGroup)
+				for _, member := range appliedToGrp.members {
+					return []string{member.AccountID}, nil
+				}
+				return []string{}, nil
 			},
 		},
 	)
@@ -763,4 +781,120 @@ func (r *NetworkPolicyReconciler) resetWatchers() error {
 
 func (r *NetworkPolicyReconciler) GetVirtualMachinePolicyIndexer() cache.Indexer {
 	return r.virtualMachinePolicyIndexer
+}
+
+// removeIndexerObjectsByAccount removes entries based on account, from all the np
+// controller indexers
+func (r *NetworkPolicyReconciler) removeIndexerObjectsByAccount(namespacedName string) error {
+	r.Log.Info("Clearing indexers for the account", "account", namespacedName)
+	atSgs, err := r.appliedToSGIndexer.ByIndex(addrAppliedToIndexerByAccountId, namespacedName)
+	if err != nil {
+		r.Log.Error(err, "failed to get appliedToGroups from indexer", "account", namespacedName)
+	}
+
+	if len(atSgs) > 0 {
+		for _, obj := range atSgs {
+			atSg, ok := obj.(*appliedToSecurityGroup)
+			if !ok {
+				continue
+			}
+
+			// Delete NPs based on AT.
+			nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAppliedToGrp, atSg.id.Name)
+			if err != nil {
+				r.Log.Error(err, "failed to get np from indexer", "appliedToGroup", atSg.id.Name)
+			}
+			for _, obj := range nps {
+				np, ok := obj.(*networkPolicy)
+				if !ok {
+					continue
+				}
+
+				r.Log.V(1).Info("Deleting np from indexer", "np", np.Name)
+				if err := r.networkPolicyIndexer.Delete(np); err != nil {
+					r.Log.Error(err, "failed to delete np from indexer", "np", np.Name)
+				}
+			}
+
+			// Delete CloudRules based on AT.
+			rules, err := r.cloudRuleIndexer.ByIndex(cloudRuleIndexerByAppliedToGrp, atSg.id.CloudResourceID.String())
+			if err != nil {
+				r.Log.Error(err, "failed to get cloud rules from indexer", "appliedToGroup", atSg.id.CloudResourceID.String())
+			}
+			for _, obj := range rules {
+				rule, ok := obj.(*cloudresource.CloudRule)
+				if !ok {
+					continue
+				}
+
+				r.Log.V(1).Info("Deleting cloud rule from indexer", "rule", rule.NpNamespacedName)
+				if err := r.cloudRuleIndexer.Delete(rule); err != nil {
+					r.Log.Error(err, "failed to delete cloud rule from indexer",
+						"appliedToGroup", atSg.id.CloudResourceID.String(), "rule", rule.NpNamespacedName)
+				}
+			}
+
+			// Delete AT.
+			r.Log.V(1).Info("Deleting appliedToGroup from indexer", "appliedToGroup", atSg.id.Name)
+			if err := r.appliedToSGIndexer.Delete(atSg); err != nil {
+				r.Log.Error(err, "failed to delete appliedToGroup from indexer", "atSg", atSg.id.Name)
+			}
+		}
+	}
+
+	// Delete AG.
+	agSgs, err := r.addrSGIndexer.ByIndex(addrAppliedToIndexerByAccountId, namespacedName)
+	if err != nil {
+		r.Log.Error(err, "failed to get addressGroups from indexer", "account", namespacedName)
+	}
+	if len(agSgs) > 0 {
+		for _, obj := range agSgs {
+			agSg, ok := obj.(*addrSecurityGroup)
+			if !ok {
+				continue
+			}
+
+			r.Log.V(1).Info("Deleting addressGroup from indexer", "addressGroup", agSg.id.Name)
+			if err := r.addrSGIndexer.Delete(agSg); err != nil {
+				r.Log.Error(err, "failed to delete addressGroup from indexer", "addressGroup", agSg.id.Name)
+			}
+		}
+	}
+
+	// Remove AT and AG group from retryQueue.
+	for _, item := range r.retryQueue.items {
+		agSg, ok := item.PendingItem.(*addrSecurityGroup)
+		if ok {
+			uName := getGroupUniqueName(agSg.id.CloudResourceID.String(), true)
+			for _, member := range agSg.members {
+				if member.AccountID == namespacedName {
+					r.Log.V(1).Info("Removing addressGroup from retryQueue", "uName", uName)
+					r.retryQueue.Remove(uName)
+					break
+				}
+			}
+		}
+
+		atSg, ok := item.PendingItem.(*appliedToSecurityGroup)
+		if ok {
+			uName := getGroupUniqueName(atSg.id.CloudResourceID.String(), false)
+			for _, member := range atSg.members {
+				if member.AccountID == namespacedName {
+					r.Log.V(1).Info("Removing appliedToGroup from retryQueue", "uName", uName)
+					r.retryQueue.Remove(uName)
+					break
+				}
+			}
+		}
+	}
+
+	for _, item := range r.pendingDeleteGroups.items {
+		group, ok := item.PendingItem.(*pendingGroup)
+		if ok && group.account == namespacedName {
+			r.Log.V(1).Info("Removing group from pendingDeleteGroups", "groupName", group.id)
+			r.pendingDeleteGroups.Remove(group.id)
+		}
+	}
+
+	return nil
 }
