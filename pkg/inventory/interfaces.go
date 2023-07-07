@@ -69,4 +69,7 @@ type VMStore interface {
 
 	// WatchVms returns a watch interface on the vm cache for the given selectors.
 	WatchVms(ctx context.Context, key string, labelSelector labels.Selector, fieldSelector fields.Selector) (watch.Interface, error)
+
+	// UpdateVm updates virtual machine object in vm cache.
+	UpdateVm(vm *runtimev1alpha1.VirtualMachine) error
 }

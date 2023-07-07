@@ -65,5 +65,6 @@ func genTargetEntityLabels(source interface{}, cl client.Client) map[string]stri
 		labelKey := labels.LabelPrefixNephe + labels.ExternalEntityLabelKeyTagPrefix + key
 		entityLabels[labelKey] = val
 	}
+
 	return entityLabels
 }

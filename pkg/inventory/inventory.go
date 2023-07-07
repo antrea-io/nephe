@@ -323,3 +323,9 @@ func (i *Inventory) compareVirtualMachineObjects(cached, discovered runtimev1alp
 	sortInterfacesFunc(dis.NetworkInterfaces)
 	return reflect.DeepEqual(cached.NetworkInterfaces, dis.NetworkInterfaces)
 }
+
+// UpdateVm updates virtual machine object in vm cache.
+func (i *Inventory) UpdateVm(vm *runtimev1alpha1.VirtualMachine) error {
+	i.log.Info("Updating virtual machine", "namespace", vm.Namespace, "name", vm.Name)
+	return i.vmStore.Update(vm)
+}

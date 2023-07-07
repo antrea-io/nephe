@@ -88,7 +88,7 @@ type NetworkInterface struct {
 type VirtualMachineStatus struct {
 	// Provider specifies cloud provider of this VirtualMachine.
 	Provider CloudProvider `json:"provider,omitempty"`
-	// Tags of this VirtualMachine. A corresponding label is also generated for each tag.
+	// Discovered tags of this VirtualMachine from cloud.
 	Tags map[string]string `json:"tags,omitempty"`
 	// NetworkInterfaces is array of NetworkInterfaces attached to this VirtualMachine.
 	NetworkInterfaces []NetworkInterface `json:"networkInterfaces,omitempty"`
@@ -108,6 +108,11 @@ type VirtualMachineStatus struct {
 	CloudVpcName string `json:"cloudVpcName,omitempty"`
 }
 
+type VirtualMachineSpec struct {
+	// User tags of this VirtualMachine.
+	Tags map[string]string `json:"tags,omitempty"`
+}
+
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 
@@ -118,6 +123,7 @@ type VirtualMachine struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	Spec   VirtualMachineSpec   `json:"spec,omitempty"`
 	Status VirtualMachineStatus `json:"status,omitempty"`
 }
 
