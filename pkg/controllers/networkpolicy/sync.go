@@ -16,6 +16,7 @@ package networkpolicy
 
 import (
 	"fmt"
+	"time"
 
 	"k8s.io/apimachinery/pkg/watch"
 
@@ -23,6 +24,10 @@ import (
 	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
 	"antrea.io/nephe/pkg/cloudprovider/securitygroup"
 	"antrea.io/nephe/pkg/inventory/indexer"
+)
+
+var (
+	lastSyncTime = time.Now().Unix()
 )
 
 // syncImpl synchronizes securityGroup memberships with cloud.
@@ -190,9 +195,12 @@ func (a *appliedToSecurityGroup) sync(syncContent *cloudresource.Synchronization
 // syncWithCloud synchronizes security group in controller with cloud.
 // This is a blocking call intentionally so that no other events are accepted during
 // synchronization.
-func (r *NetworkPolicyReconciler) syncWithCloud() {
-	log := r.Log.WithName("CloudSync")
+func (r *NetworkPolicyReconciler) syncWithCloud(forceSync bool) {
+	if !forceSync && time.Now().Unix()-lastSyncTime < r.CloudSyncInterval {
+		return
+	}
 
+	log := r.Log.WithName("CloudSync")
 	if r.bookmarkCnt < npSyncReadyBookMarkCnt {
 		return
 	}
@@ -243,6 +251,7 @@ func (r *NetworkPolicyReconciler) syncWithCloud() {
 		log.V(0).Info("Delete address security group not found in cache", "Name", sg.id.Name)
 		_ = sg.delete(r)
 	}
+	lastSyncTime = time.Now().Unix()
 }
 
 // processBookMark process bookmark event and return true.
@@ -254,7 +263,7 @@ func (r *NetworkPolicyReconciler) processBookMark(event watch.EventType) bool {
 		return true
 	}
 	r.bookmarkCnt++
-	r.syncWithCloud()
+	r.syncWithCloud(true)
 	return true
 }
 

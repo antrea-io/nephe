@@ -1089,7 +1089,7 @@ var _ = Describe("NetworkPolicy", func() {
 		// retry without delete error
 		sgConfig.sgDeleteError = nil
 		verifyDeleteNP(false)
-		reconciler.retryQueue.CheckToRun()
+		reconciler.retryQueue.CheckToRun(true)
 		wait()
 		verifyNPTracker(trackedVMs, false, false)
 		verifyNPStatus(trackedVMs, false, false)
@@ -1134,7 +1134,7 @@ var _ = Describe("NetworkPolicy", func() {
 		Expect(len(reconciler.retryQueue.items)).To(Equal(len(anp.Rules) + len(anp.AppliedToGroups)))
 		sgConfig.sgDeletePending = false
 		verifyDeleteNP(false)
-		reconciler.retryQueue.CheckToRun()
+		reconciler.retryQueue.CheckToRun(true)
 		verifyCreateNP()
 		wait()
 		Expect(len(reconciler.retryQueue.items)).To(BeZero())
@@ -1243,34 +1243,34 @@ var _ = Describe("NetworkPolicy", func() {
 			wait()
 			sgConfig = opSgConfig[op][1]
 			for i := 0; i < retries-1; i++ {
-				if i < operationCount {
+				if i < retryCount {
 					Expect(len(reconciler.retryQueue.items)).To(Equal(itemCnt))
 					verifyCreateNP()
 				}
-				reconciler.retryQueue.CheckToRun()
+				reconciler.retryQueue.CheckToRun(true)
 				wait()
 			}
-			if retries <= operationCount {
+			if retries <= retryCount {
 				sgConfig = opSgConfig[op][2]
 				Expect(len(reconciler.retryQueue.items)).To(Equal(itemCnt))
 				verifyCreateNP()
-				reconciler.retryQueue.CheckToRun()
+				reconciler.retryQueue.CheckToRun(true)
 				wait()
 			}
 			Expect(len(reconciler.retryQueue.items)).To(BeZero())
 		},
 		Entry("K8sGet failure count 1", "K8sGet", 1),
 		Entry("K8sGet failure count 3", "K8sGet", 3),
-		Entry("K8sGet failure count exceeds limits", "K8sGet", operationCount+2),
+		Entry("K8sGet failure count exceeds limits", "K8sGet", retryCount+2),
 		Entry("Create failure count 1", securityGroupOperationAdd.String(), 1),
 		Entry("Create failure count 3", securityGroupOperationAdd.String(), 3),
-		Entry("Create failure count exceeds limits", securityGroupOperationAdd.String(), operationCount+2),
+		Entry("Create failure count exceeds limits", securityGroupOperationAdd.String(), retryCount+2),
 		Entry("Update failure count 1", securityGroupOperationUpdateMembers.String(), 1),
 		Entry("Update failure count 3", securityGroupOperationUpdateMembers.String(), 3),
-		Entry("Update failure count exceeds limits", securityGroupOperationUpdateMembers.String(), operationCount+2),
+		Entry("Update failure count exceeds limits", securityGroupOperationUpdateMembers.String(), retryCount+2),
 		Entry("Update rule failure count 1", securityGroupOperationUpdateRules.String(), 1),
 		Entry("Update rule failure count 3", securityGroupOperationUpdateRules.String(), 3),
-		Entry("Update rule failure count exceeds limits", securityGroupOperationUpdateRules.String(), operationCount+2),
+		Entry("Update rule failure count exceeds limits", securityGroupOperationUpdateRules.String(), retryCount+2),
 	)
 
 	DescribeTable("NetworkPolicy groups delete operation failures",
@@ -1281,25 +1281,25 @@ var _ = Describe("NetworkPolicy", func() {
 			deleteAndVerifyNP(false)
 			sgConfig = opSgConfig[op][1]
 			for i := 0; i < retries-1; i++ {
-				if i < operationCount {
+				if i < retryCount {
 					Expect(len(reconciler.retryQueue.items)).To(Equal(itemCnt))
 					verifyDeleteNP(false)
 				}
-				reconciler.retryQueue.CheckToRun()
+				reconciler.retryQueue.CheckToRun(true)
 				wait()
 			}
-			if retries <= operationCount {
+			if retries <= retryCount {
 				sgConfig = opSgConfig[op][2]
 				Expect(len(reconciler.retryQueue.items)).To(Equal(itemCnt))
 				verifyDeleteNP(false)
-				reconciler.retryQueue.CheckToRun()
+				reconciler.retryQueue.CheckToRun(true)
 				wait()
 			}
 			Expect(len(reconciler.retryQueue.items)).To(BeZero())
 		},
 		Entry("Delete failure count 1", securityGroupOperationDelete.String(), 1),
 		Entry("Delete failure count 3", securityGroupOperationDelete.String(), 3),
-		Entry("Delete failure count exceeds limits", securityGroupOperationDelete.String(), operationCount+2),
+		Entry("Delete failure count exceeds limits", securityGroupOperationDelete.String(), retryCount+2),
 	)
 
 	DescribeTable("NetworkPolicy group deletion cancels retrying operation",
@@ -1423,7 +1423,7 @@ var _ = Describe("NetworkPolicy", func() {
 				}()
 			}
 			reconciler.bookmarkCnt = npSyncReadyBookMarkCnt
-			reconciler.syncWithCloud()
+			reconciler.syncWithCloud(true)
 			wait()
 		},
 		Entry("Cloud has no security group", cloudReturnNoSG),
