@@ -346,6 +346,8 @@ type securityGroupImpl struct {
 	deletePending bool
 	// status of last operation.
 	status error
+	// true if retry is required.
+	retryEnabled bool
 	// current retried operation.
 	retryOp *securityGroupOperation
 	// true if retry operation is ongoing.
@@ -503,7 +505,7 @@ func (s *securityGroupImpl) notifyImpl(c PendingItem, membershipOnly bool, op se
 	r *NetworkPolicyReconciler) {
 	moreOps := false
 	uName := getGroupUniqueName(s.id.CloudResourceID.String(), membershipOnly)
-	if status != nil && !r.retryQueue.Has(uName) &&
+	if status != nil && !r.retryQueue.Has(uName) && s.retryEnabled &&
 		(s.state != securityGroupStateGarbageCollectState || op == securityGroupOperationDelete) {
 		// ignore prior non-delete failure during delete
 		s.retryOp = &op
@@ -560,6 +562,7 @@ func newAddrSecurityGroup(id *cloudresource.CloudResource, data interface{}, sta
 	} else {
 		sg.state = securityGroupStateInit
 	}
+	sg.retryEnabled = true
 	sg.id = *id
 	return sg
 }
@@ -734,6 +737,7 @@ func newAppliedToSecurityGroup(id *cloudresource.CloudResource, data interface{}
 	} else {
 		sg.state = securityGroupStateInit
 	}
+	sg.retryEnabled = true
 	return sg
 }
 
