@@ -18,9 +18,11 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 
 	network "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
+	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -34,6 +36,7 @@ import (
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
+	"antrea.io/nephe/pkg/cloudprovider/utils"
 	"antrea.io/nephe/pkg/config"
 )
 
@@ -54,7 +57,7 @@ var _ = Describe("Azure Cloud Security", func() {
 		atAsgName                         = "atapplicationsgID"
 		agAsgID                           = "nephe-ag-agapplicationsgID"
 		agAsgName                         = "agapplicationsgID"
-		testPriority                      = int32(100)
+		testPriority                      = int32(ruleStartPriority)
 		testDirection                     = network.SecurityRuleDirectionInbound
 		testSourcePortRange               = "*"
 		testDestinationPortRange          = "*"
@@ -94,6 +97,8 @@ var _ = Describe("Azure Cloud Security", func() {
 			selector   *crdv1alpha1.CloudEntitySelector
 			secret     *corev1.Secret
 			fakeClient client.WithWatch
+			asglist    []network.ApplicationSecurityGroup
+			nsg        network.SecurityGroup
 
 			mockCtrl                        *gomock.Controller
 			mockAzureServiceHelper          *MockazureServicesHelper
@@ -180,7 +185,7 @@ var _ = Describe("Azure Cloud Security", func() {
 			mockazureResourceGraph.EXPECT().resources(gomock.Any(), gomock.Any()).Return(getResourceGraphResult(), nil).AnyTimes()
 			atAsg := &network.ApplicationSecurityGroup{ID: &testATAsgID, Name: &atAsgID}
 			agAsg := &network.ApplicationSecurityGroup{ID: &testAGAsgID, Name: &agAsgID}
-			asglist := []network.ApplicationSecurityGroup{*agAsg, *atAsg}
+			asglist = []network.ApplicationSecurityGroup{*agAsg, *atAsg}
 
 			nsgrule := &network.SecurityRule{
 				ID: &nsgID,
@@ -194,7 +199,7 @@ var _ = Describe("Azure Cloud Security", func() {
 				},
 			}
 
-			nsg := network.SecurityGroup{
+			nsg = network.SecurityGroup{
 				Properties: &network.SecurityGroupPropertiesFormat{
 					SecurityRules: []*network.SecurityRule{nsgrule},
 				},
@@ -202,14 +207,19 @@ var _ = Describe("Azure Cloud Security", func() {
 				Name: &nsgID,
 			}
 
-			mockazureNsgWrapper.EXPECT().createOrUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nsg, nil).AnyTimes()
-			mockazureNsgWrapper.EXPECT().get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nsg, nil).AnyTimes()
+			mockazureNsgWrapper.EXPECT().get(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes().
+				DoAndReturn(func(_ context.Context, _ string, _ string, _ string) (network.SecurityGroup, error) {
+					return nsg, nil
+				})
 			mockazureNwIntfWrapper.EXPECT().listAllComplete(gomock.Any()).AnyTimes()
 
 			mockazureAsgWrapper.EXPECT().createOrUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(*agAsg, nil).AnyTimes()
 			mockazureAsgWrapper.EXPECT().get(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
 			mockazureAsgWrapper.EXPECT().delete(gomock.Any(), gomock.Any(), gomock.Any()).AnyTimes()
-			mockazureAsgWrapper.EXPECT().listComplete(gomock.Any(), gomock.Any()).Return(asglist, nil).AnyTimes()
+			mockazureAsgWrapper.EXPECT().listComplete(gomock.Any(), gomock.Any()).AnyTimes().
+				DoAndReturn(func(_ context.Context, _ string) ([]network.ApplicationSecurityGroup, error) {
+					return asglist, nil
+				})
 
 			fakeClient = fake.NewClientBuilder().Build()
 			c = newAzureCloud(mockAzureServiceHelper)
@@ -403,21 +413,24 @@ var _ = Describe("Azure Cloud Security", func() {
 
 				fromSrcIP := getFromSrcIP(testCidrStr)
 
-				addRules := []*cloudresource.CloudRule{{
-					Rule: &cloudresource.IngressRule{
-						Protocol:  &testProtocol,
-						FromPort:  &testFromPort,
-						FromSrcIP: fromSrcIP,
-					}, NpNamespacedName: testAnpNamespace.String()},
+				addRules := []*cloudresource.CloudRule{
 					{
+						Rule: &cloudresource.IngressRule{
+							Protocol:  &testProtocol,
+							FromPort:  &testFromPort,
+							FromSrcIP: fromSrcIP,
+						}, NpNamespacedName: testAnpNamespace.String(),
+					}, {
 						Rule: &cloudresource.EgressRule{
 							Protocol:         &testProtocol,
 							ToPort:           &testToPort,
 							ToDstIP:          fromSrcIP,
 							ToSecurityGroups: []*cloudresource.CloudResourceID{&toSg},
-						}, NpNamespacedName: testAnpNamespace.String()},
+						}, NpNamespacedName: testAnpNamespace.String(),
+					},
 				}
 
+				mockazureNsgWrapper.EXPECT().createOrUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nsg, nil).Times(1)
 				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*cloudresource.CloudRule{})
 				Expect(err).Should(BeNil())
 			})
@@ -446,6 +459,252 @@ var _ = Describe("Azure Cloud Security", func() {
 					NpNamespacedName: testAnpNamespace.String()},
 				}
 
+				mockazureNsgWrapper.EXPECT().createOrUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nsg, nil).Times(1)
+				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*cloudresource.CloudRule{})
+				Expect(err).Should(BeNil())
+			})
+
+			It("Should remove duplicate ingress security rules and update successfully", func() {
+				access := network.SecurityRuleAccessAllow
+				protocol := network.SecurityRuleProtocolTCP
+				webAddressGroupIdentifier03 := &cloudresource.CloudResource{
+					Type: cloudresource.CloudResourceTypeVM,
+					CloudResourceID: cloudresource.CloudResourceID{
+						Name: atAsgName,
+						Vpc:  testVnetID01,
+					},
+					AccountID:     testAccountNamespacedName.String(),
+					CloudProvider: string(v1alpha1.AzureCloudProvider),
+				}
+				toSg1 := cloudresource.CloudResourceID{
+					Name: agAsgName + "1",
+					Vpc:  testVnetID01,
+				}
+				toSg2 := cloudresource.CloudResourceID{
+					Name: agAsgName + "2",
+					Vpc:  testVnetID01,
+				}
+
+				addRules := []*cloudresource.CloudRule{
+					{
+						Rule: &cloudresource.IngressRule{
+							FromPort: &testFromPort,
+							FromSrcIP: []*net.IPNet{{
+								IP:   net.ParseIP("2600:1f16:c77:a001:fb97:21b2:a8dc:dc60"),
+								Mask: net.CIDRMask(128, 128)},
+							},
+							Protocol: &testProtocol,
+						}, NpNamespacedName: testAnpNamespace.String(),
+					}, {
+						Rule: &cloudresource.IngressRule{
+							FromPort: &testFromPort,
+							FromSrcIP: []*net.IPNet{{
+								IP:   net.ParseIP("2600:1f16:c77:a001:fb97:21b2:a8dc:dc61"),
+								Mask: net.CIDRMask(128, 128)},
+							},
+							Protocol: &testProtocol,
+						}, NpNamespacedName: testAnpNamespace.String(),
+					}, {
+						Rule: &cloudresource.IngressRule{
+							FromPort:           &testFromPort,
+							FromSecurityGroups: []*cloudresource.CloudResourceID{&toSg1},
+							Protocol:           &testProtocol,
+						}, NpNamespacedName: testAnpNamespace.String(),
+					}, {
+						Rule: &cloudresource.IngressRule{
+							FromPort:           &testFromPort,
+							FromSecurityGroups: []*cloudresource.CloudResourceID{&toSg2},
+							Protocol:           &testProtocol,
+						}, NpNamespacedName: testAnpNamespace.String(),
+					},
+				}
+				desc, _ := utils.GenerateCloudDescription(testAnpNamespace.String())
+				nsgrules := []*network.SecurityRule{
+					{
+						ID: &nsgID,
+						Properties: &network.SecurityRulePropertiesFormat{
+							Access:                               &access,
+							Protocol:                             &protocol,
+							DestinationApplicationSecurityGroups: []*network.ApplicationSecurityGroup{{ID: &testATAsgID}},
+							SourceAddressPrefixes:                []*string{to.StringPtr("2600:1f16:c77:a001:fb97:21b2:a8dc:dc60/128")},
+							Priority:                             &testPriority,
+							SourcePortRange:                      &testSourcePortRange,
+							DestinationPortRange:                 to.StringPtr(strconv.Itoa(testFromPort)),
+							Direction:                            &testDirection,
+							Description:                          &desc,
+						},
+					},
+					{
+						ID: &nsgID,
+						Properties: &network.SecurityRulePropertiesFormat{
+							Access:                               &access,
+							Protocol:                             &protocol,
+							DestinationApplicationSecurityGroups: []*network.ApplicationSecurityGroup{{ID: &testATAsgID}},
+							SourceAddressPrefixes:                []*string{to.StringPtr("2600:1f16:c77:a001:fb97:21b2:a8dc:dc61/128")},
+							Priority:                             to.Int32Ptr(testPriority + 1),
+							SourcePortRange:                      &testSourcePortRange,
+							DestinationPortRange:                 to.StringPtr(strconv.Itoa(testFromPort)),
+							Direction:                            &testDirection,
+							Description:                          &desc,
+						},
+					},
+					{
+						ID: &nsgID,
+						Properties: &network.SecurityRulePropertiesFormat{
+							Access:                               &access,
+							Protocol:                             &protocol,
+							SourceApplicationSecurityGroups:      []*network.ApplicationSecurityGroup{{ID: to.StringPtr(testAGAsgID + "1")}},
+							DestinationApplicationSecurityGroups: []*network.ApplicationSecurityGroup{{ID: &testATAsgID}},
+							Priority:                             to.Int32Ptr(testPriority + 2),
+							SourcePortRange:                      &testSourcePortRange,
+							DestinationPortRange:                 to.StringPtr(strconv.Itoa(testFromPort)),
+							Direction:                            &testDirection,
+							Description:                          &desc,
+						},
+					},
+				}
+
+				nsg = network.SecurityGroup{
+					Properties: &network.SecurityGroupPropertiesFormat{
+						SecurityRules: nsgrules,
+					},
+					ID:   &testNsgID,
+					Name: &nsgID,
+				}
+				asglist = []network.ApplicationSecurityGroup{
+					{ID: to.StringPtr(testAGAsgID + "1"), Name: to.StringPtr(agAsgID + "1")},
+					{ID: to.StringPtr(testAGAsgID + "2"), Name: to.StringPtr(agAsgID + "2")},
+					{ID: to.StringPtr(testATAsgID), Name: to.StringPtr(atAsgID)},
+				}
+				mockazureNsgWrapper.EXPECT().createOrUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).
+					Do(func(_ context.Context, _, _ string, parameters network.SecurityGroup) {
+						// 4 rules and 2 deny rule.
+						Expect(len(parameters.Properties.SecurityRules)).To(Equal(6))
+					})
+
+				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*cloudresource.CloudRule{})
+				Expect(err).Should(BeNil())
+			})
+
+			It("Should remove duplicate egress security rules and update successfully", func() {
+				access := network.SecurityRuleAccessAllow
+				protocol := network.SecurityRuleProtocolTCP
+				outbound := network.SecurityRuleDirectionOutbound
+				webAddressGroupIdentifier03 := &cloudresource.CloudResource{
+					Type: cloudresource.CloudResourceTypeVM,
+					CloudResourceID: cloudresource.CloudResourceID{
+						Name: atAsgName,
+						Vpc:  testVnetID01,
+					},
+					AccountID:     testAccountNamespacedName.String(),
+					CloudProvider: string(v1alpha1.AzureCloudProvider),
+				}
+				toSg1 := cloudresource.CloudResourceID{
+					Name: agAsgName + "1",
+					Vpc:  testVnetID01,
+				}
+				toSg2 := cloudresource.CloudResourceID{
+					Name: agAsgName + "2",
+					Vpc:  testVnetID01,
+				}
+
+				addRules := []*cloudresource.CloudRule{
+					{
+						Rule: &cloudresource.EgressRule{
+							ToPort: &testToPort,
+							ToDstIP: []*net.IPNet{{
+								IP:   net.ParseIP("2600:1f16:c77:a001:fb97:21b2:a8dc:dc60"),
+								Mask: net.CIDRMask(128, 128)},
+							},
+							Protocol: &testProtocol,
+						}, NpNamespacedName: testAnpNamespace.String(),
+					}, {
+						Rule: &cloudresource.EgressRule{
+							ToPort: &testToPort,
+							ToDstIP: []*net.IPNet{{
+								IP:   net.ParseIP("2600:1f16:c77:a001:fb97:21b2:a8dc:dc61"),
+								Mask: net.CIDRMask(128, 128)},
+							},
+							Protocol: &testProtocol,
+						}, NpNamespacedName: testAnpNamespace.String(),
+					}, {
+						Rule: &cloudresource.EgressRule{
+							ToPort:           &testToPort,
+							ToSecurityGroups: []*cloudresource.CloudResourceID{&toSg1},
+							Protocol:         &testProtocol,
+						}, NpNamespacedName: testAnpNamespace.String(),
+					}, {
+						Rule: &cloudresource.EgressRule{
+							ToPort:           &testToPort,
+							ToSecurityGroups: []*cloudresource.CloudResourceID{&toSg2},
+							Protocol:         &testProtocol,
+						}, NpNamespacedName: testAnpNamespace.String(),
+					},
+				}
+				desc, _ := utils.GenerateCloudDescription(testAnpNamespace.String())
+				nsgrules := []*network.SecurityRule{
+					{
+						ID: &nsgID,
+						Properties: &network.SecurityRulePropertiesFormat{
+							Access:                          &access,
+							Protocol:                        &protocol,
+							SourceApplicationSecurityGroups: []*network.ApplicationSecurityGroup{{ID: &testATAsgID}},
+							DestinationAddressPrefixes:      []*string{to.StringPtr("2600:1f16:c77:a001:fb97:21b2:a8dc:dc60/128")},
+							Priority:                        &testPriority,
+							DestinationPortRange:            to.StringPtr(strconv.Itoa(testToPort)),
+							SourcePortRange:                 &testSourcePortRange,
+							Direction:                       &outbound,
+							Description:                     &desc,
+						},
+					},
+					{
+						ID: &nsgID,
+						Properties: &network.SecurityRulePropertiesFormat{
+							Access:                          &access,
+							Protocol:                        &protocol,
+							SourceApplicationSecurityGroups: []*network.ApplicationSecurityGroup{{ID: &testATAsgID}},
+							DestinationAddressPrefixes:      []*string{to.StringPtr("2600:1f16:c77:a001:fb97:21b2:a8dc:dc61/128")},
+							Priority:                        to.Int32Ptr(testPriority + 1),
+							DestinationPortRange:            to.StringPtr(strconv.Itoa(testToPort)),
+							SourcePortRange:                 &testSourcePortRange,
+							Direction:                       &outbound,
+							Description:                     &desc,
+						},
+					},
+					{
+						ID: &nsgID,
+						Properties: &network.SecurityRulePropertiesFormat{
+							Access:                               &access,
+							Protocol:                             &protocol,
+							DestinationApplicationSecurityGroups: []*network.ApplicationSecurityGroup{{ID: to.StringPtr(testAGAsgID + "1")}},
+							SourceApplicationSecurityGroups:      []*network.ApplicationSecurityGroup{{ID: &testATAsgID}},
+							Priority:                             to.Int32Ptr(testPriority + 2),
+							DestinationPortRange:                 to.StringPtr(strconv.Itoa(testToPort)),
+							SourcePortRange:                      &testSourcePortRange,
+							Direction:                            &outbound,
+							Description:                          &desc,
+						},
+					},
+				}
+
+				nsg = network.SecurityGroup{
+					Properties: &network.SecurityGroupPropertiesFormat{
+						SecurityRules: nsgrules,
+					},
+					ID:   &testNsgID,
+					Name: &nsgID,
+				}
+				asglist = []network.ApplicationSecurityGroup{
+					{ID: to.StringPtr(testAGAsgID + "1"), Name: to.StringPtr(agAsgID + "1")},
+					{ID: to.StringPtr(testAGAsgID + "2"), Name: to.StringPtr(agAsgID + "2")},
+					{ID: to.StringPtr(testATAsgID), Name: to.StringPtr(atAsgID)},
+				}
+				mockazureNsgWrapper.EXPECT().createOrUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).
+					Do(func(_ context.Context, _, _ string, parameters network.SecurityGroup) {
+						// 4 rules and 2 deny rule.
+						Expect(len(parameters.Properties.SecurityRules)).To(Equal(6))
+					})
+
 				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*cloudresource.CloudRule{})
 				Expect(err).Should(BeNil())
 			})
@@ -464,13 +723,14 @@ var _ = Describe("Azure Cloud Security", func() {
 
 				fromSrcIP := getFromSrcIP(testCidrStr)
 
-				addRules := []*cloudresource.CloudRule{{
-					Rule: &cloudresource.IngressRule{
-						Protocol:  &testProtocol,
-						FromPort:  &testFromPort,
-						FromSrcIP: fromSrcIP,
-					}},
+				addRules := []*cloudresource.CloudRule{
 					{
+						Rule: &cloudresource.IngressRule{
+							Protocol:  &testProtocol,
+							FromPort:  &testFromPort,
+							FromSrcIP: fromSrcIP,
+						},
+					}, {
 						Rule: &cloudresource.EgressRule{
 							Protocol: &testProtocol,
 							ToPort:   &testToPort,
@@ -478,7 +738,8 @@ var _ = Describe("Azure Cloud Security", func() {
 							ToSecurityGroups: []*cloudresource.CloudResourceID{
 								&webAddressGroupIdentifier03.CloudResourceID,
 							},
-						}},
+						},
+					},
 				}
 
 				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*cloudresource.CloudRule{})
@@ -498,13 +759,14 @@ var _ = Describe("Azure Cloud Security", func() {
 
 				fromSrcIP := getFromSrcIP(testCidrStr)
 
-				addRules := []*cloudresource.CloudRule{{
-					Rule: &cloudresource.IngressRule{
-						Protocol:  &testProtocol,
-						FromPort:  &testFromPort,
-						FromSrcIP: fromSrcIP,
-					}, NpNamespacedName: testAnpNamespace.String()},
+				addRules := []*cloudresource.CloudRule{
 					{
+						Rule: &cloudresource.IngressRule{
+							Protocol:  &testProtocol,
+							FromPort:  &testFromPort,
+							FromSrcIP: fromSrcIP,
+						}, NpNamespacedName: testAnpNamespace.String(),
+					}, {
 						Rule: &cloudresource.EgressRule{
 							Protocol: &testProtocol,
 							ToPort:   &testToPort,
@@ -512,7 +774,8 @@ var _ = Describe("Azure Cloud Security", func() {
 							ToSecurityGroups: []*cloudresource.CloudResourceID{
 								&webAddressGroupIdentifier03.CloudResourceID,
 							},
-						}, NpNamespacedName: testAnpNamespace.String()},
+						}, NpNamespacedName: testAnpNamespace.String(),
+					},
 				}
 
 				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*cloudresource.CloudRule{})
@@ -542,21 +805,24 @@ var _ = Describe("Azure Cloud Security", func() {
 					&ipNet,
 				}
 
-				addRules := []*cloudresource.CloudRule{{
-					Rule: &cloudresource.IngressRule{
-						Protocol:  &testProtocol,
-						FromPort:  &testFromPort,
-						FromSrcIP: fromSrcIP,
-					}, NpNamespacedName: testAnpNamespace.String()},
+				addRules := []*cloudresource.CloudRule{
 					{
+						Rule: &cloudresource.IngressRule{
+							Protocol:  &testProtocol,
+							FromPort:  &testFromPort,
+							FromSrcIP: fromSrcIP,
+						}, NpNamespacedName: testAnpNamespace.String(),
+					}, {
 						Rule: &cloudresource.EgressRule{
 							Protocol:         &testProtocol,
 							ToPort:           &testToPort,
 							ToDstIP:          fromSrcIP,
 							ToSecurityGroups: []*cloudresource.CloudResourceID{&toSg},
-						}, NpNamespacedName: testAnpNamespace.String()},
+						}, NpNamespacedName: testAnpNamespace.String(),
+					},
 				}
 
+				mockazureNsgWrapper.EXPECT().createOrUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nsg, nil).Times(1)
 				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*cloudresource.CloudRule{})
 				Expect(err).Should(BeNil())
 			})
@@ -583,13 +849,14 @@ var _ = Describe("Azure Cloud Security", func() {
 					&ipNet,
 				}
 
-				addRules := []*cloudresource.CloudRule{{
-					Rule: &cloudresource.IngressRule{
-						Protocol:  &testProtocol,
-						FromPort:  &testFromPort,
-						FromSrcIP: fromSrcIP,
-					}},
+				addRules := []*cloudresource.CloudRule{
 					{
+						Rule: &cloudresource.IngressRule{
+							Protocol:  &testProtocol,
+							FromPort:  &testFromPort,
+							FromSrcIP: fromSrcIP,
+						},
+					}, {
 						Rule: &cloudresource.EgressRule{
 							Protocol: &testProtocol,
 							ToPort:   &testToPort,
@@ -597,7 +864,8 @@ var _ = Describe("Azure Cloud Security", func() {
 							ToSecurityGroups: []*cloudresource.CloudResourceID{
 								&webAddressGroupIdentifier03.CloudResourceID,
 							},
-						}},
+						},
+					},
 				}
 
 				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*cloudresource.CloudRule{})

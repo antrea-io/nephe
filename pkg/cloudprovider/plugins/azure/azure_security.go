@@ -346,17 +346,24 @@ func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(ap
 			}
 			// check if the rule is created by current processing appliedToGroup.
 			if isAzureRuleAttachedToAtSg(rule, appliedToGroupNepheControllerName) {
-				// skip the rule if found in remove list.
-				removeRules := rmIngressRules
+				removeAzureRules := rmIngressRules
+				addAzureRules := addIngressRules
 				if *rule.Properties.Direction == armnetwork.SecurityRuleDirectionOutbound {
-					removeRules = rmEgressRules
+					removeAzureRules = rmEgressRules
+					addAzureRules = addEgressRules
 				}
 				normalizedRule := normalizeAzureSecurityRule(rule)
-				idx, found := findSecurityRule(normalizedRule, removeRules)
+				// skip the rule if found in remove list.
+				idx, found := findSecurityRule(removeAzureRules, normalizedRule)
 				if found {
 					// remove the rule from remove list to avoid redundant comparison.
-					removeRules[idx] = nil
+					removeAzureRules[idx] = nil
 					continue
+				}
+				// ignore adding rule that already present in cloud.
+				idx, found = findSecurityRule(addAzureRules, normalizedRule)
+				if found {
+					addAzureRules[idx] = nil
 				}
 			}
 		}
@@ -371,6 +378,7 @@ func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(ap
 
 	allIngressRules := updateSecurityRuleNameAndPriority(currentNsgIngressRules, addIngressRules)
 	allEgressRules := updateSecurityRuleNameAndPriority(currentNsgEgressRules, addEgressRules)
+	allIngressRules, allEgressRules = addDefaultDenyRule(allIngressRules, allEgressRules)
 
 	return append(allIngressRules, allEgressRules...), nil
 }
@@ -394,19 +402,19 @@ func (computeCfg *computeServiceConfig) buildEffectivePeerNSGSecurityRulesToAppl
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
-	addIngressSecurityRules, err := convertIngressToPeerNsgSecurityRules(appliedToGroupID, addIRule, agAsgMapByNepheName, ruleIP)
+	addIngressRules, err := convertIngressToPeerNsgSecurityRules(appliedToGroupID, addIRule, agAsgMapByNepheName, ruleIP)
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
-	addEgressSecurityRules, err := convertEgressToPeerNsgSecurityRules(appliedToGroupID, addERule, agAsgMapByNepheName, ruleIP)
+	addEgressRules, err := convertEgressToPeerNsgSecurityRules(appliedToGroupID, addERule, agAsgMapByNepheName, ruleIP)
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
-	rmIngressSecurityRules, err := convertIngressToPeerNsgSecurityRules(appliedToGroupID, rmIRule, agAsgMapByNepheName, ruleIP)
+	rmIngressRules, err := convertIngressToPeerNsgSecurityRules(appliedToGroupID, rmIRule, agAsgMapByNepheName, ruleIP)
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
-	rmEgressSecurityRules, err := convertEgressToPeerNsgSecurityRules(appliedToGroupID, rmERule, agAsgMapByNepheName, ruleIP)
+	rmEgressRules, err := convertEgressToPeerNsgSecurityRules(appliedToGroupID, rmERule, agAsgMapByNepheName, ruleIP)
 	if err != nil {
 		return []*armnetwork.SecurityRule{}, err
 	}
@@ -420,23 +428,33 @@ func (computeCfg *computeServiceConfig) buildEffectivePeerNSGSecurityRulesToAppl
 		if rule.Properties == nil || *rule.Properties.Priority == vnetToVnetDenyRulePriority {
 			continue
 		}
-
 		// check if the rule is Nephe rules based on ruleStartPriority and description.
-		_, ok := utils.ExtractCloudDescription(rule.Properties.Description)
-		if *rule.Properties.Priority >= ruleStartPriority && ok {
+		if *rule.Properties.Priority >= ruleStartPriority {
+			_, ok := utils.ExtractCloudDescription(rule.Properties.Description)
+			// remove user rule that is in Nephe priority range.
+			if !ok {
+				continue
+			}
 			// check if the rule is created by current processing appliedToGroup.
 			if isAzureRuleAttachedToAtSg(rule, appliedToGroupNepheControllerName) {
-				// skip the rule if found in remove list.
-				removeRules := rmIngressSecurityRules
+				removeAzureRules := rmIngressRules
+				addAzureRules := addIngressRules
 				if *rule.Properties.Direction == armnetwork.SecurityRuleDirectionOutbound {
-					removeRules = rmEgressSecurityRules
+					removeAzureRules = rmEgressRules
+					addAzureRules = addEgressRules
 				}
 				normalizedRule := normalizeAzureSecurityRule(rule)
-				idx, found := findSecurityRule(normalizedRule, removeRules)
+				// skip the rule if found in remove list.
+				idx, found := findSecurityRule(removeAzureRules, normalizedRule)
 				if found {
 					// remove the rule from remove list to avoid redundant comparison.
-					removeRules[idx] = nil
+					removeAzureRules[idx] = nil
 					continue
+				}
+				// ignore adding rule that already present in cloud.
+				idx, found = findSecurityRule(addAzureRules, normalizedRule)
+				if found {
+					addAzureRules[idx] = nil
 				}
 			}
 		}
@@ -449,8 +467,9 @@ func (computeCfg *computeServiceConfig) buildEffectivePeerNSGSecurityRulesToAppl
 		}
 	}
 
-	allIngressRules := updateSecurityRuleNameAndPriority(currentNsgIngressRules, addIngressSecurityRules)
-	allEgressRules := updateSecurityRuleNameAndPriority(currentNsgEgressRules, addEgressSecurityRules)
+	allIngressRules := updateSecurityRuleNameAndPriority(currentNsgIngressRules, addIngressRules)
+	allEgressRules := updateSecurityRuleNameAndPriority(currentNsgEgressRules, addEgressRules)
+	allIngressRules, allEgressRules = addDefaultDenyRule(allIngressRules, allEgressRules)
 
 	return append(allIngressRules, allEgressRules...), nil
 }
