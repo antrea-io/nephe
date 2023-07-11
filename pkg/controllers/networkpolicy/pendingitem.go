@@ -16,12 +16,18 @@ package networkpolicy
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/mohae/deepcopy"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 
 	antreanetworking "antrea.io/antrea/pkg/apis/controlplane/v1beta2"
+)
+
+var (
+	retryInterval int64 = 20
+	lastRetryTime       = time.Now().Unix()
 )
 
 type PendingItem interface {
@@ -39,23 +45,23 @@ type PendingItem interface {
 
 type countingPendingItem struct {
 	PendingItem
-	opCnt *int
+	retryCount *int
 }
 
 type PendingItemQueue struct {
-	items   map[string]countingPendingItem
-	context interface{}
-	opCnt   *int
+	items      map[string]countingPendingItem
+	context    interface{}
+	retryCount *int
 }
 
 // NewPendingItemQueue returns a new PendingItemQueue.
-// If opCnt is not provided, item is removed if item.RunOrDeletePendingItem returns true;
-// if opCnt is provided, item is also removed when item.RunPendingItem is called opCnt.
-func NewPendingItemQueue(context interface{}, opCnt *int) *PendingItemQueue {
+// If retryCount is not provided, item is removed if item.RunOrDeletePendingItem returns true;
+// if retryCount is provided, item is also removed when item.RunPendingItem is called.
+func NewPendingItemQueue(context interface{}, retryCount *int) *PendingItemQueue {
 	return &PendingItemQueue{
-		items:   make(map[string]countingPendingItem),
-		context: context,
-		opCnt:   opCnt,
+		items:      make(map[string]countingPendingItem),
+		context:    context,
+		retryCount: retryCount,
 	}
 }
 
@@ -66,7 +72,7 @@ func (q *PendingItemQueue) Add(id string, p PendingItem) {
 		log.Info("Add existing item", "Name", id)
 		return
 	}
-	q.items[id] = countingPendingItem{p, deepcopy.Copy(q.opCnt).(*int)}
+	q.items[id] = countingPendingItem{p, deepcopy.Copy(q.retryCount).(*int)}
 }
 
 // Remove a pending item from queue.
@@ -102,17 +108,17 @@ func (q *PendingItemQueue) Update(id string, checkRun bool, updates ...interface
 	}
 	if run {
 		del = i.RunPendingItem(id, q.context)
-		if i.opCnt != nil {
-			*i.opCnt--
+		if i.retryCount != nil {
+			*i.retryCount--
 		}
 	}
-	if del || (i.opCnt != nil && *i.opCnt <= 0) {
+	if del || (i.retryCount != nil && *i.retryCount <= 0) {
 		q.Remove(id)
 	}
 	return nil
 }
 
-// GetRetryCount returns remains opCnt of item if applicable.
+// GetRetryCount returns remaining retryCount of item if applicable.
 func (q *PendingItemQueue) GetRetryCount(id string) int {
 	log := q.context.(*NetworkPolicyReconciler).Log.WithName("PendingItemQueue")
 	i, ok := q.items[id]
@@ -121,31 +127,35 @@ func (q *PendingItemQueue) GetRetryCount(id string) int {
 		log.Error(err, "failed to GetRetryCount", "Name", id)
 		return -1
 	}
-	if i.opCnt == nil {
+	if i.retryCount == nil {
 		return -1
 	}
-	return *i.opCnt
+	return *i.retryCount
 }
 
 // CheckToRun check and run all items on queue.
-func (q *PendingItemQueue) CheckToRun() {
+func (q *PendingItemQueue) CheckToRun(forceRetry bool) {
+	if !forceRetry && time.Now().Unix()-lastRetryTime < retryInterval {
+		return
+	}
 	for k, i := range q.items {
 		run, del := i.RunOrDeletePendingItem(k, q.context)
 		if del {
 			q.Remove(k)
 		}
 		if run {
-			if i.opCnt == nil || *i.opCnt > 0 {
+			if i.retryCount == nil || *i.retryCount > 0 {
 				del = i.RunPendingItem(k, q.context)
 			}
-			if i.opCnt != nil {
-				*i.opCnt--
+			if i.retryCount != nil {
+				*i.retryCount--
 			}
 		}
-		if del || (i.opCnt != nil && *i.opCnt < 0) {
+		if del || (i.retryCount != nil && *i.retryCount < 0) {
 			q.Remove(k)
 		}
 	}
+	lastRetryTime = time.Now().Unix()
 }
 
 var (

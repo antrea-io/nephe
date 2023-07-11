@@ -53,7 +53,7 @@ const (
 	cloudResourceNPTrackerIndexerByAppliedToGrp = "AppliedToGrp"
 	cloudRuleIndexerByAppliedToGrp              = "AppliedToGrp"
 
-	operationCount = 15
+	retryCount = 3
 
 	cloudResponseChBuffer = 50
 
@@ -500,7 +500,6 @@ func (r *NetworkPolicyReconciler) Start(stop context.Context) error {
 	}
 
 	r.Log.Info("Re-sync finished, listening to new events")
-	lastSyncTime := time.Now().Unix()
 	ticker := time.NewTicker(time.Second)
 	for {
 		var err error
@@ -546,11 +545,8 @@ func (r *NetworkPolicyReconciler) Start(stop context.Context) error {
 			err = r.processLocalEvent(event)
 		case <-ticker.C:
 			r.backgroupProcess()
-			r.retryQueue.CheckToRun()
-			if time.Now().Unix()-lastSyncTime >= r.CloudSyncInterval {
-				r.syncWithCloud()
-				lastSyncTime = time.Now().Unix()
-			}
+			r.retryQueue.CheckToRun(false)
+			r.syncWithCloud(false)
 		case <-stop.Done():
 			r.Log.Info("Is stopped")
 			return nil
@@ -740,8 +736,8 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.localRequest = make(chan watch.Event)
 	r.cloudResponse = make(chan *securityGroupStatus, cloudResponseChBuffer)
 	r.pendingDeleteGroups = NewPendingItemQueue(r, nil)
-	opCnt := operationCount
-	r.retryQueue = NewPendingItemQueue(r, &opCnt)
+	retryCnt := retryCount
+	r.retryQueue = NewPendingItemQueue(r, &retryCnt)
 
 	if mgr == nil {
 		return nil
