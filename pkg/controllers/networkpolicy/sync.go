@@ -217,6 +217,7 @@ func (r *NetworkPolicyReconciler) syncWithCloud(forceSync bool) {
 				state := securityGroupStateCreated
 				sg := newAddrSecurityGroup(&content.Resource, []*cloudresource.CloudResource{}, &state).(*addrSecurityGroup)
 				sg.deletePending = true
+				sg.retryEnabled = false
 				removeAddrSgs = append(removeAddrSgs, sg)
 				// add unknown address group in indexer for future network policy notify.
 				_ = r.addrSGIndexer.Add(sg)
@@ -226,7 +227,9 @@ func (r *NetworkPolicyReconciler) syncWithCloud(forceSync bool) {
 			// remove unknown appliedTo groups.
 			log.V(0).Info("Delete appliedTo security group not found in cache", "Name", content.Resource.Name)
 			state := securityGroupStateCreated
-			_ = newAppliedToSecurityGroup(&content.Resource, []*cloudresource.CloudResource{}, &state).delete(r)
+			sg := newAppliedToSecurityGroup(&content.Resource, []*cloudresource.CloudResource{}, &state).(*appliedToSecurityGroup)
+			sg.retryEnabled = false
+			_ = sg.delete(r)
 			continue
 		}
 		// copy channel reference content to a local variable because we use pointer to reference to cloud sg.
@@ -240,15 +243,20 @@ func (r *NetworkPolicyReconciler) syncWithCloud(forceSync bool) {
 	r.syncedWithCloud = true
 	for _, i := range r.addrSGIndexer.List() {
 		sg := i.(*addrSecurityGroup)
+		sg.retryEnabled = false
 		sg.sync(cloudAddrSGs[sg.getID()], r)
+		sg.retryEnabled = true
 	}
 	for _, i := range r.appliedToSGIndexer.List() {
 		sg := i.(*appliedToSecurityGroup)
+		sg.retryEnabled = false
 		sg.sync(cloudAppliedToSGs[sg.getID()], r)
+		sg.retryEnabled = true
 	}
 	// remove unknown address groups after syncing appliedTo group references.
 	for _, sg := range removeAddrSgs {
 		log.V(0).Info("Delete address security group not found in cache", "Name", sg.id.Name)
+		sg.retryEnabled = false
 		_ = sg.delete(r)
 	}
 	lastSyncTime = time.Now().Unix()
