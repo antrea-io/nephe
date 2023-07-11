@@ -185,6 +185,19 @@ var _ = Describe("Azure", func() {
 				Expect(found).To(BeTrue())
 				Expect(accCfg).To(Not(BeNil()))
 
+				vmSelector := []v1alpha1.VirtualMachineSelector{
+					{
+						VpcMatch: &v1alpha1.EntityMatch{MatchID: testVnetID01},
+						VMMatch:  []v1alpha1.EntityMatch{},
+					},
+				}
+
+				selector.Name = "single-vpcIDOnly"
+				selector.Spec.VMSelector = vmSelector
+				testSelectorNamespacedName = &types.NamespacedName{Namespace: "namespace01", Name: selector.Name}
+				err = c.AddAccountResourceSelector(testAccountNamespacedName, selector)
+				Expect(err).Should(BeNil())
+
 				errPolAdd := c.DoInventoryPoll(testAccountNamespacedName)
 				Expect(errPolAdd).Should(BeNil())
 
