@@ -39,6 +39,7 @@ import (
 
 var (
 	testVpcID01 = "vpc-cb82c3b2"
+	testSgID    = 1
 )
 
 var _ = Describe("AWS cloud", func() {

@@ -16,6 +16,8 @@ package aws
 
 import (
 	"fmt"
+	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -206,49 +208,25 @@ func (ec2Cfg *ec2ServiceConfig) getCloudSecurityGroupsWithNameFromCloud(vpcIDs [
 }
 
 // realizeIngressIPPermissions invokes cloud api and realizes ingress rules on the cloud security group.
-func (ec2Cfg *ec2ServiceConfig) realizeIngressIPPermissions(cloudSgObj *ec2.SecurityGroup, rules []*cloudresource.CloudRule,
-	cloudSGNameToObj map[string]*ec2.SecurityGroup, isDelete bool) error {
-	newIpPermissions := make([]*ec2.IpPermission, 0)
-	for _, obj := range rules {
-		rule := obj.Rule.(*cloudresource.IngressRule)
-		if rule == nil {
-			continue
-		}
-		description, err := utils.GenerateCloudDescription(obj.NpNamespacedName)
-		if err != nil {
-			return fmt.Errorf("unable to generate rule description, err: %v", err)
-		}
-		idGroupPairs := buildEc2UserIDGroupPairs(rule.FromSecurityGroups, cloudSGNameToObj, &description)
-		ipv4Ranges, ipv6Ranges := convertToEc2IpRanges(rule.FromSrcIP, len(rule.FromSecurityGroups) > 0, &description)
-		startPort, endPort := convertToIPPermissionPort(rule.FromPort, rule.Protocol)
-		ipPermission := &ec2.IpPermission{
-			FromPort:         startPort,
-			ToPort:           endPort,
-			IpProtocol:       convertToIPPermissionProtocol(rule.Protocol),
-			IpRanges:         ipv4Ranges,
-			Ipv6Ranges:       ipv6Ranges,
-			UserIdGroupPairs: idGroupPairs,
-		}
-		newIpPermissions = append(newIpPermissions, ipPermission)
-	}
-
-	if len(newIpPermissions) == 0 {
+func (ec2Cfg *ec2ServiceConfig) realizeIngressIPPermissions(cloudSgObj *ec2.SecurityGroup,
+	ipPermissions []*ec2.IpPermission, isDelete bool) error {
+	if len(ipPermissions) == 0 {
 		return nil
 	}
 
 	if isDelete {
-		awsPluginLogger().V(1).Info("Delete ingress rules", "rules", newIpPermissions)
+		awsPluginLogger().V(1).Info("Delete ingress rules", "rules", ipPermissions)
 		request := &ec2.RevokeSecurityGroupIngressInput{
 			GroupId:       cloudSgObj.GroupId,
-			IpPermissions: newIpPermissions,
+			IpPermissions: ipPermissions,
 		}
 		_, err := ec2Cfg.apiClient.revokeSecurityGroupIngress(request)
 		return err
 	} else {
-		awsPluginLogger().V(1).Info("Add ingress rules", "rules", newIpPermissions)
+		awsPluginLogger().V(1).Info("Add ingress rules", "rules", ipPermissions)
 		request := &ec2.AuthorizeSecurityGroupIngressInput{
 			GroupId:       cloudSgObj.GroupId,
-			IpPermissions: newIpPermissions,
+			IpPermissions: ipPermissions,
 		}
 		_, err := ec2Cfg.apiClient.authorizeSecurityGroupIngress(request)
 		return err
@@ -256,50 +234,25 @@ func (ec2Cfg *ec2ServiceConfig) realizeIngressIPPermissions(cloudSgObj *ec2.Secu
 }
 
 // realizeEgressIPPermissions invokes cloud api and realizes egress rules on the cloud security group.
-func (ec2Cfg *ec2ServiceConfig) realizeEgressIPPermissions(cloudSgObj *ec2.SecurityGroup, rules []*cloudresource.CloudRule,
-	cloudSGNameToObj map[string]*ec2.SecurityGroup, isDelete bool) error {
-	newIpPermissions := make([]*ec2.IpPermission, 0)
-	for _, obj := range rules {
-		rule := obj.Rule.(*cloudresource.EgressRule)
-		if rule == nil {
-			continue
-		}
-		description, err := utils.GenerateCloudDescription(obj.NpNamespacedName)
-		if err != nil {
-			return fmt.Errorf("unable to generate rule description, err: %v", err)
-		}
-
-		idGroupPairs := buildEc2UserIDGroupPairs(rule.ToSecurityGroups, cloudSGNameToObj, &description)
-		ipv4Ranges, ipv6Ranges := convertToEc2IpRanges(rule.ToDstIP, len(rule.ToSecurityGroups) > 0, &description)
-		startPort, endPort := convertToIPPermissionPort(rule.ToPort, rule.Protocol)
-		ipPermission := &ec2.IpPermission{
-			FromPort:         startPort,
-			ToPort:           endPort,
-			IpProtocol:       convertToIPPermissionProtocol(rule.Protocol),
-			IpRanges:         ipv4Ranges,
-			Ipv6Ranges:       ipv6Ranges,
-			UserIdGroupPairs: idGroupPairs,
-		}
-		newIpPermissions = append(newIpPermissions, ipPermission)
-	}
-
-	if len(newIpPermissions) == 0 {
+func (ec2Cfg *ec2ServiceConfig) realizeEgressIPPermissions(cloudSgObj *ec2.SecurityGroup,
+	ipPermissions []*ec2.IpPermission, isDelete bool) error {
+	if len(ipPermissions) == 0 {
 		return nil
 	}
 
 	if isDelete {
-		awsPluginLogger().V(1).Info("Delete egress rules", "rule", newIpPermissions)
+		awsPluginLogger().V(1).Info("Delete egress rules", "rule", ipPermissions)
 		request := &ec2.RevokeSecurityGroupEgressInput{
 			GroupId:       cloudSgObj.GroupId,
-			IpPermissions: newIpPermissions,
+			IpPermissions: ipPermissions,
 		}
 		_, err := ec2Cfg.apiClient.revokeSecurityGroupEgress(request)
 		return err
 	} else {
-		awsPluginLogger().V(1).Info("Add egress rules", "rule", newIpPermissions)
+		awsPluginLogger().V(1).Info("Add egress rules", "rule", ipPermissions)
 		request := &ec2.AuthorizeSecurityGroupEgressInput{
 			GroupId:       cloudSgObj.GroupId,
-			IpPermissions: newIpPermissions,
+			IpPermissions: ipPermissions,
 		}
 		_, err := ec2Cfg.apiClient.authorizeSecurityGroupEgress(request)
 		return err
@@ -671,4 +624,62 @@ func getMemberNicCloudResourcesAttachedToOtherSGs(members []cloudresource.CloudR
 		nicCloudResources = append(nicCloudResources, cloudResource)
 	}
 	return nicCloudResources
+}
+
+// normalizeIpPermissions aligns the format of ipPermissions received from the cloud to match the local format.
+// It normalizes the protocol and separates each IP range and address group into separate rules.
+func normalizeIpPermissions(ipPermissions []*ec2.IpPermission) []*ec2.IpPermission {
+	normalizedList := make([]*ec2.IpPermission, 0)
+	for _, ipPermission := range ipPermissions {
+		if protocol, ok := protocolNameNumMap[*ipPermission.IpProtocol]; ok {
+			ipPermission.IpProtocol = aws.String(strconv.Itoa(protocol))
+		}
+		for _, ipv4 := range ipPermission.IpRanges {
+			normalized := &ec2.IpPermission{
+				FromPort:   ipPermission.FromPort,
+				IpProtocol: ipPermission.IpProtocol,
+				IpRanges:   []*ec2.IpRange{ipv4},
+				ToPort:     ipPermission.ToPort,
+			}
+			normalizedList = append(normalizedList, normalized)
+		}
+		for _, ipv6 := range ipPermission.Ipv6Ranges {
+			normalized := &ec2.IpPermission{
+				FromPort:   ipPermission.FromPort,
+				IpProtocol: ipPermission.IpProtocol,
+				Ipv6Ranges: []*ec2.Ipv6Range{ipv6},
+				ToPort:     ipPermission.ToPort,
+			}
+			normalizedList = append(normalizedList, normalized)
+		}
+		for _, group := range ipPermission.UserIdGroupPairs {
+			normalized := &ec2.IpPermission{
+				FromPort:         ipPermission.FromPort,
+				IpProtocol:       ipPermission.IpProtocol,
+				ToPort:           ipPermission.ToPort,
+				UserIdGroupPairs: []*ec2.UserIdGroupPair{{GroupId: group.GroupId, Description: group.Description}},
+			}
+			normalizedList = append(normalizedList, normalized)
+		}
+	}
+	return normalizedList
+}
+
+// dedupIpPermissions identifies and returns a list of unique ipPermissions in local compared to cloud.
+func dedupIpPermissions(local, cloud []*ec2.IpPermission) []*ec2.IpPermission {
+	uniqueIpPermissions := local[:0]
+	for _, localIpPermission := range local {
+		found := false
+		for idx, cloudIpPermission := range cloud {
+			if reflect.DeepEqual(cloudIpPermission, localIpPermission) {
+				cloud[idx] = nil
+				found = true
+				break
+			}
+		}
+		if !found {
+			uniqueIpPermissions = append(uniqueIpPermissions, localIpPermission)
+		}
+	}
+	return uniqueIpPermissions
 }

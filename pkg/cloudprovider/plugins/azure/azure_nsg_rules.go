@@ -115,12 +115,7 @@ func updateSecurityRuleNameAndPriority(existingRules []*armnetwork.SecurityRule,
 	}
 
 	for _, rule := range newRules {
-		if rule.Properties == nil {
-			continue
-		}
-		// skip priority update for default 4096 deny rule. newRules consists of only Nephe rules.
-		if rule.Properties.Priority != nil && *rule.Properties.Priority == vnetToVnetDenyRulePriority {
-			rules = append(rules, rule)
+		if rule == nil || rule.Properties == nil {
 			continue
 		}
 
@@ -135,6 +130,23 @@ func updateSecurityRuleNameAndPriority(existingRules []*armnetwork.SecurityRule,
 	}
 
 	return rules
+}
+
+// addDefaultDenyRule adds vnet to vnet deny all rule to ingress and egress rule list.
+func addDefaultDenyRule(ingressRules, egressRules []*armnetwork.SecurityRule) (
+	[]*armnetwork.SecurityRule, []*armnetwork.SecurityRule) {
+	ingressDeny := buildSecurityRule(to.Int32Ptr(vnetToVnetDenyRulePriority), armnetwork.SecurityRuleProtocolAsterisk,
+		armnetwork.SecurityRuleDirectionInbound, to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil,
+		to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil, to.StringPtr(getDefaultDenyRuleName()),
+		armnetwork.SecurityRuleAccessDeny)
+	ingressRules = append(ingressRules, &ingressDeny)
+
+	egressDeny := buildSecurityRule(to.Int32Ptr(vnetToVnetDenyRulePriority), armnetwork.SecurityRuleProtocolAsterisk,
+		armnetwork.SecurityRuleDirectionOutbound, to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil,
+		to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil, to.StringPtr(getDefaultDenyRuleName()),
+		armnetwork.SecurityRuleAccessDeny)
+	egressRules = append(egressRules, &egressDeny)
+	return ingressRules, egressRules
 }
 
 // convertIngressToNsgSecurityRules converts ingress rules from securitygroup.CloudRule to azure rules.
@@ -189,12 +201,6 @@ func convertIngressToNsgSecurityRules(appliedToGroupID *cloudresource.CloudResou
 			securityRules = append(securityRules, &securityRule)
 		}
 	}
-	// add vnet to vnet deny all rule
-	securityRule := buildSecurityRule(to.Int32Ptr(vnetToVnetDenyRulePriority), armnetwork.SecurityRuleProtocolAsterisk,
-		armnetwork.SecurityRuleDirectionInbound, to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil,
-		to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil, to.StringPtr(getDefaultDenyRuleName()),
-		armnetwork.SecurityRuleAccessDeny)
-	securityRules = append(securityRules, &securityRule)
 
 	return securityRules, nil
 }
@@ -257,12 +263,6 @@ func convertIngressToPeerNsgSecurityRules(appliedToGroupID *cloudresource.CloudR
 			securityRules = append(securityRules, &securityRule)
 		}
 	}
-	// add vnet to vnet deny all rule
-	securityRule := buildSecurityRule(to.Int32Ptr(vnetToVnetDenyRulePriority), armnetwork.SecurityRuleProtocolAsterisk,
-		armnetwork.SecurityRuleDirectionInbound, to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil,
-		to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil, to.StringPtr(getDefaultDenyRuleName()),
-		armnetwork.SecurityRuleAccessDeny)
-	securityRules = append(securityRules, &securityRule)
 
 	return securityRules, nil
 }
@@ -317,13 +317,6 @@ func convertEgressToNsgSecurityRules(appliedToGroupID *cloudresource.CloudResour
 			securityRules = append(securityRules, &securityRule)
 		}
 	}
-
-	// add vnet to vnet deny all rule
-	securityRule := buildSecurityRule(to.Int32Ptr(vnetToVnetDenyRulePriority), armnetwork.SecurityRuleProtocolAsterisk,
-		armnetwork.SecurityRuleDirectionOutbound, to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil,
-		to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil, to.StringPtr(getDefaultDenyRuleName()),
-		armnetwork.SecurityRuleAccessDeny)
-	securityRules = append(securityRules, &securityRule)
 
 	return securityRules, nil
 }
@@ -384,13 +377,6 @@ func convertEgressToPeerNsgSecurityRules(appliedToGroupID *cloudresource.CloudRe
 		}
 	}
 
-	// add vnet to vnet deny all rule
-	securityRule := buildSecurityRule(to.Int32Ptr(vnetToVnetDenyRulePriority), armnetwork.SecurityRuleProtocolAsterisk,
-		armnetwork.SecurityRuleDirectionOutbound, to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil,
-		to.StringPtr(emptyPort), to.StringPtr(virtualnetworkAddressPrefix), nil, nil, to.StringPtr(getDefaultDenyRuleName()),
-		armnetwork.SecurityRuleAccessDeny)
-	securityRules = append(securityRules, &securityRule)
-
 	return securityRules, nil
 }
 
@@ -428,7 +414,7 @@ func buildSecurityRule(rulePriority *int32, protoName armnetwork.SecurityRulePro
 }
 
 // findSecurityRule finds the security rule in the given slice and return the index with boolean indicating found or not.
-func findSecurityRule(rule *armnetwork.SecurityRule, ruleList []*armnetwork.SecurityRule) (int, bool) {
+func findSecurityRule(ruleList []*armnetwork.SecurityRule, rule *armnetwork.SecurityRule) (int, bool) {
 	for idx, newRule := range ruleList {
 		if newRule != nil && reflect.DeepEqual(rule.Properties, newRule.Properties) {
 			return idx, true

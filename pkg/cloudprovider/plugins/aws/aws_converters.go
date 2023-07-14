@@ -15,6 +15,7 @@
 package aws
 
 import (
+	"fmt"
 	"net"
 	"strconv"
 	"strings"
@@ -135,6 +136,65 @@ func convertFromSecurityGroupPair(cloudGroups []*ec2.UserIdGroupPair, managedSGs
 		cloudResourceIDs = append(cloudResourceIDs, cloudResourceID)
 	}
 	return cloudResourceIDs, desc
+}
+
+// convertIngressToIpPermission converts internal ingress CloudRules into AWS IpPermissions.
+func convertIngressToIpPermission(rules []*cloudresource.CloudRule, cloudSGNameToObj map[string]*ec2.SecurityGroup) (
+	[]*ec2.IpPermission, error) {
+	ipPermissions := make([]*ec2.IpPermission, 0)
+	for _, obj := range rules {
+		rule := obj.Rule.(*cloudresource.IngressRule)
+		if rule == nil {
+			continue
+		}
+		description, err := utils.GenerateCloudDescription(obj.NpNamespacedName)
+		if err != nil {
+			return nil, fmt.Errorf("unable to generate rule description, err: %v", err)
+		}
+		idGroupPairs := buildEc2UserIDGroupPairs(rule.FromSecurityGroups, cloudSGNameToObj, &description)
+		ipv4Ranges, ipv6Ranges := convertToEc2IpRanges(rule.FromSrcIP, len(rule.FromSecurityGroups) > 0, &description)
+		startPort, endPort := convertToIPPermissionPort(rule.FromPort, rule.Protocol)
+		ipPermission := &ec2.IpPermission{
+			FromPort:         startPort,
+			ToPort:           endPort,
+			IpProtocol:       convertToIPPermissionProtocol(rule.Protocol),
+			IpRanges:         ipv4Ranges,
+			Ipv6Ranges:       ipv6Ranges,
+			UserIdGroupPairs: idGroupPairs,
+		}
+		ipPermissions = append(ipPermissions, ipPermission)
+	}
+	return ipPermissions, nil
+}
+
+// convertEgressToIpPermission converts internal egress CloudRules into AWS IpPermissions.
+func convertEgressToIpPermission(rules []*cloudresource.CloudRule, cloudSGNameToObj map[string]*ec2.SecurityGroup) (
+	[]*ec2.IpPermission, error) {
+	ipPermissions := make([]*ec2.IpPermission, 0)
+	for _, obj := range rules {
+		rule := obj.Rule.(*cloudresource.EgressRule)
+		if rule == nil {
+			continue
+		}
+		description, err := utils.GenerateCloudDescription(obj.NpNamespacedName)
+		if err != nil {
+			return nil, fmt.Errorf("unable to generate rule description, err: %v", err)
+		}
+
+		idGroupPairs := buildEc2UserIDGroupPairs(rule.ToSecurityGroups, cloudSGNameToObj, &description)
+		ipv4Ranges, ipv6Ranges := convertToEc2IpRanges(rule.ToDstIP, len(rule.ToSecurityGroups) > 0, &description)
+		startPort, endPort := convertToIPPermissionPort(rule.ToPort, rule.Protocol)
+		ipPermission := &ec2.IpPermission{
+			FromPort:         startPort,
+			ToPort:           endPort,
+			IpProtocol:       convertToIPPermissionProtocol(rule.Protocol),
+			IpRanges:         ipv4Ranges,
+			Ipv6Ranges:       ipv6Ranges,
+			UserIdGroupPairs: idGroupPairs,
+		}
+		ipPermissions = append(ipPermissions, ipPermission)
+	}
+	return ipPermissions, nil
 }
 
 // convertFromIngressIpPermissionToCloudRule converts AWS ingress rules from ec2.IpPermission to internal securitygroup.CloudRule.
