@@ -481,7 +481,7 @@ func getResourceGraphResult() resourcegraph.ClientResourcesResponse {
 	result := resourcegraph.ClientResourcesResponse{
 		QueryResponse: resourcegraph.QueryResponse{
 			TotalRecords:    &records,
-			Count:           nil,
+			Count:           &records,
 			ResultTruncated: nil,
 			SkipToken:       nil,
 			Data:            nil,

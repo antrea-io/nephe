@@ -16,8 +16,11 @@ package azure
 
 import (
 	"context"
+	"math"
 
 	resourcegraph "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph"
+
+	"antrea.io/nephe/pkg/cloudprovider/plugins/internal"
 )
 
 const (
@@ -42,10 +45,16 @@ func (p *azureServiceSdkConfigProvider) resourceGraph() (azureResourceGraphWrapp
 }
 
 func invokeResourceGraphQuery(resourceGraphAPIClient azureResourceGraphWrapper, query *string,
-	subscriptions []*string) (interface{}, int64, error) {
+	subscriptions []*string) ([]interface{}, int64, error) {
+	var data []interface{}
+	var currentRecords int64
+	var totalRecords int64 = math.MaxInt64
+	var pageSize = int32(internal.MaxCloudResourceResponse)
+
 	resultFmt := resourcegraph.ResultFormatObjectArray
 	requestOptions := resourcegraph.QueryRequestOptions{
 		ResultFormat: &resultFmt,
+		Top:          &pageSize,
 	}
 
 	request := resourcegraph.QueryRequest{
@@ -55,9 +64,20 @@ func invokeResourceGraphQuery(resourceGraphAPIClient azureResourceGraphWrapper, 
 		Facets:        nil,
 	}
 
-	results, queryErr := resourceGraphAPIClient.resources(context.Background(), request)
-	if queryErr == nil {
-		return results.Data, *results.TotalRecords, nil
+	// invoke resource graph API till all pages from response are fetched.
+	for currentRecords < totalRecords {
+		results, queryErr := resourceGraphAPIClient.resources(context.Background(), request)
+		if queryErr == nil {
+			if results.Data != nil {
+				data = append(data, results.Data.([]interface{})...)
+			}
+			currentRecords += *results.Count
+			totalRecords = *results.TotalRecords
+			request.Options.SkipToken = results.SkipToken
+		} else {
+			return nil, 0, queryErr
+		}
 	}
-	return nil, 0, queryErr
+
+	return data, currentRecords, nil
 }

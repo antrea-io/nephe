@@ -77,13 +77,9 @@ func getNetworkInterfaceTable(resourceGraphAPIClient azureResourceGraphWrapper, 
 	if err != nil {
 		return nil, 0, err
 	}
-	if data == nil {
-		return []*networkInterfaceTable{}, 0, nil
-	}
 
 	var networkInterfaces []*networkInterfaceTable
-	networkInterfaceRows := data.([]interface{})
-	for _, networkInterfaceRow := range networkInterfaceRows {
+	for _, networkInterfaceRow := range data {
 		var networkInterface networkInterfaceTable
 		err = mapstructure.Decode(networkInterfaceRow, &networkInterface)
 		if err != nil {

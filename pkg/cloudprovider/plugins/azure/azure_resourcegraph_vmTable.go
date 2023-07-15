@@ -152,13 +152,9 @@ func getVirtualMachineTable(resourceGraphAPIClient azureResourceGraphWrapper, qu
 	if err != nil {
 		return nil, 0, fmt.Errorf("error invoking Azure resource graph query: %v", err)
 	}
-	if data == nil {
-		return []*virtualMachineTable{}, 0, nil
-	}
 
 	var virtualMachines []*virtualMachineTable
-	virtualMachineRows := data.([]interface{})
-	for _, virtualMachineRow := range virtualMachineRows {
+	for _, virtualMachineRow := range data {
 		var virtualMachine virtualMachineTable
 		err = customDecode(virtualMachineRow.(map[string]interface{}), &virtualMachine)
 		if err != nil {
