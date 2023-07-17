@@ -54,8 +54,8 @@ var (
 // ExtraConfig holds custom apiserver config.
 type ExtraConfig struct {
 	// virtual machine policy indexer.
-	vmpIndexer     cache.Indexer
-	cloudInventory inventory.Interface
+	npTrackerIndexer cache.Indexer
+	cloudInventory   inventory.Interface
 }
 
 // Config defines the config for the apiserver.
@@ -64,7 +64,7 @@ type Config struct {
 	ExtraConfig   ExtraConfig
 }
 
-func NewConfig(codecs serializer.CodecFactory, vmpIndexer cache.Indexer, cloudInventory inventory.Interface,
+func NewConfig(codecs serializer.CodecFactory, npTrackerIndexer cache.Indexer, cloudInventory inventory.Interface,
 	certDir string) (*Config, error) {
 	recommend := genericoptions.NewRecommendedOptions("", nil)
 	serverConfig := genericapiserver.NewRecommendedConfig(codecs)
@@ -104,8 +104,8 @@ func NewConfig(codecs serializer.CodecFactory, vmpIndexer cache.Indexer, cloudIn
 	config := &Config{
 		GenericConfig: serverConfig,
 		ExtraConfig: ExtraConfig{
-			vmpIndexer:     vmpIndexer,
-			cloudInventory: cloudInventory,
+			npTrackerIndexer: npTrackerIndexer,
+			cloudInventory:   cloudInventory,
 		},
 	}
 	return config, nil
@@ -128,14 +128,14 @@ func (s *NepheControllerAPIServer) Start(stop context.Context) error {
 
 func (s *NepheControllerAPIServer) SetupWithManager(
 	mgr controllerruntime.Manager,
-	vmpIndexer cache.Indexer,
+	npTrackerIndexer cache.Indexer,
 	cloudInventory inventory.Interface,
 	certDir string,
 	logger logger.Logger) error {
 	s.logger = logger
 	codecs := serializer.NewCodecFactory(mgr.GetScheme())
 
-	apiConfig, err := NewConfig(codecs, vmpIndexer, cloudInventory, certDir)
+	apiConfig, err := NewConfig(codecs, npTrackerIndexer, cloudInventory, certDir)
 	if err != nil {
 		s.logger.Error(err, "unable to create APIServer config")
 		return err
@@ -235,7 +235,7 @@ func (c completedConfig) New(scheme *runtime.Scheme, codecs serializer.CodecFact
 	}
 
 	vpcStorage := vpcinventory.NewREST(c.ExtraConfig.cloudInventory, logger.WithName("VpcInventory"))
-	vmpStorage := virtualmachinepolicy.NewREST(c.ExtraConfig.vmpIndexer, logger.WithName("VirtualMachinePolicy"))
+	vmpStorage := virtualmachinepolicy.NewREST(c.ExtraConfig.npTrackerIndexer, logger.WithName("VirtualMachinePolicy"))
 	vmStorage := virtualmachineinventory.NewREST(c.ExtraConfig.cloudInventory, logger.WithName("VirtualMachineInventory"))
 
 	cpGroup := genericapiserver.NewDefaultAPIGroupInfo(runtimev1alpha1.GroupVersion.Group, scheme, metav1.ParameterCodec, codecs)

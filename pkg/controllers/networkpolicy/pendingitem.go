@@ -171,8 +171,8 @@ type pendingGroup struct {
 	addedMembers   map[string]antreanetworking.GroupMember
 	removedMembers map[string]antreanetworking.GroupMember
 	// Used to clean up internal state only when account is deleted.
-	account string
-	id      string
+	accountId string
+	id        string
 }
 
 func (p *pendingGroup) RunPendingItem(id string, context interface{}) bool {

@@ -56,7 +56,7 @@ func (i *Inventory) BuildVpcCache(discoveredVpcMap map[string]*runtimev1alpha1.V
 	namespacedName *types.NamespacedName) error {
 	var numVpcsToAdd, numVpcsToUpdate, numVpcsToDelete int
 	// Fetch all vpcs for a given account from the cache and check if it exists in the discovered vpc list.
-	vpcsInCache, _ := i.vpcStore.GetByIndex(indexer.VpcByNamespacedAccountName, namespacedName.String())
+	vpcsInCache, _ := i.vpcStore.GetByIndex(indexer.VpcByAccountNamespacedName, namespacedName.String())
 
 	// Remove vpcs in vpc cache which are not found in vpc list fetched from cloud.
 	for _, object := range vpcsInCache {
@@ -109,7 +109,7 @@ func (i *Inventory) BuildVpcCache(discoveredVpcMap map[string]*runtimev1alpha1.V
 
 // DeleteVpcsFromCache deletes all entries from vpc cache for a given account.
 func (i *Inventory) DeleteVpcsFromCache(namespacedName *types.NamespacedName) error {
-	vpcsInCache, err := i.vpcStore.GetByIndex(indexer.VpcByNamespacedAccountName, namespacedName.String())
+	vpcsInCache, err := i.vpcStore.GetByIndex(indexer.VpcByAccountNamespacedName, namespacedName.String())
 	if err != nil {
 		return err
 	}

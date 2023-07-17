@@ -28,6 +28,7 @@ import (
 	"antrea.io/antrea/pkg/apiserver/storage/ram"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/apiserver/registry/inventory/selector"
+	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
 	"antrea.io/nephe/pkg/inventory/indexer"
 	nephelabels "antrea.io/nephe/pkg/labels"
 )
@@ -146,6 +147,11 @@ func NewVmInventoryStore() antreastorage.Interface {
 		indexer.ByNamespacedName: func(obj interface{}) ([]string, error) {
 			vm := obj.(*runtimev1alpha1.VirtualMachine)
 			return []string{vm.Namespace + "/" + vm.Name}, nil
+		},
+		indexer.VirtualMachineByCloudResourceID: func(obj interface{}) ([]string, error) {
+			vm := obj.(*runtimev1alpha1.VirtualMachine)
+			rsc := cloudresource.CloudResourceID{Name: vm.Status.CloudId, Vpc: vm.Status.CloudVpcId}
+			return []string{rsc.String()}, nil
 		},
 		indexer.VirtualMachineByAccountNamespacedName: func(obj interface{}) ([]string, error) {
 			vm := obj.(*runtimev1alpha1.VirtualMachine)

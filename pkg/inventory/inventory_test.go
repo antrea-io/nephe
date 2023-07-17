@@ -90,7 +90,7 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			allVpcList := cloudInventory.GetAllVpcs()
 			Expect(allVpcList).Should(HaveLen(len(vpcList1)))
 
-			vpcListByIndex, err := cloudInventory.GetVpcsFromIndexer(indexer.VpcByNamespacedAccountName,
+			vpcListByIndex, err := cloudInventory.GetVpcsFromIndexer(indexer.VpcByAccountNamespacedName,
 				namespacedAccountName.String())
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(vpcListByIndex).Should(HaveLen(len(vpcList1)))
@@ -114,7 +114,7 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			err = cloudInventory.BuildVpcCache(vpcList2, &namespacedAccountName)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			vpcListByIndex, err := cloudInventory.GetVpcsFromIndexer(indexer.VpcByNamespacedAccountName,
+			vpcListByIndex, err := cloudInventory.GetVpcsFromIndexer(indexer.VpcByAccountNamespacedName,
 				namespacedAccountName.String())
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(vpcListByIndex).Should(HaveLen(len(vpcList2)))

@@ -18,7 +18,6 @@ import (
 	"context"
 	"testing"
 
-	logger "github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/apis/meta/internalversion"
@@ -32,85 +31,129 @@ import (
 	"antrea.io/nephe/pkg/logging"
 )
 
-func TestVirtualMachine(t *testing.T) {
+func TestVirtualMachinePolicy(t *testing.T) {
 	logging.SetDebugLog(true)
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Virtual Machine Policy Suite")
 }
 
 var (
-	targetName = "targetname"
+	target = &types.NamespacedName{
+		Namespace: "default",
+		Name:      "targetname",
+	}
 )
 
-var _ = Describe("Virtualmachinepolicy", func() {
+var _ = Describe("VirtualMachinePolicy test", func() {
+	log := logging.GetLogger("VirtualMachinePolicy")
 	var virtualMachinePolicyIndexer1 = cache.NewIndexer(
 		func(obj interface{}) (string, error) {
-			npStatus := obj.(*networkpolicy.NetworkPolicyStatus)
-			return npStatus.String(), nil
+			tracker := obj.(*networkpolicy.CloudResourceNpTracker)
+			return tracker.CloudResource.String(), nil
 		},
 		cache.Indexers{
-			networkpolicy.NetworkPolicyStatusIndexerByNamespace: func(obj interface{}) ([]string, error) {
-				npStatus := obj.(*networkpolicy.NetworkPolicyStatus)
-				ret := []string{npStatus.Namespace}
-				return ret, nil
+			networkpolicy.NpTrackerIndexerByNamespacedName: func(obj interface{}) ([]string, error) {
+				tracker := obj.(*networkpolicy.CloudResourceNpTracker)
+				return []string{tracker.NamespacedName.String()}, nil
 			},
 		})
 	var virtualMachinePolicyIndexer2 = cache.NewIndexer(
 		func(obj interface{}) (string, error) {
-			npStatus := obj.(*networkpolicy.NetworkPolicyStatus)
-			return npStatus.String(), nil
+			tracker := obj.(*networkpolicy.CloudResourceNpTracker)
+			return tracker.CloudResource.String(), nil
 		},
 		cache.Indexers{
-			networkpolicy.NetworkPolicyStatusIndexerByNamespace: func(obj interface{}) ([]string, error) {
-				npStatus := obj.(*networkpolicy.NetworkPolicyStatus)
-				ret := []string{npStatus.Namespace}
-				return ret, nil
+			networkpolicy.NpTrackerIndexerByNamespacedName: func(obj interface{}) ([]string, error) {
+				tracker := obj.(*networkpolicy.CloudResourceNpTracker)
+				return []string{tracker.NamespacedName.String()}, nil
 			},
 		})
 	var virtualMachinePolicyIndexer3 = cache.NewIndexer(
 		func(obj interface{}) (string, error) {
-			npStatus := obj.(*networkpolicy.NetworkPolicyStatus)
-			return npStatus.String(), nil
+			tracker := obj.(*networkpolicy.CloudResourceNpTracker)
+			return tracker.CloudResource.String(), nil
 		},
 		cache.Indexers{
-			networkpolicy.NetworkPolicyStatusIndexerByNamespace: func(obj interface{}) ([]string, error) {
-				npStatus := obj.(*networkpolicy.NetworkPolicyStatus)
-				ret := []string{npStatus.Namespace}
-				return ret, nil
+			networkpolicy.NpTrackerIndexerByNamespacedName: func(obj interface{}) ([]string, error) {
+				tracker := obj.(*networkpolicy.CloudResourceNpTracker)
+				return []string{tracker.NamespacedName.String()}, nil
 			},
 		})
-	var l logger.Logger
-	var npstatus1 = make(map[string]string)
-	var npstatus2 = make(map[string]string)
-	var npstatus3 = make(map[string]string)
-	npstatus1["test1"] = "applied"
-	npstatus2["test1"] = "applied"
-	npstatus3["test1"] = "applied"
-	npstatus2["test2"] = "in-progress"
-	npstatus3["test2"] = "in-progress"
-	npstatus3["test3"] = "error"
-	cacheTest1 := &networkpolicy.NetworkPolicyStatus{
-		NamespacedName: types.NamespacedName{Namespace: "default", Name: "targetname"},
-		NPStatus:       npstatus1,
+	// To test List functionality with Namespace.
+	var virtualMachinePolicyIndexer4 = cache.NewIndexer(
+		func(obj interface{}) (string, error) {
+			tracker := obj.(*networkpolicy.CloudResourceNpTracker)
+			return tracker.CloudResource.String(), nil
+		},
+		cache.Indexers{
+			networkpolicy.NpTrackerIndexerByNamespace: func(obj interface{}) ([]string, error) {
+				tracker := obj.(*networkpolicy.CloudResourceNpTracker)
+				log.Info("Testing indexer", "tracker", tracker)
+				return []string{tracker.NamespacedName.Namespace}, nil
+			},
+		})
+	// To test get functionality for an error case.
+	var virtualMachinePolicyIndexer5 = cache.NewIndexer(
+		func(obj interface{}) (string, error) {
+			tracker := obj.(*networkpolicy.CloudResourceNpTracker)
+			return tracker.CloudResource.String(), nil
+		},
+		cache.Indexers{
+			networkpolicy.NpTrackerIndexerByNamespacedName: func(obj interface{}) ([]string, error) {
+				tracker := obj.(*networkpolicy.CloudResourceNpTracker)
+				return []string{tracker.NamespacedName.String()}, nil
+			},
+		})
+	var npstatus1 = make(map[string]*v1alpha1.NetworkPolicyStatus)
+	var npstatus2 = make(map[string]*v1alpha1.NetworkPolicyStatus)
+	var npstatus3 = make(map[string]*v1alpha1.NetworkPolicyStatus)
+	npstatus1["test1"] = &v1alpha1.NetworkPolicyStatus{
+		Reason:      NoneString,
+		Realization: v1alpha1.Success,
 	}
-	cacheTest2 := &networkpolicy.NetworkPolicyStatus{
-		NamespacedName: types.NamespacedName{Namespace: "default", Name: "targetname"},
-		NPStatus:       npstatus2,
+	npstatus2["test1"] = &v1alpha1.NetworkPolicyStatus{
+		Reason:      NoneString,
+		Realization: v1alpha1.Success,
 	}
-	cacheTest3 := &networkpolicy.NetworkPolicyStatus{
-		NamespacedName: types.NamespacedName{Namespace: "default", Name: "targetname"},
-		NPStatus:       npstatus3,
+	npstatus3["test1"] = &v1alpha1.NetworkPolicyStatus{
+		Reason:      NoneString,
+		Realization: v1alpha1.Success,
+	}
+	npstatus2["test2"] = &v1alpha1.NetworkPolicyStatus{
+		Reason:      NoneString,
+		Realization: v1alpha1.InProgress,
+	}
+
+	npstatus3["test2"] = &v1alpha1.NetworkPolicyStatus{
+		Reason:      NoneString,
+		Realization: v1alpha1.InProgress,
+	}
+	npstatus3["test3"] = &v1alpha1.NetworkPolicyStatus{
+		Reason:      "error",
+		Realization: v1alpha1.Failed,
+	}
+	cacheTest1 := &networkpolicy.CloudResourceNpTracker{
+		NamespacedName: *target,
+		NpStatus:       npstatus1,
+	}
+	cacheTest2 := &networkpolicy.CloudResourceNpTracker{
+		NamespacedName: *target,
+		NpStatus:       npstatus2,
+	}
+	cacheTest3 := &networkpolicy.CloudResourceNpTracker{
+		NamespacedName: *target,
+		NpStatus:       npstatus3,
 	}
 	expectedPolicy1 := &v1alpha1.VirtualMachinePolicy{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
-			Name:      "targetname",
+			Namespace: target.Namespace,
+			Name:      target.Name,
 		},
 		Status: v1alpha1.VirtualMachinePolicyStatus{
-			Realization: "SUCCESS",
+			Realization: v1alpha1.Success,
 			NetworkPolicyDetails: map[string]*v1alpha1.NetworkPolicyStatus{
 				"test1": {
-					Realization: "SUCCESS",
+					Realization: v1alpha1.Success,
 					Reason:      NoneString,
 				},
 			},
@@ -118,18 +161,18 @@ var _ = Describe("Virtualmachinepolicy", func() {
 	}
 	expectedPolicy2 := &v1alpha1.VirtualMachinePolicy{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
-			Name:      "targetname",
+			Namespace: target.Namespace,
+			Name:      target.Name,
 		},
 		Status: v1alpha1.VirtualMachinePolicyStatus{
-			Realization: "IN-PROGRESS",
+			Realization: v1alpha1.InProgress,
 			NetworkPolicyDetails: map[string]*v1alpha1.NetworkPolicyStatus{
 				"test1": {
-					Realization: "SUCCESS",
+					Realization: v1alpha1.Success,
 					Reason:      NoneString,
 				},
 				"test2": {
-					Realization: "IN-PROGRESS",
+					Realization: v1alpha1.InProgress,
 					Reason:      NoneString,
 				},
 			},
@@ -137,22 +180,22 @@ var _ = Describe("Virtualmachinepolicy", func() {
 	}
 	expectedPolicy3 := &v1alpha1.VirtualMachinePolicy{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "default",
-			Name:      "targetname",
+			Namespace: target.Namespace,
+			Name:      target.Name,
 		},
 		Status: v1alpha1.VirtualMachinePolicyStatus{
-			Realization: "FAILED",
+			Realization: v1alpha1.Failed,
 			NetworkPolicyDetails: map[string]*v1alpha1.NetworkPolicyStatus{
 				"test1": {
-					Realization: "SUCCESS",
+					Realization: v1alpha1.Success,
 					Reason:      NoneString,
 				},
 				"test2": {
-					Realization: "IN-PROGRESS",
+					Realization: v1alpha1.InProgress,
 					Reason:      NoneString,
 				},
 				"test3": {
-					Realization: "FAILED",
+					Realization: v1alpha1.Failed,
 					Reason:      "error",
 				},
 			},
@@ -164,43 +207,47 @@ var _ = Describe("Virtualmachinepolicy", func() {
 		expectedPolicy3,
 	}
 	Describe("Test Get function of Rest", func() {
-		var npstatus1 = make(map[string]string)
-		var npstatus2 = make(map[string]string)
-		var npstatus3 = make(map[string]string)
-		npstatus1["test1"] = "applied"
-		npstatus2["test1"] = "applied"
-		npstatus3["test1"] = "applied"
-		npstatus2["test2"] = "in-progress"
-		npstatus3["test2"] = "in-progress"
-		npstatus3["test3"] = "error"
-		_ = virtualMachinePolicyIndexer1.Update(cacheTest1)
-		_ = virtualMachinePolicyIndexer2.Update(cacheTest2)
-		_ = virtualMachinePolicyIndexer3.Update(cacheTest3)
+		_ = virtualMachinePolicyIndexer1.Add(cacheTest1)
+		_ = virtualMachinePolicyIndexer2.Add(cacheTest2)
+		_ = virtualMachinePolicyIndexer3.Add(cacheTest3)
 		var virtualMachinePolicyIndexers = []cache.Indexer{virtualMachinePolicyIndexer1,
 			virtualMachinePolicyIndexer2, virtualMachinePolicyIndexer3}
-		It("Three status of realizing", func() {
+		It("Test Get function of Rest", func() {
 			for i, virtualMachinePolicyIndexer := range virtualMachinePolicyIndexers {
-				rest := NewREST(virtualMachinePolicyIndexer, l)
-				actualGroupList, err := rest.Get(request.NewDefaultContext(), targetName, &metav1.GetOptions{})
+				rest := NewREST(virtualMachinePolicyIndexer, log)
+				actualGroupList, err := rest.Get(request.NewDefaultContext(), target.Name, &metav1.GetOptions{})
 				Expect(err).Should(BeNil())
 				Expect(actualGroupList).To(Equal(expectedPolicies[i]))
 			}
-
+		})
+		It("Test Get requires namespace", func() {
+			for _, virtualMachinePolicyIndexer := range virtualMachinePolicyIndexers {
+				rest := NewREST(virtualMachinePolicyIndexer, log)
+				_, err := rest.Get(context.TODO(), target.Name, &metav1.GetOptions{})
+				Expect(err).ShouldNot(BeNil())
+			}
+		})
+		It("Test Get returns object not found", func() {
+			rest := NewREST(virtualMachinePolicyIndexer5, log)
+			_, err := rest.Get(request.NewDefaultContext(), target.Name, &metav1.GetOptions{})
+			Expect(err).ShouldNot(BeNil())
 		})
 	})
+
 	Describe("Test List function of Rest", func() {
+		_ = virtualMachinePolicyIndexer4.Add(cacheTest1)
 		expectedPoliyList := &v1alpha1.VirtualMachinePolicyList{
 			Items: []v1alpha1.VirtualMachinePolicy{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: "default",
-						Name:      "targetname",
+						Namespace: target.Namespace,
+						Name:      target.Name,
 					},
 					Status: v1alpha1.VirtualMachinePolicyStatus{
-						Realization: "SUCCESS",
+						Realization: v1alpha1.Success,
 						NetworkPolicyDetails: map[string]*v1alpha1.NetworkPolicyStatus{
 							"test1": {
-								Realization: "SUCCESS",
+								Realization: v1alpha1.Success,
 								Reason:      NoneString,
 							},
 						},
@@ -209,8 +256,14 @@ var _ = Describe("Virtualmachinepolicy", func() {
 			},
 		}
 		It("Should return the List result of Rest", func() {
-			rest := NewREST(virtualMachinePolicyIndexer1, l)
+			rest := NewREST(virtualMachinePolicyIndexer1, log)
 			actualObj, err := rest.List(context.TODO(), &internalversion.ListOptions{})
+			Expect(err).Should(BeNil())
+			Expect(actualObj).To(Equal(expectedPoliyList))
+		})
+		It("Should return the List result of Rest by Namespace", func() {
+			rest := NewREST(virtualMachinePolicyIndexer4, log)
+			actualObj, err := rest.List(request.NewDefaultContext(), &internalversion.ListOptions{})
 			Expect(err).Should(BeNil())
 			Expect(actualObj).To(Equal(expectedPoliyList))
 		})

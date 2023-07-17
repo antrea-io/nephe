@@ -18,9 +18,10 @@ const (
 	ByNamespace      = "namespace"
 	ByNamespacedName = "namespace-name"
 
-	VpcByNamespacedAccountName = "namespace-cloud-account-name"
+	VpcByAccountNamespacedName = "namespace-cloud-account-name"
 
 	VirtualMachineByCloudId                = "cloud-assigned-id"
+	VirtualMachineByCloudResourceID        = "cloud-resource-id"
 	VirtualMachineByAccountNamespacedName  = "namespaced-cloud-account-name"
 	VirtualMachineBySelectorNamespacedName = "namespaced-cloud-selector-name"
 )

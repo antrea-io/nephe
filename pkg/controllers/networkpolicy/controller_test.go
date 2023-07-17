@@ -121,6 +121,7 @@ var _ = Describe("NetworkPolicy", func() {
 	)
 
 	BeforeEach(func() {
+		By("Running before each")
 		mockCtrl = mock.NewController(GinkgoT())
 		mockClient = controllerruntimeclient.NewMockClient(mockCtrl)
 		mockInventory = inventory.NewMockInterface(mockCtrl)
@@ -487,8 +488,20 @@ var _ = Describe("NetworkPolicy", func() {
 				out := &runtimev1alpha1.VirtualMachine{}
 				vm.DeepCopyInto(out)
 				mockInventory.EXPECT().GetVmByKey(key.String()).Return(out, found).AnyTimes()
+				mockInventory.EXPECT().GetVmFromIndexer(mock.Any(), mock.Any()).DoAndReturn(func(_, key string) ([]interface{}, error) {
+					var vmList []interface{}
+					vm := &runtimev1alpha1.VirtualMachine{
+						ObjectMeta: v1.ObjectMeta{
+							Name:      key,
+							Namespace: namespace,
+						},
+					}
+					vmList = append(vmList, vm)
+					return vmList, nil
+				}).AnyTimes()
 			}
 		}
+
 		for vpc := range getGrpVPCs(ag.GroupMembers) {
 			ch := make(chan error)
 			grpID := &cloudresource.CloudResource{
@@ -858,53 +871,30 @@ var _ = Describe("NetworkPolicy", func() {
 		return chans
 	}
 
-	verifyNPTracker := func(trackedVMs map[string]*runtimev1alpha1.VirtualMachine, hasTracker, hasError bool) {
-		mockInventory.EXPECT().GetVmFromIndexer(mock.Any(), mock.Any()).DoAndReturn(func(_, key string) ([]interface{}, error) {
-			var vmList []interface{}
-			if hasTracker {
-				vm := &runtimev1alpha1.VirtualMachine{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      key,
-						Namespace: namespace,
-					},
-				}
-				vmList = append(vmList, vm)
-				trackedVMs[vm.Name] = vm
-			} else {
-				vmList = append(vmList, trackedVMs[key])
-			}
-			return vmList, nil
-		}).Times(len(appliedToGrps))
-		reconciler.processCloudResourceNPTrackers()
+	verifyNPTracker := func(hasTracker, hasError bool) {
+		reconciler.processCloudResourceNpTrackers()
 		wait()
 		if hasTracker || hasError {
-			Expect(len(reconciler.cloudResourceNPTrackerIndexer.List())).To(Equal(len(appliedToGrps)))
+			Expect(len(reconciler.npTrackerIndexer.List())).To(Equal(len(appliedToGrps)))
 		} else {
-			Expect(len(reconciler.cloudResourceNPTrackerIndexer.List())).To(Equal(0))
+			Expect(len(reconciler.npTrackerIndexer.List())).To(Equal(0))
 		}
 	}
 
-	verifyVmp := func(vmpNum int) {
-		vmpList := reconciler.virtualMachinePolicyIndexer.List()
-		Expect(len(vmpList)).To(Equal(vmpNum))
-	}
-
-	verifyNPStatus := func(trackedVMs map[string]*runtimev1alpha1.VirtualMachine, hasPolicy, hasError bool) {
-		for idx := len(addrGrpNames); idx < len(addrGrpNames)+len(appliedToGrpsNames); idx++ {
-			vm := trackedVMs[vmNamePrefix+vmNames[idx]]
-			obj, found, _ := reconciler.virtualMachinePolicyIndexer.GetByKey(types.NamespacedName{Namespace: vm.Namespace, Name: vm.Name}.String())
+	verifyNPStatus := func(hasPolicy, hasError bool) {
+		objs := reconciler.npTrackerIndexer.List()
+		if !hasPolicy && !hasError {
+			Expect(len(objs)).To(Equal(0))
+		}
+		for idx := range objs {
 			if hasPolicy && !hasError {
-				Expect(found).To(BeTrue())
-				npStatus := obj.(*NetworkPolicyStatus)
-				status, ok := npStatus.NPStatus[anp.Name]
+				tracker := objs[idx].(*CloudResourceNpTracker)
+				status, ok := tracker.NpStatus[anp.Name]
 				Expect(ok).To(BeTrue())
-				Expect(status).To(ContainSubstring(NetworkPolicyStatusApplied))
+				Expect(status.Reason).To(ContainSubstring(NetworkPolicyStatusApplied))
 			} else if !hasPolicy && hasError {
-				Expect(found).To(BeTrue())
-				npStatus := obj.(*NetworkPolicyStatus)
-				Expect(len(npStatus.NPStatus)).To(Equal(1))
-			} else if !hasPolicy && !hasError {
-				Expect(found).To(BeFalse())
+				tracker := objs[idx].(*CloudResourceNpTracker)
+				Expect(len(tracker.NpStatus)).To(Equal(1))
 			}
 		}
 	}
@@ -988,12 +978,13 @@ var _ = Describe("NetworkPolicy", func() {
 		event := watch.Event{Type: watch.Modified, Object: p1}
 		err = reconciler.processAddressGroup(event)
 		Expect(err).ToNot(HaveOccurred())
-
-		wait()
+		verifyNPTracker(true, false)
 	})
 
 	It("Modify appliedToGroup member", func() {
 		createAndVerifyNP(false)
+		verifyNPTracker(true, false)
+		By("Modify appliedToGroup member")
 		add := vmExternalEntities[vmNames[patchVMIdx]]
 		remove := vmExternalEntities[vmNames[2]]
 		appliedToGrp := appliedToGrps[0]
@@ -1002,17 +993,13 @@ var _ = Describe("NetworkPolicy", func() {
 		event := watch.Event{Type: watch.Modified, Object: p1}
 		err := reconciler.processAppliedToGroup(event)
 		Expect(err).ToNot(HaveOccurred())
-
-		wait()
+		verifyNPTracker(true, false)
 	})
 
 	It("Modify appliedToGroup remove stale member", func() {
 		createAndVerifyNP(false)
-		trackedVMs := make(map[string]*runtimev1alpha1.VirtualMachine)
-		verifyNPTracker(trackedVMs, true, false)
-		verifyVmp(len(trackedVMs))
-
-		// modify event remove stale member.
+		verifyNPTracker(true, false)
+		By("Modify event to remove stale member")
 		remove := vmExternalEntities[vmNames[2]]
 		appliedToGrp := appliedToGrps[0]
 		p1 := patchAppliedToGrpMember(appliedToGrp, nil, remove, 0)
@@ -1021,7 +1008,8 @@ var _ = Describe("NetworkPolicy", func() {
 		event := watch.Event{Type: watch.Modified, Object: p1}
 		err := reconciler.processAppliedToGroup(event)
 		Expect(err).ToNot(HaveOccurred())
-		verifyVmp(len(trackedVMs) - 1)
+		appliedToGrps = append(appliedToGrps[:1], appliedToGrps[2:]...)
+		verifyNPTracker(true, false)
 	})
 
 	It("Modify networkPolicy address group cloud member", func() {
@@ -1048,18 +1036,17 @@ var _ = Describe("NetworkPolicy", func() {
 		event = watch.Event{Type: watch.Modified, Object: anp}
 		err = reconciler.processNetworkPolicy(event)
 		Expect(err).ToNot(HaveOccurred())
-
-		wait()
+		verifyNPTracker(true, false)
 	})
 
 	It("Modify networkPolicy appliedTo group", func() {
 		createAndVerifyNP(false)
+		By("Add a new appliedToGroup")
 		ag := &antreanetworking.AppliedToGroup{}
 		ag.Name = "ag-patch"
 		efvm := &antreanetworking.ExternalEntityReference{Name: vmExternalEntities[vmNames[patchVMIdx]].Name, Namespace: namespace}
 		ag.GroupMembers = []antreanetworking.GroupMember{{ExternalEntity: efvm}}
 		appliedToGrpIDs[ag.Name] = &cloudresource.CloudResourceID{Name: ag.Name, Vpc: vpc}
-
 		anp.AppliedToGroups = append(anp.AppliedToGroups, "ag-patch")
 
 		var err error
@@ -1070,30 +1057,26 @@ var _ = Describe("NetworkPolicy", func() {
 		event = watch.Event{Type: watch.Modified, Object: anp}
 		err = reconciler.processNetworkPolicy(event)
 		Expect(err).ToNot(HaveOccurred())
-
-		wait()
+		appliedToGrps = append(appliedToGrps, ag)
+		verifyNPTracker(true, false)
 	})
 
 	It("Tracking networkPolicy", func() {
-		trackedVMs := make(map[string]*runtimev1alpha1.VirtualMachine)
 		createAndVerifyNP(false)
-		verifyNPTracker(trackedVMs, true, false)
-		verifyNPStatus(trackedVMs, true, false)
-		verifyVmp(len(trackedVMs))
-		// return delete error
+		verifyNPTracker(true, false)
+		verifyNPStatus(true, false)
+		By("Verify tracker with a sg delete error")
 		sgConfig.sgDeleteError = fmt.Errorf("dummy")
 		deleteAndVerifyNP(false)
-		verifyNPTracker(trackedVMs, false, true)
-		verifyNPStatus(trackedVMs, false, true)
-		verifyVmp(len(trackedVMs))
-		// retry without delete error
+		verifyNPTracker(true, true)
+		verifyNPStatus(false, true)
+		By("Verify tracker with a sg delete with retry, remove sg error")
 		sgConfig.sgDeleteError = nil
 		verifyDeleteNP(false)
 		reconciler.retryQueue.CheckToRun(true)
 		wait()
-		verifyNPTracker(trackedVMs, false, false)
-		verifyNPStatus(trackedVMs, false, false)
-		verifyVmp(0)
+		verifyNPTracker(false, false)
+		verifyNPStatus(false, false)
 	})
 
 	It("Create NetworkPolicy groups after security group garbage collection", func() {

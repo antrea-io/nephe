@@ -44,14 +44,15 @@ import (
 )
 
 const (
-	NetworkPolicyStatusIndexerByNamespace       = "namespace"
-	addrAppliedToIndexerByGroupID               = "GroupID"
-	addrAppliedToIndexerByAccountId             = "AccountId"
-	appliedToIndexerByAddrGroupRef              = "AddressGrp"
-	networkPolicyIndexerByAddrGrp               = "AddressGrp"
-	networkPolicyIndexerByAppliedToGrp          = "AppliedToGrp"
-	cloudResourceNPTrackerIndexerByAppliedToGrp = "AppliedToGrp"
-	cloudRuleIndexerByAppliedToGrp              = "AppliedToGrp"
+	addrAppliedToIndexerByGroupID      = "GroupID"
+	addrAppliedToIndexerByAccountId    = "AccountId"
+	appliedToIndexerByAddrGroupRef     = "AddressGrp"
+	networkPolicyIndexerByAddrGrp      = "AddressGrp"
+	networkPolicyIndexerByAppliedToGrp = "AppliedToGrp"
+	cloudRuleIndexerByAppliedToGrp     = "AppliedToGrp"
+	NpTrackerIndexerByNamespace        = "Namespace"
+	NpTrackerIndexerByNamespacedName   = "NamespacedName"
+	npTrackerIndexerByAppliedToGrp     = "AppliedToGrp"
 
 	retryCount = 3
 
@@ -87,12 +88,11 @@ type NetworkPolicyReconciler struct {
 	networkPolicyWatcher  watch.Interface
 
 	// Indexers
-	networkPolicyIndexer          cache.Indexer
-	addrSGIndexer                 cache.Indexer
-	appliedToSGIndexer            cache.Indexer
-	cloudResourceNPTrackerIndexer cache.Indexer
-	virtualMachinePolicyIndexer   cache.Indexer
-	cloudRuleIndexer              cache.Indexer
+	networkPolicyIndexer cache.Indexer
+	addrSGIndexer        cache.Indexer
+	appliedToSGIndexer   cache.Indexer
+	npTrackerIndexer     cache.Indexer
+	cloudRuleIndexer     cache.Indexer
 
 	Inventory inventory.Interface
 
@@ -160,8 +160,7 @@ func (r *NetworkPolicyReconciler) updateRuleRealizationStatus(currentSgID string
 				continue
 			}
 			// let other sgs handle their update status.
-			e = sg.checkRealization(r, np)
-			if e != nil {
+			if e = sg.checkRealization(r, np); e != nil {
 				return
 			}
 		}
@@ -190,9 +189,9 @@ func (r *NetworkPolicyReconciler) sendRuleRealizationStatus(anp *antreanetworkin
 	}
 
 	go func() {
-		r.Log.V(1).Info("Updating rule realization.", "NP", anp.Name, "Namespace", anp.Namespace, "err", err)
+		r.Log.V(1).Info("Updating rule realization", "NP", anp.Name, "Namespace", anp.Namespace, "err", err)
 		if e := r.antreaClient.NetworkPolicies().UpdateStatus(context.TODO(), status.Name, status); e != nil {
-			r.Log.Error(e, "rule realization send failed.", "NP", anp.Name, "Namespace", anp.Namespace)
+			r.Log.Error(e, "rule realization send failed", "NP", anp.Name, "Namespace", anp.Namespace)
 		}
 	}()
 }
@@ -236,11 +235,6 @@ func (r *NetworkPolicyReconciler) processGroup(groupName string, eventType watch
 			r.retryQueue.Remove(uGroupName)
 		}
 	}()
-
-	if securitygroup.CloudSecurityGroup == nil {
-		r.Log.V(1).Info("Skip group message no plug-in found", "group", groupName, "membershipOnly", isAddrGrp)
-		return nil
-	}
 
 	if r.pendingDeleteGroups.Has(uGroupName) {
 		_ = r.pendingDeleteGroups.Update(uGroupName, false, eventType, added, removed)
@@ -605,7 +599,7 @@ func (r *NetworkPolicyReconciler) updatePendingSyncCountAndStatus() {
 
 // backgroundProcess runs background processes.
 func (r *NetworkPolicyReconciler) backgroupProcess() {
-	r.processCloudResourceNPTrackers()
+	r.processCloudResourceNpTrackers()
 }
 
 // SetupWithManager sets up NetworkPolicyReconciler with manager.
@@ -686,16 +680,16 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return appliedToGroups, nil
 			},
 		})
-	r.cloudResourceNPTrackerIndexer = cache.NewIndexer(
-		// Each cloudResourceNPTracker is uniquely identified by cloud resource.
+	r.npTrackerIndexer = cache.NewIndexer(
+		// Each CloudResourceNpTracker is uniquely identified by cloud resource.
 		func(obj interface{}) (string, error) {
-			tracker := obj.(*cloudResourceNPTracker)
-			return tracker.cloudResource.String(), nil
+			tracker := obj.(*CloudResourceNpTracker)
+			return tracker.CloudResource.String(), nil
 		},
-		// cloudResourceNPTracker indexed by appliedToSecurityGroup.
+		// CloudResourceNpTracker indexed by appliedToSecurityGroup.
 		cache.Indexers{
-			cloudResourceNPTrackerIndexerByAppliedToGrp: func(obj interface{}) ([]string, error) {
-				tracker := obj.(*cloudResourceNPTracker)
+			npTrackerIndexerByAppliedToGrp: func(obj interface{}) ([]string, error) {
+				tracker := obj.(*CloudResourceNpTracker)
 				sgs := make([]string, 0, len(tracker.appliedToSGs)+len(tracker.prevAppliedToSGs))
 				for i := range tracker.appliedToSGs {
 					sgs = append(sgs, i)
@@ -704,6 +698,14 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					sgs = append(sgs, i)
 				}
 				return sgs, nil
+			},
+			NpTrackerIndexerByNamespace: func(obj interface{}) ([]string, error) {
+				tracker := obj.(*CloudResourceNpTracker)
+				return []string{tracker.NamespacedName.Namespace}, nil
+			},
+			NpTrackerIndexerByNamespacedName: func(obj interface{}) ([]string, error) {
+				tracker := obj.(*CloudResourceNpTracker)
+				return []string{tracker.NamespacedName.String()}, nil
 			},
 		})
 	// cloudRuleIndexer stores the realized rules on the cloud.
@@ -718,19 +720,6 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			cloudRuleIndexerByAppliedToGrp: func(obj interface{}) ([]string, error) {
 				rule := obj.(*cloudresource.CloudRule)
 				return []string{rule.AppliedToGrp}, nil
-			},
-		})
-	r.virtualMachinePolicyIndexer = cache.NewIndexer(
-		// Each VirtualMachinePolicy is uniquely identified by namespaced name of corresponding crd object.
-		func(obj interface{}) (string, error) {
-			npStatus := obj.(*NetworkPolicyStatus)
-			return npStatus.String(), nil
-		},
-		// VirtualMachinePolicy indexed by namespace
-		cache.Indexers{
-			NetworkPolicyStatusIndexerByNamespace: func(obj interface{}) ([]string, error) {
-				npStatus := obj.(*NetworkPolicyStatus)
-				return []string{npStatus.Namespace}, nil
 			},
 		})
 	r.localRequest = make(chan watch.Event)
@@ -775,8 +764,8 @@ func (r *NetworkPolicyReconciler) resetWatchers() error {
 	return err
 }
 
-func (r *NetworkPolicyReconciler) GetVirtualMachinePolicyIndexer() cache.Indexer {
-	return r.virtualMachinePolicyIndexer
+func (r *NetworkPolicyReconciler) GetNpTrackerIndexer() cache.Indexer {
+	return r.npTrackerIndexer
 }
 
 // removeIndexerObjectsByAccount removes entries based on account, from all the np
@@ -827,6 +816,24 @@ func (r *NetworkPolicyReconciler) removeIndexerObjectsByAccount(namespacedName s
 				if err := r.cloudRuleIndexer.Delete(rule); err != nil {
 					r.Log.Error(err, "failed to delete cloud rule from indexer",
 						"appliedToGroup", atSg.id.CloudResourceID.String(), "rule", rule.NpNamespacedName)
+				}
+			}
+
+			// Delete NP trackers based on AT.
+			npTrackers, err := r.npTrackerIndexer.ByIndex(npTrackerIndexerByAppliedToGrp, atSg.id.CloudResourceID.String())
+			if err != nil {
+				r.Log.Error(err, "failed to get np trackers from indexer", "appliedToGroup", atSg.id.CloudResourceID.String())
+			}
+
+			for _, obj := range npTrackers {
+				tracker, ok := obj.(*CloudResourceNpTracker)
+				if !ok {
+					continue
+				}
+				r.Log.V(1).Info("Deleting np tracker from indexer", "tracker", tracker.NamespacedName)
+				if err := r.npTrackerIndexer.Delete(tracker); err != nil {
+					r.Log.Error(err, "failed to delete np tracker from indexer",
+						"appliedToGroup", atSg.id.CloudResourceID.String(), "tracker", tracker.NamespacedName)
 				}
 			}
 
@@ -886,7 +893,7 @@ func (r *NetworkPolicyReconciler) removeIndexerObjectsByAccount(namespacedName s
 
 	for _, item := range r.pendingDeleteGroups.items {
 		group, ok := item.PendingItem.(*pendingGroup)
-		if ok && group.account == namespacedName {
+		if ok && group.accountId == namespacedName {
 			r.Log.V(1).Info("Removing group from pendingDeleteGroups", "groupName", group.id)
 			r.pendingDeleteGroups.Remove(group.id)
 		}
