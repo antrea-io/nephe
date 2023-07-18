@@ -55,17 +55,15 @@ func (m *MockInterface) EXPECT() *MockInterfaceMockRecorder {
 }
 
 // BuildSgCache mocks base method.
-func (m *MockInterface) BuildSgCache(arg0 map[string]*v1alpha1.SecurityGroup, arg1 *types.NamespacedName) error {
+func (m *MockInterface) BuildSgCache(arg0 map[string]*v1alpha1.SecurityGroup, arg1, arg2 *types.NamespacedName) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BuildSgCache", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
+	m.ctrl.Call(m, "BuildSgCache", arg0, arg1, arg2)
 }
 
 // BuildSgCache indicates an expected call of BuildSgCache.
-func (mr *MockInterfaceMockRecorder) BuildSgCache(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockInterfaceMockRecorder) BuildSgCache(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildSgCache", reflect.TypeOf((*MockInterface)(nil).BuildSgCache), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildSgCache", reflect.TypeOf((*MockInterface)(nil).BuildSgCache), arg0, arg1, arg2)
 }
 
 // BuildVmCache mocks base method.
@@ -94,6 +92,20 @@ func (mr *MockInterfaceMockRecorder) BuildVpcCache(arg0, arg1 interface{}) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildVpcCache", reflect.TypeOf((*MockInterface)(nil).BuildVpcCache), arg0, arg1)
 }
 
+// DeleteAllSgsFromCache mocks base method.
+func (m *MockInterface) DeleteAllSgsFromCache(arg0 *types.NamespacedName) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAllSgsFromCache", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteAllSgsFromCache indicates an expected call of DeleteAllSgsFromCache.
+func (mr *MockInterfaceMockRecorder) DeleteAllSgsFromCache(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAllSgsFromCache", reflect.TypeOf((*MockInterface)(nil).DeleteAllSgsFromCache), arg0)
+}
+
 // DeleteAllVmsFromCache mocks base method.
 func (m *MockInterface) DeleteAllVmsFromCache(arg0 *types.NamespacedName) error {
 	m.ctrl.T.Helper()
@@ -106,6 +118,20 @@ func (m *MockInterface) DeleteAllVmsFromCache(arg0 *types.NamespacedName) error 
 func (mr *MockInterfaceMockRecorder) DeleteAllVmsFromCache(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAllVmsFromCache", reflect.TypeOf((*MockInterface)(nil).DeleteAllVmsFromCache), arg0)
+}
+
+// DeleteSgsFromCache mocks base method.
+func (m *MockInterface) DeleteSgsFromCache(arg0, arg1 *types.NamespacedName) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteSgsFromCache", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteSgsFromCache indicates an expected call of DeleteSgsFromCache.
+func (mr *MockInterfaceMockRecorder) DeleteSgsFromCache(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSgsFromCache", reflect.TypeOf((*MockInterface)(nil).DeleteSgsFromCache), arg0, arg1)
 }
 
 // DeleteVmsFromCache mocks base method.

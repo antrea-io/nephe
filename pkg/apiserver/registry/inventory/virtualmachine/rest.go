@@ -145,7 +145,7 @@ func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (
 		if labelSelectors[selector.CloudAccountNamespace] != "" &&
 			labelSelectors[selector.CloudAccountNamespace] != contextNamespace {
 			// Since account Namespace is different from context Namespace, return empty.
-			return &runtimev1alpha1.VpcList{}, nil
+			return &runtimev1alpha1.VirtualMachineList{}, nil
 		}
 		if fieldSelectors[selector.MetaNamespace] != "" &&
 			fieldSelectors[selector.MetaNamespace] != contextNamespace {

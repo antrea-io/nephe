@@ -77,10 +77,22 @@ func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable
 			macAddress = *nwInf.MacAddress
 		}
 
+		var nsgIds []string
+		if nwInf.NsgID != nil {
+			nsgIds = append(nsgIds, *nwInf.NsgID)
+		}
+
+		var asgIDs []string
+		for _, asgID := range nwInf.ApplicationSecurityGroupIDs {
+			asgIDs = append(asgIDs, *asgID)
+		}
+
 		networkInterface := runtimev1alpha1.NetworkInterface{
-			Name: *nwInf.ID,
-			MAC:  macAddress,
-			IPs:  ipAddressObjs,
+			Name:             *nwInf.ID,
+			MAC:              macAddress,
+			IPs:              ipAddressObjs,
+			SecurityGroupIds: nsgIds,
+			Groups:           asgIDs,
 		}
 		networkInterfaces = append(networkInterfaces, networkInterface)
 	}
@@ -102,7 +114,7 @@ func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable
 	}
 	_, _, nwResName, err := extractFieldsFromAzureResourceID(cloudNetworkID)
 	if err != nil {
-		azurePluginLogger().Error(err, "failed to create VirtualMachine CRD")
+		azurePluginLogger().Error(err, "failed to create VirtualMachine object")
 		return nil
 	}
 	cloudNetworkShortID := utils.GenerateShortResourceIdentifier(cloudNetworkID, nwResName)
@@ -203,4 +215,142 @@ func ComputeVpcToInternalVpcObject(vnet *armnetwork.VirtualNetwork, accountNames
 	}
 
 	return vpcObj
+}
+
+func computeSgToInternalSgObject(nsg *nsgTable, selectorNamespacedName,
+	accountNamespacedName *types.NamespacedName, region string) *runtimev1alpha1.SecurityGroup {
+	status := &runtimev1alpha1.SecurityGroupStatus{
+		CloudName: strings.ToLower(*nsg.Name),
+		CloudId:   strings.ToLower(*nsg.ID),
+		Provider:  runtimev1alpha1.AzureCloudProvider,
+		Region:    region,
+	}
+
+	if nsg.Properties != nil {
+		for _, securityRule := range nsg.Properties.SecurityRules {
+			rule := parseSecurityRules(securityRule)
+			status.Rules = append(status.Rules, *rule)
+		}
+		for _, securityRule := range nsg.Properties.DefaultSecurityRules {
+			rule := parseSecurityRules(securityRule)
+			status.Rules = append(status.Rules, *rule)
+		}
+	}
+
+	var vpcName string
+	if nsg.VnetID != nil {
+		_, _, resourceName, err := extractFieldsFromAzureResourceID(strings.ToLower(*nsg.VnetID))
+		if err != nil {
+			azurePluginLogger().Error(err, "failed to create SecurityGroup object")
+			return nil
+		}
+		vpcName = utils.GenerateShortResourceIdentifier(*nsg.VnetID, resourceName)
+	}
+
+	var nsgName string
+	if nsg.ID != nil {
+		_, _, resourceName, err := extractFieldsFromAzureResourceID(strings.ToLower(*nsg.ID))
+		if err != nil {
+			azurePluginLogger().Error(err, "failed to create SecurityGroup object")
+			return nil
+		}
+		nsgName = utils.GenerateShortResourceIdentifier(*nsg.ID, resourceName)
+	}
+
+	labels := map[string]string{
+		labels.CloudAccountNamespace:  accountNamespacedName.Namespace,
+		labels.CloudAccountName:       accountNamespacedName.Name,
+		labels.CloudSelectorNamespace: selectorNamespacedName.Namespace,
+		labels.CloudSelectorName:      selectorNamespacedName.Name,
+		labels.VpcName:                vpcName,
+	}
+
+	sgObj := &runtimev1alpha1.SecurityGroup{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      nsgName,
+			Namespace: selectorNamespacedName.Namespace,
+			Labels:    labels,
+		},
+		Status: *status,
+	}
+	return sgObj
+}
+
+func parseSecurityRules(securityRule *armnetwork.SecurityRule) *runtimev1alpha1.Rule {
+	rule := runtimev1alpha1.Rule{}
+	if securityRule.Name != nil {
+		rule.Name = *securityRule.Name
+	}
+	if securityRule.Properties.Priority != nil {
+		rule.Priority = *securityRule.Properties.Priority
+	}
+	if securityRule.Properties.Protocol != nil {
+		if *securityRule.Properties.Protocol == "*" {
+			rule.Protocol = "any"
+		} else {
+			rule.Protocol = strings.ToLower(string(*securityRule.Properties.Protocol))
+		}
+	}
+	if securityRule.Properties.Access != nil {
+		rule.Action = string(*securityRule.Properties.Access)
+	}
+	if *securityRule.Properties.Direction == "Inbound" {
+		rule.Ingress = true
+		if securityRule.Properties.DestinationPortRange != nil {
+			if *securityRule.Properties.DestinationPortRange == "*" {
+				rule.Port = "any"
+			} else {
+				rule.Port = *securityRule.Properties.DestinationPortRange
+			}
+		}
+	} else {
+		rule.Ingress = false
+		if securityRule.Properties.SourcePortRange != nil {
+			if *securityRule.Properties.SourcePortRange == "*" {
+				rule.Port = "any"
+			} else {
+				rule.Port = *securityRule.Properties.SourcePortRange
+			}
+		}
+	}
+	if securityRule.Properties.Description != nil {
+		rule.Description = *securityRule.Properties.Description
+	}
+
+	if securityRule.Properties.SourceAddressPrefix != nil {
+		if *securityRule.Properties.SourceAddressPrefix == "*" {
+			rule.Source = append(rule.Source, "any")
+		} else {
+			rule.Source = append(rule.Source, *securityRule.Properties.SourceAddressPrefix)
+		}
+	}
+	if securityRule.Properties.DestinationAddressPrefix != nil {
+		if *securityRule.Properties.DestinationAddressPrefix == "*" {
+			rule.Destination = append(rule.Destination, "any")
+		} else {
+			rule.Destination = append(rule.Destination, *securityRule.Properties.DestinationAddressPrefix)
+		}
+	}
+	for index := range securityRule.Properties.SourceAddressPrefixes {
+		rule.Source = append(rule.Source, *securityRule.Properties.SourceAddressPrefixes[index])
+	}
+	for index := range securityRule.Properties.DestinationAddressPrefixes {
+		rule.Destination = append(rule.Destination, *securityRule.Properties.DestinationAddressPrefixes[index])
+	}
+
+	if len(rule.Source) == 0 {
+		for index := range securityRule.Properties.SourceApplicationSecurityGroups {
+			if asgID := securityRule.Properties.SourceApplicationSecurityGroups[index].ID; asgID != nil {
+				rule.Source = append(rule.Source, strings.ToLower(*asgID))
+			}
+		}
+	}
+	if len(rule.Destination) == 0 {
+		for index := range securityRule.Properties.DestinationApplicationSecurityGroups {
+			if asgID := securityRule.Properties.DestinationApplicationSecurityGroups[index].ID; asgID != nil {
+				rule.Destination = append(rule.Destination, strings.ToLower(*asgID))
+			}
+		}
+	}
+	return &rule
 }

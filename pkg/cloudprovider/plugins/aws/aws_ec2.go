@@ -47,7 +47,7 @@ type ec2ResourcesCacheSnapshot struct {
 	managedVpcIds map[string]struct{}
 	vpcNameToId   map[string]string
 	vpcPeers      map[string][]string
-	sgs           []*ec2.SecurityGroup
+	sgs           map[types.NamespacedName][]*ec2.SecurityGroup
 }
 
 func newEC2ServiceConfig(accountNamespacedName types.NamespacedName, service awsServiceClientCreateInterface,
@@ -168,14 +168,18 @@ func (ec2Cfg *ec2ServiceConfig) getCachedVpcs() []*ec2.Vpc {
 }
 
 // GetCachedSGs returns VPCs from cached snapshot for the account.
-func (ec2Cfg *ec2ServiceConfig) GetCachedSGs() []*ec2.SecurityGroup {
+func (ec2Cfg *ec2ServiceConfig) GetCachedSGs(selector *types.NamespacedName) []*ec2.SecurityGroup {
+	sgsToReturn := make([]*ec2.SecurityGroup, 0)
 	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
 		awsPluginLogger().Info("Cache snapshot nil", "account", ec2Cfg.accountNamespacedName)
-		return []*ec2.SecurityGroup{}
+		return sgsToReturn
 	}
-	sgs := snapshot.(*ec2ResourcesCacheSnapshot).sgs
-	sgsToReturn := make([]*ec2.SecurityGroup, 0, len(sgs))
+	sgs, found := snapshot.(*ec2ResourcesCacheSnapshot).sgs[*selector]
+	if !found {
+		awsPluginLogger().Info("Security Group Cache snapshot nil", "account", ec2Cfg.accountNamespacedName)
+		return sgsToReturn
+	}
 	sgsToReturn = append(sgsToReturn, sgs...)
 
 	return sgsToReturn
@@ -237,34 +241,41 @@ func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
 	vpcNameToId := ec2Cfg.buildMapVpcNameToId(vpcs)
 	vpcPeers, _ := ec2Cfg.buildMapVpcPeers()
 	allInstances := make(map[types.NamespacedName][]*ec2.Instance)
+	allSgs := make(map[types.NamespacedName][]*ec2.SecurityGroup)
 
 	// Call cloud APIs for the configured CloudEntitySelectors CRs.
 	if len(ec2Cfg.selectors) == 0 {
 		awsPluginLogger().V(1).Info("Fetching vm resources from cloud skipped",
 			"account", ec2Cfg.accountNamespacedName, "resource-filters", "not-configured")
-		ec2Cfg.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{allInstances, vpcs, nil, vpcNameToId, vpcPeers, nil})
+		ec2Cfg.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{allInstances, vpcs, nil, vpcNameToId, vpcPeers, allSgs})
 		return nil
 	}
 
-	managedVpcIds := make(map[string]struct{})
+	allManagedVpcIds := make(map[string]struct{})
 	for namespacedName := range ec2Cfg.selectors {
+		managedVpcIds := make(map[string]struct{})
 		instances, err := ec2Cfg.getInstances(&namespacedName)
 		if err != nil {
 			awsPluginLogger().Error(err, "failed to fetch cloud resources", "account", ec2Cfg.accountNamespacedName)
 			return err
 		}
 		for _, instance := range instances {
+			allManagedVpcIds[strings.ToLower(*instance.VpcId)] = struct{}{}
 			managedVpcIds[strings.ToLower(*instance.VpcId)] = struct{}{}
 		}
 		allInstances[namespacedName] = instances
-	}
 
-	sgs, err := ec2Cfg.getSecurityGroupsOfVpc(managedVpcIds)
-	if err != nil {
-		awsPluginLogger().Error(err, "failed to fetch cloud resources", "account", ec2Cfg.accountNamespacedName)
-		return err
+		// get security groups for managed vpcs.
+		if len(managedVpcIds) > 0 {
+			sgs, err := ec2Cfg.getSecurityGroupsOfVpc(managedVpcIds)
+			if err != nil {
+				awsPluginLogger().Error(err, "failed to fetch cloud resources", "account", ec2Cfg.accountNamespacedName)
+				return err
+			}
+			allSgs[namespacedName] = sgs
+		}
 	}
-	ec2Cfg.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{allInstances, vpcs, managedVpcIds, vpcNameToId, vpcPeers, sgs})
+	ec2Cfg.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{allInstances, vpcs, allManagedVpcIds, vpcNameToId, vpcPeers, allSgs})
 
 	return nil
 }
@@ -287,16 +298,15 @@ func (ec2Cfg *ec2ServiceConfig) RemoveResourceFilters(namespacedName *types.Name
 }
 
 // getVirtualMachineObjects converts cached virtual machines in cloud format to internal runtimev1alpha1.VirtualMachine format.
-func (ec2Cfg *ec2ServiceConfig) getVirtualMachineObjects(accountNamespacedName *types.NamespacedName,
-	selector *types.NamespacedName) map[string]*runtimev1alpha1.VirtualMachine {
+func (ec2Cfg *ec2ServiceConfig) getVirtualMachineObjects(selector *types.NamespacedName) map[string]*runtimev1alpha1.VirtualMachine {
 	instances := ec2Cfg.getCachedInstances(selector)
 	vpcs := ec2Cfg.getCachedVpcsMap()
 
 	vmObjects := map[string]*runtimev1alpha1.VirtualMachine{}
 	for _, instance := range instances {
 		// build runtime.v1alpha1.VirtualMachine object.
-		vmObject := ec2InstanceToInternalVirtualMachineObject(instance, vpcs, selector,
-			accountNamespacedName, ec2Cfg.credentials.region)
+		vmObject := ec2InstanceToInternalVirtualMachineObject(instance, vpcs, selector, &ec2Cfg.accountNamespacedName,
+			ec2Cfg.credentials.region)
 		vmObjects[vmObject.Name] = vmObject
 	}
 
@@ -380,28 +390,30 @@ func (ec2Cfg *ec2ServiceConfig) getVpcObjects() map[string]*runtimev1alpha1.Vpc 
 	return vpcMap
 }
 
+// getSecurityGroupObjects generates security group object for the sgs stored in snapshot and return a map of sg runtime objects.
+func (ec2Cfg *ec2ServiceConfig) getSecurityGroupObjects(
+	selectorNamespacedName *types.NamespacedName) map[string]*runtimev1alpha1.SecurityGroup {
+	sgs := ec2Cfg.GetCachedSGs(selectorNamespacedName)
+	sgMap := map[string]*runtimev1alpha1.SecurityGroup{}
+	for _, sg := range sgs {
+		sgObj := ec2SgToInternalSgObject(sg, selectorNamespacedName, &ec2Cfg.accountNamespacedName, strings.ToLower(ec2Cfg.credentials.region))
+		sgMap[strings.ToLower(*sg.GroupId)] = sgObj
+	}
+	return sgMap
+}
+
 // GetCloudInventory fetches VM and VPC inventory from stored snapshot and converts from cloud format to internal format.
 func (ec2Cfg *ec2ServiceConfig) GetCloudInventory() *nephetypes.CloudInventory {
 	cloudInventory := nephetypes.CloudInventory{
 		VmMap:  map[types.NamespacedName]map[string]*runtimev1alpha1.VirtualMachine{},
 		VpcMap: map[string]*runtimev1alpha1.Vpc{},
+		SgMap:  map[types.NamespacedName]map[string]*runtimev1alpha1.SecurityGroup{},
 	}
 	cloudInventory.VpcMap = ec2Cfg.getVpcObjects()
 	for namespacedName := range ec2Cfg.selectors {
-		cloudInventory.VmMap[namespacedName] = ec2Cfg.getVirtualMachineObjects(&ec2Cfg.accountNamespacedName, &namespacedName)
+		cloudInventory.VmMap[namespacedName] = ec2Cfg.getVirtualMachineObjects(&namespacedName)
+		cloudInventory.SgMap[namespacedName] = ec2Cfg.getSecurityGroupObjects(&namespacedName)
 	}
 
 	return &cloudInventory
-}
-
-// GetSecurityGroupInventory generates vpc object for the vpcs stored in snapshot(in cloud format) and return a map of vpc runtime objects.
-func (ec2Cfg *ec2ServiceConfig) GetSecurityGroupInventory() map[string]*runtimev1alpha1.SecurityGroup {
-	sgs := ec2Cfg.GetCachedSGs()
-	sgMap := map[string]*runtimev1alpha1.SecurityGroup{}
-	for _, sg := range sgs {
-		sgObj := ec2SgToInternalSgObject(sg, ec2Cfg.accountNamespacedName.Namespace, ec2Cfg.accountNamespacedName.Name,
-			strings.ToLower(ec2Cfg.credentials.region))
-		sgMap[strings.ToLower(*sg.GroupId)] = sgObj
-	}
-	return sgMap
 }

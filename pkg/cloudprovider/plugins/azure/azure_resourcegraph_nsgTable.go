@@ -1,3 +1,17 @@
+// Copyright 2023 Antrea Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package azure
 
 import (
@@ -16,6 +30,7 @@ type nsgTable struct {
 	ResourceGroup *string
 	Location      *string
 	Properties    *armsm.SecurityGroupPropertiesFormat
+	VnetID        *string
 }
 
 type nsgTableQueryParameters struct {
@@ -36,7 +51,7 @@ const (
 		"resources" +
 		"|  where type =~ 'microsoft.network/networksecuritygroups'" +
 		"|  extend ids = tostring(id) ) on ids" +
-		"|  project id = id1 , name = name1, properties = properties1, location = location1, resourceGroup = resourceGroup1"
+		"|  project id = id1, name = name1, properties = properties1, location = location1, resourceGroup = resourceGroup1, vnetId"
 )
 
 func getNsgTable(resourceGraphAPIClient azureResourceGraphWrapper, query *string,
@@ -50,7 +65,6 @@ func getNsgTable(resourceGraphAPIClient azureResourceGraphWrapper, query *string
 	}
 
 	var nsgs []*nsgTable
-	//nsgRows := data.([]interface{})
 	for _, nsgRow := range data {
 		var nsg nsgTable
 		err = mapstructure.Decode(nsgRow, &nsg)

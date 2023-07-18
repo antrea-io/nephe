@@ -15,15 +15,23 @@
 package v1alpha1
 
 import (
+	"fmt"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 type Rule struct {
-	From     string `json:"from,omitempty"`
-	To       string `json:"to,omitempty"`
-	Protocol string `json:"protocol"`
-	Port     string `json:"port"`
-	Egress   bool   `json:"egress"`
+	Action      string   `json:"action,omitempty"`
+	Description string   `json:"description,omitempty"`
+	Destination []string `json:"destination,omitempty"`
+	Id          string   `json:"id,omitempty"`
+	Ingress     bool     `json:"ingress"`
+	Name        string   `json:"name,omitempty"`
+	Port        string   `json:"port"`
+	Priority    int32    `json:"priority,omitempty"`
+	Protocol    string   `json:"protocol"`
+	Source      []string `json:"source,omitempty"`
 }
 
 type SecurityGroupStatus struct {
@@ -63,4 +71,18 @@ type SecurityGroupList struct {
 
 func init() {
 	SchemeBuilder.Register(&SecurityGroup{}, &SecurityGroupList{})
+	SchemeBuilder.SchemeBuilder.Register(addSgConversionFuncs)
+}
+
+func addSgConversionFuncs(scheme *runtime.Scheme) error {
+	return scheme.AddFieldLabelConversionFunc(SchemeGroupVersion.WithKind("SecurityGroup"),
+		func(label, value string) (string, string, error) {
+			switch label {
+			case "metadata.name", "metadata.namespace", "status.cloudId":
+				return label, value, nil
+			default:
+				return "", "", fmt.Errorf("field label not supported: %s", label)
+			}
+		},
+	)
 }

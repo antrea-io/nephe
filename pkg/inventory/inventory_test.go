@@ -53,6 +53,22 @@ var (
 	macAddress             = "00-01-02-03-04-05"
 	ipAddress              = "10.10.10.10"
 	ipAddressCRDs          []runtimev1alpha1.IPAddress
+	actionAllow            = "allow"
+	destinationIP          = "10.0.0.1"
+	sourceIP               = "20.0.0.1"
+	description            = "test rule"
+	ruleID                 = "101"
+	ingressRule            = true
+	ruleName               = "testRule"
+	protocol               = "tcp"
+	port                   = "80"
+	priority               = 100
+	testSgID01             = "testSgID01"
+	testSgName01           = "testSgName01"
+	testSgName02           = "testSgName02"
+	sgRegion               = "region01"
+	sgCacheKey1            = fmt.Sprintf("%s/%s", selectorNS, testSgName01)
+	sgCacheKey2            = fmt.Sprintf("%s/%s", selectorNS, testSgName02)
 	cloudInventory         *Inventory
 )
 
@@ -280,7 +296,7 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 		})
 		It("Delete VM inventory", func() {
 			cloudInventory.BuildVmCache(vmList, &namespacedAccountName, &selectorNamespacedName)
-			
+
 			vmListByIndex, err := cloudInventory.GetVmFromIndexer(indexer.VirtualMachineBySelectorNamespacedName,
 				selectorNamespacedName.String())
 			Expect(err).ShouldNot(HaveOccurred())
@@ -303,6 +319,115 @@ var _ = Describe("Validate VPC and Virtual Machine Inventory", func() {
 			err = cloudInventory.DeleteAllVmsFromCache(&namespacedAccountName)
 			Expect(err).ShouldNot(HaveOccurred())
 			_, exist = cloudInventory.GetVmByKey(vmCacheKey1)
+			Expect(exist).Should(BeFalse())
+		})
+	})
+	Context("SG Inventory Test", func() {
+		sgLabelsMap := map[string]string{
+			labels.CloudSelectorName:      selectorNamespacedName.Name,
+			labels.CloudSelectorNamespace: selectorNamespacedName.Namespace,
+			labels.CloudAccountName:       namespacedAccountName.Name,
+			labels.CloudAccountNamespace:  namespacedAccountName.Namespace,
+			labels.VpcName:                testVpcName01,
+		}
+		rule := runtimev1alpha1.Rule{
+			Action:      actionAllow,
+			Description: description,
+			Destination: []string{destinationIP},
+			Id:          ruleID,
+			Ingress:     ingressRule,
+			Name:        ruleName,
+			Port:        port,
+			Priority:    int32(priority),
+			Protocol:    protocol,
+			Source:      []string{sourceIP},
+		}
+		var rules []runtimev1alpha1.Rule
+		rules = append(rules, rule)
+		sgStatus := &runtimev1alpha1.SecurityGroupStatus{
+			Provider:  runtimev1alpha1.AWSCloudProvider,
+			CloudId:   testSgID01,
+			CloudName: testSgName01,
+			Region:    sgRegion,
+			Rules:     rules,
+		}
+
+		sgList := make(map[string]*runtimev1alpha1.SecurityGroup)
+		sgObj := new(runtimev1alpha1.SecurityGroup)
+		sgObj.Name = testSgName01
+		sgObj.Namespace = selectorNS
+		sgObj.Labels = sgLabelsMap
+		sgObj.Status = *sgStatus
+		sgList[testSgName01] = sgObj
+
+		It("Add SGss to SG inventory", func() {
+			cloudInventory.BuildSgCache(sgList, &namespacedAccountName, &selectorNamespacedName)
+			allSgList := cloudInventory.GetAllSgs()
+			Expect(allSgList).Should(HaveLen(len(sgList)))
+
+			sgListByIndex, err := cloudInventory.GetSgsFromIndexer(indexer.SecurityGroupBySelectorNamespacedName,
+				selectorNamespacedName.String())
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(sgListByIndex).Should(HaveLen(len(sgList)))
+			for _, i := range sgListByIndex {
+				sg := i.(*runtimev1alpha1.SecurityGroup)
+				Expect(sg.Name).To(Equal(testSgName01))
+			}
+		})
+
+		It("Delete a SG from SG inventory", func() {
+			cloudInventory.BuildSgCache(sgList, &namespacedAccountName, &selectorNamespacedName)
+
+			sgListByIndex, err := cloudInventory.GetSgsFromIndexer(indexer.SecurityGroupBySelectorNamespacedName,
+				selectorNamespacedName.String())
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(sgListByIndex).Should(HaveLen(len(sgList)))
+			for _, i := range sgListByIndex {
+				sg := i.(*runtimev1alpha1.SecurityGroup)
+				Expect(sg.Name).To(Equal(testSgName01))
+			}
+
+			// Delete sgs from the inventory which are not found in the latest sg list.
+			sgList2 := make(map[string]*runtimev1alpha1.SecurityGroup)
+			sgObj := new(runtimev1alpha1.SecurityGroup)
+			sgObj.Name = testSgName02
+			sgObj.Namespace = selectorNS
+			sgObj.Labels = sgLabelsMap
+			sgObj.Status = *sgStatus
+			sgList2[testSgName02] = sgObj
+			cloudInventory.BuildSgCache(sgList2, &namespacedAccountName, &selectorNamespacedName)
+
+			_, exist := cloudInventory.GetSgByKey(sgCacheKey2)
+			Expect(exist).Should(BeTrue())
+
+			_, exist = cloudInventory.GetSgByKey(sgCacheKey1)
+			Expect(exist).Should(BeFalse())
+		})
+		It("Delete SG inventory", func() {
+			cloudInventory.BuildSgCache(sgList, &namespacedAccountName, &selectorNamespacedName)
+
+			sgListByIndex, err := cloudInventory.GetSgsFromIndexer(indexer.SecurityGroupBySelectorNamespacedName,
+				selectorNamespacedName.String())
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(sgListByIndex).Should(HaveLen(len(sgList)))
+
+			// Delete sg cache.
+			err = cloudInventory.DeleteSgsFromCache(&namespacedAccountName, &selectorNamespacedName)
+			Expect(err).ShouldNot(HaveOccurred())
+			_, exist := cloudInventory.GetSgByKey(sgCacheKey1)
+			Expect(exist).Should(BeFalse())
+
+			// Add sg inventory again and delete sg inventory using account namespaced name.
+			cloudInventory.BuildSgCache(sgList, &namespacedAccountName, &selectorNamespacedName)
+			sgListByIndex, err = cloudInventory.GetSgsFromIndexer(indexer.SecurityGroupBySelectorNamespacedName,
+				selectorNamespacedName.String())
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(sgListByIndex).Should(HaveLen(len(sgList)))
+
+			// Delete sg cache.
+			err = cloudInventory.DeleteAllSgsFromCache(&namespacedAccountName)
+			Expect(err).ShouldNot(HaveOccurred())
+			_, exist = cloudInventory.GetSgByKey(sgCacheKey1)
 			Expect(exist).Should(BeFalse())
 		})
 	})

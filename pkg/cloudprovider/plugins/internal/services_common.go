@@ -15,7 +15,6 @@
 package internal
 
 import (
-	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"sync"
 	"time"
 
@@ -46,7 +45,6 @@ type CloudServiceInterface interface {
 	ResetInventoryCache()
 	// GetCloudInventory copies VPCs and VMs stored in internal snapshot(in cloud specific format) to internal format.
 	GetCloudInventory() *nephetypes.CloudInventory
-	GetSecurityGroupInventory() map[string]*runtimev1alpha1.SecurityGroup
 }
 
 // CloudServiceResourcesCache is cache used by all services. Each service can maintain

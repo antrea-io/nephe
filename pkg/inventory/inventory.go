@@ -334,18 +334,18 @@ func (i *Inventory) UpdateVm(vm *runtimev1alpha1.VirtualMachine) error {
 
 // BuildSgCache builds SG cache for given account using security group list fetched from cloud.
 func (i *Inventory) BuildSgCache(discoveredSgMap map[string]*runtimev1alpha1.SecurityGroup,
-	namespacedName *types.NamespacedName) error {
+	accountNamespacedName *types.NamespacedName, selectorNamespacedName *types.NamespacedName) {
 	var numSgsAdded, numSgsUpdated, numSgsDeleted int
-	// Fetch all security groups for a given account from the cache and check if it exists in the discovered vpc list.
-	sgsInCache, _ := i.sgStore.GetByIndex(indexer.SecurityGroupByAccountNamespacedName, namespacedName.String())
+	// Fetch all security groups for a given account from the cache and check if it exists in the discovered sg list.
+	sgsInCache, _ := i.sgStore.GetByIndex(indexer.SecurityGroupBySelectorNamespacedName, selectorNamespacedName.String())
 
 	// Remove security groups in SG cache which are not found in security group list fetched from cloud.
 	for _, object := range sgsInCache {
 		sg := object.(*runtimev1alpha1.SecurityGroup)
 		if _, found := discoveredSgMap[sg.Name]; !found {
-			if err := i.vpcStore.Delete(fmt.Sprintf("%v/%v", sg.Namespace, sg.Name)); err != nil {
-				i.log.Error(err, "failed to delete sg from sg cache",
-					"sg", sg.Name, "account", namespacedName.String())
+			if err := i.sgStore.Delete(fmt.Sprintf("%v/%v", sg.Namespace, sg.Name)); err != nil {
+				i.log.Error(err, "failed to delete security group from sg cache",
+					"sg", sg.Name, "account", accountNamespacedName)
 			} else {
 				numSgsDeleted++
 			}
@@ -371,16 +371,15 @@ func (i *Inventory) BuildSgCache(discoveredSgMap map[string]*runtimev1alpha1.Sec
 			}
 		}
 		if err != nil {
-			i.log.Error(err, "failed to update sg in sg cache", "vm", discoveredSg.Name,
-				"account", namespacedName.String())
+			i.log.Error(err, "failed to update security group in sg cache", "vm", discoveredSg.Name,
+				"account", accountNamespacedName, "selector", selectorNamespacedName)
 		}
 	}
 
 	if numSgsAdded != 0 || numSgsUpdated != 0 || numSgsDeleted != 0 {
-		i.log.Info("Security group poll statistics", "account", namespacedName, "added", numSgsAdded,
+		i.log.Info("Security group poll statistics", "account", accountNamespacedName, "added", numSgsAdded,
 			"update", numSgsUpdated, "delete", numSgsDeleted)
 	}
-	return nil
 }
 
 // GetAllSgs returns all the security groups from the SG cache.
@@ -405,4 +404,56 @@ func (i *Inventory) GetSgByKey(key string) (*runtimev1alpha1.SecurityGroup, bool
 		return nil, false
 	}
 	return cachedObject.(*runtimev1alpha1.SecurityGroup), true
+}
+
+func (i *Inventory) DeleteSgsFromCache(accountNamespacedName, selectorNamespacedName *types.NamespacedName) error {
+	sgsInCache, err := i.sgStore.GetByIndex(indexer.SecurityGroupBySelectorNamespacedName, selectorNamespacedName.String())
+	if err != nil {
+		return err
+	}
+	var numSgsToDelete int
+	for _, object := range sgsInCache {
+		sg, ok := object.(*runtimev1alpha1.SecurityGroup)
+		if !ok {
+			continue
+		}
+		key := fmt.Sprintf("%v/%v", sg.Namespace, sg.Name)
+		if err := i.sgStore.Delete(key); err != nil {
+			i.log.Error(err, "failed to delete security group from sg cache", "sg", sg.Name,
+				"account", accountNamespacedName, "selector", selectorNamespacedName)
+		} else {
+			numSgsToDelete++
+		}
+	}
+
+	if numSgsToDelete != 0 {
+		i.log.Info("Security group poll statistics", "account", accountNamespacedName, "deleted", numSgsToDelete)
+	}
+	return nil
+}
+
+// DeleteAllSgsFromCache deletes all entries from sg cache for a given account.
+func (i *Inventory) DeleteAllSgsFromCache(accountNamespacedName *types.NamespacedName) error {
+	sgsInCache, err := i.sgStore.GetByIndex(indexer.VirtualMachineByAccountNamespacedName, accountNamespacedName.String())
+	if err != nil {
+		return err
+	}
+	var numSgsToDelete int
+	for _, cachedObject := range sgsInCache {
+		cachedSg, ok := cachedObject.(*runtimev1alpha1.SecurityGroup)
+		if !ok {
+			continue
+		}
+		key := fmt.Sprintf("%v/%v", cachedSg.Namespace, cachedSg.Name)
+		if err := i.sgStore.Delete(key); err != nil {
+			i.log.Error(err, "failed to delete sg from sg cache", "sg", cachedSg.Name, "account", *accountNamespacedName)
+		} else {
+			numSgsToDelete++
+		}
+	}
+
+	if numSgsToDelete != 0 {
+		i.log.Info("Security group poll statistics", "account", accountNamespacedName, "deleted", numSgsToDelete)
+	}
+	return nil
 }

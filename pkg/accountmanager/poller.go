@@ -160,12 +160,9 @@ func (p *accountPoller) doAccountPolling() {
 func (p *accountPoller) processCloudInventory(cloudInventory *nephetypes.CloudInventory) {
 	_ = p.inventory.BuildVpcCache(cloudInventory.VpcMap, p.accountNamespacedName)
 
-	sgMap, err := p.cloudInterface.GetSecurityGroups(p.accountNamespacedName)
-	if err != nil {
-		p.log.Error(err, "failed to fetch security groups from internal snapshot", "account", p.accountNamespacedName.String())
-		// Continue further.
+	for selectorNamespacedName, sgs := range cloudInventory.SgMap {
+		p.inventory.BuildSgCache(sgs, p.accountNamespacedName, &selectorNamespacedName)
 	}
-	p.inventory.BuildSgCache(sgMap, p.accountNamespacedName)
 
 	// VMs are stored per selector in the VmMap.
 	for selectorNamespacedName, virtualMachines := range cloudInventory.VmMap {

@@ -61,8 +61,6 @@ type CloudCommonInterface interface {
 	GetCloudAccountByName(namespacedName *types.NamespacedName) (CloudAccountInterface, error)
 	GetCloudAccountByAccountId(accountID *string) (CloudAccountInterface, error)
 	GetCloudAccounts() map[types.NamespacedName]CloudAccountInterface
-	GetSecurityGroups(accountNamespacedName *types.NamespacedName) (
-		map[string]*runtimev1alpha1.SecurityGroup, error)
 	AddCloudAccount(client client.Client, account *crdv1alpha1.CloudProviderAccount, credentials interface{}) error
 	RemoveCloudAccount(namespacedName *types.NamespacedName)
 
@@ -243,14 +241,4 @@ func (c *cloudCommon) GetCloudInventory(accountNamespacedName *types.NamespacedN
 	defer accCfg.UnlockMutex()
 
 	return accCfg.GetServiceConfig().GetCloudInventory(), nil
-}
-
-func (c *cloudCommon) GetSecurityGroups(accountNamespacedName *types.NamespacedName) (
-	map[string]*runtimev1alpha1.SecurityGroup, error) {
-	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
-	if !found {
-		return nil, fmt.Errorf("unable to find cloud account: %v", *accountNamespacedName)
-	}
-
-	return accCfg.GetServiceConfig().GetSecurityGroupInventory(), nil
 }

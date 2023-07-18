@@ -74,12 +74,6 @@ type IPAddress struct {
 	Address     string      `json:"address"`
 }
 
-// SG contains security group identifier.
-type SG struct {
-	Name string
-	Id   string
-}
-
 // NetworkInterface contains information pertaining to NetworkInterface.
 type NetworkInterface struct {
 	Name string `json:"name,omitempty"`
@@ -88,7 +82,7 @@ type NetworkInterface struct {
 	// IP addresses of this NetworkInterface.
 	IPs []IPAddress `json:"ips,omitempty"`
 	// Security group attached to this NetworkInterface.
-	Sgs []SG `json:"sgs,omitempty"`
+	SecurityGroupIds []string `json:"securityGroupIds,omitempty"`
 	// Security group names attached to this NetworkInterface.
 	Groups []string `json:"groups,omitempty"`
 }

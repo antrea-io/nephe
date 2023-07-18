@@ -145,6 +145,15 @@ func NewSgInventoryStore() antreastorage.Interface {
 			return []string{sg.Labels[nephelabels.CloudAccountNamespace] + "/" +
 				sg.Labels[nephelabels.CloudAccountName]}, nil
 		},
+		indexer.SecurityGroupBySelectorNamespacedName: func(obj interface{}) ([]string, error) {
+			sg := obj.(*runtimev1alpha1.SecurityGroup)
+			return []string{sg.Labels[nephelabels.CloudSelectorNamespace] + "/" +
+				sg.Labels[nephelabels.CloudSelectorName]}, nil
+		},
+		indexer.SecurityGroupByCloudID: func(obj interface{}) ([]string, error) {
+			sg := obj.(*runtimev1alpha1.SecurityGroup)
+			return []string{sg.Status.CloudId}, nil
+		},
 	}
 	return ram.NewStore(sgKeyFunc, indexers, genSgEvent, keyAndSpanSelectFuncSg, func() runtime.Object {
 		return new(runtimev1alpha1.

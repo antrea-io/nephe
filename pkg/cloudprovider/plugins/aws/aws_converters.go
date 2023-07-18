@@ -322,8 +322,6 @@ func convertFromIPPermissionPortToString(startPort *int64, endPort *int64) strin
 	} else {
 		return strconv.Itoa(int(*startPort)) + "-" + strconv.Itoa(int(*endPort))
 	}
-	// other cases along with all (0 - 65535) tcp/udp ports returns nil
-	return "all"
 }
 
 func convertFromIPPermissionProtocol(proto string) *int {

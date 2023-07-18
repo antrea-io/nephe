@@ -24,7 +24,7 @@ import (
 
 	v1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	v1alpha10 "antrea.io/nephe/apis/runtime/v1alpha1"
-	securitygroup "antrea.io/nephe/pkg/cloudprovider/securitygroup"
+	securitygroup "antrea.io/nephe/pkg/cloudprovider/cloudresource"
 	gomock "github.com/golang/mock/gomock"
 	types "k8s.io/apimachinery/pkg/types"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
@@ -199,10 +199,10 @@ func (mr *MockCloudInterfaceMockRecorder) InstancesGivenProviderAccount(namespac
 }
 
 // ProviderType mocks base method.
-func (m *MockCloudInterface) ProviderType() ProviderType {
+func (m *MockCloudInterface) ProviderType() v1alpha10.CloudProvider {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ProviderType")
-	ret0, _ := ret[0].(ProviderType)
+	ret0, _ := ret[0].(v1alpha10.CloudProvider)
 	return ret0
 }
 

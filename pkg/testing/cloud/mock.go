@@ -169,21 +169,6 @@ func (mr *MockCloudInterfaceMockRecorder) GetEnforcedSecurity() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEnforcedSecurity", reflect.TypeOf((*MockCloudInterface)(nil).GetEnforcedSecurity))
 }
 
-// GetSecurityGroups mocks base method.
-func (m *MockCloudInterface) GetSecurityGroups(arg0 *types0.NamespacedName) (map[string]*v1alpha10.SecurityGroup, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetSecurityGroups", arg0)
-	ret0, _ := ret[0].(map[string]*v1alpha10.SecurityGroup)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetSecurityGroups indicates an expected call of GetSecurityGroups.
-func (mr *MockCloudInterfaceMockRecorder) GetSecurityGroups(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSecurityGroups", reflect.TypeOf((*MockCloudInterface)(nil).GetSecurityGroups), arg0)
-}
-
 // ProviderType mocks base method.
 func (m *MockCloudInterface) ProviderType() v1alpha10.CloudProvider {
 	m.ctrl.T.Helper()
