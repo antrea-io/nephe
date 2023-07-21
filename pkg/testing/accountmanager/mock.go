@@ -82,11 +82,12 @@ func (mr *MockInterfaceMockRecorder) AddResourceFiltersToAccount(arg0, arg1, arg
 }
 
 // IsAccountCredentialsValid mocks base method.
-func (m *MockInterface) IsAccountCredentialsValid(arg0 *types.NamespacedName) bool {
+func (m *MockInterface) IsAccountCredentialsValid(arg0 *types.NamespacedName) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsAccountCredentialsValid", arg0)
 	ret0, _ := ret[0].(bool)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // IsAccountCredentialsValid indicates an expected call of IsAccountCredentialsValid.

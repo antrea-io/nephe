@@ -166,6 +166,9 @@ func (r *CloudProviderAccountReconciler) processDelete(namespacedName *types.Nam
 	// Delete dependent CES.
 	cesList := &crdv1alpha1.CloudEntitySelectorList{}
 	if err := r.Client.List(context.TODO(), cesList, &client.ListOptions{}); err != nil {
+		if !errors.IsNotFound(err) {
+			return nil
+		}
 		return err
 	}
 	for _, ces := range cesList.Items {
@@ -238,7 +241,8 @@ func (r *CloudProviderAccountReconciler) processSecretUpdateEvent(secretNamespac
 		accountNamespacedName := &types.NamespacedName{Namespace: cpa.Namespace, Name: cpa.Name}
 		if eventType == watch.Added {
 			// Add event is ignored, if account credentials are already valid.
-			if r.AccManager.IsAccountCredentialsValid(accountNamespacedName) {
+			ok, err := r.AccManager.IsAccountCredentialsValid(accountNamespacedName)
+			if err != nil || ok {
 				continue
 			}
 		}

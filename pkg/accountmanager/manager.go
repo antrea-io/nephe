@@ -49,7 +49,7 @@ const (
 type Interface interface {
 	AddAccount(*types.NamespacedName, runtimev1alpha1.CloudProvider, *crdv1alpha1.CloudProviderAccount) (bool, error)
 	RemoveAccount(*types.NamespacedName) error
-	IsAccountCredentialsValid(namespacedName *types.NamespacedName) bool
+	IsAccountCredentialsValid(namespacedName *types.NamespacedName) (bool, error)
 	AddResourceFiltersToAccount(*types.NamespacedName, *types.NamespacedName, *crdv1alpha1.CloudEntitySelector, bool) (bool, error)
 	RemoveResourceFiltersFromAccount(*types.NamespacedName, *types.NamespacedName) error
 }
@@ -223,12 +223,12 @@ func (a *AccountManager) RemoveResourceFiltersFromAccount(accNamespacedName *typ
 }
 
 // IsAccountCredentialsValid return true for an account, if credentials are valid.
-func (a *AccountManager) IsAccountCredentialsValid(namespacedName *types.NamespacedName) bool {
+func (a *AccountManager) IsAccountCredentialsValid(namespacedName *types.NamespacedName) (bool, error) {
 	config := a.getAccountConfig(namespacedName)
 	if config != nil {
-		return config.credentialsValid
+		return config.credentialsValid, nil
 	}
-	return false
+	return false, fmt.Errorf("failed to get account config for account %v", namespacedName)
 }
 
 // addAccountPoller creates an account poller for a given account.
@@ -351,7 +351,7 @@ func (a *AccountManager) addSelectorToAccountConfig(accountNamespacedName, selec
 	selector *crdv1alpha1.CloudEntitySelector) error {
 	acctConfig := a.getAccountConfig(accountNamespacedName)
 	if acctConfig == nil {
-		return fmt.Errorf("failed to get account config")
+		return fmt.Errorf("failed to get account config for account %v", accountNamespacedName)
 	}
 	a.Log.V(1).Info("Adding selector config", "account", accountNamespacedName,
 		"selector", selectorNamespacedName)
