@@ -27,7 +27,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -603,7 +605,7 @@ func (r *NetworkPolicyReconciler) backgroupProcess() {
 }
 
 // SetupWithManager sets up NetworkPolicyReconciler with manager.
-func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager, antreaKubeconfig string) error {
 	r.addrSGIndexer = cache.NewIndexer(
 		// Each addrSecurityGroup is uniquely identified by its ID.
 		func(obj interface{}) (string, error) {
@@ -731,11 +733,29 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if mgr == nil {
 		return nil
 	}
-	r.antreaClient = antreanetworkingclient.NewForConfigOrDie(mgr.GetConfig())
+
+	r.createAntreaClient(mgr, antreaKubeconfig)
 	if err := ctrl.NewControllerManagedBy(mgr).For(&antreav1alpha2.ExternalEntity{}).Complete(r); err != nil {
 		return err
 	}
 	return mgr.Add(r)
+}
+
+// createAntreaClient creates a client for communicating with Antrea controller.
+func (r *NetworkPolicyReconciler) createAntreaClient(mgr ctrl.Manager, antreaKubeconfig string) {
+	var config *rest.Config
+	if antreaKubeconfig == "" {
+		// Use inCluster config.
+		config = mgr.GetConfig()
+	} else {
+		var err error
+		config, err = clientcmd.BuildConfigFromFlags("", antreaKubeconfig)
+		if err != nil {
+			// Bail out if config is invalid.
+			panic(err)
+		}
+	}
+	r.antreaClient = antreanetworkingclient.NewForConfigOrDie(config)
 }
 
 func (r *NetworkPolicyReconciler) resetWatchers() error {
