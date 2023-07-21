@@ -63,6 +63,8 @@ func CheckCRDExistence(log logr.Logger) error {
 		crds := []string{
 			"cloudprovideraccounts.crd.cloud.antrea.io",
 			"cloudentityselectors.crd.cloud.antrea.io",
+			"externalentities.crd.antrea.io",
+			"externalnodes.crd.antrea.io",
 		}
 		for _, crd := range crds {
 			_, err := apiExtClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crd, v1.GetOptions{})
