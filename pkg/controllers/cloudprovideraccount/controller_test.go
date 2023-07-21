@@ -47,7 +47,6 @@ import (
 	mockaccmanager "antrea.io/nephe/pkg/testing/accountmanager"
 	mocknpcontroller "antrea.io/nephe/pkg/testing/networkpolicy"
 	"antrea.io/nephe/pkg/util"
-	"antrea.io/nephe/pkg/util/env"
 )
 
 var (
@@ -204,7 +203,7 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 			)
 			BeforeEach(func() {
 				reconciler.clientset = fakewatch.NewSimpleClientset()
-				err = os.Setenv(env.PodNamespaceEnvKey, testSecretNamespacedName.Namespace)
+				err = os.Setenv("POD_NAMESPACE", testSecretNamespacedName.Namespace)
 				Expect(err).ShouldNot(HaveOccurred())
 				go func() {
 					reconciler.setupSecretWatcher()

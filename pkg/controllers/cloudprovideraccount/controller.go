@@ -17,6 +17,7 @@ package cloudprovideraccount
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -39,7 +40,6 @@ import (
 	"antrea.io/nephe/pkg/controllers/networkpolicy"
 	controllersync "antrea.io/nephe/pkg/controllers/sync"
 	"antrea.io/nephe/pkg/util"
-	"antrea.io/nephe/pkg/util/env"
 )
 
 // CloudProviderAccountReconciler reconciles a CloudProviderAccount object.
@@ -262,7 +262,7 @@ func (r *CloudProviderAccountReconciler) watchSecret() {
 		} else {
 			secret := event.Object.(*v1.Secret)
 			namespacedName := &types.NamespacedName{Namespace: secret.Namespace, Name: secret.Name}
-			r.Log.WithName("Secret").Info("Received request", "Secret", namespacedName, "operation", event.Type)
+			r.Log.WithName("Secret").V(1).Info("Received request", "Secret", namespacedName, "operation", event.Type)
 			r.processSecretUpdateEvent(namespacedName, event.Type)
 		}
 	}
@@ -271,8 +271,14 @@ func (r *CloudProviderAccountReconciler) watchSecret() {
 // resetSecretWatcher create a watcher for Secret
 func (r *CloudProviderAccountReconciler) resetSecretWatcher() {
 	var err error
+	podNs := os.Getenv("POD_NAMESPACE")
+	if podNs == "" {
+		r.Log.WithName("Secret").V(1).Info("Watching secrets in all namespaces")
+	} else {
+		r.Log.WithName("Secret").V(1).Info("Watching secrets in namespace", "ns", podNs)
+	}
 	for {
-		if r.watcher, err = r.clientset.CoreV1().Secrets(env.GetPodNamespace()).Watch(context.Background(), metav1.ListOptions{}); err != nil {
+		if r.watcher, err = r.clientset.CoreV1().Secrets(podNs).Watch(context.Background(), metav1.ListOptions{}); err != nil {
 			r.Log.WithName("Secret").Error(err, "error creating Secret watcher")
 			time.Sleep(time.Second * 5)
 			continue
