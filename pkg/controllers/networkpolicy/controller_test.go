@@ -135,7 +135,7 @@ var _ = Describe("NetworkPolicy", func() {
 			Inventory:       mockInventory,
 		}
 
-		err := reconciler.SetupWithManager(nil)
+		err := reconciler.SetupWithManager(nil, "")
 		Expect(err).ToNot(HaveOccurred())
 		vmMembers = make(map[string]*cloudresource.CloudResource)
 		vmExternalEntities = make(map[string]*antreatypes.ExternalEntity)

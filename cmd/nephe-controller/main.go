@@ -135,7 +135,7 @@ func main() {
 		Inventory:         cloudInventory,
 	}
 
-	if err = npController.SetupWithManager(mgr); err != nil {
+	if err = npController.SetupWithManager(mgr, opts.config.AntreaKubeconfig); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "NetworkPolicy")
 		os.Exit(1)
 	}
