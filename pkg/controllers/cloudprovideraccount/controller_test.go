@@ -217,7 +217,7 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 			// should be able to retrieve the Secret object.
 			It("Update", func() {
 				mockAccManager.EXPECT().AddAccount(&testAccountNamespacedName, accountCloudType, account).Return(false, nil).Times(2)
-				mockAccManager.EXPECT().IsAccountCredentialsValid(&testAccountNamespacedName).Return(true).Times(1)
+				mockAccManager.EXPECT().IsAccountCredentialsValid(&testAccountNamespacedName).Return(true, nil).Times(1)
 
 				By("Add the Secret")
 				_ = fakeClient.Create(context.Background(), secret)
@@ -265,7 +265,7 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 			It("Delete", func() {
 				mockAccManager.EXPECT().AddAccount(&testAccountNamespacedName, accountCloudType, account).
 					Return(false, fmt.Errorf(util.ErrorMsgSecretReference)).Times(1)
-				mockAccManager.EXPECT().IsAccountCredentialsValid(&testAccountNamespacedName).Return(true).Times(1)
+				mockAccManager.EXPECT().IsAccountCredentialsValid(&testAccountNamespacedName).Return(true, nil).Times(1)
 				By("Add the Secret")
 				_ = fakeClient.Create(context.Background(), secret)
 				// Create CPA.
@@ -284,7 +284,7 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 				Expect(err).ShouldNot(HaveOccurred())
 			})
 			It("Add for AzureAccount", func() {
-				mockAccManager.EXPECT().IsAccountCredentialsValid(&testAccountNamespacedName).Return(true).Times(1)
+				mockAccManager.EXPECT().IsAccountCredentialsValid(&testAccountNamespacedName).Return(true, nil).Times(1)
 				credential := `{"subscriptionId": "subId", "clientId": "clientId", "tenantId": "tenantId", "clientKey": "clientKey"}`
 				secret.Data = map[string][]byte{credentials: []byte(credential)}
 				account.Spec.AWSConfig = nil
