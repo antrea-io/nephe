@@ -164,3 +164,11 @@ rules:
   - customresourcedefinitions
   verbs:
   - get
+- apiGroups:
+    - ""
+  resources:
+    - secrets
+  verbs:
+    - get
+    - list
+    - watch
