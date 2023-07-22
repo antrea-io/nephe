@@ -106,9 +106,10 @@ var _ = Describe("CloudEntitySelector Controller", func() {
 		It("CES Add and Delete workflow", func() {
 			mockAccManager.EXPECT().AddResourceFiltersToAccount(&testAccountNamespacedName, &testSelectorNamespacedName,
 				selector, false).Return(true, nil).Times(1)
+			mockAccManager.EXPECT().UpdatePendingCesCount(&testAccountNamespacedName).Return(0).Times(1)
+			mockAccManager.EXPECT().WaitForPollDone(&testAccountNamespacedName).Return(nil).Times(1)
 			mockAccManager.EXPECT().RemoveResourceFiltersFromAccount(&testAccountNamespacedName,
 				&testSelectorNamespacedName).Return(nil).Times(1)
-
 			err := reconciler.processCreateOrUpdate(selector, &testSelectorNamespacedName)
 			Expect(err).ShouldNot(HaveOccurred())
 			err = reconciler.processDelete(&testSelectorNamespacedName)
@@ -137,6 +138,8 @@ var _ = Describe("CloudEntitySelector Controller", func() {
 				selector, false).Return(true, nil).Times(1)
 			mockAccManager.EXPECT().RemoveResourceFiltersFromAccount(&testAccountNamespacedName,
 				&testSelectorDifferentNamespace).Return(nil).Times(1)
+			mockAccManager.EXPECT().UpdatePendingCesCount(&testAccountNamespacedName).Return(0).Times(1)
+			mockAccManager.EXPECT().WaitForPollDone(&testAccountNamespacedName).Return(nil).Times(1)
 			err := reconciler.processCreateOrUpdate(selector, &testSelectorDifferentNamespace)
 			Expect(err).ShouldNot(HaveOccurred())
 			err = reconciler.processDelete(&testSelectorDifferentNamespace)
@@ -145,6 +148,8 @@ var _ = Describe("CloudEntitySelector Controller", func() {
 		It("CES Add failure without retry", func() {
 			mockAccManager.EXPECT().AddResourceFiltersToAccount(&testAccountNamespacedName, &testSelectorNamespacedName,
 				selector, false).Return(false, fmt.Errorf("dummy")).Times(1)
+			mockAccManager.EXPECT().UpdatePendingCesCount(&testAccountNamespacedName).Return(0).Times(1)
+			mockAccManager.EXPECT().WaitForPollDone(&testAccountNamespacedName).Return(nil).Times(1)
 			err := reconciler.processCreateOrUpdate(selector, &testSelectorNamespacedName)
 			Expect(err).ShouldNot(HaveOccurred())
 		})

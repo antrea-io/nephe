@@ -475,7 +475,7 @@ func buildEc2SgsToAttachForCaseMemberOnlySgWithNoATSgAttached(networkInterfaceNe
 }
 
 func (ec2Cfg *ec2ServiceConfig) getNepheControllerManagedSecurityGroupsCloudView() []cloudresource.SynchronizationContent {
-	vpcIDs := ec2Cfg.getManagedVpcIDs()
+	vpcIDs := ec2Cfg.getManagedVpcIds()
 	if len(vpcIDs) == 0 {
 		return []cloudresource.SynchronizationContent{}
 	}

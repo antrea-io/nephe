@@ -62,10 +62,11 @@ var _ = Describe("Account Manager", func() {
 			fakeClient = fake.NewClientBuilder().WithScheme(newScheme).Build()
 			cloudInventory := inventory.InitInventory()
 			accountManager = &AccountManager{
-				Log:       logf.Log,
-				Client:    fakeClient,
-				Inventory: cloudInventory,
-				mutex:     sync.RWMutex{},
+				Log:                    logf.Log,
+				Client:                 fakeClient,
+				Inventory:              cloudInventory,
+				mutex:                  sync.RWMutex{},
+				accountToSelectorCount: make(map[types.NamespacedName]int),
 			}
 
 			pollIntv = 1
@@ -184,10 +185,13 @@ var _ = Describe("Account Manager", func() {
 
 			// Add a resource filters to account.
 			_ = fakeClient.Create(context.Background(), secret)
-			_, err = accountManager.AddAccount(&testAccountNamespacedName, accountCloudType, account)
-			Expect(err).ShouldNot(HaveOccurred())
+			_, err1 := accountManager.AddAccount(&testAccountNamespacedName, accountCloudType, account)
+			Expect(err1).ShouldNot(HaveOccurred())
 			_, err = accountManager.AddResourceFiltersToAccount(&testAccountNamespacedName, &testCesNamespacedName,
 				ces, false)
+			Expect(err).ShouldNot(HaveOccurred())
+			_ = accountManager.UpdatePendingCesCount(&testAccountNamespacedName)
+			err = accountManager.WaitForPollDone(&testAccountNamespacedName)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 		It("Remove Resource Filters from Account", func() {

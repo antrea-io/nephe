@@ -271,11 +271,11 @@ func (p *accountPoller) waitForPollDone(accountNamespacedName *types.NamespacedN
 func (p *accountPoller) restartPoller(name *types.NamespacedName) {
 	// Wait for existing thread to complete its execution.
 	p.mutex.Lock()
+	defer p.mutex.Unlock()
 	if p.ch != nil {
 		close(p.ch)
 		p.ch = nil
 	}
-	p.mutex.Unlock()
 
 	p.log.Info("Restarting account poller", "account", name)
 	p.ch = make(chan struct{})

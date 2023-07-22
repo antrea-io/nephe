@@ -65,8 +65,7 @@ func (r *CloudEntitySelectorReconciler) Reconcile(ctx context.Context, req ctrl.
 		return ctrl.Result{}, err
 	}
 	if errors.IsNotFound(err) {
-		err = r.processDelete(&req.NamespacedName)
-		return ctrl.Result{}, err
+		return ctrl.Result{}, r.processDelete(&req.NamespacedName)
 	}
 
 	if err = r.processCreateOrUpdate(entitySelector, &req.NamespacedName); err != nil {
@@ -144,6 +143,12 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *crdv1alp
 		return err
 	}
 	r.updateStatus(selectorNamespacedName, err)
+	// TODO: Make sure in case of restart selector add cannot fail, because this impacts pending ces count in accountToSelectorCount map.
+	if count := r.AccManager.UpdatePendingCesCount(accountNamespacedName); count == 0 {
+		if err := r.AccManager.WaitForPollDone(accountNamespacedName); err != nil {
+			r.Log.Error(err, "inventory poll failed", "account", accountNamespacedName, "error", err)
+		}
+	}
 	return nil
 }
 

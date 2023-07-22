@@ -46,8 +46,8 @@ type ec2ServiceConfig struct {
 type ec2ResourcesCacheSnapshot struct {
 	vms           map[types.NamespacedName][]*ec2.Instance
 	vpcs          []*ec2.Vpc
-	managedVpcIDs map[string]struct{}
-	vpcNameToID   map[string]string
+	managedVpcIds map[string]struct{}
+	vpcNameToId   map[string]string
 	vpcPeers      map[string][]string
 }
 
@@ -119,21 +119,21 @@ func (ec2Cfg *ec2ServiceConfig) getCachedInstances(selector *types.NamespacedNam
 	return instancesToReturn
 }
 
-// getManagedVpcIDs returns vpcIDs of vpcs containing managed vms from cache.
-func (ec2Cfg *ec2ServiceConfig) getManagedVpcIDs() map[string]struct{} {
-	vpcIDsCopy := make(map[string]struct{})
+// getManagedVpcIds returns vpcIDs of vpcs containing managed vms from cache.
+func (ec2Cfg *ec2ServiceConfig) getManagedVpcIds() map[string]struct{} {
+	vpcIdsCopy := make(map[string]struct{})
 	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
 		awsPluginLogger().V(4).Info("Cache snapshot nil", "type", providerType, "account", ec2Cfg.accountNamespacedName)
-		return vpcIDsCopy
+		return vpcIdsCopy
 	}
-	vpcIDsSet := snapshot.(*ec2ResourcesCacheSnapshot).managedVpcIDs
+	vpcIdsSet := snapshot.(*ec2ResourcesCacheSnapshot).managedVpcIds
 
-	for vpcID := range vpcIDsSet {
-		vpcIDsCopy[vpcID] = struct{}{}
+	for vpcId := range vpcIdsSet {
+		vpcIdsCopy[vpcId] = struct{}{}
 	}
 
-	return vpcIDsCopy
+	return vpcIdsCopy
 }
 
 // getCachedVpcsMap returns vpcs from cache in map format.
@@ -152,21 +152,21 @@ func (ec2Cfg *ec2ServiceConfig) getCachedVpcsMap() map[string]*ec2.Vpc {
 	return vpcCopy
 }
 
-// getCachedVpcNameToID returns the map vpcNameToID from the cache.
-func (ec2Cfg *ec2ServiceConfig) getCachedVpcNameToID() map[string]string {
-	vpcNameToIDCopy := make(map[string]string)
+// getCachedVpcNameToId returns the map vpcNameToId from the cache.
+func (ec2Cfg *ec2ServiceConfig) getCachedVpcNameToId() map[string]string {
+	vpcNameToIdCopy := make(map[string]string)
 	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
 		awsPluginLogger().V(4).Info("Cache snapshot nil", "type", providerType, "account", ec2Cfg.accountNamespacedName)
-		return vpcNameToIDCopy
+		return vpcNameToIdCopy
 	}
-	vpcNameToID := snapshot.(*ec2ResourcesCacheSnapshot).vpcNameToID
+	vpcNameToId := snapshot.(*ec2ResourcesCacheSnapshot).vpcNameToId
 
-	for k, v := range vpcNameToID {
-		vpcNameToIDCopy[k] = v
+	for k, v := range vpcNameToId {
+		vpcNameToIdCopy[k] = v
 	}
 
-	return vpcNameToIDCopy
+	return vpcNameToIdCopy
 }
 
 // GetCachedVpcs returns VPCs from cached snapshot for the account.
@@ -184,14 +184,14 @@ func (ec2Cfg *ec2ServiceConfig) getCachedVpcs() []*ec2.Vpc {
 }
 
 // getVpcPeers returns all the peers of a vpc.
-func (ec2Cfg *ec2ServiceConfig) getVpcPeers(vpcID string) []string {
+func (ec2Cfg *ec2ServiceConfig) getVpcPeers(vpcId string) []string {
 	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
 	if snapshot == nil {
 		awsPluginLogger().V(4).Info("Cache snapshot nil", "type", providerType, "account", ec2Cfg.accountNamespacedName)
 		return nil
 	}
 	vpcPeersCopy := make([]string, 0)
-	if peers, ok := snapshot.(*ec2ResourcesCacheSnapshot).vpcPeers[vpcID]; ok {
+	if peers, ok := snapshot.(*ec2ResourcesCacheSnapshot).vpcPeers[vpcId]; ok {
 		vpcPeersCopy = deepcopy.Copy(peers).([]string)
 	}
 	return vpcPeersCopy
@@ -208,7 +208,7 @@ func (ec2Cfg *ec2ServiceConfig) getInstances(namespacedName *types.NamespacedNam
 	for _, filter := range filters {
 		if len(filter) > 0 {
 			if *filter[0].Name == awsCustomFilterKeyVPCName {
-				filter = buildFilterForVPCIDFromFilterForVPCName(filter, ec2Cfg.getCachedVpcNameToID())
+				filter = buildFilterForVPCIDFromFilterForVPCName(filter, ec2Cfg.getCachedVpcNameToId())
 			}
 		}
 		request := &ec2.DescribeInstancesInput{
@@ -236,7 +236,7 @@ func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
 	}
 	awsPluginLogger().V(1).Info("Vpcs from cloud", "account", ec2Cfg.accountNamespacedName,
 		"vpcs", len(vpcs))
-	vpcNameToID := ec2Cfg.buildMapVpcNameToID(vpcs)
+	vpcNameToId := ec2Cfg.buildMapVpcNameToId(vpcs)
 	vpcPeers, _ := ec2Cfg.buildMapVpcPeers()
 	allInstances := make(map[types.NamespacedName][]*ec2.Instance)
 
@@ -244,11 +244,11 @@ func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
 	if len(ec2Cfg.selectors) == 0 {
 		awsPluginLogger().V(1).Info("Fetching vm resources from cloud skipped",
 			"account", ec2Cfg.accountNamespacedName, "resource-filters", "not-configured")
-		ec2Cfg.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{allInstances, vpcs, nil, vpcNameToID, vpcPeers})
+		ec2Cfg.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{allInstances, vpcs, nil, vpcNameToId, vpcPeers})
 		return nil
 	}
 
-	managedVpcIDs := make(map[string]struct{})
+	managedVpcIds := make(map[string]struct{})
 	for namespacedName := range ec2Cfg.selectors {
 		instances, err := ec2Cfg.getInstances(&namespacedName)
 		if err != nil {
@@ -256,11 +256,11 @@ func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
 			return err
 		}
 		for _, instance := range instances {
-			managedVpcIDs[strings.ToLower(*instance.VpcId)] = struct{}{}
+			managedVpcIds[strings.ToLower(*instance.VpcId)] = struct{}{}
 		}
 		allInstances[namespacedName] = instances
 	}
-	ec2Cfg.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{allInstances, vpcs, managedVpcIDs, vpcNameToID, vpcPeers})
+	ec2Cfg.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{allInstances, vpcs, managedVpcIds, vpcNameToId, vpcPeers})
 
 	return nil
 }
@@ -315,8 +315,8 @@ func (ec2Cfg *ec2ServiceConfig) UpdateServiceConfig(newConfig internal.CloudServ
 	return nil
 }
 
-func (ec2Cfg *ec2ServiceConfig) buildMapVpcNameToID(vpcs []*ec2.Vpc) map[string]string {
-	vpcNameToID := make(map[string]string)
+func (ec2Cfg *ec2ServiceConfig) buildMapVpcNameToId(vpcs []*ec2.Vpc) map[string]string {
+	vpcNameToId := make(map[string]string)
 	for _, vpc := range vpcs {
 		if len(vpc.Tags) == 0 {
 			awsPluginLogger().V(4).Info("Vpc name not found", "account", ec2Cfg.accountNamespacedName, "vpc", vpc)
@@ -329,9 +329,9 @@ func (ec2Cfg *ec2ServiceConfig) buildMapVpcNameToID(vpcs []*ec2.Vpc) map[string]
 				break
 			}
 		}
-		vpcNameToID[vpcName] = *vpc.VpcId
+		vpcNameToId[vpcName] = *vpc.VpcId
 	}
-	return vpcNameToID
+	return vpcNameToId
 }
 
 func (ec2Cfg *ec2ServiceConfig) buildMapVpcPeers() (map[string][]string, error) {
@@ -342,9 +342,9 @@ func (ec2Cfg *ec2ServiceConfig) buildMapVpcPeers() (map[string][]string, error) 
 		return nil, err
 	}
 	for _, peerConn := range result.VpcPeeringConnections {
-		accepterID, requesterID := *peerConn.AccepterVpcInfo.VpcId, *peerConn.RequesterVpcInfo.VpcId
-		vpcPeers[accepterID] = append(vpcPeers[accepterID], requesterID)
-		vpcPeers[requesterID] = append(vpcPeers[requesterID], accepterID)
+		accepterId, requesterId := *peerConn.AccepterVpcInfo.VpcId, *peerConn.RequesterVpcInfo.VpcId
+		vpcPeers[accepterId] = append(vpcPeers[accepterId], requesterId)
+		vpcPeers[requesterId] = append(vpcPeers[requesterId], accepterId)
 	}
 	return vpcPeers, nil
 }
@@ -361,12 +361,12 @@ func (ec2Cfg *ec2ServiceConfig) getVpcs() ([]*ec2.Vpc, error) {
 // getVpcObjects generates vpc object for the vpcs stored in snapshot(in cloud format) and return a map of vpc runtime objects.
 func (ec2Cfg *ec2ServiceConfig) getVpcObjects() map[string]*runtimev1alpha1.Vpc {
 	vpcs := ec2Cfg.getCachedVpcs()
-	managedVpcIDs := ec2Cfg.getManagedVpcIDs()
+	managedVpcIds := ec2Cfg.getManagedVpcIds()
 	// Convert to kubernetes object and return a map indexed using VPC ID.
 	vpcMap := map[string]*runtimev1alpha1.Vpc{}
 	for _, vpc := range vpcs {
 		managed := false
-		if _, ok := managedVpcIDs[*vpc.VpcId]; ok {
+		if _, ok := managedVpcIds[*vpc.VpcId]; ok {
 			managed = true
 		}
 		vpcObj := ec2VpcToInternalVpcObject(vpc, ec2Cfg.accountNamespacedName.Namespace, ec2Cfg.accountNamespacedName.Name,
