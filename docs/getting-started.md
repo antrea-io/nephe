@@ -69,7 +69,7 @@ to [the AKS installation guide](aks-installation.md).
 To manage security policies of Public Cloud VMs, we need to first import the
 target VMs onto the `Nephe Controller`. The following section explains how to
 set up access to public cloud account, select target VMs, and import VMs into
-the K8s cluster as `VirtualMachine` CRs. The examples below import VMs into the
+the K8s cluster as `VirtualMachine` objects. The examples below import VMs into the
 `sample-ns` Namespace.
 
 ### CloudProviderAccount
@@ -356,7 +356,7 @@ on them. The policy will be realized with cloud network security groups and
 rules. Please refer to [NetworkPolicy](networkpolicy.md) documentation for
 more information on how ANPs are used, translated, and applied.
 
-Cloud VirtualMachine CRs may be selected in `externalEntitySelectors` under
+Cloud VirtualMachine objects may be selected in `externalEntitySelectors` under
 `To`, `From` and  `AppliedTo` fields of Antrea `NetworkPolicy`.
 
 The below sample ANP allows ssh traffic to all VMs.
