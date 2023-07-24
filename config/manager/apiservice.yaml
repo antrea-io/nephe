@@ -9,7 +9,7 @@ spec:
   group: runtime.cloud.antrea.io
   groupPriorityMinimum: 100
   service:
-    name: nephe-controller-service
+    name: nephe-controller
     namespace: system
   version: v1alpha1
   versionPriority: 100

@@ -16,5 +16,5 @@ spec:
         caBundle: Cg==
         service:
           namespace: system
-          name: nephe-controller-webhook-service
+          name: nephe-controller-webhook
           path: /convert

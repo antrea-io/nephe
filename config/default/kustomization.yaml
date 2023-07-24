@@ -64,7 +64,7 @@ vars:
   objref:
     kind: Service
     version: v1
-    name: nephe-controller-webhook-service
+    name: nephe-controller-webhook
   fieldref:
     fieldpath: metadata.namespace
 #- name: SERVICE_NAME
