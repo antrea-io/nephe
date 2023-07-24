@@ -11,7 +11,7 @@ webhooks:
   clientConfig:
     caBundle: Cg==
     service:
-      name: nephe-controller-webhook-service
+      name: nephe-controller-webhook
       namespace: {{ .Release.Namespace }}
       path: /validate-crd-cloud-antrea-io-v1alpha1-cloudentityselector
   failurePolicy: Fail
@@ -34,7 +34,7 @@ webhooks:
   clientConfig:
     caBundle: Cg==
     service:
-      name: nephe-controller-webhook-service
+      name: nephe-controller-webhook
       namespace: {{ .Release.Namespace }}
       path: /validate-crd-cloud-antrea-io-v1alpha1-cloudprovideraccount
   failurePolicy: Fail

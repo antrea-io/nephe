@@ -12,7 +12,7 @@ spec:
       clientConfig:
         caBundle: Cg==
         service:
-          name: nephe-controller-webhook-service
+          name: nephe-controller-webhook
           namespace: {{ .Release.Namespace }}
           path: /convert
       conversionReviewVersions:

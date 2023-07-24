@@ -17,7 +17,7 @@ spec:
       clientConfig:
         caBundle: Cg==
         service:
-          name: nephe-controller-webhook-service
+          name: nephe-controller-webhook
           namespace: nephe-system
           path: /convert
       conversionReviewVersions:
@@ -150,7 +150,7 @@ spec:
       clientConfig:
         caBundle: Cg==
         service:
-          name: nephe-controller-webhook-service
+          name: nephe-controller-webhook
           namespace: nephe-system
           path: /convert
       conversionReviewVersions:
@@ -478,7 +478,7 @@ metadata:
 apiVersion: v1
 kind: Service
 metadata:
-  name: nephe-controller-service
+  name: nephe-controller
   namespace: nephe-system
 spec:
   ports:
@@ -491,7 +491,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: nephe-controller-webhook-service
+  name: nephe-controller-webhook
   namespace: nephe-system
 spec:
   ports:
@@ -570,7 +570,7 @@ spec:
   group: runtime.cloud.antrea.io
   groupPriorityMinimum: 100
   service:
-    name: nephe-controller-service
+    name: nephe-controller
     namespace: nephe-system
   version: v1alpha1
   versionPriority: 100
@@ -610,7 +610,7 @@ webhooks:
   clientConfig:
     caBundle: Cg==
     service:
-      name: nephe-controller-webhook-service
+      name: nephe-controller-webhook
       namespace: nephe-system
       path: /mutate-crd-cloud-antrea-io-v1alpha1-cloudentityselector
   failurePolicy: Fail
@@ -632,7 +632,7 @@ webhooks:
   clientConfig:
     caBundle: Cg==
     service:
-      name: nephe-controller-webhook-service
+      name: nephe-controller-webhook
       namespace: nephe-system
       path: /mutate-crd-cloud-antrea-io-v1alpha1-cloudprovideraccount
   failurePolicy: Fail
@@ -661,7 +661,7 @@ webhooks:
   clientConfig:
     caBundle: Cg==
     service:
-      name: nephe-controller-webhook-service
+      name: nephe-controller-webhook
       namespace: nephe-system
       path: /validate-crd-cloud-antrea-io-v1alpha1-cloudentityselector
   failurePolicy: Fail
@@ -684,7 +684,7 @@ webhooks:
   clientConfig:
     caBundle: Cg==
     service:
-      name: nephe-controller-webhook-service
+      name: nephe-controller-webhook
       namespace: nephe-system
       path: /validate-crd-cloud-antrea-io-v1alpha1-cloudprovideraccount
   failurePolicy: Fail
