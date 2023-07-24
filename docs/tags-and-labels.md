@@ -22,18 +22,18 @@
 
 Virtual Machines are onboarded by specifying the matching criteria in `CloudEntitySelector` CR. The virtual machines from
 cloud are imported as `VirtualMachine` objects in `CloudEntitySelector` namespace. `VirtualMachine` object `Name` is
-a unique resource name within the Kubernetes cluster. In Azure, the ASCII sum of all characters in the VM Resource ID added as a
+a unique resource name within the Kubernetes cluster. In Azure, the ASCII sum of all characters in the VM Resource ID is added as a
 suffix to the Virtual Machine name. In AWS, instance ID of the Virtual Machine is used as the `Name`.
 
 ### Labels
 
 Meaning of some label fields in `VirtualMachine` objects differ based on the cloud provider type.
 
-| Label        | Description                               | Azure                                                      | AWS            |
-|--------------|-------------------------------------------|------------------------------------------------------------|----------------|
-| cloud-vm-uid | Unique identifier of VM on cloud          | VM `vmId` property                                         | Instance ID    |
-| cloud-vpc-id | Unique identifier of VPC on cloud         | VNET `resourceGuid` property                               | VPC ID         |
-| vpc-name     | VPC object name within Kubernetes cluster | VNET `name` suffixed with ascii sum of VNET `Resource ID`  | VPC ID         |
+| Label        | Description                                   | Azure                                                      | AWS            |
+|--------------|-----------------------------------------------|------------------------------------------------------------|----------------|
+| cloud-vm-uid | Unique identifier of VM on cloud              | VM `vmId` property                                         | Instance ID    |
+| cloud-vpc-id | Unique identifier of VPC on cloud             | VNET `resourceGuid` property                               | VPC ID         |
+| vpc-name     | VPC object name within the Kubernetes cluster | VNET `name` suffixed with ascii sum of VNET `Resource ID`  | VPC ID         |
 
 Following labels are generic and related to user configuration.
 
@@ -162,11 +162,11 @@ objects are imported onto `ExternalEntity` CR as labels, which can be used to co
 
 ### Sample ExternalEntity Output
 
+#### AWS
+
 ```bash
 kubectl describe ee virtualmachine-i-0c2e4054f435927a9 -n sample-ns
 ```
-
-#### AWS
 
 ```yaml
 Name:         virtualmachine-i-0c2e4054f435927a9
@@ -284,16 +284,16 @@ Events:           <none>
 
 ### Labels
 
-| Label                          | Description                                                                               | Azure                                                                  | AWS                                                  |
-|--------------------------------|-------------------------------------------------------------------------------------------|------------------------------------------------------------------------|------------------------------------------------------|
-| nephe.antrea.io/cloud-vm-uid   | Unique identifier of VM on cloud                                                          | VM `vmId` property                                                     | Instance ID                                          |
-| nephe.antrea.io/cloud-vpc-uid  | Unique identifier of VPC on cloud                                                         | VNET `resourceGuid` property                                           | VPC ID                                               |
-| nephe.antrea.io/cloud-vpc-name | VPC name on cloud                                                                         | VNET `name` property                                                   | VPC `Name` tag                                       |
-| nephe.antrea.io/cloud-vm-name  | VM name on cloud                                                                          | VM `name` property                                                     | VM `Name` tag                                        |
-| nephe.antrea.io/owner-vm       | VM object Name within Kubernetes cluster                                                  | VM `name` property suffixed with ascii sum of VM `Resource ID`         | Instance ID                                          |
-| nephe.antrea.io/owner-vm-vpc   | VPC object(belongs to VM) Name within Kubernetes cluster                                  | VNET `name` property suffixed with ascii sum of VNET `Resource ID`     | VPC ID                                               |
- | nephe.antrea.io/cloud-region   | Region configured in `CloudProviderAccount` CR and VMs are imported from this region      | Region from configured `CloudProviderAccount` CR                       | Region from configured `CloudProviderAccount` CR     |
-| nephe.antrea.io/tag-Name       | Prefix "tag-" indicates VM Tags from cloud, value of label is the corresponding tag value | Tags on cloud with key name "Name"                                     | Tag on cloud with key name "Name"                    |
+| Label                          | Description                                                                          | Azure                                                              | AWS                                                  |
+|--------------------------------|--------------------------------------------------------------------------------------|--------------------------------------------------------------------|------------------------------------------------------|
+| nephe.antrea.io/cloud-vm-uid   | Unique identifier of VM on cloud                                                     | VM `vmId` property                                                 | Instance ID                                          |
+| nephe.antrea.io/cloud-vpc-uid  | Unique identifier of VPC on cloud                                                    | VNET `resourceGuid` property                                       | VPC ID                                               |
+| nephe.antrea.io/cloud-vpc-name | VPC name on cloud                                                                    | VNET `name` property                                               | VPC `Name` tag                                       |
+| nephe.antrea.io/cloud-vm-name  | VM name on cloud                                                                     | VM `name` property                                                 | VM `Name` tag                                        |
+| nephe.antrea.io/owner-vm       | VM object Name within the Kubernetes cluster                                         | VM `name` property suffixed with ascii sum of VM `id` property     | Instance ID                                          |
+| nephe.antrea.io/owner-vm-vpc   | VPC object (belongs to VM) Name within the Kubernetes cluster                        | VNET `name` property suffixed with ascii sum of VNET `id` property | VPC ID                                               |
+ | nephe.antrea.io/cloud-region   | Region configured in `CloudProviderAccount` CR and VMs are imported from this region | Region from configured `CloudProviderAccount` CR                   | Region from configured `CloudProviderAccount` CR     |
+| nephe.antrea.io/tag-Name       | Prefix "tag-" indicates VM Tags from cloud, value of label is the tag value          | Tag on cloud with key name "Name"                                  | Tag on cloud with key name "Name"                    |
 
 ### Cloud Tags
 
