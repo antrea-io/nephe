@@ -87,8 +87,9 @@ To get the base64 encoded json string for credential, run:
 echo '{"accessKeyId": "YOUR_AWS_ACCESS_KEY_ID", "accessKeySecret": "YOUR_AWS_ACCESS_KEY_SECRET", "sessionToken": "YOUR_AWS_SESSION_TOKEN", "roleArn": "YOUR_AWS_IAM_ROLE_ARN", "externalId": "IAM_ROLE_EXTERNAL_ID"}' | openssl base64 | tr -d '\n'
 ```
 
-Note: `roleArn` and `externalId` are used for role based access on AWS, they can
-be removed if credentials are provided.
+Note: `roleArn` and `externalId` are used for role-based access on AWS, they can
+be removed if credentials are provided. For guide on setting up role-based
+access, please refer to [the EKS installation guide](eks-installation.md#setup-aws-iam-role-based-access-optional).
 
 ```bash
 cat <<EOF | kubectl apply -f -

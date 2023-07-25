@@ -11,6 +11,10 @@
   - [Interact with EKS cluster](#interact-with-eks-cluster)
   - [Display EKS attributes](#display-eks-attributes)
   - [Destroy EKS cluster](#destroy-eks-cluster)
+- [Setup AWS IAM Role Based Access [Optional]](#setup-aws-iam-role-based-access-optional)
+  - [Create an IAM Policy](#create-an-iam-policy)
+  - [Create an IAM Role using AWS Console](#create-an-iam-role-using-aws-console)
+  - [Create CPA with IAM Role ARN](#create-cpa-with-iam-role-arn)
 - [Create AWS VMs](#create-aws-vms)
   - [Setup Terraform Environment](#setup-terraform-environment-1)
   - [Create VMs](#create-vms)
@@ -115,6 +119,130 @@ Loading locally built `antrea/nephe` images to EKS cluster.
 
 ```bash
 ~/terraform/eks destroy
+```
+
+## Setup AWS IAM Role Based Access [Optional]
+
+In addition to using AWS credentials for access, Nephe provides support for IAM
+role-based access, offering an alternative method to grant access and
+permissions. IAM role-based access allows for fine-grained control, simplified
+access management and improved security by eliminating the need to manage
+individual AWS credentials. However, the limitation of IAM role-based access is
+that it can only be used when Nephe is deployed on an EKS cluster.
+
+This documentation section will guide you through the setup process in AWS for
+IAM role-based access for Nephe.
+
+### Create an IAM Policy
+
+Navigate to the IAM dashboard on AWS console and select policies.
+Create a policy with the following permissions.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": [
+      "ec2:AuthorizeSecurityGroupEgress",
+      "ec2:AuthorizeSecurityGroupIngress",
+      "ec2:CreateSecurityGroup",
+      "ec2:CreateTags",
+      "ec2:DeleteSecurityGroup",
+      "ec2:DeleteTags",
+      "ec2:DescribeInstances",
+      "ec2:DescribeNetworkInterfaces",
+      "ec2:DescribeSecurityGroups",
+      "ec2:DescribeVpcs",
+      "ec2:DetachInternetGateway",
+      "ec2:ModifyNetworkInterfaceAttribute",
+      "ec2:ModifySecurityGroupRules",
+      "ec2:RevokeSecurityGroupEgress",
+      "ec2:RevokeSecurityGroupIngress",
+      "ec2:UpdateSecurityGroupRuleDescriptionsEgress",
+      "ec2:UpdateSecurityGroupRuleDescriptionsIngress"
+    ],
+    "Resource": "*"
+  }]
+}
+```
+
+### Create an IAM Role using AWS Console
+
+Navigate to the IAM dashboard on AWS console and select roles.
+
+Create an IAM role and select `AWS account` for trusted entity type. The
+external id option is not required but recommended for improved security. It can
+be any string but common practice is to generate an UID for Nephe. The AWS
+account number should be the account where Nephe EKS cluster is deployed.
+
+- Alternatively for the `custom trust policy` option, you can use the following.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Principal": {
+        "AWS": "<AWS_ACCOUNT_NUMBER>"
+      },
+      "Condition": {
+        "StringEquals": {
+          "sts:ExternalId": "<EXTERNAL_ID>"
+        }
+      }
+    }
+  ]
+}
+```
+
+### Create CPA with IAM Role ARN
+
+CPA creation with role-based access is the same as credential based access, with
+the only difference being the base64 encoded json content.
+
+To get the base64 encoded json string for IAM role, run:
+
+```bash
+echo '{"roleArn": "YOUR_AWS_IAM_ROLE_ARN", "externalId": "IAM_ROLE_EXTERNAL_ID"}' | openssl base64 | tr -d '\n'
+```
+
+Then create the Kubernetes `Secret`.
+
+```bash
+cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aws-account-creds
+  namespace: nephe-system
+type: Opaque
+data:
+  credentials: "<BASE64_ENCODED_JSON_STRING>"
+EOF
+```
+
+Lastly, create `CloudProviderAccount` CRs.
+
+```bash
+kubectl create namespace sample-ns
+cat <<EOF | kubectl apply -f -
+apiVersion: crd.cloud.antrea.io/v1alpha1
+kind: CloudProviderAccount
+metadata:
+  name: cloudprovideraccount-aws-sample
+  namespace: sample-ns
+spec:
+  awsConfig:
+    region:
+      - "<REPLACE_ME>"
+    secretRef:
+      name: aws-account-creds
+      namespace: nephe-system
+      key: credentials
+EOF
 ```
 
 ## Create AWS VMs
