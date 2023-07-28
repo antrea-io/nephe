@@ -115,7 +115,7 @@ wait_for_cert_manager "$HOME"/.kube/config
 mkdir -p "$HOME"/logs
 if [ "$UPGRADE" = true ] ; then
     ci/bin/upgrade.test -ginkgo.v -ginkgo.timeout 90m -ginkgo.focus=".*test-azure.*" -kubeconfig="$HOME"/.kube/config \
-    -from-version=0.5.0 -to-version="latest" -chart-dir="build/charts/nephe" -cloud-provider=Azure -support-bundle-dir="$HOME"/logs
+    -from-version=0.6.0 -to-version="latest" -chart-dir="build/charts/nephe" -cloud-provider=Azure -support-bundle-dir="$HOME"/logs
 else
     # Pre install Nephe.
     helm repo add antrea https://charts.antrea.io
