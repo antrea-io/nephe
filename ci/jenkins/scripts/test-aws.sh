@@ -157,7 +157,7 @@ mkdir -p "$HOME"/logs
 
 if [ "$UPGRADE" = true ] ; then
     ci/bin/upgrade.test -ginkgo.v -ginkgo.timeout 90m -ginkgo.focus=".*test-aws.*" -kubeconfig="$HOME"/.kube/config \
-    -from-version=0.5.0 -to-version="latest" -chart-dir="build/charts/nephe" -cloud-provider=AWS -support-bundle-dir="$HOME"/logs
+    -from-version=0.6.0 -to-version="latest" -chart-dir="build/charts/nephe" -cloud-provider=AWS -support-bundle-dir="$HOME"/logs
 else
     ci/bin/integration.test -ginkgo.v -ginkgo.timeout 90m -ginkgo.focus=".*test-aws.*" -kubeconfig="$HOME"/.kube/config \
     -cloud-provider=AWS -support-bundle-dir="$HOME"/logs
