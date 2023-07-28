@@ -36,6 +36,7 @@ import (
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
+	"antrea.io/nephe/pkg/cloudprovider/plugins/internal"
 	"antrea.io/nephe/pkg/cloudprovider/utils"
 	"antrea.io/nephe/pkg/config"
 )
@@ -783,6 +784,9 @@ var _ = Describe("Azure Cloud Security", func() {
 			})
 
 			It("Should update Security rules for Peerings", func() {
+				if !internal.VpcPeeringEnabled {
+					Skip("Peering feature is disabled")
+				}
 				webAddressGroupIdentifier03 := &cloudresource.CloudResource{
 					Type: cloudresource.CloudResourceTypeVM,
 					CloudResourceID: cloudresource.CloudResourceID{
@@ -829,6 +833,9 @@ var _ = Describe("Azure Cloud Security", func() {
 
 			//  Creating cloud security rules without a description field is not allowed.
 			It("Should fail to update Security rules for Peerings -- invalid namespacedname", func() {
+				if !internal.VpcPeeringEnabled {
+					Skip("Peering feature is disabled")
+				}
 				webAddressGroupIdentifier03 := &cloudresource.CloudResource{
 					Type: cloudresource.CloudResourceTypeVM,
 					CloudResourceID: cloudresource.CloudResourceID{

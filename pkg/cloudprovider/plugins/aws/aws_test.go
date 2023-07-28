@@ -35,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
+	"antrea.io/nephe/pkg/cloudprovider/plugins/internal"
 )
 
 var (
@@ -145,8 +146,10 @@ var _ = Describe("AWS cloud", func() {
 				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).AnyTimes()
 				mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).Times(0)
 				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(createVpcObject(vpcIDs), nil).AnyTimes()
-				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
-					nil).AnyTimes()
+				if internal.VpcPeeringEnabled {
+					mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
+						nil).AnyTimes()
+				}
 
 				_ = fakeClient.Create(context.Background(), secret)
 				c := newAWSCloud(mockawsCloudHelper)
@@ -180,8 +183,10 @@ var _ = Describe("AWS cloud", func() {
 				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).AnyTimes()
 				mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).Times(0)
 				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(createVpcObject(vpcIDs), nil).AnyTimes()
-				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
-					nil).AnyTimes()
+				if internal.VpcPeeringEnabled {
+					mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
+						nil).AnyTimes()
+				}
 
 				_ = fakeClient.Create(context.Background(), secret)
 				c := newAWSCloud(mockawsCloudHelper)
@@ -216,8 +221,10 @@ var _ = Describe("AWS cloud", func() {
 				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).AnyTimes()
 				mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).Times(0)
 				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(createVpcObject(vpcIDs), nil).AnyTimes()
-				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
-					nil).AnyTimes()
+				if internal.VpcPeeringEnabled {
+					mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
+						nil).AnyTimes()
+				}
 
 				_ = fakeClient.Create(context.Background(), secret)
 				c := newAWSCloud(mockawsCloudHelper)
@@ -237,7 +244,9 @@ var _ = Describe("AWS cloud", func() {
 				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).Times(0)
 				mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).Times(0)
 				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(&ec2.DescribeVpcsOutput{}, nil).Times(0)
-				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{}, nil).Times(0)
+				if internal.VpcPeeringEnabled {
+					mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{}, nil).Times(0)
+				}
 			})
 			It("Should discover instances when selector is in different namespace from account", func() {
 				instanceIds := []string{"i-01", "i-02"}
@@ -274,8 +283,10 @@ var _ = Describe("AWS cloud", func() {
 				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).AnyTimes()
 				mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).AnyTimes()
 				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(&ec2.DescribeVpcsOutput{}, nil).AnyTimes()
-				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
-					nil).AnyTimes()
+				if internal.VpcPeeringEnabled {
+					mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
+						nil).AnyTimes()
+				}
 
 				_ = fakeClient.Create(context.Background(), secret)
 				c := newAWSCloud(mockawsCloudHelper)
@@ -300,8 +311,10 @@ var _ = Describe("AWS cloud", func() {
 				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).AnyTimes()
 				mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).AnyTimes()
 				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(&ec2.DescribeVpcsOutput{}, nil).AnyTimes()
-				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
-					nil).AnyTimes()
+				if internal.VpcPeeringEnabled {
+					mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
+						nil).AnyTimes()
+				}
 				_ = fakeClient.Create(context.Background(), secret)
 				c := newAWSCloud(mockawsCloudHelper)
 				err := c.AddProviderAccount(fakeClient, account)
@@ -408,7 +421,10 @@ var _ = Describe("AWS cloud", func() {
 			mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).AnyTimes()
 			mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).AnyTimes()
 			mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(&ec2.DescribeVpcsOutput{}, nil).AnyTimes()
-			mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{}, nil).AnyTimes()
+			if internal.VpcPeeringEnabled {
+				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).
+					Return(&ec2.DescribeVpcPeeringConnectionsOutput{}, nil).AnyTimes()
+			}
 		})
 
 		AfterEach(func() {

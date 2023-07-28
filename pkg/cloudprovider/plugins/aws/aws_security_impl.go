@@ -68,8 +68,10 @@ func (c *awsCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *cloudresou
 	// make sure all required security groups pre-exist
 	ec2Service := accCfg.GetServiceConfig().(*ec2ServiceConfig)
 	vpcIDs := []string{vpcID}
-	vpcPeerIDs := ec2Service.getVpcPeers(vpcID)
-	vpcIDs = append(vpcIDs, vpcPeerIDs...)
+	if internal.VpcPeeringEnabled {
+		vpcPeerIDs := ec2Service.getVpcPeers(vpcID)
+		vpcIDs = append(vpcIDs, vpcPeerIDs...)
+	}
 	cloudSGNameToCloudSGObj, err := ec2Service.getCloudSecurityGroupsWithNameFromCloud(vpcIDs, cloudSgNames)
 	if err != nil {
 		return err

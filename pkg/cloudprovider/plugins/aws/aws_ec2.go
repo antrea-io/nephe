@@ -237,9 +237,13 @@ func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
 	awsPluginLogger().V(1).Info("Vpcs from cloud", "account", ec2Cfg.accountNamespacedName,
 		"vpcs", len(vpcs))
 	vpcNameToId := ec2Cfg.buildMapVpcNameToId(vpcs)
-	vpcPeers, _ := ec2Cfg.buildMapVpcPeers()
-	allInstances := make(map[types.NamespacedName][]*ec2.Instance)
 
+	var vpcPeers map[string][]string
+	if internal.VpcPeeringEnabled {
+		vpcPeers, _ = ec2Cfg.buildMapVpcPeers()
+	}
+
+	allInstances := make(map[types.NamespacedName][]*ec2.Instance)
 	// Call cloud APIs for the configured CloudEntitySelectors CRs.
 	if len(ec2Cfg.selectors) == 0 {
 		awsPluginLogger().V(1).Info("Fetching vm resources from cloud skipped",

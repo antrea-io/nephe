@@ -37,6 +37,7 @@ var (
 	MaxCloudResourceResponse  int64 = 100
 	InventoryInitWaitDuration       = time.Second * 30
 	AccountCredentialsDefault       = "default"
+	VpcPeeringEnabled               = false
 )
 
 type InstanceID string

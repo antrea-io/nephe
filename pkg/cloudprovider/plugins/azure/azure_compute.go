@@ -240,7 +240,12 @@ func (computeCfg *computeServiceConfig) DoResourceInventory() error {
 	}
 	azurePluginLogger().V(1).Info("Vpcs from cloud", "account", computeCfg.accountNamespacedName,
 		"vpcs", len(vnets))
-	vnetPeers := computeCfg.buildMapVpcPeers(vnets)
+
+	var vnetPeers map[string][][]string
+	if internal.VpcPeeringEnabled {
+		vnetPeers = computeCfg.buildMapVpcPeers(vnets)
+	}
+
 	allVirtualMachines := make(map[types.NamespacedName][]*virtualMachineTable)
 
 	// Make cloud API calls for fetching vm inventory for each configured CES.
