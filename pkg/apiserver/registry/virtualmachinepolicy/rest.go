@@ -83,7 +83,10 @@ func (r *REST) Get(ctx context.Context, name string, _ *metav1.GetOptions) (runt
 		return nil, errors.NewNotFound(runtimev1alpha1.Resource("virtualmachinepolicy"), name)
 	}
 	// For a given vm namespaced name there should be only one matching tracker.
-	return r.convertToVmp(objs[0]), nil
+	if vmp := r.convertToVmp(objs[0]); vmp != nil {
+		return vmp, nil
+	}
+	return nil, nil
 }
 
 func (r *REST) List(ctx context.Context, _ *internalversion.ListOptions) (runtime.Object, error) {
@@ -97,7 +100,9 @@ func (r *REST) List(ctx context.Context, _ *internalversion.ListOptions) (runtim
 	vmpList := &runtimev1alpha1.VirtualMachinePolicyList{}
 	for _, obj := range objs {
 		vmp := r.convertToVmp(obj)
-		vmpList.Items = append(vmpList.Items, *vmp)
+		if vmp != nil {
+			vmpList.Items = append(vmpList.Items, *vmp)
+		}
 	}
 	return vmpList, nil
 }
@@ -135,6 +140,9 @@ func (r *REST) ConvertToTable(_ context.Context, obj runtime.Object, _ runtime.O
 func (r *REST) convertToVmp(obj interface{}) *runtimev1alpha1.VirtualMachinePolicy {
 	failed, inProgress := false, false
 	tracker := obj.(*networkpolicy.CloudResourceNpTracker)
+	if len(tracker.NpStatus) == 0 {
+		return nil
+	}
 	for _, status := range tracker.NpStatus {
 		if status.Realization == runtimev1alpha1.Failed {
 			failed = true
