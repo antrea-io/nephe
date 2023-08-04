@@ -17,6 +17,7 @@ package azure
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	network "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	resourcegraph "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph"
@@ -31,6 +32,7 @@ import (
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/cloudprovider/plugins/internal"
 )
 
 var (
@@ -181,8 +183,8 @@ var _ = Describe("Azure", func() {
 
 				err := c.AddProviderAccount(fakeClient, account)
 				Expect(err).Should(BeNil())
-				accCfg, found := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
-				Expect(found).To(BeTrue())
+				accCfg, err := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
+				Expect(err).To(BeNil())
 				Expect(accCfg).To(Not(BeNil()))
 
 				vmSelector := []v1alpha1.VirtualMachineSelector{
@@ -224,8 +226,8 @@ var _ = Describe("Azure", func() {
 
 				err := c.AddProviderAccount(fakeClient, account)
 				Expect(err).Should(BeNil())
-				accCfg, found := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
-				Expect(found).To(BeTrue())
+				accCfg, err := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
+				Expect(err).To(BeNil())
 				Expect(accCfg).To(Not(BeNil()))
 
 				errPolAdd := c.DoInventoryPoll(testAccountNamespacedName)
@@ -468,9 +470,9 @@ var _ = Describe("Azure", func() {
 			It("Remove Provider Account", func() {
 				c.RemoveProviderAccount(testAccountNamespacedName)
 
-				accCfg, ok := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
+				accCfg, err := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
+				Expect(err).ToNot(BeNil())
 				Expect(accCfg).Should(BeNil())
-				Expect(ok).To(Equal(false))
 			})
 		})
 	})
@@ -493,7 +495,11 @@ func getResourceGraphResult() resourcegraph.ClientResourcesResponse {
 }
 
 func getFilters(c *azureCloud, selectorNamespacedName *types.NamespacedName) []*string {
-	accCfg, _ := c.cloudCommon.GetCloudAccountByName(&types.NamespacedName{Namespace: "namespace01", Name: "account01"})
+	accCfg, err := c.cloudCommon.GetCloudAccountByName(&types.NamespacedName{Namespace: "namespace01",
+		Name: "account01"})
+	if err != nil && strings.Contains(err.Error(), internal.AccountConfigNotFound) {
+		return nil
+	}
 	serviceConfig := accCfg.GetServiceConfig()
 	if filters, found := serviceConfig.(*computeServiceConfig).computeFilters[*selectorNamespacedName]; found {
 		return filters

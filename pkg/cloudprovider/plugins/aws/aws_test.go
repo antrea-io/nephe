@@ -16,10 +16,10 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -35,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
+	"antrea.io/nephe/pkg/cloudprovider/plugins/internal"
 )
 
 var (
@@ -153,8 +154,8 @@ var _ = Describe("AWS cloud", func() {
 
 				err := c.AddProviderAccount(fakeClient, account)
 				Expect(err).Should(BeNil())
-				accCfg, found := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
-				Expect(found).To(BeTrue())
+				accCfg, err := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
+				Expect(err).To(BeNil())
 				Expect(accCfg).To(Not(BeNil()))
 
 				errPolAdd := c.DoInventoryPoll(&testAccountNamespacedName)
@@ -188,8 +189,8 @@ var _ = Describe("AWS cloud", func() {
 
 				err := c.AddProviderAccount(fakeClient, account)
 				Expect(err).Should(BeNil())
-				accCfg, found := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
-				Expect(found).To(BeTrue())
+				accCfg, err := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
+				Expect(err).To(BeNil())
 				Expect(accCfg).To(Not(BeNil()))
 
 				errPolAdd := c.DoInventoryPoll(&testAccountNamespacedName)
@@ -224,8 +225,8 @@ var _ = Describe("AWS cloud", func() {
 
 				err := c.AddProviderAccount(fakeClient, account)
 				Expect(err).Should(BeNil())
-				accCfg, found := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
-				Expect(found).To(BeTrue())
+				accCfg, err := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
+				Expect(err).To(BeNil())
 				Expect(accCfg).To(Not(BeNil()))
 
 				errPolAdd := c.DoInventoryPoll(&testAccountNamespacedName)
@@ -282,8 +283,8 @@ var _ = Describe("AWS cloud", func() {
 				err := c.AddProviderAccount(fakeClient, account)
 
 				Expect(err).Should(BeNil())
-				accCfg, found := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
-				Expect(found).To(BeTrue())
+				accCfg, err := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
+				Expect(err).To(BeNil())
 				Expect(accCfg).To(Not(BeNil()))
 
 				errSelAdd := c.AddAccountResourceSelector(&testAccountNamespacedName, selector)
@@ -306,8 +307,8 @@ var _ = Describe("AWS cloud", func() {
 				c := newAWSCloud(mockawsCloudHelper)
 				err := c.AddProviderAccount(fakeClient, account)
 				Expect(err).Should(BeNil())
-				accCfg, found := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
-				Expect(found).To(BeTrue())
+				accCfg, err := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
+				Expect(err).To(BeNil())
 				Expect(accCfg).To(Not(BeNil()))
 
 				errSelAdd := c.AddAccountResourceSelector(&testAccountNamespacedName, selector)
@@ -698,9 +699,9 @@ func createVpcObject(vpcIDs []string) *ec2.DescribeVpcsOutput {
 func checkAccountAddSuccessCondition(c *awsCloud, namespacedName types.NamespacedName, selectorNamespacedName types.NamespacedName,
 	ids []string) error {
 	conditionFunc := func() (done bool, e error) {
-		accCfg, found := c.cloudCommon.GetCloudAccountByName(&namespacedName)
-		if !found {
-			return true, errors.New("failed to find account")
+		accCfg, err := c.cloudCommon.GetCloudAccountByName(&namespacedName)
+		if err != nil && strings.Contains(err.Error(), internal.AccountConfigNotFound) {
+			return true, err
 		}
 
 		instances := accCfg.GetServiceConfig().(*ec2ServiceConfig).getCachedInstances(&selectorNamespacedName)
@@ -723,9 +724,9 @@ func checkAccountAddSuccessCondition(c *awsCloud, namespacedName types.Namespace
 
 func checkVpcPollResult(c *awsCloud, namespacedName types.NamespacedName, ids []string) error {
 	conditionFunc := func() (done bool, e error) {
-		accCfg, found := c.cloudCommon.GetCloudAccountByName(&namespacedName)
-		if !found {
-			return true, errors.New("failed to find account")
+		accCfg, err := c.cloudCommon.GetCloudAccountByName(&namespacedName)
+		if err != nil && strings.Contains(err.Error(), internal.AccountConfigNotFound) {
+			return true, err
 		}
 
 		vpcs := accCfg.GetServiceConfig().(*ec2ServiceConfig).getCachedVpcs()
@@ -748,7 +749,11 @@ func checkVpcPollResult(c *awsCloud, namespacedName types.NamespacedName, ids []
 }
 
 func getFilters(c *awsCloud, selectorNamespacedName types.NamespacedName) [][]*ec2.Filter {
-	accCfg, _ := c.cloudCommon.GetCloudAccountByName(&types.NamespacedName{Namespace: "namespace01", Name: "account01"})
+	accCfg, err := c.cloudCommon.GetCloudAccountByName(&types.NamespacedName{Namespace: "namespace01",
+		Name: "account01"})
+	if err != nil && strings.Contains(err.Error(), internal.AccountConfigNotFound) {
+		return nil
+	}
 	if obj, found := accCfg.GetServiceConfig().(*ec2ServiceConfig).instanceFilters[selectorNamespacedName]; found {
 		return obj
 	}

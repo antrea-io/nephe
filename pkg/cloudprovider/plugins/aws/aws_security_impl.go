@@ -29,10 +29,11 @@ import (
 // CreateSecurityGroup invokes cloud api and creates the cloud security group based on securityGroupIdentifier.
 func (c *awsCloud) CreateSecurityGroup(securityGroupIdentifier *cloudresource.CloudResource, membershipOnly bool) (*string, error) {
 	vpcID := securityGroupIdentifier.Vpc
-	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
-	if !found {
-		return nil, fmt.Errorf("aws account not found managing virtual private cloud [%v]", vpcID)
+	accCfg, err := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
+	if err != nil {
+		return nil, fmt.Errorf("%v, virtual private cloud: %v", err, vpcID)
 	}
+
 	accCfg.LockMutex()
 	defer accCfg.UnlockMutex()
 
@@ -54,10 +55,11 @@ func (c *awsCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *cloudresou
 	rmIRule, rmERule := utils.SplitCloudRulesByDirection(rmRules)
 
 	vpcID := appliedToGroupIdentifier.Vpc
-	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&appliedToGroupIdentifier.AccountID)
-	if !found {
-		return fmt.Errorf("aws account not found managing virtual private cloud [%v]", vpcID)
+	accCfg, err := c.cloudCommon.GetCloudAccountByAccountId(&appliedToGroupIdentifier.AccountID)
+	if err != nil {
+		return fmt.Errorf("%v, virtual private cloud: %v", err, vpcID)
 	}
+
 	accCfg.LockMutex()
 	defer accCfg.UnlockMutex()
 
@@ -145,10 +147,11 @@ func (c *awsCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *cloudresou
 func (c *awsCloud) UpdateSecurityGroupMembers(securityGroupIdentifier *cloudresource.CloudResource,
 	cloudResourceIdentifiers []*cloudresource.CloudResource, membershipOnly bool) error {
 	vpcID := securityGroupIdentifier.Vpc
-	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
-	if !found {
-		return fmt.Errorf("aws account not found managing virtual private cloud [%v]", vpcID)
+	accCfg, err := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
+	if err != nil {
+		return fmt.Errorf("%v, virtual private cloud: %v", err, vpcID)
 	}
+
 	accCfg.LockMutex()
 	defer accCfg.UnlockMutex()
 
@@ -178,10 +181,11 @@ func (c *awsCloud) UpdateSecurityGroupMembers(securityGroupIdentifier *cloudreso
 // DeleteSecurityGroup invokes cloud api and deletes the cloud security group. Any attached resource will be moved to default sg.
 func (c *awsCloud) DeleteSecurityGroup(securityGroupIdentifier *cloudresource.CloudResource, membershipOnly bool) error {
 	vpcID := securityGroupIdentifier.Vpc
-	accCfg, found := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
-	if !found {
-		return fmt.Errorf("aws account not found managing virtual private cloud [%v]", vpcID)
+	accCfg, err := c.cloudCommon.GetCloudAccountByAccountId(&securityGroupIdentifier.AccountID)
+	if err != nil {
+		return fmt.Errorf("%v, virtual private cloud: %v", err, vpcID)
 	}
+
 	accCfg.LockMutex()
 	defer accCfg.UnlockMutex()
 
@@ -238,11 +242,12 @@ func (c *awsCloud) GetEnforcedSecurity() []cloudresource.SynchronizationContent 
 		go func(name *types.NamespacedName, sendCh chan<- []cloudresource.SynchronizationContent) {
 			defer wg.Done()
 
-			accCfg, found := c.cloudCommon.GetCloudAccountByName(name)
-			if !found {
-				awsPluginLogger().Info("Enforced-security-cloud-view GET for account skipped (account no longer exists)", "account", name)
+			accCfg, err := c.cloudCommon.GetCloudAccountByName(name)
+			if err != nil {
+				awsPluginLogger().Info("Enforced-security-cloud-view GET for account skipped", "err", err)
 				return
 			}
+
 			accCfg.LockMutex()
 			defer accCfg.UnlockMutex()
 

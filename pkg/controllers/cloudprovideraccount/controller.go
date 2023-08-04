@@ -293,7 +293,7 @@ func (r *CloudProviderAccountReconciler) setupSecretWatcher() {
 	r.watchSecret()
 }
 
-// updateStatus udpates the status on the CloudProviderAccount CR.
+// updateStatus updates the status on the CloudProviderAccount CR.
 func (r *CloudProviderAccountReconciler) updateStatus(namespacedName *types.NamespacedName, err error) {
 	var errorMsg string
 	if err != nil {
