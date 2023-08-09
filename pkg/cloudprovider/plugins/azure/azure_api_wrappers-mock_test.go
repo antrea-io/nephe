@@ -25,6 +25,7 @@ import (
 
 	armnetwork "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	armresourcegraph "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph"
+	armsubscription "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -334,4 +335,42 @@ func (m *MockazureVirtualNetworksWrapper) listAllComplete(ctx context.Context) (
 func (mr *MockazureVirtualNetworksWrapperMockRecorder) listAllComplete(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "listAllComplete", reflect.TypeOf((*MockazureVirtualNetworksWrapper)(nil).listAllComplete), ctx)
+}
+
+// MockazureSubscriptionsWrapper is a mock of azureSubscriptionsWrapper interface.
+type MockazureSubscriptionsWrapper struct {
+	ctrl     *gomock.Controller
+	recorder *MockazureSubscriptionsWrapperMockRecorder
+}
+
+// MockazureSubscriptionsWrapperMockRecorder is the mock recorder for MockazureSubscriptionsWrapper.
+type MockazureSubscriptionsWrapperMockRecorder struct {
+	mock *MockazureSubscriptionsWrapper
+}
+
+// NewMockazureSubscriptionsWrapper creates a new mock instance.
+func NewMockazureSubscriptionsWrapper(ctrl *gomock.Controller) *MockazureSubscriptionsWrapper {
+	mock := &MockazureSubscriptionsWrapper{ctrl: ctrl}
+	mock.recorder = &MockazureSubscriptionsWrapperMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockazureSubscriptionsWrapper) EXPECT() *MockazureSubscriptionsWrapperMockRecorder {
+	return m.recorder
+}
+
+// listComplete mocks base method.
+func (m *MockazureSubscriptionsWrapper) listComplete(ctx context.Context, subscriptionId string) ([]armsubscription.Location, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "listComplete", ctx, subscriptionId)
+	ret0, _ := ret[0].([]armsubscription.Location)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// listComplete indicates an expected call of listComplete.
+func (mr *MockazureSubscriptionsWrapperMockRecorder) listComplete(ctx, subscriptionId interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "listComplete", reflect.TypeOf((*MockazureSubscriptionsWrapper)(nil).listComplete), ctx, subscriptionId)
 }

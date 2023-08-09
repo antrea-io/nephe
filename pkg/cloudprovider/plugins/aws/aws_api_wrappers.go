@@ -23,14 +23,14 @@ import (
 
 // awsEC2Wrapper is layer above aws EC2 sdk apis to allow for unit-testing.
 type awsEC2Wrapper interface {
-	// instances
+	// instances.
 	pagedDescribeInstancesWrapper(input *ec2.DescribeInstancesInput) ([]*ec2.Instance, error)
 
-	// network interfaces
+	// network interfaces.
 	pagedDescribeNetworkInterfaces(input *ec2.DescribeNetworkInterfacesInput) ([]*ec2.NetworkInterface, error)
 	modifyNetworkInterfaceAttribute(input *ec2.ModifyNetworkInterfaceAttributeInput) (*ec2.ModifyNetworkInterfaceAttributeOutput, error)
 
-	// security groups/rules
+	// security groups/rules.
 	createSecurityGroup(input *ec2.CreateSecurityGroupInput) (*ec2.CreateSecurityGroupOutput, error)
 	describeSecurityGroups(input *ec2.DescribeSecurityGroupsInput) (*ec2.DescribeSecurityGroupsOutput, error)
 	deleteSecurityGroup(input *ec2.DeleteSecurityGroupInput) (*ec2.DeleteSecurityGroupOutput, error)
@@ -39,23 +39,27 @@ type awsEC2Wrapper interface {
 	revokeSecurityGroupEgress(input *ec2.RevokeSecurityGroupEgressInput) (*ec2.RevokeSecurityGroupEgressOutput, error)
 	revokeSecurityGroupIngress(input *ec2.RevokeSecurityGroupIngressInput) (*ec2.RevokeSecurityGroupIngressOutput, error)
 
-	// vpcs
+	// vpcs.
 	describeVpcsWrapper(input *ec2.DescribeVpcsInput) (*ec2.DescribeVpcsOutput, error)
 
-	// peer connections
+	// peer connections.
 	describeVpcPeeringConnectionsWrapper(input *ec2.DescribeVpcPeeringConnectionsInput) (*ec2.DescribeVpcPeeringConnectionsOutput, error)
+
+	// helper function.
+	getRegion() string
 }
 type awsEC2WrapperImpl struct {
 	ec2 *ec2.EC2
 }
 
+// pagedDescribeInstancesWrapper returns ec2 instances that matches the input criteria.
 func (ec2Wrapper *awsEC2WrapperImpl) pagedDescribeInstancesWrapper(input *ec2.DescribeInstancesInput) ([]*ec2.Instance, error) {
 	var instances []*ec2.Instance
 	var nextToken *string
 	for {
 		response, err := ec2Wrapper.ec2.DescribeInstances(input)
 		if err != nil {
-			return nil, fmt.Errorf("error describing ec2 instances: %q", err)
+			return nil, fmt.Errorf("error describing ec2 instances for region %s: %q", ec2Wrapper.getRegion(), err)
 		}
 
 		reservations := response.Reservations
@@ -72,6 +76,7 @@ func (ec2Wrapper *awsEC2WrapperImpl) pagedDescribeInstancesWrapper(input *ec2.De
 	return instances, nil
 }
 
+// pagedDescribeNetworkInterfaces returns network interfaces that matches the input criteria.
 func (ec2Wrapper *awsEC2WrapperImpl) pagedDescribeNetworkInterfaces(input *ec2.DescribeNetworkInterfacesInput) ([]*ec2.NetworkInterface,
 	error) {
 	var networkInterfaces []*ec2.NetworkInterface
@@ -79,7 +84,7 @@ func (ec2Wrapper *awsEC2WrapperImpl) pagedDescribeNetworkInterfaces(input *ec2.D
 	for {
 		response, err := ec2Wrapper.ec2.DescribeNetworkInterfaces(input)
 		if err != nil {
-			return nil, fmt.Errorf("error describing ec2 network interfaces: %q", err)
+			return nil, fmt.Errorf("error describing ec2 network interfaces for region %s: %q", ec2Wrapper.getRegion(), err)
 		}
 
 		interfaces := response.NetworkInterfaces
@@ -132,10 +137,11 @@ func (ec2Wrapper *awsEC2WrapperImpl) revokeSecurityGroupIngress(input *ec2.Revok
 	return ec2Wrapper.ec2.RevokeSecurityGroupIngress(input)
 }
 
+// describeVpcsWrapper returns vpcs that matches the input criteria.
 func (ec2Wrapper *awsEC2WrapperImpl) describeVpcsWrapper(input *ec2.DescribeVpcsInput) (*ec2.DescribeVpcsOutput, error) {
 	vpcs, err := ec2Wrapper.ec2.DescribeVpcs(input)
 	if err != nil {
-		return nil, fmt.Errorf("error describing ec2 vpcs: %q", err)
+		return nil, fmt.Errorf("error describing ec2 vpcs for region %s: %q", ec2Wrapper.getRegion(), err)
 	}
 	return vpcs, nil
 }
@@ -143,4 +149,12 @@ func (ec2Wrapper *awsEC2WrapperImpl) describeVpcsWrapper(input *ec2.DescribeVpcs
 func (ec2Wrapper *awsEC2WrapperImpl) describeVpcPeeringConnectionsWrapper(input *ec2.DescribeVpcPeeringConnectionsInput) (
 	*ec2.DescribeVpcPeeringConnectionsOutput, error) {
 	return ec2Wrapper.ec2.DescribeVpcPeeringConnections(input)
+}
+
+// getRegion returns the region of the ec2 client.
+func (ec2Wrapper *awsEC2WrapperImpl) getRegion() string {
+	if ec2Wrapper.ec2.Config.Region == nil {
+		return ""
+	}
+	return *ec2Wrapper.ec2.Config.Region
 }

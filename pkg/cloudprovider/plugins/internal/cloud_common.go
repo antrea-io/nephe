@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/multierr"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -44,15 +45,14 @@ const (
 	AccountConfigInvalid  = "invalid cloud account config"
 )
 
-type InstanceID string
-
 // CloudCommonHelperInterface interface needs to be implemented by each cloud-plugin. It provides a way to inject
 // cloud dependent functionality into plugin-cloud-framework. Cloud dependent functionality can include cloud
-// service operations, credentials management etc.
+// service operations, config management etc.
 type CloudCommonHelperInterface interface {
 	GetCloudServicesCreateFunc() CloudServiceConfigCreatorFunc
-	SetAccountCredentialsFunc() CloudCredentialValidatorFunc
-	GetCloudCredentialsComparatorFunc() CloudCredentialComparatorFunc
+	GetCloudServicesUpdateFunc() CloudServiceConfigUpdateFunc
+	SetAccountConfigFunc() CloudConfigValidatorFunc
+	GetCloudConfigComparatorFunc() CloudConfigComparatorFunc
 }
 
 // CloudCommonInterface implements functionality common across all supported cloud-plugins. Each cloud plugin uses
@@ -61,7 +61,7 @@ type CloudCommonInterface interface {
 	GetCloudAccountByName(namespacedName *types.NamespacedName) (CloudAccountInterface, error)
 	GetCloudAccountByAccountId(accountID *string) (CloudAccountInterface, error)
 	GetCloudAccounts() map[types.NamespacedName]CloudAccountInterface
-	AddCloudAccount(client client.Client, account *crdv1alpha1.CloudProviderAccount, credentials interface{}) error
+	AddCloudAccount(client client.Client, account *crdv1alpha1.CloudProviderAccount, config interface{}) error
 	RemoveCloudAccount(namespacedName *types.NamespacedName)
 
 	AddResourceFilters(namespacedName *types.NamespacedName, selector *crdv1alpha1.CloudEntitySelector) error
@@ -73,7 +73,7 @@ type CloudCommonInterface interface {
 
 	ResetInventoryCache(accountNamespacedName *types.NamespacedName) error
 
-	GetCloudInventory(accountNamespacedName *types.NamespacedName) (*nephetypes.CloudInventory, error)
+	GetAccountCloudInventory(accountNamespacedName *types.NamespacedName) (*nephetypes.CloudInventory, error)
 }
 
 type cloudCommon struct {
@@ -95,7 +95,7 @@ func NewCloudCommon(logger func() logging.Logger, commonHelper CloudCommonHelper
 	}
 }
 
-func (c *cloudCommon) AddCloudAccount(client client.Client, account *crdv1alpha1.CloudProviderAccount, credentials interface{}) error {
+func (c *cloudCommon) AddCloudAccount(client client.Client, account *crdv1alpha1.CloudProviderAccount, config interface{}) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -106,24 +106,21 @@ func (c *cloudCommon) AddCloudAccount(client client.Client, account *crdv1alpha1
 
 	existingConfig, found := c.accountConfigs[*namespacedName]
 	if found {
-		err := c.updateCloudAccountConfig(client, credentials, existingConfig)
+		err := c.updateCloudAccountConfig(client, config, existingConfig)
 		if err != nil {
 			c.logger().Error(err, "failed to update cloud account config", "account", namespacedName)
 		}
 		return err
 	}
 
-	config, err := c.newCloudAccountConfig(client, namespacedName, credentials, c.logger)
+	newConfig, err := c.newCloudAccountConfig(client, namespacedName, config, c.logger)
 	if err != nil {
-		if config != nil {
-			c.accountConfigs[*config.GetNamespacedName()] = config
-		}
-		c.logger().Error(err, "failed to create cloud account config", "account", namespacedName)
-		return err
+		c.logger().Info("Error happened creating account config", "account", namespacedName)
 	}
-
-	c.accountConfigs[*config.GetNamespacedName()] = config
-	return nil
+	if newConfig != nil {
+		c.accountConfigs[*newConfig.GetNamespacedName()] = newConfig
+	}
+	return err
 }
 
 func (c *cloudCommon) RemoveCloudAccount(namespacedName *types.NamespacedName) {
@@ -173,6 +170,7 @@ func (c *cloudCommon) GetCloudAccounts() map[types.NamespacedName]CloudAccountIn
 	return accountConfigs
 }
 
+// AddResourceFilters add/updates instances resource filters based on given selector for all services in the account.
 func (c *cloudCommon) AddResourceFilters(accountNamespacedName *types.NamespacedName, selector *crdv1alpha1.CloudEntitySelector) error {
 	accCfg, err := c.GetCloudAccountByName(accountNamespacedName)
 	if err != nil {
@@ -180,9 +178,15 @@ func (c *cloudCommon) AddResourceFilters(accountNamespacedName *types.Namespaced
 	}
 	accCfg.LockMutex()
 	defer accCfg.UnlockMutex()
-	return accCfg.GetServiceConfig().AddResourceFilters(selector)
+	var retErr error
+	for _, serviceConfig := range accCfg.GetAllServiceConfigs() {
+		err := serviceConfig.AddResourceFilters(selector)
+		retErr = multierr.Append(retErr, err)
+	}
+	return retErr
 }
 
+// RemoveResourceFilters removes instances resource filters related to the given selector for all services in the account.
 func (c *cloudCommon) RemoveResourceFilters(accNamespacedName, selectorNamespacedName *types.NamespacedName) {
 	accCfg, err := c.GetCloudAccountByName(accNamespacedName)
 	if err != nil && strings.Contains(err.Error(), AccountConfigNotFound) {
@@ -192,7 +196,9 @@ func (c *cloudCommon) RemoveResourceFilters(accNamespacedName, selectorNamespace
 	accCfg.LockMutex()
 	defer accCfg.UnlockMutex()
 
-	accCfg.GetServiceConfig().RemoveResourceFilters(selectorNamespacedName)
+	for _, serviceConfig := range accCfg.GetAllServiceConfigs() {
+		serviceConfig.RemoveResourceFilters(selectorNamespacedName)
+	}
 }
 
 func (c *cloudCommon) GetStatus(accountNamespacedName *types.NamespacedName) (*crdv1alpha1.CloudProviderAccountStatus, error) {
@@ -231,8 +237,8 @@ func (c *cloudCommon) ResetInventoryCache(accountNamespacedName *types.Namespace
 	return nil
 }
 
-// GetCloudInventory gets VPC and VM inventory from plugin snapshot for a given cloud provider account.
-func (c *cloudCommon) GetCloudInventory(accountNamespacedName *types.NamespacedName) (*nephetypes.CloudInventory, error) {
+// GetAccountCloudInventory gets VPC and VM inventory from plugin snapshot for a given cloud provider account.
+func (c *cloudCommon) GetAccountCloudInventory(accountNamespacedName *types.NamespacedName) (*nephetypes.CloudInventory, error) {
 	accCfg, err := c.GetCloudAccountByName(accountNamespacedName)
 	if err != nil {
 		return nil, err
@@ -240,5 +246,25 @@ func (c *cloudCommon) GetCloudInventory(accountNamespacedName *types.NamespacedN
 	accCfg.LockMutex()
 	defer accCfg.UnlockMutex()
 
-	return accCfg.GetServiceConfig().GetCloudInventory(), nil
+	cloudInventory := &nephetypes.CloudInventory{
+		VmMap:  make(map[types.NamespacedName]map[string]*runtimev1alpha1.VirtualMachine),
+		VpcMap: make(map[string]*runtimev1alpha1.Vpc),
+	}
+	for _, serviceConfig := range accCfg.GetAllServiceConfigs() {
+		inventory := serviceConfig.GetCloudInventory()
+		for id, vpc := range inventory.VpcMap {
+			cloudInventory.VpcMap[id] = vpc
+		}
+		for selector, vmMap := range inventory.VmMap {
+			if _, found := cloudInventory.VmMap[selector]; !found {
+				cloudInventory.VmMap[selector] = vmMap
+				continue
+			}
+			for id, vm := range vmMap {
+				cloudInventory.VmMap[selector][id] = vm
+			}
+		}
+	}
+
+	return cloudInventory, nil
 }

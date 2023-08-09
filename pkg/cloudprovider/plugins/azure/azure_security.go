@@ -40,9 +40,9 @@ func getPerVnetDefaultNsgName(vnetName string) string {
 
 // getNetworkInterfacesOfVnet fetch network interfaces for a set of VNET-IDs.
 func (computeCfg *computeServiceConfig) getNetworkInterfacesOfVnet(vnetIDSet map[string]struct{}) ([]*networkInterfaceInternal, error) {
-	location := computeCfg.credentials.region
-	subscriptionID := computeCfg.credentials.SubscriptionID
-	tenentID := computeCfg.credentials.TenantID
+	location := computeCfg.azureConfig.regions
+	subscriptionID := computeCfg.azureConfig.SubscriptionID
+	tenentID := computeCfg.azureConfig.TenantID
 
 	var vnetIDs []string
 	for vnetID := range vnetIDSet {
@@ -51,7 +51,7 @@ func (computeCfg *computeServiceConfig) getNetworkInterfacesOfVnet(vnetIDSet map
 
 	// TODO: Change the query to just retrieve interfaces of the VNET and data should just include interface name.
 	query, err := getNwIntfsByVnetIDsAndSubscriptionIDsAndTenantIDsAndLocationsMatchQuery(vnetIDs, []string{subscriptionID},
-		[]string{tenentID}, []string{location})
+		[]string{tenentID}, location)
 	if err != nil {
 		return nil, err
 	}
@@ -623,8 +623,8 @@ func (computeCfg *computeServiceConfig) isValidAppliedToSg(asgID string, vnetID 
 // processAndBuildATSgView creates synchronization content for AppliedTo SG.
 func (computeCfg *computeServiceConfig) processAndBuildATSgView(networkInterfaces []*networkInterfaceInternal) (
 	[]cloudresource.SynchronizationContent, error) {
-	nepheControllerATSgNameToMemberCloudResourcesMap := make(map[string][]cloudresource.CloudResource)
-	perVnetNsgIDToNepheControllerAppliedToSGNameSet := make(map[string]map[string]struct{})
+	nepheControllerATAsgIDToMemberCloudResourcesMap := make(map[string][]cloudresource.CloudResource)
+	perVnetNsgIDToNepheControllerAppliedToAsgIDSet := make(map[string]map[string]struct{})
 	nsgIDToVnetIDMap := make(map[string]string)
 	for _, networkInterface := range networkInterfaces {
 		if networkInterface.Properties.VirtualMachine == nil || emptyString(networkInterface.Properties.VirtualMachine.ID) {
@@ -648,14 +648,14 @@ func (computeCfg *computeServiceConfig) processAndBuildATSgView(networkInterface
 		nsgIDToVnetIDMap[nsgIDLowerCase] = vnetIDLowerCase
 
 		// from ASGs attached to network interface find nephe AT SG(s) and build membership map
-		newNepheControllerAppliedToSGNameSet := make(map[string]struct{})
+		newNepheControllerAppliedToAsgIDSet := make(map[string]struct{})
 		for _, ipConfigs := range networkInterface.Properties.IPConfigurations {
 			if ipConfigs.Properties == nil {
 				continue
 			}
 			for _, asg := range ipConfigs.Properties.ApplicationSecurityGroups {
 				asgID := asg.ID
-				asgName, isValidATSg := computeCfg.isValidAppliedToSg(strings.ToLower(*asgID), vnetIDLowerCase)
+				_, isValidATSg := computeCfg.isValidAppliedToSg(strings.ToLower(*asgID), vnetIDLowerCase)
 				if !isValidATSg {
 					continue
 				}
@@ -669,30 +669,30 @@ func (computeCfg *computeServiceConfig) processAndBuildATSgView(networkInterface
 					AccountID:     computeCfg.accountNamespacedName.String(),
 					CloudProvider: string(runtimev1alpha1.AzureCloudProvider),
 				}
-				cloudResources := nepheControllerATSgNameToMemberCloudResourcesMap[asgName]
+				cloudResources := nepheControllerATAsgIDToMemberCloudResourcesMap[*asgID]
 				cloudResources = append(cloudResources, cloudResource)
-				nepheControllerATSgNameToMemberCloudResourcesMap[asgName] = cloudResources
+				nepheControllerATAsgIDToMemberCloudResourcesMap[*asgID] = cloudResources
 
-				newNepheControllerAppliedToSGNameSet[asgName] = struct{}{}
+				newNepheControllerAppliedToAsgIDSet[*asgID] = struct{}{}
 			}
 			break
 		}
 
-		if len(newNepheControllerAppliedToSGNameSet) > 0 {
-			existingNepheControllerAppliedToSGNameSet := perVnetNsgIDToNepheControllerAppliedToSGNameSet[nsgIDLowerCase]
-			completeSet := mergeSet(existingNepheControllerAppliedToSGNameSet, newNepheControllerAppliedToSGNameSet)
-			perVnetNsgIDToNepheControllerAppliedToSGNameSet[nsgIDLowerCase] = completeSet
+		if len(newNepheControllerAppliedToAsgIDSet) > 0 {
+			existingNepheControllerAppliedToAsgIDSet := perVnetNsgIDToNepheControllerAppliedToAsgIDSet[nsgIDLowerCase]
+			completeSet := mergeSet(existingNepheControllerAppliedToAsgIDSet, newNepheControllerAppliedToAsgIDSet)
+			perVnetNsgIDToNepheControllerAppliedToAsgIDSet[nsgIDLowerCase] = completeSet
 		}
 	}
 
-	appliedToSgEnforcedView, err := computeCfg.getATGroupView(nepheControllerATSgNameToMemberCloudResourcesMap,
-		perVnetNsgIDToNepheControllerAppliedToSGNameSet, nsgIDToVnetIDMap)
+	appliedToSgEnforcedView, err := computeCfg.getATGroupView(nepheControllerATAsgIDToMemberCloudResourcesMap,
+		perVnetNsgIDToNepheControllerAppliedToAsgIDSet, nsgIDToVnetIDMap)
 	return appliedToSgEnforcedView, err
 }
 
 // getATGroupView creates synchronization content for NSGs created by nephe under managed VNETs.
-func (computeCfg *computeServiceConfig) getATGroupView(nepheControllerATSGNameToCloudResourcesMap map[string][]cloudresource.CloudResource,
-	perVnetNsgIDToNepheControllerATSGNameSet map[string]map[string]struct{}, nsgIDToVnetID map[string]string) (
+func (computeCfg *computeServiceConfig) getATGroupView(nepheControllerATAsgIDToCloudResourcesMap map[string][]cloudresource.CloudResource,
+	perVnetNsgIDToNepheControllerATAsgIDSet map[string]map[string]struct{}, nsgIDToVnetID map[string]string) (
 	[]cloudresource.SynchronizationContent, error) {
 	networkSecurityGroups, err := computeCfg.nsgAPIClient.listAllComplete(context.Background())
 	if err != nil {
@@ -703,7 +703,7 @@ func (computeCfg *computeServiceConfig) getATGroupView(nepheControllerATSGNameTo
 	for _, networkSecurityGroup := range networkSecurityGroups {
 		nsgIDLowercase := strings.ToLower(*networkSecurityGroup.ID)
 		vnetIDLowercase := nsgIDToVnetID[nsgIDLowercase]
-		appliedToSgNameSet, found := perVnetNsgIDToNepheControllerATSGNameSet[nsgIDLowercase]
+		appliedToAsgIDSet, found := perVnetNsgIDToNepheControllerATAsgIDSet[nsgIDLowercase]
 		if !found {
 			continue
 		}
@@ -711,14 +711,15 @@ func (computeCfg *computeServiceConfig) getATGroupView(nepheControllerATSGNameTo
 		if networkSecurityGroup.Properties == nil {
 			continue
 		}
-		nepheControllerATSgNameToIngressRulesMap, nepheControllerATSgNameToEgressRulesMap, removeUserRules :=
-			convertToCloudRulesByAppliedToSGName(networkSecurityGroup.Properties.SecurityRules, vnetIDLowercase)
+		nepheControllerATAsgIDToIngressRulesMap, nepheControllerATAsgIDToEgressRulesMap, removeUserRules :=
+			convertToCloudRulesByAppliedToAsgID(networkSecurityGroup.Properties.SecurityRules, vnetIDLowercase)
 
-		for atSgName := range appliedToSgNameSet {
+		for atAsgID := range appliedToAsgIDSet {
+			asgName, _ := computeCfg.isValidAppliedToSg(strings.ToLower(atAsgID), vnetIDLowercase)
 			resource := cloudresource.CloudResource{
 				Type: cloudresource.CloudResourceTypeVM,
 				CloudResourceID: cloudresource.CloudResourceID{
-					Name: atSgName,
+					Name: asgName,
 					Vpc:  vnetIDLowercase,
 				},
 				AccountID:     computeCfg.accountNamespacedName.String(),
@@ -727,9 +728,9 @@ func (computeCfg *computeServiceConfig) getATGroupView(nepheControllerATSGNameTo
 			groupSyncObj := cloudresource.SynchronizationContent{
 				Resource:       resource,
 				MembershipOnly: false,
-				Members:        nepheControllerATSGNameToCloudResourcesMap[atSgName],
-				IngressRules:   nepheControllerATSgNameToIngressRulesMap[atSgName],
-				EgressRules:    nepheControllerATSgNameToEgressRulesMap[atSgName],
+				Members:        nepheControllerATAsgIDToCloudResourcesMap[atAsgID],
+				IngressRules:   nepheControllerATAsgIDToIngressRulesMap[atAsgID],
+				EgressRules:    nepheControllerATAsgIDToEgressRulesMap[atAsgID],
 			}
 			// If there are user rules needs to be removed, trick the sync to trigger a rule update by adding an empty valid rule.
 			// In case of no AT or NP for valid rule, it implies Nephe is not actively managing the Vnet, therefore user rules are ignored.

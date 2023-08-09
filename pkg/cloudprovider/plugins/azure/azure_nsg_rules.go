@@ -496,12 +496,12 @@ func convertToAzureAddressPrefix(ruleIPs []*net.IPNet) (*string, []*string) {
 	return addressPrefix, addressPrefixes
 }
 
-// convertToCloudRulesByAppliedToSGName converts Azure rules to securitygroup.CloudRule and split them by security group names.
+// convertToCloudRulesByAppliedToAsgID converts Azure rules to securitygroup.CloudRule and split them by Asg ids.
 // It also returns a boolean as the third value indicating whether there are user rules in Nephe priority range or not.
-func convertToCloudRulesByAppliedToSGName(azureSecurityRules []*armnetwork.SecurityRule,
+func convertToCloudRulesByAppliedToAsgID(azureSecurityRules []*armnetwork.SecurityRule,
 	vnetID string) (map[string][]cloudresource.CloudRule, map[string][]cloudresource.CloudRule, bool) {
-	nepheControllerATSgNameToIngressRules := make(map[string][]cloudresource.CloudRule)
-	nepheControllerATSgNameToEgressRules := make(map[string][]cloudresource.CloudRule)
+	nepheControllerATAsgIDToIngressRules := make(map[string][]cloudresource.CloudRule)
+	nepheControllerATAsgIDToEgressRules := make(map[string][]cloudresource.CloudRule)
 	removeUserRules := false
 	for _, azureSecurityRule := range azureSecurityRules {
 		if azureSecurityRule.Properties == nil || *azureSecurityRule.Properties.Priority == vnetToVnetDenyRulePriority {
@@ -510,11 +510,11 @@ func convertToCloudRulesByAppliedToSGName(azureSecurityRules []*armnetwork.Secur
 
 		// Nephe inbound rule implies destination is AT sg. Nephe outbound rule implies source is AT sg.
 		atAsgs := azureSecurityRule.Properties.DestinationApplicationSecurityGroups
-		ruleMap := nepheControllerATSgNameToIngressRules
+		ruleMap := nepheControllerATAsgIDToIngressRules
 		convertFunc := convertFromAzureIngressSecurityRuleToCloudRule
 		if *azureSecurityRule.Properties.Direction == armnetwork.SecurityRuleDirectionOutbound {
 			atAsgs = azureSecurityRule.Properties.SourceApplicationSecurityGroups
-			ruleMap = nepheControllerATSgNameToEgressRules
+			ruleMap = nepheControllerATAsgIDToEgressRules
 			convertFunc = convertFromAzureEgressSecurityRuleToCloudRule
 		}
 		isInNephePriorityRange := *azureSecurityRule.Properties.Priority >= ruleStartPriority
@@ -561,13 +561,13 @@ func convertToCloudRulesByAppliedToSGName(azureSecurityRules []*armnetwork.Secur
 				continue
 			}
 
-			rules := ruleMap[sgName]
+			rules := ruleMap[*asg.ID]
 			rules = append(rules, rule...)
-			ruleMap[sgName] = rules
+			ruleMap[*asg.ID] = rules
 		}
 	}
 
-	return nepheControllerATSgNameToIngressRules, nepheControllerATSgNameToEgressRules, removeUserRules
+	return nepheControllerATAsgIDToIngressRules, nepheControllerATAsgIDToEgressRules, removeUserRules
 }
 
 // convertFromAzureIngressSecurityRuleToCloudRule converts Azure ingress rules from armnetwork.SecurityRule to securitygroup.CloudRule.

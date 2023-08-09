@@ -62,8 +62,8 @@ type AccountMgmtInterface interface {
 
 // ComputeInterface is an abstract providing set of methods to get inventory details to be implemented by cloud providers.
 type ComputeInterface interface {
-	// GetCloudInventory gets VPC and VM inventory from plugin snapshot for a given cloud provider account.
-	GetCloudInventory(accountNamespacedName *types.NamespacedName) (*nephetypes.CloudInventory, error)
+	// GetAccountCloudInventory gets VPC and VM inventory from plugin snapshot for a given cloud provider account.
+	GetAccountCloudInventory(accountNamespacedName *types.NamespacedName) (*nephetypes.CloudInventory, error)
 }
 
 type SecurityInterface interface {

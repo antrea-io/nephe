@@ -41,6 +41,8 @@ import (
 var (
 	testVpcID01 = "vpc-cb82c3b2"
 	testSgID    = 1
+	testRegion  = "us-east-1"
+	testRegion2 = "us-east-2"
 )
 
 var _ = Describe("AWS cloud", func() {
@@ -69,7 +71,7 @@ var _ = Describe("AWS cloud", func() {
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
 					AWSConfig: &v1alpha1.CloudProviderAccountAWSConfig{
-						Region: []string{"us-east-1"},
+						Region: []string{testRegion},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      testAccountNamespacedName.Name,
 							Namespace: testAccountNamespacedName.Namespace,
@@ -126,8 +128,9 @@ var _ = Describe("AWS cloud", func() {
 				mockawsService = NewMockawsServiceClientCreateInterface(mockCtrl)
 				mockawsEC2 = NewMockawsEC2Wrapper(mockCtrl)
 
-				mockawsCloudHelper.EXPECT().newServiceSdkConfigProvider(gomock.Any()).Return(mockawsService, nil)
+				mockawsCloudHelper.EXPECT().newServiceSdkConfigProvider(gomock.Any(), testRegion).Return(mockawsService, nil).AnyTimes()
 				mockawsService.EXPECT().compute().Return(mockawsEC2, nil).AnyTimes()
+				mockawsEC2.EXPECT().getRegion().Return(testRegion).AnyTimes()
 			})
 			It("On account add expect cloud api call for retrieving vpc list", func() {
 				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret"}`
@@ -143,7 +146,7 @@ var _ = Describe("AWS cloud", func() {
 				}
 				instanceIds := []string{}
 				vpcIDs := []string{"testVpcID01", "testVpcID02"}
-				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).AnyTimes()
+				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds, testVpcID01), nil).AnyTimes()
 				mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).Times(0)
 				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(createVpcObject(vpcIDs), nil).AnyTimes()
 				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
@@ -164,6 +167,185 @@ var _ = Describe("AWS cloud", func() {
 				err = checkVpcPollResult(c, testAccountNamespacedName, vpcIDs)
 				Expect(err).Should(BeNil())
 			})
+			It("Add multiple regions account should poll vpc from both regions", func() {
+				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret"}`
+
+				secret = &corev1.Secret{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      testAccountNamespacedName.Name,
+						Namespace: testAccountNamespacedName.Namespace,
+					},
+					Data: map[string][]byte{
+						"credentials": []byte(credential),
+					},
+				}
+				instanceIds := []string{}
+				vpcIDs := []string{"testVpcID01", "testVpcID02"}
+				vpcIDs2 := []string{"testVpcID03", "testVpcID04"}
+				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds, testVpcID01), nil).AnyTimes()
+				mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).Times(0)
+				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(createVpcObject(vpcIDs), nil).Times(1)
+				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
+					nil).AnyTimes()
+
+				// setting mock for second region service config.
+				mockawsService2 := NewMockawsServiceClientCreateInterface(mockCtrl)
+				mockaws2 := NewMockawsEC2Wrapper(mockCtrl)
+				mockawsCloudHelper.EXPECT().newServiceSdkConfigProvider(gomock.Any(), testRegion2).Return(mockawsService2, nil)
+				mockawsService2.EXPECT().compute().Return(mockaws2, nil).AnyTimes()
+				mockaws2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds, testVpcID01), nil).AnyTimes()
+				mockaws2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).Times(0)
+				mockaws2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(createVpcObject(vpcIDs2), nil).Times(1)
+				mockaws2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
+					nil).AnyTimes()
+				mockaws2.EXPECT().getRegion().Return(testRegion2).AnyTimes()
+
+				_ = fakeClient.Create(context.Background(), secret)
+				c := newAWSCloud(mockawsCloudHelper)
+
+				// adding second region.
+				account.Spec.AWSConfig.Region = append(account.Spec.AWSConfig.Region, testRegion2)
+
+				err := c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(BeNil())
+				accCfg, err := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
+				Expect(err).To(BeNil())
+				Expect(accCfg).To(Not(BeNil()))
+				Expect(len(accCfg.GetAllServiceConfigs())).To(Equal(2))
+
+				errPolAdd := c.DoInventoryPoll(&testAccountNamespacedName)
+				Expect(errPolAdd).Should(BeNil())
+
+				err = checkVpcPollResult(c, testAccountNamespacedName, append(vpcIDs, vpcIDs2...))
+				Expect(err).Should(BeNil())
+			})
+			It("Add new region to existing account should poll vpc from both regions", func() {
+				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret"}`
+
+				secret = &corev1.Secret{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      testAccountNamespacedName.Name,
+						Namespace: testAccountNamespacedName.Namespace,
+					},
+					Data: map[string][]byte{
+						"credentials": []byte(credential),
+					},
+				}
+				instanceIds := []string{}
+				vpcIDs := []string{"testVpcID01", "testVpcID02"}
+				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds, testVpcID01), nil).AnyTimes()
+				mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).Times(0)
+				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(createVpcObject(vpcIDs), nil).AnyTimes()
+				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
+					nil).AnyTimes()
+
+				_ = fakeClient.Create(context.Background(), secret)
+				c := newAWSCloud(mockawsCloudHelper)
+
+				err := c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(BeNil())
+				accCfg, err := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
+				Expect(err).To(BeNil())
+				Expect(accCfg).To(Not(BeNil()))
+				Expect(len(accCfg.GetAllServiceConfigs())).To(Equal(1))
+
+				errPolAdd := c.DoInventoryPoll(&testAccountNamespacedName)
+				Expect(errPolAdd).Should(BeNil())
+
+				err = checkVpcPollResult(c, testAccountNamespacedName, vpcIDs)
+				Expect(err).Should(BeNil())
+
+				vpcIDs2 := []string{"testVpcID03", "testVpcID04"}
+
+				// setting mock for second region service config.
+				mockawsService2 := NewMockawsServiceClientCreateInterface(mockCtrl)
+				mockaws2 := NewMockawsEC2Wrapper(mockCtrl)
+				mockawsCloudHelper.EXPECT().newServiceSdkConfigProvider(gomock.Any(), testRegion2).Return(mockawsService2, nil)
+				mockawsService2.EXPECT().compute().Return(mockaws2, nil).AnyTimes()
+				mockaws2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds, testVpcID01), nil).AnyTimes()
+				mockaws2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).Times(0)
+				mockaws2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(createVpcObject(vpcIDs2), nil).Times(1)
+				mockaws2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
+					nil).AnyTimes()
+				mockaws2.EXPECT().getRegion().Return(testRegion2).AnyTimes()
+
+				// adding second region in account.
+				account.Spec.AWSConfig.Region = append(account.Spec.AWSConfig.Region, testRegion2)
+				err = c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(BeNil())
+				accCfg, err = c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
+				Expect(err).To(BeNil())
+				Expect(accCfg).To(Not(BeNil()))
+				Expect(len(accCfg.GetAllServiceConfigs())).To(Equal(2))
+
+				errPolAdd = c.DoInventoryPoll(&testAccountNamespacedName)
+				Expect(errPolAdd).Should(BeNil())
+
+				err = checkVpcPollResult(c, testAccountNamespacedName, append(vpcIDs, vpcIDs2...))
+				Expect(err).Should(BeNil())
+			})
+			It("Remove region from account should poll vpc from region left", func() {
+				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret"}`
+
+				secret = &corev1.Secret{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      testAccountNamespacedName.Name,
+						Namespace: testAccountNamespacedName.Namespace,
+					},
+					Data: map[string][]byte{
+						"credentials": []byte(credential),
+					},
+				}
+				instanceIds := []string{}
+				vpcIDs := []string{"testVpcID01", "testVpcID02"}
+				vpcIDs2 := []string{"testVpcID03", "testVpcID04"}
+				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds, testVpcID01), nil).AnyTimes()
+				mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).Times(0)
+				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(createVpcObject(vpcIDs), nil).AnyTimes()
+				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
+					nil).AnyTimes()
+
+				// setting mock for second region service config.
+				mockawsService2 := NewMockawsServiceClientCreateInterface(mockCtrl)
+				mockaws2 := NewMockawsEC2Wrapper(mockCtrl)
+				mockawsCloudHelper.EXPECT().newServiceSdkConfigProvider(gomock.Any(), testRegion2).Return(mockawsService2, nil)
+				mockawsService2.EXPECT().compute().Return(mockaws2, nil).AnyTimes()
+				mockaws2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds, testVpcID01), nil).AnyTimes()
+				mockaws2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).Times(0)
+				mockaws2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(createVpcObject(vpcIDs2), nil).Times(1)
+				mockaws2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
+					nil).AnyTimes()
+				mockaws2.EXPECT().getRegion().Return(testRegion2).AnyTimes()
+
+				_ = fakeClient.Create(context.Background(), secret)
+				c := newAWSCloud(mockawsCloudHelper)
+
+				account.Spec.AWSConfig.Region = append(account.Spec.AWSConfig.Region, testRegion2)
+				err := c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(BeNil())
+				accCfg, err := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
+				Expect(err).To(BeNil())
+				Expect(accCfg).To(Not(BeNil()))
+				Expect(len(accCfg.GetAllServiceConfigs())).To(Equal(2))
+				errPolAdd := c.DoInventoryPoll(&testAccountNamespacedName)
+				Expect(errPolAdd).Should(BeNil())
+				err = checkVpcPollResult(c, testAccountNamespacedName, append(vpcIDs, vpcIDs2...))
+				Expect(err).Should(BeNil())
+
+				// removing a region from account.
+				account.Spec.AWSConfig.Region = account.Spec.AWSConfig.Region[:1]
+
+				err = c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(BeNil())
+				accCfg, err = c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
+				Expect(err).To(BeNil())
+				Expect(accCfg).To(Not(BeNil()))
+				Expect(len(accCfg.GetAllServiceConfigs())).To(Equal(1))
+				errPolAdd = c.DoInventoryPoll(&testAccountNamespacedName)
+				Expect(errPolAdd).Should(BeNil())
+				err = checkVpcPollResult(c, testAccountNamespacedName, vpcIDs)
+				Expect(err).Should(BeNil())
+			})
 			It("Fetch vpc list from snapshot", func() {
 				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret"}`
 
@@ -178,7 +360,7 @@ var _ = Describe("AWS cloud", func() {
 				}
 				instanceIds := []string{}
 				vpcIDs := []string{"testVpcID01", "testVpcID02"}
-				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).AnyTimes()
+				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds, testVpcID01), nil).AnyTimes()
 				mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).Times(0)
 				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(createVpcObject(vpcIDs), nil).AnyTimes()
 				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
@@ -196,7 +378,7 @@ var _ = Describe("AWS cloud", func() {
 				errPolAdd := c.DoInventoryPoll(&testAccountNamespacedName)
 				Expect(errPolAdd).Should(BeNil())
 
-				cloudInventory, err := c.GetCloudInventory(&testAccountNamespacedName)
+				cloudInventory, err := c.GetAccountCloudInventory(&testAccountNamespacedName)
 				Expect(err).Should(BeNil())
 				Expect(len(cloudInventory.VpcMap)).Should(Equal(len(vpcIDs)))
 			})
@@ -214,7 +396,7 @@ var _ = Describe("AWS cloud", func() {
 				}
 				instanceIds := []string{}
 				vpcIDs := []string{"testVpcID01", "testVpcID02"}
-				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).AnyTimes()
+				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds, testVpcID01), nil).AnyTimes()
 				mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).Times(0)
 				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(createVpcObject(vpcIDs), nil).AnyTimes()
 				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
@@ -235,7 +417,7 @@ var _ = Describe("AWS cloud", func() {
 				errPolDel := c.ResetInventoryCache(&testAccountNamespacedName)
 				Expect(errPolDel).Should(BeNil())
 
-				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).Times(0)
+				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds, testVpcID01), nil).Times(0)
 				mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).Times(0)
 				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(&ec2.DescribeVpcsOutput{}, nil).Times(0)
 				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{}, nil).Times(0)
@@ -272,7 +454,7 @@ var _ = Describe("AWS cloud", func() {
 					},
 				}
 
-				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).AnyTimes()
+				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds, testVpcID01), nil).AnyTimes()
 				mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).AnyTimes()
 				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(&ec2.DescribeVpcsOutput{}, nil).AnyTimes()
 				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
@@ -299,7 +481,7 @@ var _ = Describe("AWS cloud", func() {
 			})
 			It("Should discover no instances with get ALL selector", func() {
 				instanceIds := []string{}
-				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).AnyTimes()
+				mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds, testVpcID01), nil).AnyTimes()
 				mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).AnyTimes()
 				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(&ec2.DescribeVpcsOutput{}, nil).AnyTimes()
 				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
@@ -321,6 +503,31 @@ var _ = Describe("AWS cloud", func() {
 
 				err = checkAccountAddSuccessCondition(c, testAccountNamespacedName, testSelectorNamespacedName, instanceIds)
 				Expect(err).Should(BeNil())
+			})
+		})
+
+		Context("New account add fail scenarios", func() {
+			It("Should fail with invalid region", func() {
+				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret"}`
+
+				secret = &corev1.Secret{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      testAccountNamespacedName.Name,
+						Namespace: testAccountNamespacedName.Namespace,
+					},
+					Data: map[string][]byte{
+						"credentials": []byte(credential),
+					},
+				}
+				account.Spec.AWSConfig.Region = append(account.Spec.AWSConfig.Region, "invalidRegion")
+
+				_ = fakeClient.Create(context.Background(), secret)
+				c := newAWSCloud(mockawsCloudHelper)
+				err := c.AddProviderAccount(fakeClient, account)
+				Expect(err).To(Not(BeNil()))
+				accCfg, err := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
+				Expect(err).To(Not(BeNil()))
+				Expect(accCfg).To(Not(BeNil()))
 			})
 		})
 	})
@@ -361,7 +568,7 @@ var _ = Describe("AWS cloud", func() {
 				Spec: v1alpha1.CloudProviderAccountSpec{
 					PollIntervalInSeconds: &pollIntv,
 					AWSConfig: &v1alpha1.CloudProviderAccountAWSConfig{
-						Region: []string{"us-east-1"},
+						Region: []string{testRegion},
 						SecretRef: &v1alpha1.SecretReference{
 							Name:      testAccountNamespacedName.Name,
 							Namespace: testAccountNamespacedName.Namespace,
@@ -404,14 +611,16 @@ var _ = Describe("AWS cloud", func() {
 			mockawsService = NewMockawsServiceClientCreateInterface(mockCtrl)
 			mockawsEC2 = NewMockawsEC2Wrapper(mockCtrl)
 
-			mockawsCloudHelper.EXPECT().newServiceSdkConfigProvider(gomock.Any()).Return(mockawsService, nil).Times(1)
+			mockawsCloudHelper.EXPECT().newServiceSdkConfigProvider(gomock.Any(), testRegion).Return(mockawsService, nil).Times(1)
 			mockawsService.EXPECT().compute().Return(mockawsEC2, nil).AnyTimes()
 
-			instanceIds := []string{}
-			mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).AnyTimes()
+			instanceIds := []string{testVMID01}
+			vpcIds := []string{testVpcID01}
+			mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds, testVpcID01), nil).AnyTimes()
 			mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).AnyTimes()
-			mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(&ec2.DescribeVpcsOutput{}, nil).AnyTimes()
+			mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(createVpcObject(vpcIds), nil).AnyTimes()
 			mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{}, nil).AnyTimes()
+			mockawsEC2.EXPECT().getRegion().Return(testRegion).AnyTimes()
 			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Any()).Return(&ec2.DescribeSecurityGroupsOutput{}, nil).AnyTimes()
 		})
 
@@ -471,7 +680,7 @@ var _ = Describe("AWS cloud", func() {
 				err = c.AddAccountResourceSelector(&testAccountNamespacedName, selector)
 				Expect(err).Should(BeNil())
 				accCfg, _ := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
-				serviceConfig := accCfg.GetServiceConfig()
+				serviceConfig := accCfg.GetServiceConfig(testRegion)
 				selectorNamespacedName := types.NamespacedName{Namespace: selector.Namespace, Name: selector.Name}
 				inventory := serviceConfig.(*ec2ServiceConfig).GetCloudInventory()
 				Expect(len(inventory.VmMap[selectorNamespacedName])).To(Equal(0))
@@ -757,15 +966,161 @@ var _ = Describe("AWS cloud", func() {
 			filters := getFilters(c, testSelectorNamespacedName)
 			Expect(filters).To(Equal(expectedFilters))
 		})
+		It("Should poll vms with multiple regions and multiple vpcID only match", func() {
+			fakeClient = fake.NewClientBuilder().Build()
+			_ = fakeClient.Create(context.Background(), secret)
+			c := newAWSCloud(mockawsCloudHelper)
+			account.Spec.AWSConfig.Region = append(account.Spec.AWSConfig.Region, testRegion2)
+			instanceIds := []string{testVMID02}
+			vpcIds := []string{testVpcID02}
+
+			mockawsService2 := NewMockawsServiceClientCreateInterface(mockCtrl)
+			mockaws2 := NewMockawsEC2Wrapper(mockCtrl)
+			mockawsCloudHelper.EXPECT().newServiceSdkConfigProvider(gomock.Any(), testRegion2).Return(mockawsService2, nil)
+			mockawsService2.EXPECT().compute().Return(mockaws2, nil).AnyTimes()
+			mockaws2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds, testVpcID02), nil).AnyTimes()
+			mockaws2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).Times(0)
+			mockaws2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(createVpcObject(vpcIds), nil).Times(1)
+			mockaws2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
+				nil).AnyTimes()
+			mockaws2.EXPECT().describeSecurityGroups(gomock.Any()).Return(&ec2.DescribeSecurityGroupsOutput{}, nil).MaxTimes(1)
+			mockaws2.EXPECT().getRegion().Return(testRegion2).AnyTimes()
+
+			_ = c.AddProviderAccount(fakeClient, account)
+
+			vmSelector := []v1alpha1.VirtualMachineSelector{
+				{
+					VpcMatch: &v1alpha1.EntityMatch{MatchID: testVpcID01},
+					VMMatch:  []v1alpha1.EntityMatch{},
+				},
+				{
+					VpcMatch: &v1alpha1.EntityMatch{MatchID: testVpcID02},
+					VMMatch:  []v1alpha1.EntityMatch{},
+				},
+			}
+
+			selector.Spec.VMSelector = vmSelector
+			err := c.AddAccountResourceSelector(&testAccountNamespacedName, selector)
+			Expect(err).Should(BeNil())
+
+			errPolAdd := c.DoInventoryPoll(&testAccountNamespacedName)
+			Expect(errPolAdd).Should(BeNil())
+
+			err = checkVmPollResult(c, testAccountNamespacedName, append(instanceIds, testVMID01))
+			Expect(err).Should(BeNil())
+		})
+		It("Should poll vms with region add and multiple vpcID only match", func() {
+			fakeClient = fake.NewClientBuilder().Build()
+			_ = fakeClient.Create(context.Background(), secret)
+			c := newAWSCloud(mockawsCloudHelper)
+			_ = c.AddProviderAccount(fakeClient, account)
+
+			vmSelector := []v1alpha1.VirtualMachineSelector{
+				{
+					VpcMatch: &v1alpha1.EntityMatch{MatchID: testVpcID01},
+					VMMatch:  []v1alpha1.EntityMatch{},
+				},
+				{
+					VpcMatch: &v1alpha1.EntityMatch{MatchID: testVpcID02},
+					VMMatch:  []v1alpha1.EntityMatch{},
+				},
+			}
+
+			selector.Spec.VMSelector = vmSelector
+			err := c.AddAccountResourceSelector(&testAccountNamespacedName, selector)
+			Expect(err).Should(BeNil())
+
+			errPolAdd := c.DoInventoryPoll(&testAccountNamespacedName)
+			Expect(errPolAdd).Should(BeNil())
+
+			err = checkVmPollResult(c, testAccountNamespacedName, []string{testVMID01})
+			Expect(err).Should(BeNil())
+
+			instanceIds := []string{testVMID02}
+			vpcIds := []string{testVpcID02}
+			mockawsService2 := NewMockawsServiceClientCreateInterface(mockCtrl)
+			mockaws2 := NewMockawsEC2Wrapper(mockCtrl)
+			mockawsCloudHelper.EXPECT().newServiceSdkConfigProvider(gomock.Any(), testRegion2).Return(mockawsService2, nil)
+			mockawsService2.EXPECT().compute().Return(mockaws2, nil).AnyTimes()
+			mockaws2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds, testVpcID02), nil).AnyTimes()
+			mockaws2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).Times(0)
+			mockaws2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(createVpcObject(vpcIds), nil).Times(1)
+			mockaws2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
+				nil).AnyTimes()
+			mockaws2.EXPECT().describeSecurityGroups(gomock.Any()).Return(&ec2.DescribeSecurityGroupsOutput{}, nil).MaxTimes(1)
+			mockaws2.EXPECT().getRegion().Return(testRegion2).AnyTimes()
+			mockawsCloudHelper.EXPECT().newServiceSdkConfigProvider(gomock.Any(), testRegion).Return(mockawsService, nil).Times(1)
+
+			account.Spec.AWSConfig.Region = append(account.Spec.AWSConfig.Region, testRegion2)
+			_ = c.AddProviderAccount(fakeClient, account)
+
+			errPolAdd = c.DoInventoryPoll(&testAccountNamespacedName)
+			Expect(errPolAdd).Should(BeNil())
+
+			err = checkVmPollResult(c, testAccountNamespacedName, append(instanceIds, testVMID01))
+			Expect(err).Should(BeNil())
+		})
+		It("Should poll vms with region remove and multiple vpcID only match", func() {
+			fakeClient = fake.NewClientBuilder().Build()
+			_ = fakeClient.Create(context.Background(), secret)
+			c := newAWSCloud(mockawsCloudHelper)
+			account.Spec.AWSConfig.Region = append(account.Spec.AWSConfig.Region, testRegion2)
+			instanceIds := []string{testVMID02}
+			vpcIds := []string{testVpcID02}
+
+			mockawsService2 := NewMockawsServiceClientCreateInterface(mockCtrl)
+			mockaws2 := NewMockawsEC2Wrapper(mockCtrl)
+			mockawsCloudHelper.EXPECT().newServiceSdkConfigProvider(gomock.Any(), testRegion2).Return(mockawsService2, nil)
+			mockawsService2.EXPECT().compute().Return(mockaws2, nil).AnyTimes()
+			mockaws2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds, testVpcID02), nil).AnyTimes()
+			mockaws2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).Times(0)
+			mockaws2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(createVpcObject(vpcIds), nil).Times(1)
+			mockaws2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
+				nil).AnyTimes()
+			mockaws2.EXPECT().describeSecurityGroups(gomock.Any()).Return(&ec2.DescribeSecurityGroupsOutput{}, nil).MaxTimes(1)
+			mockaws2.EXPECT().getRegion().Return(testRegion2).AnyTimes()
+
+			_ = c.AddProviderAccount(fakeClient, account)
+
+			vmSelector := []v1alpha1.VirtualMachineSelector{
+				{
+					VpcMatch: &v1alpha1.EntityMatch{MatchID: testVpcID01},
+					VMMatch:  []v1alpha1.EntityMatch{},
+				},
+				{
+					VpcMatch: &v1alpha1.EntityMatch{MatchID: testVpcID02},
+					VMMatch:  []v1alpha1.EntityMatch{},
+				},
+			}
+
+			selector.Spec.VMSelector = vmSelector
+			err := c.AddAccountResourceSelector(&testAccountNamespacedName, selector)
+			Expect(err).Should(BeNil())
+			errPolAdd := c.DoInventoryPoll(&testAccountNamespacedName)
+			Expect(errPolAdd).Should(BeNil())
+			err = checkVmPollResult(c, testAccountNamespacedName, append(instanceIds, testVMID01))
+			Expect(err).Should(BeNil())
+
+			account.Spec.AWSConfig.Region = account.Spec.AWSConfig.Region[:1]
+
+			mockawsCloudHelper.EXPECT().newServiceSdkConfigProvider(gomock.Any(), testRegion).Return(mockawsService, nil).Times(1)
+			_ = c.AddProviderAccount(fakeClient, account)
+
+			errPolAdd = c.DoInventoryPoll(&testAccountNamespacedName)
+			Expect(errPolAdd).Should(BeNil())
+			err = checkVmPollResult(c, testAccountNamespacedName, []string{testVMID01})
+			Expect(err).Should(BeNil())
+		})
 	})
 })
 
-func getEc2InstanceObject(instanceIDs []string) []*ec2.Instance {
+func getEc2InstanceObject(instanceIDs []string, vpcId string) []*ec2.Instance {
 	var ec2Instances []*ec2.Instance
 	for _, instanceID := range instanceIDs {
 		ec2Instance := &ec2.Instance{
-			VpcId:      &testVpcID01,
+			VpcId:      &vpcId,
 			InstanceId: aws.String(instanceID),
+			State:      &ec2.InstanceState{Name: aws.String("")},
 		}
 		ec2Instances = append(ec2Instances, ec2Instance)
 	}
@@ -806,7 +1161,7 @@ func checkAccountAddSuccessCondition(c *awsCloud, namespacedName types.Namespace
 			return true, err
 		}
 
-		instances := accCfg.GetServiceConfig().(*ec2ServiceConfig).getCachedInstances(&selectorNamespacedName)
+		instances := accCfg.GetServiceConfig(testRegion).(*ec2ServiceConfig).getCachedInstances(&selectorNamespacedName)
 		instanceIds := make([]string, 0, len(instances))
 		for _, instance := range instances {
 			instanceIds = append(instanceIds, *instance.InstanceId)
@@ -831,7 +1186,10 @@ func checkVpcPollResult(c *awsCloud, namespacedName types.NamespacedName, ids []
 			return true, err
 		}
 
-		vpcs := accCfg.GetServiceConfig().(*ec2ServiceConfig).getCachedVpcs()
+		var vpcs []*ec2.Vpc
+		for _, serviceConfig := range accCfg.GetAllServiceConfigs() {
+			vpcs = append(vpcs, serviceConfig.(*ec2ServiceConfig).getCachedVpcs()...)
+		}
 		vpcIDs := make([]string, 0, len(vpcs))
 		for _, vpc := range vpcs {
 			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("vpc id %s", *vpc.VpcId)))
@@ -850,13 +1208,45 @@ func checkVpcPollResult(c *awsCloud, namespacedName types.NamespacedName, ids []
 	return wait.PollImmediate(1*time.Second, 5*time.Second, conditionFunc)
 }
 
+func checkVmPollResult(c *awsCloud, namespacedName types.NamespacedName, ids []string) error {
+	conditionFunc := func() (done bool, e error) {
+		accCfg, err := c.cloudCommon.GetCloudAccountByName(&namespacedName)
+		if err != nil {
+			return true, fmt.Errorf("failed to find account")
+		}
+
+		var vms []*ec2.Instance
+		for _, s := range accCfg.GetAllServiceConfigs() {
+			serviceConfig := s.(*ec2ServiceConfig)
+			for selector := range serviceConfig.selectors {
+				vms = append(vms, serviceConfig.getCachedInstances(&selector)...)
+			}
+		}
+		vmIds := make([]string, 0, len(vms))
+		for _, vm := range vms {
+			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("vm id %s", *vm.InstanceId)))
+			vmIds = append(vmIds, *vm.InstanceId)
+		}
+
+		sort.Strings(vmIds)
+		sort.Strings(ids)
+		equal := reflect.DeepEqual(vmIds, ids)
+		if equal {
+			return true, nil
+		}
+		return false, nil
+	}
+
+	return wait.PollImmediate(1*time.Second, 5*time.Second, conditionFunc)
+}
+
 func getFilters(c *awsCloud, selectorNamespacedName types.NamespacedName) [][]*ec2.Filter {
 	accCfg, err := c.cloudCommon.GetCloudAccountByName(&types.NamespacedName{Namespace: "namespace01",
 		Name: "account01"})
 	if err != nil && strings.Contains(err.Error(), internal.AccountConfigNotFound) {
 		return nil
 	}
-	if obj, found := accCfg.GetServiceConfig().(*ec2ServiceConfig).instanceFilters[selectorNamespacedName]; found {
+	if obj, found := accCfg.GetServiceConfig(testRegion).(*ec2ServiceConfig).instanceFilters[selectorNamespacedName]; found {
 		return obj
 	}
 	return nil

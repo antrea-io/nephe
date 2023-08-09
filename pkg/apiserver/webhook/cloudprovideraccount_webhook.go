@@ -39,7 +39,7 @@ import (
 
 const MinPollInterval = 30
 
-var (
+const (
 	errorMsgSecretNotConfigured    = "unable to get secret"
 	errorMsgMinPollInterval        = "pollIntervalInSeconds should be >= 30. If not specified, defaults to 60"
 	errorMsgMissingAwsCredential   = "must specify either credentials or role arn, both cannot be empty"
@@ -248,20 +248,21 @@ func (v *CPAValidator) validateAWSAccount(account *crdv1alpha1.CloudProviderAcco
 		return fmt.Errorf(errorMsgMissingAwsCredential)
 	}
 
-	if len(awsConfig.Region) == 0 || len(strings.TrimSpace(awsConfig.Region[0])) == 0 {
+	if len(awsConfig.Region) == 0 {
 		return fmt.Errorf(errorMsgMissingRegion)
 	}
 
 	// NOTE: currently only AWS standard partition regions supported (aws-cn, aws-us-gov etc are not
 	// supported). As we add support for other partitions, validation needs to be updated.
-	regions := endpoints.AwsPartition().Regions()
-	_, found := regions[awsConfig.Region[0]]
-	if !found {
-		var supportedRegions []string
-		for key := range regions {
-			supportedRegions = append(supportedRegions, key)
+	awsRegionMap := endpoints.AwsPartition().Regions()
+	for _, region := range awsConfig.Region {
+		if _, found := awsRegionMap[strings.ToLower(region)]; !found {
+			var supportedRegions []string
+			for key := range awsRegionMap {
+				supportedRegions = append(supportedRegions, key)
+			}
+			return fmt.Errorf("%v %s [%v]", region, errorMsgInvalidRegion, supportedRegions)
 		}
-		return fmt.Errorf("%v %s [%v]", awsConfig.Region, errorMsgInvalidRegion, supportedRegions)
 	}
 
 	return nil
@@ -310,10 +311,14 @@ func (v *CPAValidator) validateAzureAccount(account *crdv1alpha1.CloudProviderAc
 	if len(strings.TrimSpace(azureCredential.ClientKey)) == 0 && len(strings.TrimSpace(azureCredential.SessionToken)) == 0 {
 		return fmt.Errorf(errorMsgMissingAzureCredential)
 	}
-
 	// validate region
-	if len(azureConfig.Region) == 0 || len(strings.TrimSpace(azureConfig.Region[0])) == 0 {
+	if len(azureConfig.Region) == 0 {
 		return fmt.Errorf(errorMsgMissingRegion)
+	}
+	for _, region := range azureConfig.Region {
+		if len(strings.TrimSpace(region)) == 0 {
+			return fmt.Errorf(errorMsgMissingRegion)
+		}
 	}
 
 	return nil

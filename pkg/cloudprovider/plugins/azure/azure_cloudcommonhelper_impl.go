@@ -24,10 +24,14 @@ func (h *azureCloudCommonHelperImpl) GetCloudServicesCreateFunc() internal.Cloud
 	return newAzureServiceConfigs
 }
 
-func (h *azureCloudCommonHelperImpl) SetAccountCredentialsFunc() internal.CloudCredentialValidatorFunc {
-	return setAccountCredentials
+func (h *azureCloudCommonHelperImpl) GetCloudServicesUpdateFunc() internal.CloudServiceConfigUpdateFunc {
+	return updateAzureServiceConfigs
 }
 
-func (h *azureCloudCommonHelperImpl) GetCloudCredentialsComparatorFunc() internal.CloudCredentialComparatorFunc {
-	return compareAccountCredentials
+func (h *azureCloudCommonHelperImpl) SetAccountConfigFunc() internal.CloudConfigValidatorFunc {
+	return setAccountConfig
+}
+
+func (h *azureCloudCommonHelperImpl) GetCloudConfigComparatorFunc() internal.CloudConfigComparatorFunc {
+	return compareAccountConfig
 }

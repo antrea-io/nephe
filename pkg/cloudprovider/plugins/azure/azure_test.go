@@ -21,6 +21,7 @@ import (
 
 	network "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	resourcegraph "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -37,7 +38,8 @@ import (
 )
 
 var (
-	region = "eastus"
+	region  = "eastus"
+	region2 = "westus"
 )
 
 var _ = Describe("Azure", func() {
@@ -49,6 +51,7 @@ var _ = Describe("Azure", func() {
 		testClientKey             = "ClientKey"
 		testTenantID              = "TenantID"
 		testRegion                = region
+		testRegion2               = region2
 		testRG                    = "testRG"
 		azureProvideType          = "Azure"
 
@@ -79,6 +82,7 @@ var _ = Describe("Azure", func() {
 			mockazureAsgWrapper             *MockazureAsgWrapper
 			mockazureVirtualNetworksWrapper *MockazureVirtualNetworksWrapper
 			mockazureResourceGraph          *MockazureResourceGraphWrapper
+			mockazureSubscriptionsWrapper   *MockazureSubscriptionsWrapper
 			mockazureService                *MockazureServiceClientCreateInterface
 			testSelectorNamespacedName      = &types.NamespacedName{Namespace: "namespace01", Name: "selector-VnetID"}
 
@@ -147,6 +151,7 @@ var _ = Describe("Azure", func() {
 			mockazureAsgWrapper = NewMockazureAsgWrapper(mockCtrl)
 			mockazureVirtualNetworksWrapper = NewMockazureVirtualNetworksWrapper(mockCtrl)
 			mockazureResourceGraph = NewMockazureResourceGraphWrapper(mockCtrl)
+			mockazureSubscriptionsWrapper = NewMockazureSubscriptionsWrapper(mockCtrl)
 
 			mockAzureServiceHelper.EXPECT().newServiceSdkConfigProvider(gomock.Any()).Return(mockazureService, nil).AnyTimes()
 			mockazureService.EXPECT().networkInterfaces(gomock.Any()).Return(mockazureNwIntfWrapper, nil).AnyTimes()
@@ -154,10 +159,12 @@ var _ = Describe("Azure", func() {
 			mockazureService.EXPECT().applicationSecurityGroups(gomock.Any()).Return(mockazureAsgWrapper, nil).AnyTimes()
 			mockazureService.EXPECT().virtualNetworks(gomock.Any()).Return(mockazureVirtualNetworksWrapper, nil).AnyTimes()
 			mockazureService.EXPECT().resourceGraph().Return(mockazureResourceGraph, nil).AnyTimes()
+			mockazureService.EXPECT().subscriptions().Return(mockazureSubscriptionsWrapper, nil).AnyTimes()
 			mockazureResourceGraph.EXPECT().resources(gomock.Any(), gomock.Any()).Return(getResourceGraphResult(), nil).AnyTimes()
+			mockazureSubscriptionsWrapper.EXPECT().listComplete(gomock.Any(), testSubID).
+				Return([]armsubscription.Location{{Name: &testRegion}, {Name: &testRegion2}}, nil).AnyTimes()
 
 			fakeClient, c = setupClientAndCloud(mockAzureServiceHelper, account, secret)
-
 		})
 
 		AfterEach(func() {
@@ -251,9 +258,147 @@ var _ = Describe("Azure", func() {
 				errPolAdd := c.DoInventoryPoll(testAccountNamespacedName)
 				Expect(errPolAdd).Should(BeNil())
 
-				cloudInventory, err := c.GetCloudInventory(testAccountNamespacedName)
+				cloudInventory, err := c.GetAccountCloudInventory(testAccountNamespacedName)
 				Expect(err).Should(BeNil())
 				Expect(len(cloudInventory.VpcMap)).Should(Equal(len(vnetIDs)))
+			})
+			It("add multi region account should poll vpc from both regions", func() {
+				vnetIDs := []string{"testVnetID01", "testVnetID02"}
+				vnets := createVnetObject(vnetIDs)
+				vnets[1].Location = &testRegion2
+				mockazureVirtualNetworksWrapper.EXPECT().listAllComplete(gomock.Any()).Return(vnets, nil).AnyTimes()
+				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret"}`
+				secret = &corev1.Secret{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      testAccountNamespacedName.Name,
+						Namespace: testAccountNamespacedName.Namespace,
+					},
+					Data: map[string][]byte{
+						"credentials": []byte(credential),
+					},
+				}
+
+				_ = fakeClient.Create(context.Background(), secret)
+				c := newAzureCloud(mockAzureServiceHelper)
+
+				// adding second region.
+				account.Spec.AzureConfig.Region = append(account.Spec.AzureConfig.Region, testRegion2)
+
+				err := c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(BeNil())
+				accCfg, err := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
+				Expect(err).To(BeNil())
+				Expect(accCfg).To(Not(BeNil()))
+				Expect(len(accCfg.GetAllServiceConfigs())).To(Equal(1))
+
+				errPolAdd := c.DoInventoryPoll(testAccountNamespacedName)
+				Expect(errPolAdd).Should(BeNil())
+
+				cloudInventory, err := c.GetAccountCloudInventory(testAccountNamespacedName)
+				Expect(err).Should(BeNil())
+				Expect(len(cloudInventory.VpcMap)).Should(Equal(len(vnetIDs)))
+			})
+			It("add region to existing account should poll vpc from both regions", func() {
+				vnetIDs := []string{"testVnetID01", "testVnetID02"}
+				vnets := createVnetObject(vnetIDs)
+				vnets[1].Location = &testRegion2
+				mockazureVirtualNetworksWrapper.EXPECT().listAllComplete(gomock.Any()).Return(vnets, nil).AnyTimes()
+				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret"}`
+				secret = &corev1.Secret{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      testAccountNamespacedName.Name,
+						Namespace: testAccountNamespacedName.Namespace,
+					},
+					Data: map[string][]byte{
+						"credentials": []byte(credential),
+					},
+				}
+
+				_ = fakeClient.Create(context.Background(), secret)
+				c := newAzureCloud(mockAzureServiceHelper)
+
+				err := c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(BeNil())
+				accCfg, err := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
+				Expect(err).To(BeNil())
+				Expect(accCfg).To(Not(BeNil()))
+				Expect(len(accCfg.GetAllServiceConfigs())).To(Equal(1))
+
+				errPolAdd := c.DoInventoryPoll(testAccountNamespacedName)
+				Expect(errPolAdd).Should(BeNil())
+
+				cloudInventory, err := c.GetAccountCloudInventory(testAccountNamespacedName)
+				Expect(err).Should(BeNil())
+				Expect(len(cloudInventory.VpcMap)).Should(Equal(len(vnetIDs) - 1))
+
+				// adding new region in account.
+				account.Spec.AzureConfig.Region = append(account.Spec.AzureConfig.Region, testRegion2)
+
+				err = c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(BeNil())
+				accCfg, err = c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
+				Expect(err).To(BeNil())
+				Expect(accCfg).To(Not(BeNil()))
+				Expect(len(accCfg.GetAllServiceConfigs())).To(Equal(1))
+
+				errPolAdd = c.DoInventoryPoll(testAccountNamespacedName)
+				Expect(errPolAdd).Should(BeNil())
+
+				cloudInventory, err = c.GetAccountCloudInventory(testAccountNamespacedName)
+				Expect(err).Should(BeNil())
+				Expect(len(cloudInventory.VpcMap)).Should(Equal(len(vnetIDs)))
+			})
+			It("remove region from existing account should poll vpc from region left", func() {
+				vnetIDs := []string{"testVnetID01", "testVnetID02"}
+				vnets := createVnetObject(vnetIDs)
+				vnets[1].Location = &testRegion2
+				mockazureVirtualNetworksWrapper.EXPECT().listAllComplete(gomock.Any()).Return(vnets, nil).AnyTimes()
+				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret"}`
+				secret = &corev1.Secret{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      testAccountNamespacedName.Name,
+						Namespace: testAccountNamespacedName.Namespace,
+					},
+					Data: map[string][]byte{
+						"credentials": []byte(credential),
+					},
+				}
+
+				_ = fakeClient.Create(context.Background(), secret)
+				c := newAzureCloud(mockAzureServiceHelper)
+
+				account.Spec.AzureConfig.Region = append(account.Spec.AzureConfig.Region, testRegion2)
+
+				err := c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(BeNil())
+				accCfg, err := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
+				Expect(err).To(BeNil())
+				Expect(accCfg).To(Not(BeNil()))
+				Expect(len(accCfg.GetAllServiceConfigs())).To(Equal(1))
+
+				errPolAdd := c.DoInventoryPoll(testAccountNamespacedName)
+				Expect(errPolAdd).Should(BeNil())
+
+				cloudInventory, err := c.GetAccountCloudInventory(testAccountNamespacedName)
+				Expect(err).Should(BeNil())
+				Expect(len(cloudInventory.VpcMap)).Should(Equal(len(vnetIDs)))
+
+				// removing a region from account.
+				account.Spec.AzureConfig.Region = account.Spec.AzureConfig.Region[:1]
+
+				err = c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(BeNil())
+				accCfg, err = c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
+				Expect(err).To(BeNil())
+				Expect(accCfg).To(Not(BeNil()))
+				Expect(len(accCfg.GetAllServiceConfigs())).To(Equal(1))
+
+				errPolAdd = c.DoInventoryPoll(testAccountNamespacedName)
+				Expect(errPolAdd).Should(BeNil())
+
+				cloudInventory, err = c.GetAccountCloudInventory(testAccountNamespacedName)
+				Expect(err).Should(BeNil())
+				Expect(len(cloudInventory.VpcMap)).Should(Equal(len(vnetIDs) - 1))
 			})
 			It("StopPoller cloud inventory poll on poller delete", func() {
 				vnetIDs := []string{"testVnetID01", "testVnetID02"}
@@ -271,6 +416,28 @@ var _ = Describe("Azure", func() {
 				errPolDel := c.ResetInventoryCache(testAccountNamespacedName)
 				Expect(errPolDel).Should(BeNil())
 				mockazureVirtualNetworksWrapper.EXPECT().listAllComplete(gomock.Any()).Return(createVnetObject(vnetIDs), nil).MinTimes(0)
+			})
+			It("Should fail with invalid region", func() {
+				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret"}`
+				secret = &corev1.Secret{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      testAccountNamespacedName.Name,
+						Namespace: testAccountNamespacedName.Namespace,
+					},
+					Data: map[string][]byte{
+						"credentials": []byte(credential),
+					},
+				}
+
+				_ = fakeClient.Create(context.Background(), secret)
+				c := newAzureCloud(mockAzureServiceHelper)
+
+				account.Spec.AzureConfig.Region = append(account.Spec.AzureConfig.Region, "invalidRegion")
+				err := c.AddProviderAccount(fakeClient, account)
+				Expect(err).To(Not(BeNil()))
+				accCfg, err := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
+				Expect(err).To(Not(BeNil()))
+				Expect(accCfg).To(Not(BeNil()))
 			})
 		})
 		Context("VM Selector scenarios", func() {
@@ -334,6 +501,140 @@ var _ = Describe("Azure", func() {
 				Expect(err).Should(BeNil())
 
 				filters := getFilters(c, testSelectorNamespacedName)
+				Expect(filters).To(Equal(expectedQueryStrs))
+
+				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName)
+				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
+				filters = getFilters(c, testSelectorNamespacedName)
+				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
+			})
+
+			It("Should match expected filter with credential - multiple region multiple vpcID only match", func() {
+				vnetIDs = []string{testVnetID01, testVnetID02}
+				vmSelector := []v1alpha1.VirtualMachineSelector{
+					{
+						VpcMatch: &v1alpha1.EntityMatch{MatchID: testVnetID01},
+						VMMatch:  []v1alpha1.EntityMatch{},
+					},
+					{
+						VpcMatch: &v1alpha1.EntityMatch{MatchID: testVnetID02},
+						VMMatch:  []v1alpha1.EntityMatch{},
+					},
+				}
+
+				_ = fakeClient.Create(context.Background(), secret)
+				c := newAzureCloud(mockAzureServiceHelper)
+
+				account.Spec.AzureConfig.Region = append(account.Spec.AzureConfig.Region, testRegion2)
+
+				err := c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(BeNil())
+
+				selector.Spec.VMSelector = vmSelector
+				selector.Name = "multiple-vpcIDOnly"
+				testSelectorNamespacedName = &types.NamespacedName{Namespace: "namespace01", Name: selector.Name}
+				err = c.AddAccountResourceSelector(testAccountNamespacedName, selector)
+				Expect(err).Should(BeNil())
+
+				locations = append(locations, testRegion2)
+				expectedQueryStr, _ := getVMsByVnetIDsMatchQuery(vnetIDs,
+					subIDs, tenantIDs, locations)
+				expectedQueryStrs := []*string{expectedQueryStr}
+				filters := getFilters(c, testSelectorNamespacedName)
+				Expect(filters).To(Equal(expectedQueryStrs))
+
+				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName)
+				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
+				filters = getFilters(c, testSelectorNamespacedName)
+				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
+			})
+
+			It("Should match expected filter with credential - add new region multiple vpcID only match", func() {
+				vnetIDs = []string{testVnetID01, testVnetID02}
+				expectedQueryStr, _ := getVMsByVnetIDsMatchQuery(vnetIDs,
+					subIDs, tenantIDs, locations)
+				expectedQueryStrs := []*string{expectedQueryStr}
+				vmSelector := []v1alpha1.VirtualMachineSelector{
+					{
+						VpcMatch: &v1alpha1.EntityMatch{MatchID: testVnetID01},
+						VMMatch:  []v1alpha1.EntityMatch{},
+					},
+					{
+						VpcMatch: &v1alpha1.EntityMatch{MatchID: testVnetID02},
+						VMMatch:  []v1alpha1.EntityMatch{},
+					},
+				}
+
+				selector.Spec.VMSelector = vmSelector
+				selector.Name = "multiple-vpcIDOnly"
+				testSelectorNamespacedName = &types.NamespacedName{Namespace: "namespace01", Name: selector.Name}
+				err := c.AddAccountResourceSelector(testAccountNamespacedName, selector)
+				Expect(err).Should(BeNil())
+
+				filters := getFilters(c, testSelectorNamespacedName)
+				Expect(filters).To(Equal(expectedQueryStrs))
+
+				// adding second region.
+				account.Spec.AzureConfig.Region = append(account.Spec.AzureConfig.Region, testRegion2)
+				err = c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(BeNil())
+
+				locations = append(locations, testRegion2)
+				expectedQueryStr, _ = getVMsByVnetIDsMatchQuery(vnetIDs,
+					subIDs, tenantIDs, locations)
+				expectedQueryStrs = []*string{expectedQueryStr}
+				filters = getFilters(c, testSelectorNamespacedName)
+				Expect(filters).To(Equal(expectedQueryStrs))
+
+				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName)
+				expectedQueryStrs = expectedQueryStrs[:len(expectedQueryStrs)-1]
+				filters = getFilters(c, testSelectorNamespacedName)
+				Expect(len(filters)).To(Equal(len(expectedQueryStrs)))
+			})
+
+			It("Should match expected filter with credential - remove region multiple vpcID only match", func() {
+				vnetIDs = []string{testVnetID01, testVnetID02}
+				vmSelector := []v1alpha1.VirtualMachineSelector{
+					{
+						VpcMatch: &v1alpha1.EntityMatch{MatchID: testVnetID01},
+						VMMatch:  []v1alpha1.EntityMatch{},
+					},
+					{
+						VpcMatch: &v1alpha1.EntityMatch{MatchID: testVnetID02},
+						VMMatch:  []v1alpha1.EntityMatch{},
+					},
+				}
+
+				_ = fakeClient.Create(context.Background(), secret)
+				c := newAzureCloud(mockAzureServiceHelper)
+
+				account.Spec.AzureConfig.Region = append(account.Spec.AzureConfig.Region, testRegion2)
+
+				err := c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(BeNil())
+
+				selector.Spec.VMSelector = vmSelector
+				selector.Name = "multiple-vpcIDOnly"
+				testSelectorNamespacedName = &types.NamespacedName{Namespace: "namespace01", Name: selector.Name}
+				err = c.AddAccountResourceSelector(testAccountNamespacedName, selector)
+				Expect(err).Should(BeNil())
+
+				locations = append(locations, testRegion2)
+				expectedQueryStr, _ := getVMsByVnetIDsMatchQuery(vnetIDs,
+					subIDs, tenantIDs, locations)
+				expectedQueryStrs := []*string{expectedQueryStr}
+				filters := getFilters(c, testSelectorNamespacedName)
+				Expect(filters).To(Equal(expectedQueryStrs))
+
+				// removing a region.
+				account.Spec.AzureConfig.Region = account.Spec.AzureConfig.Region[:1]
+				err = c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(BeNil())
+				locations = locations[:1]
+				expectedQueryStr, _ = getVMsByVnetIDsMatchQuery(vnetIDs,
+					subIDs, tenantIDs, locations)
+				expectedQueryStrs = []*string{expectedQueryStr}
+				filters = getFilters(c, testSelectorNamespacedName)
 				Expect(filters).To(Equal(expectedQueryStrs))
 
 				c.RemoveAccountResourcesSelector(testAccountNamespacedName, testSelectorNamespacedName)
@@ -480,11 +781,15 @@ var _ = Describe("Azure", func() {
 			})
 
 			It("Update Secret", func() {
+				testSubID01 := "testSubID01"
 				credential2 := fmt.Sprintf(`{"subscriptionId": "%s",
 				"clientId": "%s",
 				"tenantId": "%s",
 				"clientKey": "%s"
-			}`, "testSubID01", "testClientID", "testTenantID", "testClientKey")
+			}`, testSubID01, "testClientID", "testTenantID", "testClientKey")
+
+				mockazureSubscriptionsWrapper.EXPECT().listComplete(gomock.Any(), testSubID01).
+					Return([]armsubscription.Location{{Name: &testRegion}}, nil).Times(1)
 
 				secret = &corev1.Secret{
 					ObjectMeta: v1.ObjectMeta{
@@ -536,11 +841,13 @@ func getFilters(c *azureCloud, selectorNamespacedName *types.NamespacedName) []*
 	if err != nil && strings.Contains(err.Error(), internal.AccountConfigNotFound) {
 		return nil
 	}
-	serviceConfig := accCfg.GetServiceConfig()
-	if filters, found := serviceConfig.(*computeServiceConfig).computeFilters[*selectorNamespacedName]; found {
-		return filters
+	var allFilters []*string
+	for _, serviceConfig := range accCfg.GetAllServiceConfigs() {
+		if filters, found := serviceConfig.(*computeServiceConfig).computeFilters[*selectorNamespacedName]; found {
+			allFilters = append(allFilters, filters...)
+		}
 	}
-	return nil
+	return allFilters
 }
 func setupClientAndCloud(mockAzureServiceHelper *MockazureServicesHelper, account *v1alpha1.CloudProviderAccount, secret *corev1.Secret) (
 	client.WithWatch, *azureCloud) {

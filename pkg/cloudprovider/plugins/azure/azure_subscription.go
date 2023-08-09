@@ -12,15 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package aws
+package azure
 
 import (
-	"k8s.io/apimachinery/pkg/types"
-
-	nephetypes "antrea.io/nephe/pkg/types"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 )
 
-// GetAccountCloudInventory pulls cloud vpc and vm inventory from internal snapshot.
-func (c *awsCloud) GetAccountCloudInventory(accountNamespacedName *types.NamespacedName) (*nephetypes.CloudInventory, error) {
-	return c.cloudCommon.GetAccountCloudInventory(accountNamespacedName)
+// subscriptions returns subscriptions apiClient.
+func (p *azureServiceSdkConfigProvider) subscriptions() (azureSubscriptionsWrapper, error) {
+	subscriptionsClient, err := armsubscription.NewSubscriptionsClient(p.cred, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &azureSubscriptionsWrapperImpl{subscriptionsClient: *subscriptionsClient}, nil
 }

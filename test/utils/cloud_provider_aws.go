@@ -217,6 +217,7 @@ func (p *awsVPC) GetCloudAccountParameters(name, namespace string, useInvalidCre
 			cred.RoleArn = os.Getenv("TF_VAR_nephe_controller_role_arn")
 			cred.AccessKeyID = os.Getenv("AWS_ACCESS_KEY_ID")
 			cred.AccessKeySecret = os.Getenv("AWS_SECRET_ACCESS_KEY")
+			cred.SessionToken = os.Getenv("AWS_SESSION_TOKEN")
 		}
 	}
 	secretString, _ := json.Marshal(cred)

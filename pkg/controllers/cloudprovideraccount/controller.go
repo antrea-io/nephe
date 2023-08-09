@@ -167,10 +167,10 @@ func (r *CloudProviderAccountReconciler) processCreateOrUpdate(namespacedName *t
 	}
 
 	retryAdd, err := r.AccManager.AddAccount(namespacedName, accountCloudType, account)
+	r.updateStatus(namespacedName, err)
 	if err != nil && retryAdd {
 		return err
 	}
-	r.updateStatus(namespacedName, err)
 	return nil
 }
 

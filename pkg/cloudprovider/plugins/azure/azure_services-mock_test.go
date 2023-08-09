@@ -108,6 +108,21 @@ func (mr *MockazureServiceClientCreateInterfaceMockRecorder) securityGroups(subs
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "securityGroups", reflect.TypeOf((*MockazureServiceClientCreateInterface)(nil).securityGroups), subscriptionID)
 }
 
+// subscriptions mocks base method.
+func (m *MockazureServiceClientCreateInterface) subscriptions() (azureSubscriptionsWrapper, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "subscriptions")
+	ret0, _ := ret[0].(azureSubscriptionsWrapper)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// subscriptions indicates an expected call of subscriptions.
+func (mr *MockazureServiceClientCreateInterfaceMockRecorder) subscriptions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "subscriptions", reflect.TypeOf((*MockazureServiceClientCreateInterface)(nil).subscriptions))
+}
+
 // virtualNetworks mocks base method.
 func (m *MockazureServiceClientCreateInterface) virtualNetworks(subscriptionID string) (azureVirtualNetworksWrapper, error) {
 	m.ctrl.T.Helper()

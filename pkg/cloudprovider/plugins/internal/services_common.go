@@ -34,6 +34,8 @@ type CloudServiceInterface interface {
 	// AddResourceFilters will be used by service to get resources from cloud for the service. Each will convert
 	// CloudEntitySelector to service understandable filters.
 	AddResourceFilters(selector *crdv1alpha1.CloudEntitySelector) error
+	// GetResourceFilters gets all instances resource filters for the service.
+	GetResourceFilters() map[types.NamespacedName]*crdv1alpha1.CloudEntitySelector
 	// RemoveResourceFilters will be used by service to remove configured filter.
 	RemoveResourceFilters(selectorNamespacedName *types.NamespacedName)
 	// DoResourceInventory performs resource inventory for the cloud service based on configured filters. As part

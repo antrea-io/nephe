@@ -87,16 +87,16 @@ func (m *MockawsServicesHelper) EXPECT() *MockawsServicesHelperMockRecorder {
 }
 
 // newServiceSdkConfigProvider mocks base method.
-func (m *MockawsServicesHelper) newServiceSdkConfigProvider(accCfg *awsAccountConfig) (awsServiceClientCreateInterface, error) {
+func (m *MockawsServicesHelper) newServiceSdkConfigProvider(accCfg *awsAccountConfig, region string) (awsServiceClientCreateInterface, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "newServiceSdkConfigProvider", accCfg)
+	ret := m.ctrl.Call(m, "newServiceSdkConfigProvider", accCfg, region)
 	ret0, _ := ret[0].(awsServiceClientCreateInterface)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // newServiceSdkConfigProvider indicates an expected call of newServiceSdkConfigProvider.
-func (mr *MockawsServicesHelperMockRecorder) newServiceSdkConfigProvider(accCfg interface{}) *gomock.Call {
+func (mr *MockawsServicesHelperMockRecorder) newServiceSdkConfigProvider(accCfg, region interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "newServiceSdkConfigProvider", reflect.TypeOf((*MockawsServicesHelper)(nil).newServiceSdkConfigProvider), accCfg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "newServiceSdkConfigProvider", reflect.TypeOf((*MockawsServicesHelper)(nil).newServiceSdkConfigProvider), accCfg, region)
 }
