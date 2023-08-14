@@ -122,7 +122,7 @@ func extractSecret(c client.Client, s *crdv1alpha1.SecretReference) (*crdv1alpha
 	}
 
 	if err = json.Unmarshal(decode, cred); err != nil {
-		return cred, fmt.Errorf("error unmarshalling credentials: %v/%v", s.Namespace, s.Name)
+		return cred, fmt.Errorf("%v, error unmarshalling credentials: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
 	}
 
 	if (cred.AccessKeyID == "" || cred.AccessKeySecret == "") && cred.RoleArn == "" {

@@ -136,14 +136,15 @@ func (p *accountPoller) doAccountPolling() {
 	defer p.mutex.Unlock()
 
 	p.pollDone = false
-	// Ignoring error since it is captured in the CloudProviderAccount CR's status field.
-	_ = p.cloudInterface.DoInventoryPoll(p.accountNamespacedName)
-
 	defer func() {
 		p.pollDone = true
 		// Update status on CPA CR after polling.
 		p.updateAccountStatus(p.cloudInterface)
 	}()
+
+	if err := p.cloudInterface.DoInventoryPoll(p.accountNamespacedName); err != nil {
+		return
+	}
 
 	cloudInventory, err := p.cloudInterface.GetCloudInventory(p.accountNamespacedName)
 	if err != nil {

@@ -239,7 +239,9 @@ var _ = Describe("Azure Cloud Security", func() {
 			err = c.AddAccountResourceSelector(testAccountNamespacedName, selector)
 			Expect(err).Should(BeNil())
 
-			accCfg, _ := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
+			accCfg, err := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
+			Expect(err).To(BeNil())
+			Expect(accCfg).To(Not(BeNil()))
 			serviceConfig := accCfg.GetServiceConfig()
 			selectorNamespacedName := types.NamespacedName{Namespace: selector.Namespace, Name: selector.Name}
 			inventory := serviceConfig.(*computeServiceConfig).GetCloudInventory()
@@ -895,7 +897,9 @@ var _ = Describe("Azure Cloud Security", func() {
 					VnetID: &testVnetID03,
 				})
 
-				accCfg, _ := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
+				accCfg, err := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
+				Expect(err).To(BeNil())
+				Expect(accCfg).To(Not(BeNil()))
 				serviceConfig := accCfg.GetServiceConfig()
 				selectorNamespacedName := types.NamespacedName{Namespace: selector.Namespace, Name: selector.Name}
 				snapshot := serviceConfig.(*computeServiceConfig).resourcesCache.GetSnapshot()

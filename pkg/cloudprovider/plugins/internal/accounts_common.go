@@ -29,6 +29,7 @@ type CloudAccountInterface interface {
 	GetNamespacedName() *types.NamespacedName
 	GetServiceConfig() CloudServiceInterface
 	GetStatus() *crdv1alpha1.CloudProviderAccountStatus
+	GetAccountConfigState() bool
 	LockMutex()
 	UnlockMutex()
 	performInventorySync() error
@@ -42,6 +43,8 @@ type cloudAccountConfig struct {
 	serviceConfig  CloudServiceInterface
 	logger         func() logging.Logger
 	Status         *crdv1alpha1.CloudProviderAccountStatus
+	// Indicates whether cloud account config can be used to make cloud API calls.
+	state bool
 }
 
 type CloudCredentialValidatorFunc func(client client.Client, credentials interface{}) (interface{}, error)
@@ -49,15 +52,30 @@ type CloudCredentialComparatorFunc func(accountName string, existing interface{}
 type CloudServiceConfigCreatorFunc func(namespacedName *types.NamespacedName, cloudConvertedCredentials interface{},
 	helper interface{}) (CloudServiceInterface, error)
 
-func (c *cloudCommon) newCloudAccountConfig(client client.Client, namespacedName *types.NamespacedName, credentials interface{},
-	loggerFunc func() logging.Logger) (CloudAccountInterface, error) {
+func (c *cloudCommon) getFunctionPointers() (CloudCredentialValidatorFunc, CloudServiceConfigCreatorFunc,
+	CloudCredentialComparatorFunc, error) {
 	credentialsValidatorFunc := c.commonHelper.SetAccountCredentialsFunc()
 	if credentialsValidatorFunc == nil {
-		return nil, fmt.Errorf("error creating account config, registered cloud-credentials validator function cannot be nil")
+		return nil, nil, nil, fmt.Errorf("error registered cloud-credentials validator function cannot be nil")
 	}
 	cloudServicesCreateFunc := c.commonHelper.GetCloudServicesCreateFunc()
 	if cloudServicesCreateFunc == nil {
-		return nil, fmt.Errorf("error creating account config, registered cloud-services creator function cannot be nil")
+		return nil, nil, nil, fmt.Errorf("error registered cloud-services creator function cannot be nil")
+	}
+
+	credentialsComparatorFunc := c.commonHelper.GetCloudCredentialsComparatorFunc()
+	if credentialsComparatorFunc == nil {
+		return nil, nil, nil, nil
+	}
+
+	return credentialsValidatorFunc, cloudServicesCreateFunc, credentialsComparatorFunc, nil
+}
+
+func (c *cloudCommon) newCloudAccountConfig(client client.Client, namespacedName *types.NamespacedName, credentials interface{},
+	loggerFunc func() logging.Logger) (CloudAccountInterface, error) {
+	credentialsValidatorFunc, cloudServicesCreateFunc, _, err := c.getFunctionPointers()
+	if err != nil {
+		return nil, err
 	}
 
 	cloudConvertedCredential, err := credentialsValidatorFunc(client, credentials)
@@ -77,24 +95,28 @@ func (c *cloudCommon) newCloudAccountConfig(client client.Client, namespacedName
 		serviceConfig:  serviceConfig,
 		credentials:    cloudConvertedCredential,
 		Status:         status,
+		state:          true,
 	}, nil
 }
 
 func (c *cloudCommon) updateCloudAccountConfig(client client.Client, credentials interface{}, config CloudAccountInterface) error {
 	currentConfig := config.(*cloudAccountConfig)
-	credentialsValidatorFunc := c.commonHelper.SetAccountCredentialsFunc()
-	if credentialsValidatorFunc == nil {
-		return fmt.Errorf("error updating account config, registered cloud-credentials validator function cannot be nil")
+	cloudAccountConfigState := true
+	defer func() {
+		// Update the cloud account config state for each update.
+		currentConfig.state = cloudAccountConfigState
+	}()
+
+	credentialsValidatorFunc, cloudServicesCreateFunc, credentialsComparatorFunc, err := c.getFunctionPointers()
+	if err != nil {
+		cloudAccountConfigState = false
+		return err
 	}
-	credentialsComparatorFunc := c.commonHelper.GetCloudCredentialsComparatorFunc()
+
 	if credentialsComparatorFunc == nil {
 		c.logger().Info("Cloud credentials comparator func nil. credentials not updated. existing credentials will be used.",
 			"account", currentConfig.GetNamespacedName())
 		return nil
-	}
-	cloudServicesCreateFunc := c.commonHelper.GetCloudServicesCreateFunc()
-	if cloudServicesCreateFunc == nil {
-		return fmt.Errorf("error updating account config, registered cloud services creator function cannot be nil")
 	}
 
 	cloudConvertedNewCredential, err := credentialsValidatorFunc(client, credentials)
@@ -104,16 +126,22 @@ func (c *cloudCommon) updateCloudAccountConfig(client client.Client, credentials
 	}
 	currentConfig.credentials = cloudConvertedNewCredential
 	c.logger().Info("Credentials updated", "account", currentConfig.namespacedName)
-	// When credentialsValidatorFunc() returns error, abort updating service configs.
 	if err != nil {
+		cloudAccountConfigState = false
 		return err
 	}
 
 	serviceConfig, err := cloudServicesCreateFunc(currentConfig.namespacedName, cloudConvertedNewCredential, c.cloudSpecificHelper)
 	if err != nil {
+		cloudAccountConfigState = false
 		return err
 	}
-	return currentConfig.serviceConfig.UpdateServiceConfig(serviceConfig)
+
+	if err := currentConfig.serviceConfig.UpdateServiceConfig(serviceConfig); err != nil {
+		cloudAccountConfigState = false
+		return err
+	}
+	return nil
 }
 
 func (accCfg *cloudAccountConfig) performInventorySync() error {
@@ -150,4 +178,9 @@ func (accCfg *cloudAccountConfig) LockMutex() {
 
 func (accCfg *cloudAccountConfig) UnlockMutex() {
 	accCfg.mutex.Unlock()
+}
+
+// GetAccountConfigState returns cloud account config state.
+func (accCfg *cloudAccountConfig) GetAccountConfigState() bool {
+	return accCfg.state
 }

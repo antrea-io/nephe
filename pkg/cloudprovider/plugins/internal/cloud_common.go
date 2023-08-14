@@ -39,6 +39,10 @@ var (
 	AccountCredentialsDefault       = "default"
 )
 
+const (
+	AccountConfigNotFound = "unable to find cloud account config"
+)
+
 type InstanceID string
 
 // CloudCommonHelperInterface interface needs to be implemented by each cloud-plugin. It provides a way to inject
@@ -53,8 +57,8 @@ type CloudCommonHelperInterface interface {
 // CloudCommonInterface implements functionality common across all supported cloud-plugins. Each cloud plugin uses
 // this interface by composition.
 type CloudCommonInterface interface {
-	GetCloudAccountByName(namespacedName *types.NamespacedName) (CloudAccountInterface, bool)
-	GetCloudAccountByAccountId(accountID *string) (CloudAccountInterface, bool)
+	GetCloudAccountByName(namespacedName *types.NamespacedName) (CloudAccountInterface, error)
+	GetCloudAccountByAccountId(accountID *string) (CloudAccountInterface, error)
 	GetCloudAccounts() map[types.NamespacedName]CloudAccountInterface
 
 	AddCloudAccount(client client.Client, account *crdv1alpha1.CloudProviderAccount, credentials interface{}) error
@@ -120,35 +124,35 @@ func (c *cloudCommon) AddCloudAccount(client client.Client, account *crdv1alpha1
 }
 
 func (c *cloudCommon) RemoveCloudAccount(namespacedName *types.NamespacedName) {
-	_, found := c.GetCloudAccountByName(namespacedName)
-	if !found {
-		return
-	}
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
 	delete(c.accountConfigs, *namespacedName)
 }
 
 // GetCloudAccountByName finds accCfg matching the namespacedName.
-func (c *cloudCommon) GetCloudAccountByName(namespacedName *types.NamespacedName) (CloudAccountInterface, bool) {
+func (c *cloudCommon) GetCloudAccountByName(namespacedName *types.NamespacedName) (CloudAccountInterface, error) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
 	accCfg, found := c.accountConfigs[*namespacedName]
-	return accCfg, found
+	if !found {
+		return nil, fmt.Errorf("%v: %v", AccountConfigNotFound, namespacedName)
+	}
+	if !accCfg.GetAccountConfigState() {
+		return accCfg, fmt.Errorf("invalid cloud account config: %v", namespacedName)
+	}
+	return accCfg, nil
 }
 
 // GetCloudAccountByAccountId converts accountID to namespacedName and finds the matching accCfg.
-func (c *cloudCommon) GetCloudAccountByAccountId(accountID *string) (CloudAccountInterface, bool) {
+func (c *cloudCommon) GetCloudAccountByAccountId(accountID *string) (CloudAccountInterface, error) {
 	// accountID is a string representation of namespacedName ie namespace and provider account name joined with a "/".
 	tokens := strings.Split(*accountID, "/")
 	if len(tokens) == 2 {
 		namespacedName := types.NamespacedName{Namespace: tokens[0], Name: tokens[1]}
-		accCfg, found := c.GetCloudAccountByName(&namespacedName)
-		return accCfg, found
+		accCfg, err := c.GetCloudAccountByName(&namespacedName)
+		return accCfg, err
 	} else {
 		c.logger().V(0).Info("account id is not in the expected format", "AccountID", accountID)
-		return nil, false
+		return nil, fmt.Errorf("unable to parse account id: %v", accountID)
 	}
 }
 
@@ -165,9 +169,9 @@ func (c *cloudCommon) GetCloudAccounts() map[types.NamespacedName]CloudAccountIn
 }
 
 func (c *cloudCommon) AddResourceFilters(accountNamespacedName *types.NamespacedName, selector *crdv1alpha1.CloudEntitySelector) error {
-	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
-	if !found {
-		return fmt.Errorf("unable to find cloud account config")
+	accCfg, err := c.GetCloudAccountByName(accountNamespacedName)
+	if err != nil {
+		return err
 	}
 	accCfg.LockMutex()
 	defer accCfg.UnlockMutex()
@@ -175,30 +179,33 @@ func (c *cloudCommon) AddResourceFilters(accountNamespacedName *types.Namespaced
 }
 
 func (c *cloudCommon) RemoveResourceFilters(accNamespacedName, selectorNamespacedName *types.NamespacedName) {
-	accCfg, found := c.GetCloudAccountByName(accNamespacedName)
-	if !found {
+	accCfg, err := c.GetCloudAccountByName(accNamespacedName)
+	if err != nil && strings.Contains(err.Error(), AccountConfigNotFound) {
 		c.logger().Info("Cloud account config not found", "account", *accNamespacedName, "selector", selectorNamespacedName)
 		return
 	}
 	accCfg.LockMutex()
 	defer accCfg.UnlockMutex()
+
 	accCfg.GetServiceConfig().RemoveResourceFilters(selectorNamespacedName)
 }
 
 func (c *cloudCommon) GetStatus(accountNamespacedName *types.NamespacedName) (*crdv1alpha1.CloudProviderAccountStatus, error) {
-	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
-	if !found {
-		return nil, fmt.Errorf("unable to find cloud account config: %v", *accountNamespacedName)
+	accCfg, err := c.GetCloudAccountByName(accountNamespacedName)
+	if err != nil && strings.Contains(err.Error(), AccountConfigNotFound) {
+		return nil, err
 	}
+	accCfg.LockMutex()
+	defer accCfg.UnlockMutex()
 
 	return accCfg.GetStatus(), nil
 }
 
 // DoInventoryPoll calls cloud API to get vm and vpc resources.
 func (c *cloudCommon) DoInventoryPoll(accountNamespacedName *types.NamespacedName) error {
-	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
-	if !found {
-		return fmt.Errorf("unable to find cloud account config: %v", *accountNamespacedName)
+	accCfg, err := c.GetCloudAccountByName(accountNamespacedName)
+	if err != nil {
+		return err
 	}
 	accCfg.LockMutex()
 	defer accCfg.UnlockMutex()
@@ -208,9 +215,9 @@ func (c *cloudCommon) DoInventoryPoll(accountNamespacedName *types.NamespacedNam
 
 // ResetInventoryCache resets cloud snapshot and poll stats to nil.
 func (c *cloudCommon) ResetInventoryCache(accountNamespacedName *types.NamespacedName) error {
-	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
-	if !found {
-		return fmt.Errorf("unable to find cloud account config %v", *accountNamespacedName)
+	accCfg, err := c.GetCloudAccountByName(accountNamespacedName)
+	if err != nil {
+		return err
 	}
 	accCfg.LockMutex()
 	defer accCfg.UnlockMutex()
@@ -221,9 +228,9 @@ func (c *cloudCommon) ResetInventoryCache(accountNamespacedName *types.Namespace
 
 // GetCloudInventory gets VPC and VM inventory from plugin snapshot for a given cloud provider account.
 func (c *cloudCommon) GetCloudInventory(accountNamespacedName *types.NamespacedName) (*nephetypes.CloudInventory, error) {
-	accCfg, found := c.GetCloudAccountByName(accountNamespacedName)
-	if !found {
-		return nil, fmt.Errorf("unable to find cloud account config")
+	accCfg, err := c.GetCloudAccountByName(accountNamespacedName)
+	if err != nil {
+		return nil, err
 	}
 	accCfg.LockMutex()
 	defer accCfg.UnlockMutex()

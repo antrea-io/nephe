@@ -61,6 +61,7 @@ func (r *NetworkPolicyReconciler) newCloudResourceNpTracker(rsc *cloudresource.C
 	}
 
 	// A vm is uniquely identified by its cloud assigned id and vpc id.
+	// TODO: Same vm imported in multiple Namespaces is not supported.
 	vm := vmItems[0].(*runtimev1alpha1.VirtualMachine)
 	tracker := &CloudResourceNpTracker{
 		appliedToSGs:     make(map[string]*appliedToSecurityGroup),
@@ -109,7 +110,8 @@ func (r *NetworkPolicyReconciler) processCloudResourceNpTrackers() {
 		npStatus, ok := status[tracker.NamespacedName.Namespace]
 		if !ok {
 			// Should not occur.
-			log.Error(fmt.Errorf("failed to get NetworkPolicy status for tracker"), "", "tracker", tracker)
+			log.Error(fmt.Errorf("failed to get NetworkPolicy status for tracker"), "",
+				"tracker", tracker, "appliedToSGs", tracker.appliedToSGs, "appliedToToNpMap", tracker.appliedToToNpMap)
 			tracker.unmarkDirty()
 			continue
 		}
@@ -161,6 +163,7 @@ func (c *CloudResourceNpTracker) computeNpStatus(r *NetworkPolicyReconciler) map
 
 	// retrieve all network policies related to cloud resource's applied groups
 	npMap := make(map[interface{}]string)
+	changed := false
 	appliedToToNpMap := make(map[string][]types.NamespacedName)
 	for key, asg := range c.appliedToSGs {
 		nps, err := r.networkPolicyIndexer.ByIndex(networkPolicyIndexerByAppliedToGrp, asg.id.Name)
@@ -172,6 +175,7 @@ func (c *CloudResourceNpTracker) computeNpStatus(r *NetworkPolicyReconciler) map
 		// Not considering cloud resources belongs to multiple AppliedToGroups of same NetworkPolicy.
 		for _, i := range nps {
 			namespacedName := types.NamespacedName{Namespace: i.(*networkPolicy).Namespace, Name: i.(*networkPolicy).Name}
+			changed = true
 			appliedToToNpMap[asg.id.Name] = append(appliedToToNpMap[asg.id.Name], namespacedName)
 			npMap[i] = key
 		}
@@ -231,6 +235,7 @@ func (c *CloudResourceNpTracker) computeNpStatus(r *NetworkPolicyReconciler) map
 	}
 
 	for _, asg := range newPrevSgs {
+		changed = true
 		if asg.status == nil {
 			delete(c.appliedToToNpMap, asg.id.Name)
 			delete(newPrevSgs, asg.id.CloudResourceID.String())
@@ -277,6 +282,30 @@ func (c *CloudResourceNpTracker) computeNpStatus(r *NetworkPolicyReconciler) map
 					if strings.Contains(asg.status.Error(), InProgressStr) {
 						npList[namespacedName.Name].Realization = runtimev1alpha1.InProgress
 						npList[namespacedName.Name].Reason = NoneStr
+					}
+					appliedToToNpMap[asg.id.Name] = append(appliedToToNpMap[asg.id.Name], namespacedName)
+				}
+			}
+		}
+	}
+
+	// When a NP is deleted, but the appliedToGroup delete is not received yet, then NP Status is computed based on
+	// previous appliedToSgs. Suppose prevAppliedToSGs is nil, then NP status will be empty.
+	// An additional check required to compute the NP status, based on the appliedToToNpMap and appliedToSGs.
+	// If there are any entries in appliedToToNpMap with an appliedToSG, set the np status as in progress, since
+	// appliedToGroup is in a transient state.
+	if !changed && len(c.appliedToToNpMap) > 0 {
+		for _, asg := range c.appliedToSGs {
+			if namespacedNames, ok := c.appliedToToNpMap[asg.id.Name]; ok {
+				for _, namespacedName := range namespacedNames {
+					npList, ok := ret[namespacedName.Namespace]
+					if !ok {
+						npList = make(map[string]*runtimev1alpha1.NetworkPolicyStatus)
+						ret[namespacedName.Namespace] = npList
+					}
+					npList[namespacedName.Name] = &runtimev1alpha1.NetworkPolicyStatus{
+						Reason:      NoneStr,
+						Realization: runtimev1alpha1.InProgress,
 					}
 					appliedToToNpMap[asg.id.Name] = append(appliedToToNpMap[asg.id.Name], namespacedName)
 				}
