@@ -276,6 +276,7 @@ func (p *accountPoller) restartPoller(name *types.NamespacedName) {
 	if p.ch != nil {
 		close(p.ch)
 		p.ch = nil
+		p.pollDone = false
 	}
 
 	p.log.Info("Restarting account poller", "account", name)

@@ -190,9 +190,6 @@ var _ = Describe("Account Manager", func() {
 			_, err = accountManager.AddResourceFiltersToAccount(&testAccountNamespacedName, &testCesNamespacedName,
 				ces, false)
 			Expect(err).ShouldNot(HaveOccurred())
-			_ = accountManager.UpdatePendingCesCount(&testAccountNamespacedName)
-			err = accountManager.WaitForPollDone(&testAccountNamespacedName)
-			Expect(err).ShouldNot(HaveOccurred())
 		})
 		It("Remove Resource Filters from Account", func() {
 			// Add a resource filters to account.

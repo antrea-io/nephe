@@ -43,7 +43,6 @@ import (
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
-	ctrlsync "antrea.io/nephe/pkg/controllers/sync"
 	mockaccmanager "antrea.io/nephe/pkg/testing/accountmanager"
 	mocknpcontroller "antrea.io/nephe/pkg/testing/networkpolicy"
 	"antrea.io/nephe/pkg/util"
@@ -174,26 +173,6 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 
 			err = reconciler.processDelete(&testAccountNamespacedName)
 			Expect(err).ShouldNot(HaveOccurred())
-		})
-		It("CloudProviderAccount set pending sync count to 2", func() {
-			ctrlsync.GetControllerSyncStatusInstance().Configure()
-			ctrlsync.GetControllerSyncStatusInstance().ResetControllerSyncStatus(ctrlsync.ControllerTypeCPA)
-			reconciler.pendingSyncCount = 2
-			reconciler.updatePendingSyncCountAndStatus()
-			val := ctrlsync.GetControllerSyncStatusInstance().IsControllerSynced(ctrlsync.ControllerTypeCPA)
-			Expect(val).Should(BeFalse())
-		})
-		It("CloudProviderAccount set pending sync count to 1", func() {
-			reconciler.clientset = fakewatch.NewSimpleClientset()
-			reconciler.pendingSyncCount = 1
-			err := os.Setenv("POD_NAMESPACE", testSecretNamespacedName.Namespace)
-			Expect(err).ShouldNot(HaveOccurred())
-			ctrlsync.GetControllerSyncStatusInstance().Configure()
-			ctrlsync.GetControllerSyncStatusInstance().ResetControllerSyncStatus(ctrlsync.ControllerTypeCPA)
-
-			reconciler.updatePendingSyncCountAndStatus()
-			val := ctrlsync.GetControllerSyncStatusInstance().IsControllerSynced(ctrlsync.ControllerTypeCPA)
-			Expect(val).Should(BeTrue())
 		})
 
 		Context("Secret watcher", func() {

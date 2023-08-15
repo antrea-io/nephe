@@ -81,6 +81,7 @@ var _ = Describe("CloudEntitySelector Controller", func() {
 				Client:               fakeClient,
 				Scheme:               scheme,
 				selectorToAccountMap: make(map[types.NamespacedName]types.NamespacedName),
+				pendingCesSyncMap:    make(map[types.NamespacedName]struct{}),
 				AccManager:           mockAccManager,
 			}
 
@@ -106,8 +107,6 @@ var _ = Describe("CloudEntitySelector Controller", func() {
 		It("CES Add and Delete workflow", func() {
 			mockAccManager.EXPECT().AddResourceFiltersToAccount(&testAccountNamespacedName, &testSelectorNamespacedName,
 				selector, false).Return(true, nil).Times(1)
-			mockAccManager.EXPECT().UpdatePendingCesCount(&testAccountNamespacedName).Return(0).Times(1)
-			mockAccManager.EXPECT().WaitForPollDone(&testAccountNamespacedName).Return(nil).Times(1)
 			mockAccManager.EXPECT().RemoveResourceFiltersFromAccount(&testAccountNamespacedName,
 				&testSelectorNamespacedName).Return(nil).Times(1)
 			err := reconciler.processCreateOrUpdate(selector, &testSelectorNamespacedName)
@@ -138,8 +137,6 @@ var _ = Describe("CloudEntitySelector Controller", func() {
 				selector, false).Return(true, nil).Times(1)
 			mockAccManager.EXPECT().RemoveResourceFiltersFromAccount(&testAccountNamespacedName,
 				&testSelectorDifferentNamespace).Return(nil).Times(1)
-			mockAccManager.EXPECT().UpdatePendingCesCount(&testAccountNamespacedName).Return(0).Times(1)
-			mockAccManager.EXPECT().WaitForPollDone(&testAccountNamespacedName).Return(nil).Times(1)
 			err := reconciler.processCreateOrUpdate(selector, &testSelectorDifferentNamespace)
 			Expect(err).ShouldNot(HaveOccurred())
 			err = reconciler.processDelete(&testSelectorDifferentNamespace)
@@ -148,8 +145,6 @@ var _ = Describe("CloudEntitySelector Controller", func() {
 		It("CES Add failure without retry", func() {
 			mockAccManager.EXPECT().AddResourceFiltersToAccount(&testAccountNamespacedName, &testSelectorNamespacedName,
 				selector, false).Return(false, fmt.Errorf("dummy")).Times(1)
-			mockAccManager.EXPECT().UpdatePendingCesCount(&testAccountNamespacedName).Return(0).Times(1)
-			mockAccManager.EXPECT().WaitForPollDone(&testAccountNamespacedName).Return(nil).Times(1)
 			err := reconciler.processCreateOrUpdate(selector, &testSelectorNamespacedName)
 			Expect(err).ShouldNot(HaveOccurred())
 		})
@@ -171,11 +166,6 @@ var _ = Describe("CloudEntitySelector Controller", func() {
 					Namespace: testSelectorNamespacedName.Namespace,
 				},
 			}
-			reconciler := &CloudEntitySelectorReconciler{
-				Log:    logf.Log,
-				Client: fakeClient,
-				Scheme: scheme,
-			}
 			_ = fakeClient.Create(context.Background(), selector)
 			By("Set status error")
 			reconciler.updateStatus(&testSelectorNamespacedName, fmt.Errorf("dummy"))
@@ -190,17 +180,13 @@ var _ = Describe("CloudEntitySelector Controller", func() {
 			Expect(temp.Status.Error).Should(BeEmpty())
 		})
 		It("CloudEntitySelector start with no CRs", func() {
-			reconciler := &CloudEntitySelectorReconciler{
-				Log:    logf.Log,
-				Client: fakeClient,
-				Scheme: scheme,
-			}
+			mockAccManager.EXPECT().SyncAllAccounts().Return().Times(1)
 			ctrlsync.GetControllerSyncStatusInstance().Configure()
 			ctrlsync.GetControllerSyncStatusInstance().SetControllerSyncStatus(ctrlsync.ControllerTypeCPA)
-			// Start CES reconciler with 0 CRs, and verify sync status, pendingSyncCount and initialization status.
+			// Start CES reconciler with 0 CRs, and verify sync status, pendingCesSyncMap and initialization status.
 			err := reconciler.Start(context.TODO())
 			Expect(err).Should(BeNil())
-			Expect(reconciler.pendingSyncCount).Should(Equal(0))
+			Expect(len(reconciler.pendingCesSyncMap)).Should(Equal(0))
 			Expect(reconciler.initialized).Should(BeTrue())
 			val := ctrlsync.GetControllerSyncStatusInstance().IsControllerSynced(ctrlsync.ControllerTypeCES)
 			Expect(val).Should(BeTrue())
@@ -213,36 +199,15 @@ var _ = Describe("CloudEntitySelector Controller", func() {
 					Namespace: testSelectorNamespacedName.Namespace,
 				},
 			}
-			reconciler := &CloudEntitySelectorReconciler{
-				Log:    logf.Log,
-				Client: fakeClient,
-				Scheme: scheme,
-			}
 			_ = fakeClient.Create(context.Background(), selector)
 			ctrlsync.GetControllerSyncStatusInstance().Configure()
 			ctrlsync.GetControllerSyncStatusInstance().ResetControllerSyncStatus(ctrlsync.ControllerTypeCES)
 			ctrlsync.GetControllerSyncStatusInstance().SetControllerSyncStatus(ctrlsync.ControllerTypeCPA)
-			// Start CES reconciler with one CR and verify sync status, pendingSyncCount and initialization status.
+			// Start CES reconciler with one CR and verify sync status, pendingCesSyncMap and initialization status.
 			err := reconciler.Start(context.TODO())
 			Expect(err).Should(BeNil())
-			Expect(reconciler.pendingSyncCount).Should(Equal(1))
+			Expect(len(reconciler.pendingCesSyncMap)).Should(Equal(1))
 			Expect(reconciler.initialized).Should(BeTrue())
-			val := ctrlsync.GetControllerSyncStatusInstance().IsControllerSynced(ctrlsync.ControllerTypeCES)
-			Expect(val).Should(BeFalse())
-		})
-		It("CloudEntitySelector set pending sync count to 1", func() {
-			ctrlsync.GetControllerSyncStatusInstance().Configure()
-			ctrlsync.GetControllerSyncStatusInstance().ResetControllerSyncStatus(ctrlsync.ControllerTypeCES)
-			reconciler.pendingSyncCount = 1
-			reconciler.updatePendingSyncCountAndStatus()
-			val := ctrlsync.GetControllerSyncStatusInstance().IsControllerSynced(ctrlsync.ControllerTypeCES)
-			Expect(val).Should(BeTrue())
-		})
-		It("CloudEntitySelector set pending sync count to 2", func() {
-			ctrlsync.GetControllerSyncStatusInstance().Configure()
-			ctrlsync.GetControllerSyncStatusInstance().ResetControllerSyncStatus(ctrlsync.ControllerTypeCES)
-			reconciler.pendingSyncCount = 2
-			reconciler.updatePendingSyncCountAndStatus()
 			val := ctrlsync.GetControllerSyncStatusInstance().IsControllerSynced(ctrlsync.ControllerTypeCES)
 			Expect(val).Should(BeFalse())
 		})
