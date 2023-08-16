@@ -43,6 +43,7 @@ func setAccountCredentials(client client.Client, credentials interface{}) (inter
 	}
 	accCred, err := extractSecret(client, azureProviderConfig.SecretRef)
 	if err != nil {
+		// Reset credential to dummy defaults.
 		accCred.SubscriptionID = internal.AccountCredentialsDefault
 		accCred.TenantID = internal.AccountCredentialsDefault
 		accCred.ClientID = internal.AccountCredentialsDefault
@@ -57,6 +58,10 @@ func setAccountCredentials(client client.Client, credentials interface{}) (inter
 func compareAccountCredentials(accountName string, existing interface{}, new interface{}) bool {
 	existingConfig := existing.(*azureAccountConfig)
 	newConfig := new.(*azureAccountConfig)
+	if newConfig.ClientKey == internal.AccountCredentialsDefault {
+		// Skip comparison and logging.
+		return true
+	}
 
 	credsChanged := false
 	if strings.Compare(existingConfig.SubscriptionID, newConfig.SubscriptionID) != 0 {
