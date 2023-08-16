@@ -119,6 +119,7 @@ func (p *accountPoller) addOrUpdateSelector(selector *crdv1alpha1.CloudEntitySel
 			}
 		}
 	} else {
+		// TODO: This will remove all selector for 1 CES delete?
 		for _, vmSelector := range p.vmSelector.List() {
 			if err := p.vmSelector.Delete(vmSelector.(*crdv1alpha1.VirtualMachineSelector)); err != nil {
 				p.log.Error(err, "unable to delete selector from indexer",
@@ -146,13 +147,12 @@ func (p *accountPoller) doAccountPolling() {
 		return
 	}
 
+	// TODO: Remove this when event based push is implemented in the plugin.
 	cloudInventory, err := p.cloudInterface.GetCloudInventory(p.accountNamespacedName)
 	if err != nil {
-		p.log.Error(err, "failed to fetch cloud inventory from internal snapshot", "account",
-			p.accountNamespacedName)
+		// Chances are while polling was happening, account is removed.
 		return
 	}
-
 	p.processCloudInventory(cloudInventory)
 }
 
@@ -289,6 +289,7 @@ func (p *accountPoller) stopPoller() {
 	// Wait for existing thread to complete its execution.
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
+	p.log.Info("Stopping poller", "account", p.accountNamespacedName)
 	if p.ch != nil {
 		close(p.ch)
 		p.ch = nil

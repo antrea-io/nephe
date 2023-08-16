@@ -124,6 +124,8 @@ func (c *cloudCommon) AddCloudAccount(client client.Client, account *crdv1alpha1
 }
 
 func (c *cloudCommon) RemoveCloudAccount(namespacedName *types.NamespacedName) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 	delete(c.accountConfigs, *namespacedName)
 }
 

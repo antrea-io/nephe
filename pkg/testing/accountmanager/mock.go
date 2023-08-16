@@ -67,33 +67,18 @@ func (mr *MockInterfaceMockRecorder) AddAccount(arg0, arg1, arg2 interface{}) *g
 }
 
 // AddResourceFiltersToAccount mocks base method.
-func (m *MockInterface) AddResourceFiltersToAccount(arg0, arg1 *types.NamespacedName, arg2 *v1alpha1.CloudEntitySelector, arg3 bool) (bool, error) {
+func (m *MockInterface) AddResourceFiltersToAccount(arg0, arg1 *types.NamespacedName, arg2 *v1alpha1.CloudEntitySelector) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddResourceFiltersToAccount", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "AddResourceFiltersToAccount", arg0, arg1, arg2)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // AddResourceFiltersToAccount indicates an expected call of AddResourceFiltersToAccount.
-func (mr *MockInterfaceMockRecorder) AddResourceFiltersToAccount(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+func (mr *MockInterfaceMockRecorder) AddResourceFiltersToAccount(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddResourceFiltersToAccount", reflect.TypeOf((*MockInterface)(nil).AddResourceFiltersToAccount), arg0, arg1, arg2, arg3)
-}
-
-// IsAccountCredentialsValid mocks base method.
-func (m *MockInterface) IsAccountCredentialsValid(arg0 *types.NamespacedName) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsAccountCredentialsValid", arg0)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// IsAccountCredentialsValid indicates an expected call of IsAccountCredentialsValid.
-func (mr *MockInterfaceMockRecorder) IsAccountCredentialsValid(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsAccountCredentialsValid", reflect.TypeOf((*MockInterface)(nil).IsAccountCredentialsValid), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddResourceFiltersToAccount", reflect.TypeOf((*MockInterface)(nil).AddResourceFiltersToAccount), arg0, arg1, arg2)
 }
 
 // RemoveAccount mocks base method.
