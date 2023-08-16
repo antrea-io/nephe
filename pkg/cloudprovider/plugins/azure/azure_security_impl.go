@@ -25,7 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
-	"antrea.io/nephe/pkg/cloudprovider/plugins/internal"
 )
 
 // CreateSecurityGroup invokes cloud api and creates the cloud security group based on securityGroupIdentifier.
@@ -228,20 +227,12 @@ func (c *azureCloud) GetEnforcedSecurity() []cloudresource.SynchronizationConten
 
 			accCfg, err := c.cloudCommon.GetCloudAccountByName(name)
 			if err != nil {
-				azurePluginLogger().Info("Enforced-security-cloud-view GET for account skipped", "err",
-					err)
 				return
 			}
 
 			accCfg.LockMutex()
 			defer accCfg.UnlockMutex()
-
-			computeService := accCfg.GetServiceConfig().(*computeServiceConfig)
-			if err := computeService.waitForInventoryInit(internal.InventoryInitWaitDuration); err != nil {
-				azurePluginLogger().Error(err, "enforced-security-cloud-view GET for account skipped", "account", accCfg.GetNamespacedName())
-				return
-			}
-			sendCh <- computeService.getNepheControllerManagedSecurityGroupsCloudView()
+			sendCh <- accCfg.GetServiceConfig().(*computeServiceConfig).getNepheControllerManagedSecurityGroupsCloudView()
 		}(accNamespacedNameCopy, ch)
 	}
 

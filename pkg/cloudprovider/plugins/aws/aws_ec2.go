@@ -17,11 +17,9 @@ package aws
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/cenkalti/backoff/v4"
 	"github.com/mohae/deepcopy"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -83,21 +81,6 @@ func (p *awsServiceSdkConfigProvider) compute() (awsEC2Wrapper, error) {
 	}
 
 	return awsEC2, nil
-}
-
-func (ec2Cfg *ec2ServiceConfig) waitForInventoryInit(duration time.Duration) error {
-	operation := func() error {
-		done := ec2Cfg.inventoryStats.IsInventoryInitialized()
-		if !done {
-			return fmt.Errorf("inventory for account %v not initialized (waited %v duration)", ec2Cfg.accountNamespacedName, duration)
-		}
-		return nil
-	}
-
-	b := backoff.NewExponentialBackOff()
-	b.MaxElapsedTime = duration
-
-	return backoff.Retry(operation, b)
 }
 
 // getCachedInstances returns instances from the cache applicable for the given selector.

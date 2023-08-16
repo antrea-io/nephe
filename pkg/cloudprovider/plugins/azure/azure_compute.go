@@ -18,10 +18,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
-	"github.com/cenkalti/backoff/v4"
 	"github.com/mohae/deepcopy"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -100,22 +98,6 @@ func newComputeServiceConfig(account types.NamespacedName, service azureServiceC
 	vmSnapshot := make(map[types.NamespacedName][]*virtualMachineTable)
 	config.resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{vmSnapshot, nil, nil, nil})
 	return config, nil
-}
-
-func (computeCfg *computeServiceConfig) waitForInventoryInit(duration time.Duration) error {
-	operation := func() error {
-		done := computeCfg.inventoryStats.IsInventoryInitialized()
-		if !done {
-			return fmt.Errorf("inventory for account %v not initialized (waited %v duration)",
-				computeCfg.accountNamespacedName, duration)
-		}
-		return nil
-	}
-
-	b := backoff.NewExponentialBackOff()
-	b.MaxElapsedTime = duration
-
-	return backoff.Retry(operation, b)
 }
 
 // getCachedVirtualMachines returns virtualMachines specific to a selector from the cache for the subscription.
