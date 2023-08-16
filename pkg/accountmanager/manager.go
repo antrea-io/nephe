@@ -19,12 +19,9 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
@@ -33,7 +30,6 @@ import (
 	ctrlsync "antrea.io/nephe/pkg/controllers/sync"
 	"antrea.io/nephe/pkg/inventory"
 	"antrea.io/nephe/pkg/util"
-	"antrea.io/nephe/pkg/util/k8s/crd"
 )
 
 const (
@@ -52,8 +48,7 @@ type Interface interface {
 	IsAccountCredentialsValid(namespacedName *types.NamespacedName) (bool, error)
 	AddResourceFiltersToAccount(*types.NamespacedName, *types.NamespacedName, *crdv1alpha1.CloudEntitySelector, bool) (bool, error)
 	RemoveResourceFiltersFromAccount(*types.NamespacedName, *types.NamespacedName) error
-	UpdatePendingCesCount(namespacedName *types.NamespacedName) int
-	WaitForPollDone(namespacedName *types.NamespacedName) error
+	SyncAllAccounts()
 }
 
 type AccountManager struct {
@@ -106,22 +101,10 @@ func (a *AccountManager) AddAccount(namespacedName *types.NamespacedName, accoun
 	}
 
 	// Create an account poller for polling cloud inventory.
-	accPoller, exists := a.addAccountPoller(cloudInterface, namespacedName, account)
-	if !exists {
-		count := crd.GetCesCrCountForAccount(a.Client, namespacedName)
-		if count == 0 {
-			a.Log.Info("Starting account poller", "account", namespacedName)
-			go wait.Until(accPoller.doAccountPolling, time.Duration(accPoller.pollIntvInSeconds)*time.Second, accPoller.ch)
-		} else {
-			a.Log.V(1).Info("Ignoring start of account poller", "account", namespacedName)
-			a.accountToSelectorCount[*namespacedName] = count
-			if ctrlsync.GetControllerSyncStatusInstance().IsControllerSynced(ctrlsync.ControllerTypeCPA) && !config.initialized {
-				// Replay CES CR only when account init state is changed from failure to success.
-				a.replaySelectorsForAccount(namespacedName, config)
-			}
-		}
-	} else {
-		accPoller.restartPoller(namespacedName)
+	accPoller, _ := a.addAccountPoller(cloudInterface, namespacedName, account)
+
+	if ctrlsync.GetControllerSyncStatusInstance().IsControllerSynced(ctrlsync.ControllerTypeCPA) {
+		go accPoller.restartPoller(namespacedName)
 	}
 
 	// Set account init state to true as there were no errors reported from cloud plug-in.
@@ -200,6 +183,9 @@ func (a *AccountManager) AddResourceFiltersToAccount(accNamespacedName *types.Na
 		accPoller.addOrUpdateSelector(selectorCopy)
 	}
 
+	if ctrlsync.GetControllerSyncStatusInstance().IsControllerSynced(ctrlsync.ControllerTypeCES) {
+		go accPoller.restartPoller(accNamespacedName)
+	}
 	return false, nil
 }
 
@@ -406,75 +392,37 @@ func (a *AccountManager) handleAddProviderAccountError(namespacedName *types.Nam
 	return config.retry
 }
 
-// replaySelectorsForAccount replays all the selectors that belong to this specified account,
-// set/resets the selector status.
-func (a *AccountManager) replaySelectorsForAccount(accNamespacedName *types.NamespacedName, config *accountConfig) {
-	for namespacedName, selector := range config.selectorMap {
-		a.Log.Info("Re-playing selector", "account", accNamespacedName, "selector", namespacedName)
-		// TODO: Call the plug-in directly..
-		_, err := a.AddResourceFiltersToAccount(accNamespacedName, &namespacedName, selector, true)
-		// set status with the latest error message or clear status.
-		a.updateSelectorStatus(&namespacedName, err)
-	}
-	accPoller, exists := a.getAccountPoller(accNamespacedName)
-	if exists {
-		accPoller.restartPoller(accNamespacedName)
-	}
-}
-
-// updateSelectorStatus updates the status on the CloudEntitySelector CR.
-func (a *AccountManager) updateSelectorStatus(namespacedName *types.NamespacedName, err error) {
-	var errorMsg string
-	if err != nil {
-		errorMsg = err.Error()
-	}
-
-	updateStatusFunc := func() error {
-		selector := &crdv1alpha1.CloudEntitySelector{}
-		if err = a.Get(context.TODO(), *namespacedName, selector); err != nil {
-			return nil
-		}
-		if selector.Status.Error != errorMsg {
-			selector.Status.Error = errorMsg
-			a.Log.Info("Setting CES status", "selector", namespacedName, "message", errorMsg)
-			if err = a.Client.Status().Update(context.TODO(), selector); err != nil {
-				a.Log.Error(err, "failed to update CES status, retrying", "selector", namespacedName)
-				return err
-			}
-		}
-		return nil
-	}
-
-	if err := retry.RetryOnConflict(retry.DefaultRetry, updateStatusFunc); err != nil {
-		a.Log.Error(err, "failed to update CES status", "selector", namespacedName)
-	}
-}
-
-// UpdatePendingCesCount decrements pending CES count.
-// Upon restart, wait for all CES to be added before starting cloud inventory poll.
-// In restart case, accountToSelectorMap holds number of CES CRs if any CES CR is present in etcd.
-func (a *AccountManager) UpdatePendingCesCount(namespacedName *types.NamespacedName) int {
-	var cesCount int
-
-	if _, found := a.accountToSelectorCount[*namespacedName]; !found {
-		return cesCount
-	}
-	a.accountToSelectorCount[*namespacedName]--
-	cesCount = a.accountToSelectorCount[*namespacedName]
-	if cesCount == 0 {
-		delete(a.accountToSelectorCount, *namespacedName)
-	}
-
-	return cesCount
-}
-
 // WaitForPollDone restarts account poller and waits till inventory poll is done.
-func (a *AccountManager) WaitForPollDone(namespacedName *types.NamespacedName) error {
+func (a *AccountManager) waitForPollDone(namespacedName *types.NamespacedName, wg *sync.WaitGroup) {
+	defer wg.Done()
+
 	accPoller, exists := a.getAccountPoller(namespacedName)
 	if exists {
 		accPoller.restartPoller(namespacedName)
 		// wait for polling to complete after poller restart.
-		return accPoller.waitForPollDone(namespacedName)
+		if err := accPoller.waitForPollDone(namespacedName); err != nil {
+			a.Log.Error(err, "failed to poll inventory", "account", namespacedName)
+		}
 	}
-	return nil
+}
+
+// SyncAllAccounts syncs inventory for all accounts (`CloudProviderAccount`).
+func (a *AccountManager) SyncAllAccounts() {
+	cpaList := &crdv1alpha1.CloudProviderAccountList{}
+	if err := a.Client.List(context.TODO(), cpaList, &client.ListOptions{}); err != nil {
+		a.Log.Error(err, "failed to retrieve cpa list")
+		return
+	}
+
+	var wg sync.WaitGroup
+	for _, cpa := range cpaList.Items {
+		wg.Add(1)
+		key := types.NamespacedName{Namespace: cpa.Namespace, Name: cpa.Name}
+		a.Log.V(1).Info("Syncing account", "account", key)
+		go a.waitForPollDone(&key, &wg)
+	}
+	wg.Wait()
+	if len(cpaList.Items) > 0 {
+		a.Log.V(1).Info("Accounts synced")
+	}
 }

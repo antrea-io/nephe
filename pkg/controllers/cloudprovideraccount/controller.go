@@ -50,13 +50,13 @@ type CloudProviderAccountReconciler struct {
 	Scheme *runtime.Scheme
 	Mgr    *ctrl.Manager
 
-	mutex            sync.Mutex
-	AccManager       accountmanager.Interface
-	pendingSyncCount int
-	initialized      bool
-	watcher          watch.Interface
-	clientset        kubernetes.Interface
-	NpController     networkpolicy.NetworkPolicyController
+	mutex             sync.Mutex
+	AccManager        accountmanager.Interface
+	pendingCpaSyncMap map[types.NamespacedName]struct{}
+	initialized       bool
+	watcher           watch.Interface
+	clientset         kubernetes.Interface
+	NpController      networkpolicy.NetworkPolicyController
 }
 
 // nolint:lll
@@ -75,6 +75,9 @@ func (r *CloudProviderAccountReconciler) Reconcile(ctx context.Context, req ctrl
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
+	// Update the pending map regardless of any error. All we care about is we process CPA event in reconciliation loop.
+	defer r.updatePendingCpaSyncAndStatus(req.NamespacedName)
+
 	providerAccount := &crdv1alpha1.CloudProviderAccount{}
 	if err := r.Get(ctx, req.NamespacedName, providerAccount); err != nil {
 		if !errors.IsNotFound(err) {
@@ -88,8 +91,6 @@ func (r *CloudProviderAccountReconciler) Reconcile(ctx context.Context, req ctrl
 	if err := r.processCreateOrUpdate(&req.NamespacedName, providerAccount); err != nil {
 		return ctrl.Result{}, err
 	}
-
-	r.updatePendingSyncCountAndStatus()
 	return ctrl.Result{}, nil
 }
 
@@ -101,6 +102,8 @@ func (r *CloudProviderAccountReconciler) SetupWithManager(mgr ctrl.Manager) erro
 		r.Log.Error(err, "error creating client config")
 		return err
 	}
+
+	r.pendingCpaSyncMap = make(map[types.NamespacedName]struct{})
 
 	// Using GenerationChangedPredicate to allow CPA controller to receive CPA updates
 	// for all events except change in status.
@@ -128,8 +131,11 @@ func (r *CloudProviderAccountReconciler) Start(_ context.Context) error {
 		return err
 	}
 
-	r.pendingSyncCount = len(cpaList.Items)
-	if r.pendingSyncCount == 0 {
+	for _, cpa := range cpaList.Items {
+		key := types.NamespacedName{Namespace: cpa.Namespace, Name: cpa.Name}
+		r.pendingCpaSyncMap[key] = struct{}{}
+	}
+	if len(r.pendingCpaSyncMap) == 0 {
 		r.setSyncStatusAndSecretWatcher()
 	}
 	r.initialized = true
@@ -174,22 +180,21 @@ func (r *CloudProviderAccountReconciler) processDelete(namespacedName *types.Nam
 	for _, ces := range cesList.Items {
 		if ces.Spec.AccountName == namespacedName.Name && ces.Spec.AccountNamespace == namespacedName.Namespace {
 			r.Log.Info("Deleting selector", "selector", types.NamespacedName{Namespace: ces.Namespace, Name: ces.Name})
-			if err := r.Client.Delete(context.TODO(), &ces); err != nil {
-				return fmt.Errorf("failed to delete selector %v/%v err %v", ces.Namespace, ces.Name, err)
-			}
+			_ = r.Client.Delete(context.TODO(), &ces)
 		}
 	}
 	return nil
 }
 
-// updatePendingSyncCountAndStatus decrements the pendingSyncCount and when
-// pendingSyncCount is 0, sets the sync status.
-func (r *CloudProviderAccountReconciler) updatePendingSyncCountAndStatus() {
-	if r.pendingSyncCount > 0 {
-		r.pendingSyncCount--
-		if r.pendingSyncCount == 0 {
-			r.setSyncStatusAndSecretWatcher()
-		}
+// updatePendingCpaSyncAndStatus updates pendingSyncCesMap and when length of pendingSyncCpaMap is 0,
+// sets the controller sync status and start secret watcher.
+func (r *CloudProviderAccountReconciler) updatePendingCpaSyncAndStatus(namespacedName types.NamespacedName) {
+	if controllersync.GetControllerSyncStatusInstance().IsControllerSynced(controllersync.ControllerTypeCPA) {
+		return
+	}
+	delete(r.pendingCpaSyncMap, namespacedName)
+	if len(r.pendingCpaSyncMap) == 0 {
+		r.setSyncStatusAndSecretWatcher()
 	}
 }
 

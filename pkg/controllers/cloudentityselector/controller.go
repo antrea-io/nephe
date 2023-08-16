@@ -42,7 +42,7 @@ type CloudEntitySelectorReconciler struct {
 
 	selectorToAccountMap map[types.NamespacedName]types.NamespacedName
 	AccManager           accountmanager.Interface
-	pendingSyncCount     int
+	pendingCesSyncMap    map[types.NamespacedName]struct{}
 	// indicates whether a controller can reconcile CRs.
 	initialized bool
 }
@@ -59,6 +59,8 @@ func (r *CloudEntitySelectorReconciler) Reconcile(ctx context.Context, req ctrl.
 		}
 	}
 
+	defer r.updatePendingCesSyncAndStatus(req.NamespacedName)
+
 	entitySelector := &crdv1alpha1.CloudEntitySelector{}
 	err := r.Get(ctx, req.NamespacedName, entitySelector)
 	if err != nil && !errors.IsNotFound(err) {
@@ -71,12 +73,12 @@ func (r *CloudEntitySelectorReconciler) Reconcile(ctx context.Context, req ctrl.
 	if err = r.processCreateOrUpdate(entitySelector, &req.NamespacedName); err != nil {
 		return ctrl.Result{}, err
 	}
-	r.updatePendingSyncCountAndStatus()
 	return ctrl.Result{}, err
 }
 
 func (r *CloudEntitySelectorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.selectorToAccountMap = make(map[types.NamespacedName]types.NamespacedName)
+	r.pendingCesSyncMap = make(map[types.NamespacedName]struct{})
 	// Using GenerationChangedPredicate to allow CES controller to receive CES updates
 	// for all events except change in status.
 	if err := ctrl.NewControllerManagedBy(mgr).
@@ -103,24 +105,35 @@ func (r *CloudEntitySelectorReconciler) Start(_ context.Context) error {
 		return err
 	}
 
-	r.pendingSyncCount = len(cesList.Items)
-	if r.pendingSyncCount == 0 {
-		sync.GetControllerSyncStatusInstance().SetControllerSyncStatus(sync.ControllerTypeCES)
+	for _, ces := range cesList.Items {
+		key := types.NamespacedName{Namespace: ces.Namespace, Name: ces.Name}
+		r.pendingCesSyncMap[key] = struct{}{}
+	}
+
+	if len(r.pendingCesSyncMap) == 0 {
+		r.setSyncStatusAndSyncInventory()
 	}
 	r.initialized = true
 	r.Log.Info("Init done", "controller", sync.ControllerTypeCES.String())
 	return nil
 }
 
-// updatePendingSyncCountAndStatus decrements the pendingSyncCount and when
-// pendingSyncCount is 0, sets the sync status.
-func (r *CloudEntitySelectorReconciler) updatePendingSyncCountAndStatus() {
-	if r.pendingSyncCount > 0 {
-		r.pendingSyncCount--
-		if r.pendingSyncCount == 0 {
-			sync.GetControllerSyncStatusInstance().SetControllerSyncStatus(sync.ControllerTypeCES)
-		}
+// updatePendingCesSyncAndStatus updates pendingSyncCesMap and when length of pendingSyncCesMap is 0,
+// sets the controller sync status and sync inventory.
+func (r *CloudEntitySelectorReconciler) updatePendingCesSyncAndStatus(namespacedName types.NamespacedName) {
+	if sync.GetControllerSyncStatusInstance().IsControllerSynced(sync.ControllerTypeCES) {
+		return
 	}
+	delete(r.pendingCesSyncMap, namespacedName)
+	if len(r.pendingCesSyncMap) == 0 {
+		r.setSyncStatusAndSyncInventory()
+	}
+}
+
+// setSyncStatusAndSyncInventory syncs inventory for all accounts and marks CES controller as synced.
+func (r *CloudEntitySelectorReconciler) setSyncStatusAndSyncInventory() {
+	r.AccManager.SyncAllAccounts()
+	sync.GetControllerSyncStatusInstance().SetControllerSyncStatus(sync.ControllerTypeCES)
 }
 
 func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *crdv1alpha1.CloudEntitySelector,
@@ -143,12 +156,6 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *crdv1alp
 		return err
 	}
 	r.updateStatus(selectorNamespacedName, err)
-	// TODO: Make sure in case of restart selector add cannot fail, because this impacts pending ces count in accountToSelectorCount map.
-	if count := r.AccManager.UpdatePendingCesCount(accountNamespacedName); count == 0 {
-		if err := r.AccManager.WaitForPollDone(accountNamespacedName); err != nil {
-			r.Log.Error(err, "inventory poll failed", "account", accountNamespacedName, "error", err)
-		}
-	}
 	return nil
 }
 
