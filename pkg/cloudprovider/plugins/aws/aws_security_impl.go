@@ -22,7 +22,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
-	"antrea.io/nephe/pkg/cloudprovider/plugins/internal"
 	"antrea.io/nephe/pkg/cloudprovider/utils"
 )
 
@@ -244,19 +243,12 @@ func (c *awsCloud) GetEnforcedSecurity() []cloudresource.SynchronizationContent 
 
 			accCfg, err := c.cloudCommon.GetCloudAccountByName(name)
 			if err != nil {
-				awsPluginLogger().Info("Enforced-security-cloud-view GET for account skipped", "err", err)
 				return
 			}
 
 			accCfg.LockMutex()
 			defer accCfg.UnlockMutex()
-
-			ec2Service := accCfg.GetServiceConfig().(*ec2ServiceConfig)
-			if err := ec2Service.waitForInventoryInit(internal.InventoryInitWaitDuration); err != nil {
-				awsPluginLogger().Error(err, "Enforced-security-cloud-view GET for account skipped", "account", accCfg.GetNamespacedName())
-				return
-			}
-			sendCh <- ec2Service.getNepheControllerManagedSecurityGroupsCloudView()
+			sendCh <- accCfg.GetServiceConfig().(*ec2ServiceConfig).getNepheControllerManagedSecurityGroupsCloudView()
 		}(accNamespacedNameCopy, ch)
 	}
 
