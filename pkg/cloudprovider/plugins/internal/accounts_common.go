@@ -78,40 +78,45 @@ func (c *cloudCommon) newCloudAccountConfig(client client.Client, namespacedName
 		return nil, err
 	}
 
-	cloudConvertedCredential, err := credentialsValidatorFunc(client, credentials)
-	if err != nil {
-		return nil, err
-	}
-
-	serviceConfig, err := cloudServicesCreateFunc(namespacedName, cloudConvertedCredential, c.cloudSpecificHelper)
-	if err != nil {
-		return nil, err
-	}
-
-	status := &crdv1alpha1.CloudProviderAccountStatus{}
-	return &cloudAccountConfig{
+	accConfig := &cloudAccountConfig{
 		logger:         loggerFunc,
 		namespacedName: namespacedName,
-		serviceConfig:  serviceConfig,
-		credentials:    cloudConvertedCredential,
-		Status:         status,
-		state:          true,
-	}, nil
+		Status:         &crdv1alpha1.CloudProviderAccountStatus{},
+		state:          false,
+	}
+
+	accConfig.credentials, err = credentialsValidatorFunc(client, credentials)
+	if err != nil {
+		accConfig.Status.Error = err.Error()
+		return accConfig, err
+	}
+
+	accConfig.serviceConfig, err = cloudServicesCreateFunc(namespacedName, accConfig.credentials, c.cloudSpecificHelper)
+	if err != nil {
+		accConfig.Status.Error = err.Error()
+		return accConfig, err
+	}
+	// Mark account state as valid.
+	accConfig.state = true
+	return accConfig, nil
 }
 
 func (c *cloudCommon) updateCloudAccountConfig(client client.Client, credentials interface{}, config CloudAccountInterface) error {
 	currentConfig := config.(*cloudAccountConfig)
 	cloudAccountConfigState := true
-	defer func() {
-		// Update the cloud account config state for each update.
-		currentConfig.state = cloudAccountConfigState
-	}()
 
 	credentialsValidatorFunc, cloudServicesCreateFunc, credentialsComparatorFunc, err := c.getFunctionPointers()
 	if err != nil {
 		cloudAccountConfigState = false
 		return err
 	}
+	defer func() {
+		// Update the cloud account config state for each update.
+		currentConfig.state = cloudAccountConfigState
+		if err != nil {
+			currentConfig.Status.Error = err.Error()
+		}
+	}()
 
 	if credentialsComparatorFunc == nil {
 		c.logger().Info("Cloud credentials comparator func nil. credentials not updated. existing credentials will be used.",
@@ -120,7 +125,7 @@ func (c *cloudCommon) updateCloudAccountConfig(client client.Client, credentials
 	}
 
 	cloudConvertedNewCredential, err := credentialsValidatorFunc(client, credentials)
-	if !credentialsComparatorFunc(currentConfig.namespacedName.String(), cloudConvertedNewCredential, currentConfig.credentials) {
+	if !credentialsComparatorFunc(currentConfig.namespacedName.String(), currentConfig.credentials, cloudConvertedNewCredential) {
 		c.logger().Info("Credentials not changed", "account", currentConfig.namespacedName)
 		return err
 	}
@@ -137,9 +142,13 @@ func (c *cloudCommon) updateCloudAccountConfig(client client.Client, credentials
 		return err
 	}
 
-	if err := currentConfig.serviceConfig.UpdateServiceConfig(serviceConfig); err != nil {
-		cloudAccountConfigState = false
-		return err
+	if currentConfig.serviceConfig == nil {
+		currentConfig.serviceConfig = serviceConfig
+	} else {
+		if err = currentConfig.serviceConfig.UpdateServiceConfig(serviceConfig); err != nil {
+			cloudAccountConfigState = false
+			return err
+		}
 	}
 	return nil
 }

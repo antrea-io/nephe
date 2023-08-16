@@ -154,10 +154,10 @@ func (r *CloudEntitySelectorReconciler) processCreateOrUpdate(selector *crdv1alp
 	r.selectorToAccountMap[*selectorNamespacedName] = *accountNamespacedName
 	retryCes, err := r.AccManager.AddResourceFiltersToAccount(accountNamespacedName, selectorNamespacedName,
 		selector)
+	defer r.updateStatus(selectorNamespacedName, err)
 	if err != nil && retryCes {
 		return err
 	}
-	r.updateStatus(selectorNamespacedName, err)
 	return nil
 }
 

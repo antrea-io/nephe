@@ -45,6 +45,7 @@ func setAccountCredentials(client client.Client, credentials interface{}) (inter
 	}
 	accCred, err := extractSecret(client, awsProviderConfig.SecretRef)
 	if err != nil {
+		// Reset credential to dummy defaults.
 		accCred.AccessKeyID = internal.AccountCredentialsDefault
 		accCred.AccessKeySecret = internal.AccountCredentialsDefault
 		accCred.SessionToken = internal.AccountCredentialsDefault
@@ -60,6 +61,11 @@ func setAccountCredentials(client client.Client, credentials interface{}) (inter
 func compareAccountCredentials(accountName string, existing interface{}, new interface{}) bool {
 	existingConfig := existing.(*awsAccountConfig)
 	newConfig := new.(*awsAccountConfig)
+
+	if newConfig.AccessKeySecret == internal.AccountCredentialsDefault {
+		// skip comparison and logging.
+		return true
+	}
 
 	credsChanged := false
 	if strings.Compare(existingConfig.AccessKeyID, newConfig.AccessKeyID) != 0 {

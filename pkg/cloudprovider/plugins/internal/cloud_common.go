@@ -41,6 +41,7 @@ var (
 
 const (
 	AccountConfigNotFound = "unable to find cloud account config"
+	AccountConfigInvalid  = "invalid cloud account config"
 )
 
 type InstanceID string
@@ -108,14 +109,17 @@ func (c *cloudCommon) AddCloudAccount(client client.Client, account *crdv1alpha1
 	if found {
 		err := c.updateCloudAccountConfig(client, credentials, existingConfig)
 		if err != nil {
-			c.logger().Info("Failed to update cloud account config", "account", namespacedName)
+			c.logger().Error(err, "failed to update cloud account config", "account", namespacedName)
 		}
 		return err
 	}
 
 	config, err := c.newCloudAccountConfig(client, namespacedName, credentials, c.logger)
 	if err != nil {
-		c.logger().Info("Failed to create cloud account config", "account", namespacedName)
+		if config != nil {
+			c.accountConfigs[*config.GetNamespacedName()] = config
+		}
+		c.logger().Error(err, "failed to create cloud account config", "account", namespacedName)
 		return err
 	}
 
@@ -139,7 +143,7 @@ func (c *cloudCommon) GetCloudAccountByName(namespacedName *types.NamespacedName
 		return nil, fmt.Errorf("%v: %v", AccountConfigNotFound, namespacedName)
 	}
 	if !accCfg.GetAccountConfigState() {
-		return accCfg, fmt.Errorf("invalid cloud account config: %v", namespacedName)
+		return accCfg, fmt.Errorf("%v: %v", AccountConfigInvalid, namespacedName)
 	}
 	return accCfg, nil
 }
