@@ -92,12 +92,14 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 			mockAccManager = mockaccmanager.NewMockInterface(mockCtrl)
 			mockNpController = mocknpcontroller.NewMockNetworkPolicyController(mockCtrl)
 			reconciler = &CloudProviderAccountReconciler{
-				Log:          logf.Log,
-				Client:       fakeClient,
-				Scheme:       scheme,
-				mutex:        sync.Mutex{},
-				AccManager:   mockAccManager,
-				NpController: mockNpController,
+				Log:                        logf.Log,
+				Client:                     fakeClient,
+				Scheme:                     scheme,
+				mutex:                      sync.Mutex{},
+				AccManager:                 mockAccManager,
+				NpController:               mockNpController,
+				cpaToSecretResourceVersion: make(map[types.NamespacedName]string),
+				clientset:                  fakewatch.NewSimpleClientset(),
 			}
 
 			pollIntv = 1
