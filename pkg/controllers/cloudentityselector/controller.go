@@ -40,9 +40,11 @@ type CloudEntitySelectorReconciler struct {
 	Log    logr.Logger
 	Scheme *runtime.Scheme
 
+	AccManager accountmanager.Interface
+
 	selectorToAccountMap map[types.NamespacedName]types.NamespacedName
-	AccManager           accountmanager.Interface
 	pendingCesSyncMap    map[types.NamespacedName]struct{}
+
 	// indicates whether a controller can reconcile CRs.
 	initialized bool
 }

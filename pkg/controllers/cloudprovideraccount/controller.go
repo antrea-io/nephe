@@ -50,18 +50,75 @@ type CloudProviderAccountReconciler struct {
 	Scheme *runtime.Scheme
 	Mgr    *ctrl.Manager
 
-	mutex             sync.Mutex
-	AccManager        accountmanager.Interface
-	pendingCpaSyncMap map[types.NamespacedName]struct{}
-	initialized       bool
-	watcher           watch.Interface
-	clientset         kubernetes.Interface
-	NpController      networkpolicy.NetworkPolicyController
+	mutex sync.Mutex
+
+	AccManager                 accountmanager.Interface
+	pendingCpaSyncMap          map[types.NamespacedName]struct{}
+	cpaToSecretResourceVersion map[types.NamespacedName]string
+
+	initialized bool
+
+	watcher   watch.Interface
+	clientset kubernetes.Interface
+
+	NpController networkpolicy.NetworkPolicyController
 }
 
 // nolint:lll
 // +kubebuilder:rbac:groups=crd.cloud.antrea.io,resources=cloudprovideraccounts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=crd.cloud.antrea.io,resources=cloudprovideraccounts/status,verbs=get;update;patch
+
+func (r *CloudProviderAccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	var err error
+	// Client in controller requires reconciler for each object that are under watch. So to avoid reconciler and use only
+	// watch, that can be implemented by clientset.
+	if r.clientset, err = kubernetes.NewForConfig(ctrl.GetConfigOrDie()); err != nil {
+		r.Log.Error(err, "error creating client config")
+		return err
+	}
+
+	// Init maps.
+	r.pendingCpaSyncMap = make(map[types.NamespacedName]struct{})
+	r.cpaToSecretResourceVersion = make(map[types.NamespacedName]string)
+
+	// Using GenerationChangedPredicate to allow CPA controller to receive CPA updates
+	// for all events except change in status.
+	if err := ctrl.NewControllerManagedBy(mgr).
+		For(&crdv1alpha1.CloudProviderAccount{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		Complete(r); err != nil {
+		return err
+	}
+	return mgr.Add(r)
+}
+
+// Start performs the initialization of the controller.
+// A controller is said to be initialized only when the dependent controllers
+// are synced, and controller keeps a count of pending CRs to be reconciled.
+func (r *CloudProviderAccountReconciler) Start(_ context.Context) error {
+	r.Log.Info("Waiting for shared informer caches to be synced")
+
+	// Blocking call to wait till the informer caches are synced by controller run-time
+	// or the context is Done.
+	if !(*r.Mgr).GetCache().WaitForCacheSync(context.TODO()) {
+		return fmt.Errorf("failed to sync shared informer cache")
+	}
+
+	cpaList := &crdv1alpha1.CloudProviderAccountList{}
+	if err := r.Client.List(context.TODO(), cpaList, &client.ListOptions{}); err != nil {
+		return err
+	}
+
+	for _, cpa := range cpaList.Items {
+		key := types.NamespacedName{Namespace: cpa.Namespace, Name: cpa.Name}
+		r.pendingCpaSyncMap[key] = struct{}{}
+	}
+	if len(r.pendingCpaSyncMap) == 0 {
+		r.setSyncStatusAndSecretWatcher()
+	}
+	r.initialized = true
+	r.Log.Info("Init done", "controller", controllersync.ControllerTypeCPA.String())
+	return nil
+}
 
 func (r *CloudProviderAccountReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = r.Log.WithValues("cloudprovideraccount", req.NamespacedName)
@@ -94,60 +151,19 @@ func (r *CloudProviderAccountReconciler) Reconcile(ctx context.Context, req ctrl
 	return ctrl.Result{}, nil
 }
 
-func (r *CloudProviderAccountReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	var err error
-	// Client in controller requires reconciler for each object that are under watch. So to avoid reconciler and use only
-	// watch, that can be implemented by clientset.
-	if r.clientset, err = kubernetes.NewForConfig(ctrl.GetConfigOrDie()); err != nil {
-		r.Log.Error(err, "error creating client config")
-		return err
-	}
-
-	r.pendingCpaSyncMap = make(map[types.NamespacedName]struct{})
-
-	// Using GenerationChangedPredicate to allow CPA controller to receive CPA updates
-	// for all events except change in status.
-	if err := ctrl.NewControllerManagedBy(mgr).
-		For(&crdv1alpha1.CloudProviderAccount{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
-		Complete(r); err != nil {
-		return err
-	}
-	return mgr.Add(r)
-}
-
-// Start performs the initialization of the controller.
-// A controller is said to be initialized only when the dependent controllers
-// are synced, and controller keeps a count of pending CRs to be reconciled.
-func (r *CloudProviderAccountReconciler) Start(_ context.Context) error {
-	r.Log.Info("Waiting for shared informer caches to be synced")
-	// Blocking call to wait till the informer caches are synced by controller run-time
-	// or the context is Done.
-	if !(*r.Mgr).GetCache().WaitForCacheSync(context.TODO()) {
-		return fmt.Errorf("failed to sync shared informer cache")
-	}
-
-	cpaList := &crdv1alpha1.CloudProviderAccountList{}
-	if err := r.Client.List(context.TODO(), cpaList, &client.ListOptions{}); err != nil {
-		return err
-	}
-
-	for _, cpa := range cpaList.Items {
-		key := types.NamespacedName{Namespace: cpa.Namespace, Name: cpa.Name}
-		r.pendingCpaSyncMap[key] = struct{}{}
-	}
-	if len(r.pendingCpaSyncMap) == 0 {
-		r.setSyncStatusAndSecretWatcher()
-	}
-	r.initialized = true
-	r.Log.Info("Init done", "controller", controllersync.ControllerTypeCPA.String())
-	return nil
-}
-
 func (r *CloudProviderAccountReconciler) processCreateOrUpdate(namespacedName *types.NamespacedName,
 	account *crdv1alpha1.CloudProviderAccount) error {
 	accountCloudType, err := util.GetAccountProviderType(account)
 	if err != nil {
 		return fmt.Errorf("failed to add or update account: %v", err)
+	}
+
+	// Cache resource version of `Secret` CR if it exists. If case of failure, remove from the cache.
+	resourceVersion, err := r.getSecretResourceVersion(account)
+	if err == nil {
+		r.cpaToSecretResourceVersion[*namespacedName] = resourceVersion
+	} else {
+		delete(r.cpaToSecretResourceVersion, *namespacedName)
 	}
 
 	retryAdd, err := r.AccManager.AddAccount(namespacedName, accountCloudType, account)
@@ -165,6 +181,11 @@ func (r *CloudProviderAccountReconciler) processDelete(namespacedName *types.Nam
 	r.Log.V(1).Info("Sending local event", "account", deletedCpa)
 	r.NpController.LocalEvent(watch.Event{Type: watch.Deleted, Object: deletedCpa})
 
+	defer func() {
+		// Remove the `Secret` CR resource version if it exists in the cache.
+		delete(r.cpaToSecretResourceVersion, *namespacedName)
+	}()
+
 	if err := r.AccManager.RemoveAccount(namespacedName); err != nil {
 		return err
 	}
@@ -179,7 +200,7 @@ func (r *CloudProviderAccountReconciler) processDelete(namespacedName *types.Nam
 	}
 	for _, ces := range cesList.Items {
 		if ces.Spec.AccountName == namespacedName.Name && ces.Spec.AccountNamespace == namespacedName.Namespace {
-			r.Log.Info("Deleting selector", "selector", types.NamespacedName{Namespace: ces.Namespace, Name: ces.Name})
+			r.Log.Info("Deleting CES", "selector", types.NamespacedName{Namespace: ces.Namespace, Name: ces.Name})
 			_ = r.Client.Delete(context.TODO(), &ces)
 		}
 	}
@@ -198,6 +219,34 @@ func (r *CloudProviderAccountReconciler) updatePendingCpaSyncAndStatus(namespace
 	}
 }
 
+// updateStatus updates the status on the CloudProviderAccount CR.
+func (r *CloudProviderAccountReconciler) updateStatus(namespacedName *types.NamespacedName, err error) {
+	var errorMsg string
+	if err != nil {
+		errorMsg = err.Error()
+	}
+
+	updateStatusFunc := func() error {
+		account := &crdv1alpha1.CloudProviderAccount{}
+		if err = r.Get(context.TODO(), *namespacedName, account); err != nil {
+			return nil
+		}
+		if account.Status.Error != errorMsg {
+			r.Log.Info("Setting CPA status", "account", namespacedName, "message", errorMsg)
+			account.Status.Error = errorMsg
+			if err = r.Client.Status().Update(context.TODO(), account); err != nil {
+				r.Log.Error(err, "failed to update CPA status, retrying", "account", namespacedName)
+				return err
+			}
+		}
+		return nil
+	}
+
+	if err := retry.RetryOnConflict(retry.DefaultRetry, updateStatusFunc); err != nil {
+		r.Log.Error(err, "failed to update CPA status", "account", namespacedName)
+	}
+}
+
 // setSyncStatusAndSecretWatcher sets the controller sync status and watcher.
 func (r *CloudProviderAccountReconciler) setSyncStatusAndSecretWatcher() {
 	controllersync.GetControllerSyncStatusInstance().SetControllerSyncStatus(controllersync.ControllerTypeCPA)
@@ -206,34 +255,9 @@ func (r *CloudProviderAccountReconciler) setSyncStatusAndSecretWatcher() {
 	}()
 }
 
-// getCpaBySecret returns nil only when the Secret is not used by any CloudProvideAccount CR,
-// otherwise the dependent CloudProvideAccount CRs will be returned.
-func (r *CloudProviderAccountReconciler) getCpaBySecret(s *types.NamespacedName) ([]*crdv1alpha1.CloudProviderAccount, error) {
-	cpaList := &crdv1alpha1.CloudProviderAccountList{}
-	if err := r.Client.List(context.TODO(), cpaList, &client.ListOptions{}); err != nil {
-		return nil, fmt.Errorf("failed to get CloudProviderAccount list, err %v", err)
-	}
-	var cpaItems []*crdv1alpha1.CloudProviderAccount
-	for i, cpa := range cpaList.Items {
-		if cpa.Spec.AWSConfig != nil {
-			if cpa.Spec.AWSConfig.SecretRef.Name == s.Name &&
-				cpa.Spec.AWSConfig.SecretRef.Namespace == s.Namespace {
-				cpaItems = append(cpaItems, &cpaList.Items[i])
-			}
-		}
-		if cpa.Spec.AzureConfig != nil {
-			if cpa.Spec.AzureConfig.SecretRef.Name == s.Name &&
-				cpa.Spec.AzureConfig.SecretRef.Namespace == s.Namespace {
-				cpaItems = append(cpaItems, &cpaList.Items[i])
-			}
-		}
-	}
-	return cpaItems, nil
-}
-
 // processSecretUpdateEvent updates all dependent accounts for a given Secret Namespace.
 func (r *CloudProviderAccountReconciler) processSecretUpdateEvent(secretNamespacedName *types.NamespacedName,
-	_ watch.EventType) {
+	secret *v1.Secret, eventType watch.EventType) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -244,6 +268,14 @@ func (r *CloudProviderAccountReconciler) processSecretUpdateEvent(secretNamespac
 
 	for _, cpa := range cpaItems {
 		accountNamespacedName := &types.NamespacedName{Namespace: cpa.Namespace, Name: cpa.Name}
+		if eventType == watch.Added {
+			// Check if `Secret` CR resource version is same.
+			if resourceVersion, ok := r.cpaToSecretResourceVersion[*accountNamespacedName]; ok {
+				if resourceVersion == secret.ResourceVersion {
+					continue
+				}
+			}
+		}
 		r.Log.WithName("Secret").Info("Updating account", "account", *accountNamespacedName)
 		if err := r.processCreateOrUpdate(accountNamespacedName, cpa); err != nil {
 			r.Log.WithName("Secret").Error(err, "error updating account", "account", *accountNamespacedName)
@@ -261,7 +293,7 @@ func (r *CloudProviderAccountReconciler) watchSecret() {
 			secret := event.Object.(*v1.Secret)
 			namespacedName := &types.NamespacedName{Namespace: secret.Namespace, Name: secret.Name}
 			r.Log.WithName("Secret").V(1).Info("Received request", "Secret", namespacedName, "operation", event.Type)
-			r.processSecretUpdateEvent(namespacedName, event.Type)
+			r.processSecretUpdateEvent(namespacedName, secret, event.Type)
 		}
 	}
 }
@@ -291,30 +323,45 @@ func (r *CloudProviderAccountReconciler) setupSecretWatcher() {
 	r.watchSecret()
 }
 
-// updateStatus updates the status on the CloudProviderAccount CR.
-func (r *CloudProviderAccountReconciler) updateStatus(namespacedName *types.NamespacedName, err error) {
-	var errorMsg string
-	if err != nil {
-		errorMsg = err.Error()
+// GetSecretResourceVersion gets secret resource version of `Secret` CR referenced by this `CloudProviderAccount` CR.
+func (r *CloudProviderAccountReconciler) getSecretResourceVersion(account *crdv1alpha1.CloudProviderAccount) (string, error) {
+	var namespace, name string
+	if account.Spec.AWSConfig != nil {
+		namespace = account.Spec.AWSConfig.SecretRef.Namespace
+		name = account.Spec.AWSConfig.SecretRef.Name
+	} else {
+		namespace = account.Spec.AzureConfig.SecretRef.Namespace
+		name = account.Spec.AzureConfig.SecretRef.Name
 	}
+	// Retrieve the specified Secret from the namespace.
+	obj, err := r.clientset.CoreV1().Secrets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+	return obj.ResourceVersion, nil
+}
 
-	updateStatusFunc := func() error {
-		account := &crdv1alpha1.CloudProviderAccount{}
-		if err = r.Get(context.TODO(), *namespacedName, account); err != nil {
-			return nil
-		}
-		if account.Status.Error != errorMsg {
-			r.Log.Info("Setting CPA status", "account", namespacedName, "message", errorMsg)
-			account.Status.Error = errorMsg
-			if err = r.Client.Status().Update(context.TODO(), account); err != nil {
-				r.Log.Error(err, "failed to update CPA status, retrying", "account", namespacedName)
-				return err
+// getCpaBySecret returns nil only when the Secret is not used by any CloudProvideAccount CR,
+// otherwise the dependent CloudProvideAccount CRs will be returned.
+func (r *CloudProviderAccountReconciler) getCpaBySecret(s *types.NamespacedName) ([]*crdv1alpha1.CloudProviderAccount, error) {
+	cpaList := &crdv1alpha1.CloudProviderAccountList{}
+	if err := r.Client.List(context.TODO(), cpaList, &client.ListOptions{}); err != nil {
+		return nil, fmt.Errorf("failed to get CloudProviderAccount list, err %v", err)
+	}
+	var cpaItems []*crdv1alpha1.CloudProviderAccount
+	for i, cpa := range cpaList.Items {
+		if cpa.Spec.AWSConfig != nil {
+			if cpa.Spec.AWSConfig.SecretRef.Name == s.Name &&
+				cpa.Spec.AWSConfig.SecretRef.Namespace == s.Namespace {
+				cpaItems = append(cpaItems, &cpaList.Items[i])
 			}
 		}
-		return nil
+		if cpa.Spec.AzureConfig != nil {
+			if cpa.Spec.AzureConfig.SecretRef.Name == s.Name &&
+				cpa.Spec.AzureConfig.SecretRef.Namespace == s.Namespace {
+				cpaItems = append(cpaItems, &cpaList.Items[i])
+			}
+		}
 	}
-
-	if err := retry.RetryOnConflict(retry.DefaultRetry, updateStatusFunc); err != nil {
-		r.Log.Error(err, "failed to update CPA status", "account", namespacedName)
-	}
+	return cpaItems, nil
 }
