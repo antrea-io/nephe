@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -194,10 +195,10 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 			// while reconciler using client from controller run-time. Both Secret watcher and reconciler
 			// should be able to retrieve the Secret object.
 			It("Update", func() {
-				mockAccManager.EXPECT().AddAccount(&testAccountNamespacedName, accountCloudType, account).Return(false, nil).Times(2)
-				mockAccManager.EXPECT().IsAccountCredentialsValid(&testAccountNamespacedName).Return(true, nil).Times(1)
+				mockAccManager.EXPECT().AddAccount(&testAccountNamespacedName, accountCloudType, account).Return(false, nil).Times(3)
 
 				By("Add the Secret")
+				fmt.Println("Creating secret")
 				_ = fakeClient.Create(context.Background(), secret)
 				// Create CPA.
 				_ = fakeClient.Create(context.Background(), account)
@@ -242,8 +243,7 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 			})
 			It("Delete", func() {
 				mockAccManager.EXPECT().AddAccount(&testAccountNamespacedName, accountCloudType, account).
-					Return(false, fmt.Errorf(util.ErrorMsgSecretReference)).Times(1)
-				mockAccManager.EXPECT().IsAccountCredentialsValid(&testAccountNamespacedName).Return(true, nil).Times(1)
+					Return(false, nil).Times(1)
 				By("Add the Secret")
 				_ = fakeClient.Create(context.Background(), secret)
 				// Create CPA.
@@ -255,14 +255,24 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 				Expect(err).ShouldNot(HaveOccurred())
 
 				By("Delete the Secret")
+				mockAccManager.EXPECT().AddAccount(&testAccountNamespacedName, accountCloudType, account).
+					Return(false, fmt.Errorf(util.ErrorMsgSecretReference)).Times(1)
+				time.Sleep(1 * time.Second)
 				_ = fakeClient.Delete(context.Background(), secret)
+
 				err = reconciler.clientset.CoreV1().Secrets(testSecretNamespacedName.Namespace).
 					Delete(context.Background(), testSecretNamespacedName.Name, v1.DeleteOptions{})
 				time.Sleep(1 * time.Second)
 				Expect(err).ShouldNot(HaveOccurred())
+
+				temp := &crdv1alpha1.CloudProviderAccount{}
+				err := fakeClient.Get(context.Background(), testAccountNamespacedName, temp)
+				Expect(err).ShouldNot(HaveOccurred())
+				if strings.Compare(temp.Status.Error, util.ErrorMsgSecretReference) != 0 {
+					Fail("CPA is not updated with error message")
+				}
 			})
 			It("Add for AzureAccount", func() {
-				mockAccManager.EXPECT().IsAccountCredentialsValid(&testAccountNamespacedName).Return(true, nil).Times(1)
 				credential := `{"subscriptionId": "subId", "clientId": "clientId", "tenantId": "tenantId", "clientKey": "clientKey"}`
 				secret.Data = map[string][]byte{credentials: []byte(credential)}
 				account.Spec.AWSConfig = nil
@@ -274,12 +284,15 @@ var _ = Describe("CloudProviderAccount Controller", func() {
 						Key:       credentials,
 					},
 				}
+				accountCloudType, err = util.GetAccountProviderType(account)
+				mockAccManager.EXPECT().AddAccount(&testAccountNamespacedName, accountCloudType, account).Return(false, nil).Times(1)
 				_ = fakeClient.Create(context.Background(), secret)
 				_ = fakeClient.Create(context.Background(), account)
 				time.Sleep(1 * time.Second)
+
 				_, err = reconciler.clientset.CoreV1().Secrets(testSecretNamespacedName.Namespace).
 					Create(context.Background(), secret, v1.CreateOptions{})
-				time.Sleep(1 * time.Second)
+				time.Sleep(2 * time.Second)
 				Expect(err).ShouldNot(HaveOccurred())
 			})
 		})

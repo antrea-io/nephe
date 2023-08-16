@@ -233,7 +233,7 @@ func (r *CloudProviderAccountReconciler) getCpaBySecret(s *types.NamespacedName)
 
 // processSecretUpdateEvent updates all dependent accounts for a given Secret Namespace.
 func (r *CloudProviderAccountReconciler) processSecretUpdateEvent(secretNamespacedName *types.NamespacedName,
-	eventType watch.EventType) {
+	_ watch.EventType) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -244,13 +244,6 @@ func (r *CloudProviderAccountReconciler) processSecretUpdateEvent(secretNamespac
 
 	for _, cpa := range cpaItems {
 		accountNamespacedName := &types.NamespacedName{Namespace: cpa.Namespace, Name: cpa.Name}
-		if eventType == watch.Added {
-			// Add event is ignored, if account credentials are already valid.
-			ok, err := r.AccManager.IsAccountCredentialsValid(accountNamespacedName)
-			if err != nil || ok {
-				continue
-			}
-		}
 		r.Log.WithName("Secret").Info("Updating account", "account", *accountNamespacedName)
 		if err := r.processCreateOrUpdate(accountNamespacedName, cpa); err != nil {
 			r.Log.WithName("Secret").Error(err, "error updating account", "account", *accountNamespacedName)
