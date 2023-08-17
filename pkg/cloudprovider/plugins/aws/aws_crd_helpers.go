@@ -266,7 +266,7 @@ func parseIpPermissions(ipPermissions []*ec2.IpPermission, ingress bool) *[]runt
 				}
 			}
 		}
-		//parse prefixLists
+		// parse prefixLists
 		for _, prefix := range ipPermission.PrefixListIds {
 			if prefix.PrefixListId != nil {
 				if ingress {

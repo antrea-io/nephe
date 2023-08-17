@@ -51,8 +51,8 @@ func (in *NetworkInterface) DeepCopyInto(out *NetworkInterface) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
-	if in.Groups != nil {
-		in, out := &in.Groups, &out.Groups
+	if in.GroupIds != nil {
+		in, out := &in.GroupIds, &out.GroupIds
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}

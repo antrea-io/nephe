@@ -21,8 +21,10 @@ const (
 )
 
 type ControllerConfig struct {
-	CloudResourcePrefix string `yaml:"cloudResourcePrefix,omitempty"`
-	CloudSyncInterval   int64  `yaml:"cloudSyncInterval,omitempty"`
+	CloudResourcePrefix          string `yaml:"cloudResourcePrefix,omitempty"`
+	CloudSecurityGroupVisibility bool   `yaml:"cloudSecurityGroupVisibility,omitempty"`
+	CloudSyncInterval            int64  `yaml:"cloudSyncInterval,omitempty"`
+
 	// AntreaKubeconfig The path to access the kubeconfig file used in the connection to Antrea Controller.
 	AntreaKubeconfig string `yaml:"antreaKubeconfig,omitempty"`
 }

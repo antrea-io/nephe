@@ -25,6 +25,7 @@ import (
 
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
 	"antrea.io/nephe/pkg/cloudprovider/plugins/internal"
 	nephetypes "antrea.io/nephe/pkg/types"
 )
@@ -167,7 +168,7 @@ func (ec2Cfg *ec2ServiceConfig) getCachedVpcs() []*ec2.Vpc {
 	return vpcsToReturn
 }
 
-// GetCachedSGs returns VPCs from cached snapshot for the account.
+// GetCachedSGs returns security groups from cached snapshot for the account.
 func (ec2Cfg *ec2ServiceConfig) GetCachedSGs(selector *types.NamespacedName) []*ec2.SecurityGroup {
 	sgsToReturn := make([]*ec2.SecurityGroup, 0)
 	snapshot := ec2Cfg.resourcesCache.GetSnapshot()
@@ -181,7 +182,6 @@ func (ec2Cfg *ec2ServiceConfig) GetCachedSGs(selector *types.NamespacedName) []*
 		return sgsToReturn
 	}
 	sgsToReturn = append(sgsToReturn, sgs...)
-
 	return sgsToReturn
 }
 
@@ -266,13 +266,15 @@ func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
 		allInstances[namespacedName] = instances
 
 		// get security groups for managed vpcs.
-		if len(managedVpcIds) > 0 {
-			sgs, err := ec2Cfg.getSecurityGroupsOfVpc(managedVpcIds)
-			if err != nil {
-				awsPluginLogger().Error(err, "failed to fetch cloud resources", "account", ec2Cfg.accountNamespacedName)
-				return err
+		if cloudresource.IsCloudSecurityGroupVisibilityEnabled() {
+			if len(managedVpcIds) > 0 {
+				sgs, err := ec2Cfg.getSecurityGroupsOfVpc(managedVpcIds)
+				if err != nil {
+					awsPluginLogger().Error(err, "failed to fetch cloud resources", "account", ec2Cfg.accountNamespacedName)
+					return err
+				}
+				allSgs[namespacedName] = sgs
 			}
-			allSgs[namespacedName] = sgs
 		}
 	}
 	ec2Cfg.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{allInstances, vpcs, allManagedVpcIds, vpcNameToId, vpcPeers, allSgs})

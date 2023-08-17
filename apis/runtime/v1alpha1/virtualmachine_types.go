@@ -81,10 +81,10 @@ type NetworkInterface struct {
 	MAC string `json:"mac,omitempty"`
 	// IP addresses of this NetworkInterface.
 	IPs []IPAddress `json:"ips,omitempty"`
-	// Security group attached to this NetworkInterface.
+	// Security groups attached to this NetworkInterface.
 	SecurityGroupIds []string `json:"securityGroupIds,omitempty"`
-	// Security group names attached to this NetworkInterface.
-	Groups []string `json:"groups,omitempty"`
+	// Application Security groups attached to this NetworkInterface.
+	GroupIds []string `json:"groups,omitempty"`
 }
 
 // VirtualMachineStatus defines the observed state of VirtualMachine

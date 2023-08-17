@@ -15,20 +15,21 @@
 package store
 
 import (
-	"antrea.io/nephe/pkg/apiserver/registry/inventory/selector"
-	"antrea.io/nephe/pkg/inventory/indexer"
-	nephelabels "antrea.io/nephe/pkg/labels"
 	"fmt"
 	"k8s.io/client-go/tools/cache"
 	"reflect"
 
-	antreastorage "antrea.io/antrea/pkg/apiserver/storage"
-	"antrea.io/antrea/pkg/apiserver/storage/ram"
-	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
+
+	antreastorage "antrea.io/antrea/pkg/apiserver/storage"
+	"antrea.io/antrea/pkg/apiserver/storage/ram"
+	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/apiserver/registry/inventory/selector"
+	"antrea.io/nephe/pkg/inventory/indexer"
+	nephelabels "antrea.io/nephe/pkg/labels"
 )
 
 // sgInventoryEvent implements storage.InternalEvent.
@@ -157,6 +158,6 @@ func NewSgInventoryStore() antreastorage.Interface {
 	}
 	return ram.NewStore(sgKeyFunc, indexers, genSgEvent, keyAndSpanSelectFuncSg, func() runtime.Object {
 		return new(runtimev1alpha1.
-			SecurityGroup)
+		SecurityGroup)
 	})
 }

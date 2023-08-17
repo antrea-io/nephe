@@ -25,6 +25,7 @@ import (
 
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
 	"antrea.io/nephe/pkg/cloudprovider/plugins/internal"
 	nephetypes "antrea.io/nephe/pkg/types"
 )
@@ -266,22 +267,24 @@ func (computeCfg *computeServiceConfig) DoResourceInventory() error {
 			return err
 		}
 		for _, vm := range virtualMachines {
-			managedVnetIds[*vm.VnetID] = struct{}{}
+			allManagedVnetIds[*vm.VnetID] = struct{}{}
 			managedVnetIds[*vm.VnetID] = struct{}{}
 		}
 		allVirtualMachines[namespacedName] = virtualMachines
 
-		if len(managedVnetIds) > 0 {
-			nsgFilter, err := getNsgByVnetIDsMatchQuery(managedVnetIds)
-			if err != nil {
-				azurePluginLogger().Error(err, "failed to create nsg Filter", "account", computeCfg.accountNamespacedName)
-				return err
-			}
-			nsgs, _, err := getNsgTable(computeCfg.resourceGraphAPIClient, nsgFilter, subscriptions)
-			allNsgs[namespacedName] = nsgs
-			if err != nil {
-				azurePluginLogger().Error(err, "failed to get nsg from cloud resources", "account", computeCfg.accountNamespacedName)
-				return err
+		if cloudresource.IsCloudSecurityGroupVisibilityEnabled() {
+			if len(managedVnetIds) > 0 {
+				nsgFilter, err := getNsgByVnetIDsMatchQuery(managedVnetIds)
+				if err != nil {
+					azurePluginLogger().Error(err, "failed to create nsg Filter", "account", computeCfg.accountNamespacedName)
+					return err
+				}
+				nsgs, _, err := getNsgTable(computeCfg.resourceGraphAPIClient, nsgFilter, subscriptions)
+				if err != nil {
+					azurePluginLogger().Error(err, "failed to get nsg from cloud resources", "account", computeCfg.accountNamespacedName)
+					return err
+				}
+				allNsgs[namespacedName] = nsgs
 			}
 		}
 	}

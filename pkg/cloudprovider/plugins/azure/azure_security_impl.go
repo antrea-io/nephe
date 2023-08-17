@@ -227,6 +227,7 @@ func (c *azureCloud) GetEnforcedSecurity() []cloudresource.SynchronizationConten
 
 			accCfg, err := c.cloudCommon.GetCloudAccountByName(name)
 			if err != nil {
+				azurePluginLogger().V(1).Info("Account is invalid")
 				return
 			}
 

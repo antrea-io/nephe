@@ -61,6 +61,9 @@ var _ = Describe("AWS Cloud Security", func() {
 
 	BeforeEach(func() {
 		var pollIntv uint = 2
+		cloudresource.SetCloudResourcePrefix(config.DefaultCloudResourcePrefix)
+		cloudresource.SetCloudSecurityGroupVisibility(true)
+
 		account = &crdv1alpha1.CloudProviderAccount{
 			ObjectMeta: v1.ObjectMeta{
 				Name:      testAccountNamespacedName.Name,
@@ -147,8 +150,6 @@ var _ = Describe("AWS Cloud Security", func() {
 
 		err = cloudInterface.DoInventoryPoll(testAccountNamespacedName)
 		Expect(err).Should(BeNil())
-
-		cloudresource.SetCloudResourcePrefix(config.DefaultCloudResourcePrefix)
 
 		// wait for instances to be populated
 		time.Sleep(time.Duration(pollIntv+1) * time.Second)

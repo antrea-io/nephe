@@ -76,6 +76,7 @@ func getNsgTable(resourceGraphAPIClient azureResourceGraphWrapper, query *string
 
 	return nsgs, count, nil
 }
+
 func buildNsgTableQueryWithParams(name string, queryParams *nsgTableQueryParameters) (*string, error) {
 	var nsgTableData bytes.Buffer
 	queryTemplate, err := template.New(name).Parse(nsgTableQueryTemplate)

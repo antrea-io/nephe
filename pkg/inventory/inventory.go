@@ -342,7 +342,7 @@ func (i *Inventory) BuildSgCache(discoveredSgMap map[string]*runtimev1alpha1.Sec
 	// Remove security groups in SG cache which are not found in security group list fetched from cloud.
 	for _, object := range sgsInCache {
 		sg := object.(*runtimev1alpha1.SecurityGroup)
-		if _, found := discoveredSgMap[sg.Name]; !found {
+		if _, found := discoveredSgMap[sg.Status.CloudId]; !found {
 			if err := i.sgStore.Delete(fmt.Sprintf("%v/%v", sg.Namespace, sg.Name)); err != nil {
 				i.log.Error(err, "failed to delete security group from sg cache",
 					"sg", sg.Name, "account", accountNamespacedName)
@@ -377,7 +377,7 @@ func (i *Inventory) BuildSgCache(discoveredSgMap map[string]*runtimev1alpha1.Sec
 	}
 
 	if numSgsAdded != 0 || numSgsUpdated != 0 || numSgsDeleted != 0 {
-		i.log.Info("Security group poll statistics", "account", accountNamespacedName, "added", numSgsAdded,
+		i.log.Info("SG poll statistics", "account", accountNamespacedName, "added", numSgsAdded,
 			"update", numSgsUpdated, "delete", numSgsDeleted)
 	}
 }
@@ -406,6 +406,7 @@ func (i *Inventory) GetSgByKey(key string) (*runtimev1alpha1.SecurityGroup, bool
 	return cachedObject.(*runtimev1alpha1.SecurityGroup), true
 }
 
+// DeleteSgsFromCache deletes all entries from sg cache for a given selector.
 func (i *Inventory) DeleteSgsFromCache(accountNamespacedName, selectorNamespacedName *types.NamespacedName) error {
 	sgsInCache, err := i.sgStore.GetByIndex(indexer.SecurityGroupBySelectorNamespacedName, selectorNamespacedName.String())
 	if err != nil {
@@ -427,7 +428,7 @@ func (i *Inventory) DeleteSgsFromCache(accountNamespacedName, selectorNamespaced
 	}
 
 	if numSgsToDelete != 0 {
-		i.log.Info("Security group poll statistics", "account", accountNamespacedName, "deleted", numSgsToDelete)
+		i.log.Info("SG poll statistics", "account", accountNamespacedName, "deleted", numSgsToDelete)
 	}
 	return nil
 }
@@ -453,7 +454,7 @@ func (i *Inventory) DeleteAllSgsFromCache(accountNamespacedName *types.Namespace
 	}
 
 	if numSgsToDelete != 0 {
-		i.log.Info("Security group poll statistics", "account", accountNamespacedName, "deleted", numSgsToDelete)
+		i.log.Info("SG poll statistics", "account", accountNamespacedName, "deleted", numSgsToDelete)
 	}
 	return nil
 }

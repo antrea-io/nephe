@@ -308,6 +308,7 @@ func convertFromIPPermissionPort(startPort *int64, endPort *int64) *int {
 	return nil
 }
 
+// convertFromIPPermissionPortToString helper function to convert cloud port number field to string.
 func convertFromIPPermissionPortToString(startPort *int64, endPort *int64) string {
 	if startPort == nil || *startPort == -1 {
 		return "all"

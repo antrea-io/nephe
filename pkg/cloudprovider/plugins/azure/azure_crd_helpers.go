@@ -92,7 +92,7 @@ func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable
 			MAC:              macAddress,
 			IPs:              ipAddressObjs,
 			SecurityGroupIds: nsgIds,
-			Groups:           asgIDs,
+			GroupIds:         asgIDs,
 		}
 		networkInterfaces = append(networkInterfaces, networkInterface)
 	}
@@ -217,6 +217,7 @@ func ComputeVpcToInternalVpcObject(vnet *armnetwork.VirtualNetwork, accountNames
 	return vpcObj
 }
 
+// computeSgToInternalSgObject converts nsg object from cloud format(nsgTable) to security group runtime object.
 func computeSgToInternalSgObject(nsg *nsgTable, selectorNamespacedName,
 	accountNamespacedName *types.NamespacedName, region string) *runtimev1alpha1.SecurityGroup {
 	status := &runtimev1alpha1.SecurityGroupStatus{
@@ -276,6 +277,7 @@ func computeSgToInternalSgObject(nsg *nsgTable, selectorNamespacedName,
 	return sgObj
 }
 
+// parseSecurityRules helper function to parse cloud security rules and convert into runtime security group object.
 func parseSecurityRules(securityRule *armnetwork.SecurityRule) *runtimev1alpha1.Rule {
 	rule := runtimev1alpha1.Rule{}
 	if securityRule.Name != nil {
