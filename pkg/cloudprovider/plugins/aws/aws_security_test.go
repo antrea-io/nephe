@@ -34,6 +34,7 @@ import (
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
+	"antrea.io/nephe/pkg/cloudprovider/plugins/internal"
 	"antrea.io/nephe/pkg/cloudprovider/utils"
 	"antrea.io/nephe/pkg/config"
 )
@@ -120,8 +121,9 @@ var _ = Describe("AWS Cloud Security", func() {
 		mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).AnyTimes()
 		mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).AnyTimes()
 		mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(&ec2.DescribeVpcsOutput{}, nil).AnyTimes()
-		mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{}, nil).AnyTimes()
-
+		if internal.VpcPeeringEnabled {
+			mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{}, nil).AnyTimes()
+		}
 		fakeClient := fake.NewClientBuilder().Build()
 		_ = fakeClient.Create(context.Background(), secret)
 		cloudInterface = newAWSCloud(mockawsCloudHelper)

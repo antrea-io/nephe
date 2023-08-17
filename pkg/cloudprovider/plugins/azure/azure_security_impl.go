@@ -102,7 +102,6 @@ func (c *azureCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *cloudres
 		return err
 	}
 
-	vnetPeerPairs := computeService.getVnetPeers(vnetID)
 	vnetCachedIDs := computeService.getManagedVnetIds()
 	vnetVMs := computeService.getAllCachedVirtualMachines()
 	// ruleIP := vnetVMs[len(vnetVMs)-1].NetworkInterfaces[0].PrivateIps[0]
@@ -113,26 +112,29 @@ func (c *azureCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *cloudres
 	// convert to azure security rules and build effective rules to be applied to AT sg azure NSG
 	var rules []*armnetwork.SecurityRule
 	flag := 0
-	for _, vnetPeerPair := range vnetPeerPairs {
-		vnetPeerID, _, _ := vnetPeerPair[0], vnetPeerPair[1], vnetPeerPair[2]
+	if internal.VpcPeeringEnabled {
+		vnetPeerPairs := computeService.getVnetPeers(vnetID)
+		for _, vnetPeerPair := range vnetPeerPairs {
+			vnetPeerID, _, _ := vnetPeerPair[0], vnetPeerPair[1], vnetPeerPair[2]
 
-		if _, ok := vnetCachedIDs[vnetPeerID]; ok {
-			var ruleIP *string
-			for _, vnetVM := range vnetVMs {
-				azurePluginLogger().Info("Accessing VM network interfaces", "VM", vnetVM.Name)
-				if *vnetVM.VnetID == vnetID {
-					ruleIP = vnetVM.NetworkInterfaces[0].PrivateIps[0]
+			if _, ok := vnetCachedIDs[vnetPeerID]; ok {
+				var ruleIP *string
+				for _, vnetVM := range vnetVMs {
+					azurePluginLogger().Info("Accessing VM network interfaces", "VM", vnetVM.Name)
+					if *vnetVM.VnetID == vnetID {
+						ruleIP = vnetVM.NetworkInterfaces[0].PrivateIps[0]
+					}
+					flag = 1
+					break
 				}
-				flag = 1
+				rules, err = computeService.buildEffectivePeerNSGSecurityRulesToApply(&appliedToGroupIdentifier.CloudResourceID, addRules,
+					rmRules, appliedToGroupPerVnetNsgName, rgName, ruleIP)
+				if err != nil {
+					azurePluginLogger().Error(err, "fail to build effective rules to be applied")
+					return err
+				}
 				break
 			}
-			rules, err = computeService.buildEffectivePeerNSGSecurityRulesToApply(&appliedToGroupIdentifier.CloudResourceID, addRules,
-				rmRules, appliedToGroupPerVnetNsgName, rgName, ruleIP)
-			if err != nil {
-				azurePluginLogger().Error(err, "fail to build effective rules to be applied")
-				return err
-			}
-			break
 		}
 	}
 	if flag == 0 {
