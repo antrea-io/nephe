@@ -131,7 +131,7 @@ func extractSecret(c client.Client, s *crdv1alpha1.SecretReference) (*crdv1alpha
 		return cred, fmt.Errorf("%v, error unmarshalling credentials: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
 	}
 
-	if (cred.AccessKeyID == "" || cred.AccessKeySecret == "") && cred.RoleArn == "" {
+	if (strings.TrimSpace(cred.AccessKeyID) == "" || strings.TrimSpace(cred.AccessKeySecret) == "") && strings.TrimSpace(cred.RoleArn) == "" {
 		return cred, fmt.Errorf("%v, Secret credentials cannot be empty: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
 	}
 

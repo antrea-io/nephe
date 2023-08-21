@@ -15,8 +15,11 @@
 package azure
 
 import (
+	"context"
 	"fmt"
+	"strings"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -36,7 +39,7 @@ type azureServiceClientCreateInterface interface {
 // azureServiceSdkConfigProvider provides config required to create azure service clients.
 // Implements azureServiceClientCreateInterface interface.
 type azureServiceSdkConfigProvider struct {
-	cred *azidentity.ClientSecretCredential
+	cred azcore.TokenCredential
 }
 
 // azureServicesHelper.
@@ -50,11 +53,23 @@ type azureServicesHelperImpl struct{}
 func (h *azureServicesHelperImpl) newServiceSdkConfigProvider(accCreds *azureAccountConfig) (
 	azureServiceClientCreateInterface, error) {
 	var err error
+	var cred azcore.TokenCredential
 
 	// TODO: Expose an option in CPA to specify the cloud type, AzurePublic, AzureGovernment and AzureChina.
-	cred, err := azidentity.NewClientSecretCredential(accCreds.TenantID, accCreds.ClientID, accCreds.ClientKey, nil)
-	if err != nil {
-		return nil, fmt.Errorf("error initializing Azure authorizer from credentials: %v", err)
+
+	// use role based access if session token is configured.
+	if len(strings.TrimSpace(accCreds.SessionToken)) > 0 {
+		token := accCreds.SessionToken
+		getAssertion := func(_ context.Context) (string, error) { return token, nil }
+		cred, err = azidentity.NewClientAssertionCredential(accCreds.TenantID, accCreds.ClientID, getAssertion, nil)
+		if err != nil {
+			return nil, fmt.Errorf("error initializing Azure authorizer from session token: %v", err)
+		}
+	} else {
+		cred, err = azidentity.NewClientSecretCredential(accCreds.TenantID, accCreds.ClientID, accCreds.ClientKey, nil)
+		if err != nil {
+			return nil, fmt.Errorf("error initializing Azure authorizer from credentials: %v", err)
+		}
 	}
 
 	configProvider := &azureServiceSdkConfigProvider{

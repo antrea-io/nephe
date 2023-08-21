@@ -40,17 +40,18 @@ import (
 const MinPollInterval = 30
 
 var (
-	errorMsgSecretNotConfigured  = "unable to get secret"
-	errorMsgMinPollInterval      = "pollIntervalInSeconds should be >= 30. If not specified, defaults to 60"
-	errorMsgMissingCredential    = "must specify either credentials or role arn, cannot both be empty"
-	errorMsgMissingRegion        = "region cannot be blank or empty"
-	errorMsgInvalidRegion        = "not in supported regions"
-	errorMsgJsonUnmarshalFail    = "unable to unmarshal the json"
-	errorMsgMissingClientDetails = "client id and client key cannot be blank or empty"
-	errorMsgMissingTenantID      = "tenant id cannot be blank or empty"
-	errorMsgMissingSubscritionID = "subscription id cannot be blank or empty"
-	errorMsgInvalidRequest       = "invalid admission webhook request"
-	errorMsgDecodeFail           = "unable to decode the secret"
+	errorMsgSecretNotConfigured    = "unable to get secret"
+	errorMsgMinPollInterval        = "pollIntervalInSeconds should be >= 30. If not specified, defaults to 60"
+	errorMsgMissingAwsCredential   = "must specify either credentials or role arn, both cannot be empty"
+	errorMsgMissingRegion          = "region cannot be blank or empty"
+	errorMsgInvalidRegion          = "not in supported regions"
+	errorMsgJsonUnmarshalFail      = "unable to unmarshal the json"
+	errorMsgMissingClientID        = "client id cannot be blank or empty"
+	errorMsgMissingAzureCredential = "must specify either client key or session token, both cannot be empty"
+	errorMsgMissingTenantID        = "tenant id cannot be blank or empty"
+	errorMsgMissingSubscriptionID  = "subscription id cannot be blank or empty"
+	errorMsgInvalidRequest         = "invalid admission webhook request"
+	errorMsgDecodeFail             = "unable to decode the secret"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -244,7 +245,7 @@ func (v *CPAValidator) validateAWSAccount(account *crdv1alpha1.CloudProviderAcco
 		v.Log.Info("Role ARN configured will be used for cloud-account access")
 	} else if len(strings.TrimSpace(awsCredential.AccessKeyID)) == 0 ||
 		len(strings.TrimSpace(awsCredential.AccessKeySecret)) == 0 {
-		return fmt.Errorf(errorMsgMissingCredential)
+		return fmt.Errorf(errorMsgMissingAwsCredential)
 	}
 
 	if len(awsConfig.Region) == 0 || len(strings.TrimSpace(awsConfig.Region[0])) == 0 {
@@ -296,15 +297,18 @@ func (v *CPAValidator) validateAzureAccount(account *crdv1alpha1.CloudProviderAc
 
 	// validate subscription ID
 	if len(strings.TrimSpace(azureCredential.SubscriptionID)) == 0 {
-		return fmt.Errorf(errorMsgMissingSubscritionID)
+		return fmt.Errorf(errorMsgMissingSubscriptionID)
 	}
 	// validate tenant ID
 	if len(strings.TrimSpace(azureCredential.TenantID)) == 0 {
 		return fmt.Errorf(errorMsgMissingTenantID)
 	}
 	// validate credentials
-	if len(strings.TrimSpace(azureCredential.ClientID)) == 0 || len(strings.TrimSpace(azureCredential.ClientKey)) == 0 {
-		return fmt.Errorf(errorMsgMissingClientDetails)
+	if len(strings.TrimSpace(azureCredential.ClientID)) == 0 {
+		return fmt.Errorf(errorMsgMissingClientID)
+	}
+	if len(strings.TrimSpace(azureCredential.ClientKey)) == 0 && len(strings.TrimSpace(azureCredential.SessionToken)) == 0 {
+		return fmt.Errorf(errorMsgMissingAzureCredential)
 	}
 
 	// validate region

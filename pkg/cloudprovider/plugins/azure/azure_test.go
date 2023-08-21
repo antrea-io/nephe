@@ -33,6 +33,7 @@ import (
 	"antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloudprovider/plugins/internal"
+	"antrea.io/nephe/pkg/util"
 )
 
 var (
@@ -164,10 +165,21 @@ var _ = Describe("Azure", func() {
 		})
 
 		Context("Account Add and Delete scenarios", func() {
-			It("On account add expect cloud api call for retrieving vpc list", func() {
-				vnetIDs := []string{"testVnetID01", "testVnetID02"}
-				mockazureVirtualNetworksWrapper.EXPECT().listAllComplete(gomock.Any()).Return(createVnetObject(vnetIDs), nil).AnyTimes()
-				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret"}`
+			It("On account add with credential expect no error", func() {
+				c := newAzureCloud(mockAzureServiceHelper)
+
+				err := c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(BeNil())
+				accCfg, err := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
+				Expect(err).To(BeNil())
+				Expect(accCfg).To(Not(BeNil()))
+			})
+			It("On account add with session token expect no error", func() {
+				credential := fmt.Sprintf(`{"subscriptionId": "%s",
+					"clientId": "%s",
+					"tenantId": "%s",
+					"sessionToken": "%s"
+				}`, testSubID, testClientID, testTenantID, "sessionToken")
 				secret = &corev1.Secret{
 					ObjectMeta: v1.ObjectMeta{
 						Name:      testAccountNamespacedName.Name,
@@ -177,8 +189,44 @@ var _ = Describe("Azure", func() {
 						"credentials": []byte(credential),
 					},
 				}
+				_ = fakeClient.Update(context.Background(), secret)
 
-				_ = fakeClient.Create(context.Background(), secret)
+				c := newAzureCloud(mockAzureServiceHelper)
+
+				err := c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(BeNil())
+				accCfg, err := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
+				Expect(err).To(BeNil())
+				Expect(accCfg).To(Not(BeNil()))
+			})
+			It("On account add with missing credential expect error", func() {
+				credential := fmt.Sprintf(`{"subscriptionId": "%s",
+					"clientId": "%s",
+					"tenantId": "%s",
+				}`, testSubID, testClientID, testTenantID)
+				secret = &corev1.Secret{
+					ObjectMeta: v1.ObjectMeta{
+						Name:      testAccountNamespacedName.Name,
+						Namespace: testAccountNamespacedName.Namespace,
+					},
+					Data: map[string][]byte{
+						"credentials": []byte(credential),
+					},
+				}
+				_ = fakeClient.Update(context.Background(), secret)
+
+				c := newAzureCloud(mockAzureServiceHelper)
+
+				err := c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(Not(BeNil()))
+				Expect(err.Error()).To(ContainSubstring(util.ErrorMsgSecretReference))
+				accCfg, err := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
+				Expect(err).To(Not(BeNil()))
+				Expect(accCfg).To(Not(BeNil()))
+			})
+			It("On account add expect cloud api call for retrieving vpc list", func() {
+				vnetIDs := []string{"testVnetID01", "testVnetID02"}
+				mockazureVirtualNetworksWrapper.EXPECT().listAllComplete(gomock.Any()).Return(createVnetObject(vnetIDs), nil).AnyTimes()
 				c := newAzureCloud(mockAzureServiceHelper)
 
 				err := c.AddProviderAccount(fakeClient, account)
@@ -210,18 +258,6 @@ var _ = Describe("Azure", func() {
 			It("StopPoller cloud inventory poll on poller delete", func() {
 				vnetIDs := []string{"testVnetID01", "testVnetID02"}
 				mockazureVirtualNetworksWrapper.EXPECT().listAllComplete(gomock.Any()).Return(createVnetObject(vnetIDs), nil).MinTimes(1)
-				credential := `{"accessKeyId": "keyId","accessKeySecret": "keySecret"}`
-				secret = &corev1.Secret{
-					ObjectMeta: v1.ObjectMeta{
-						Name:      testAccountNamespacedName.Name,
-						Namespace: testAccountNamespacedName.Namespace,
-					},
-					Data: map[string][]byte{
-						"credentials": []byte(credential),
-					},
-				}
-
-				_ = fakeClient.Create(context.Background(), secret)
 				c := newAzureCloud(mockAzureServiceHelper)
 
 				err := c.AddProviderAccount(fakeClient, account)
