@@ -3,7 +3,7 @@
 service:
   # Use the fixed version to not introduce new linters unexpectedly.
   # NOTE: Update the golangci-lint version in sync at build/images/Dockerfile and .golangci.yml.
-  golangci-lint-version: 1.41.1
+  golangci-lint-version: 1.54.0
 run:
   # timeout for analysis, e.g. 30s, 5m, default is 1m
   deadline: 20m
@@ -17,12 +17,9 @@ linters:
     - gofmt
     - govet
     - errcheck
-    - deadcode
     - staticcheck
     - unused
     - gosimple
-    - structcheck
-    - varcheck
     - ineffassign
     - typecheck
     # Enabled for project Linters

@@ -16,10 +16,10 @@ package target
 
 import (
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 
-	"golang.org/x/exp/slices"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	antreav1alpha1 "antrea.io/antrea/pkg/apis/crd/v1alpha1"
