@@ -18,6 +18,7 @@ const (
 	electionID                = "nephe-controller-election.cloud.antrea.io"
 	defaultLeaderElectionFlag = false
 	defaultMetricsAddress     = ":8080"
+	defaultProbeAddress       = ":8081"
 	defaultDebugLogFlag       = false
 	defaultCertDir            = "/var/run/nephe/nephe-controller-tls"
 )
