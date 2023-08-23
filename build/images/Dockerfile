@@ -1,5 +1,5 @@
 #builder
-FROM golang:1.19 as builder
+FROM golang:1.21 as builder
 
 # install controller-gen
 RUN	CONTROLLER_GEN_TMP_DIR=$(mktemp -d) &&\
@@ -23,7 +23,7 @@ RUN	GOMOCK_TMP_DIR=$(mktemp -d) &&\
 	rm -rf $$GOMOCK_GEN_DIR
 
 # install golangci-lint
-RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.48.0
+RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.54.0
 
 ENV PATH=$PATH:$GOPATH/bin
 

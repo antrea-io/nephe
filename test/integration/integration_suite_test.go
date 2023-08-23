@@ -17,7 +17,6 @@ package integration
 import (
 	"context"
 	"flag"
-	"math/rand"
 	"os"
 	"path"
 	"strings"
@@ -86,7 +85,6 @@ func init() {
 	flag.StringVar(&cloudProviders, "cloud-provider", string(runtimev1alpha1.AzureCloudProvider),
 		"Cloud Providers to use, separated by comma. Default is Azure.")
 	flag.StringVar(&clusterContext, "cluster-context", "", "cluster context to use. Default is empty.")
-	rand.Seed(time.Now().Unix())
 }
 
 func TestIntegration(t *testing.T) {

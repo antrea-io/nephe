@@ -16,7 +16,6 @@ package upgrade
 
 import (
 	"flag"
-	"math/rand"
 	"testing"
 	"time"
 
@@ -67,7 +66,6 @@ func init() {
 	flag.StringVar(&cloudProvider, "cloud-provider", string(runtimev1alpha1.AzureCloudProvider),
 		"Cloud Provider. Default is Azure.")
 	flag.StringVar(&chartDir, "chart-dir", "../../build/charts/nephe", "Helm chart directory.")
-	rand.Seed(time.Now().Unix())
 }
 
 func TestUpgrade(t *testing.T) {

@@ -19,7 +19,7 @@ TERRAFORM_VERSION=1.2.2
 KIND_VERSION=v0.12.0
 CERT_MANAGER_VERSION=v1.8.2
 ANTREA_VERSION=v1.12.0
-GO_VERSION=1.19
+GO_VERSION=1.21.0
 
 function install_common_packages() {
     echo "Installing Kubectl ${KUBECTL_VERSION} version"
