@@ -158,6 +158,6 @@ func NewSgInventoryStore() antreastorage.Interface {
 	}
 	return ram.NewStore(sgKeyFunc, indexers, genSgEvent, keyAndSpanSelectFuncSg, func() runtime.Object {
 		return new(runtimev1alpha1.
-		SecurityGroup)
+			SecurityGroup)
 	})
 }

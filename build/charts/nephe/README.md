@@ -23,6 +23,7 @@ Kubernetes: `>= 1.16.0-0`
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | cloudResourcePrefix | string | `"nephe"` | Specifies the prefix to be used while creating cloud resources. |
+| cloudSecurityGroupVisibility | bool | `true` | Enable/Disable polling of cloud security groups and rules. |
 | cloudSyncInterval | int | `300` | Specifies the interval (in seconds) to be used for syncing cloud resources with controller. |
 | crds | object | `{"enabled":true}` | Enable/Disable Nephe CRDs dependent chart. |
 | image | object | `{"pullPolicy":"IfNotPresent","repository":"antrea/nephe","tag":""}` | Container image to use for Nephe Controller. |
