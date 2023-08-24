@@ -77,6 +77,7 @@ type AzureAccountCredential struct {
 	ClientID       string `json:"clientId,omitempty"`
 	TenantID       string `json:"tenantId,omitempty"`
 	ClientKey      string `json:"clientKey,omitempty"`
+	SessionToken   string `json:"sessionToken,omitempty"`
 }
 
 // CloudProviderAccountStatus defines the observed state of CloudProviderAccount.

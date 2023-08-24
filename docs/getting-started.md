@@ -129,8 +129,13 @@ EOF
 To get the base64 encoded json string for credential, run:
 
 ```bash
-echo '{"subscriptionId": "YOUR_AZURE_SUBSCRIPTION_ID", "clientId": "YOUR_AZURE_CLIENT_ID", "tenantId": "YOUR_AZURE_TENANT_ID", "clientKey": "YOUR_AZURE_CLIENT_KEY"}' | openssl base64 | tr -d '\n'
+echo '{"subscriptionId": "YOUR_AZURE_SUBSCRIPTION_ID", "clientId": "YOUR_AZURE_CLIENT_ID", "tenantId": "YOUR_AZURE_TENANT_ID", "clientKey": "YOUR_AZURE_CLIENT_KEY", "sessionToken": "YOUR_AZURE_SESSION_TOKEN"}' | openssl base64 | tr -d '\n'
 ```
+
+Note: either `clientKey` or `sessionToken` must be specified. `clientKey` is
+used for credentials, and `sessionToken` is used for Azure federated credential
+on managed identities. You can read more about Azure federated credential in
+[federated identity credential documentation](https://azure.github.io/azure-workload-identity/docs/topics/federated-identity-credential.html).
 
 ```bash
 cat <<EOF | kubectl apply -f -

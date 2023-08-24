@@ -361,7 +361,7 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 			response := validator.Handle(context.Background(), accountReq)
 			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 			Expect(response.AdmissionResponse.Allowed).To(BeFalse())
-			Expect(response.AdmissionResponse.String()).Should(ContainSubstring(errorMsgMissingCredential))
+			Expect(response.AdmissionResponse.String()).Should(ContainSubstring(errorMsgMissingAwsCredential))
 		})
 		It("Validate missing region in AWS", func() {
 			err = fakeClient.Create(context.Background(), s1)
@@ -724,8 +724,48 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 			Expect(response.AdmissionResponse.Allowed).To(BeFalse())
 			Expect(response.AdmissionResponse.String()).Should(ContainSubstring(errorMsgSecretNotConfigured))
 		})
-		It("Validate an Azure Account add", func() {
+		It("Validate an Azure Account add with credential", func() {
 			cred := `{"subscriptionId": "SubID","clientId": "ClientID","tenantId": "TenantID", "clientKey": "ClientKey"}`
+			s1 := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testSecretNamespacedName.Name,
+					Namespace: testSecretNamespacedName.Namespace,
+				},
+				Data: map[string][]byte{
+					credentials: []byte(cred),
+				},
+			}
+			err = fakeClient.Create(context.Background(), s1)
+			Expect(err).Should(BeNil())
+
+			encodedAccount, _ = json.Marshal(azureAccount)
+			accountReq = admission.Request{
+				AdmissionRequest: v1.AdmissionRequest{
+					Kind: metav1.GroupVersionKind{
+						Group:   "",
+						Version: "v1alpha1",
+						Kind:    "CloudProviderAccount",
+					},
+					Resource: metav1.GroupVersionResource{
+						Group:    "",
+						Version:  "v1alpha1",
+						Resource: "CloudProviderAccounts",
+					},
+					Name:      testAccountNamespacedName.Name,
+					Namespace: testAccountNamespacedName.Namespace,
+					Operation: v1.Create,
+					Object: runtime.RawExtension{
+						Raw: encodedAccount,
+					},
+				},
+			}
+
+			response := validator.Handle(context.Background(), accountReq)
+			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
+			Expect(response.AdmissionResponse.Allowed).To(BeTrue())
+		})
+		It("Validate an Azure Account add with session token", func() {
+			cred := `{"subscriptionId": "SubID","clientId": "ClientID","tenantId": "TenantID", "sessionToken": "sessionToken"}`
 			s1 := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      testSecretNamespacedName.Name,
@@ -843,7 +883,7 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 			response := validator.Handle(context.Background(), accountReq)
 			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 			Expect(response.AdmissionResponse.Allowed).To(BeFalse())
-			Expect(response.AdmissionResponse.String()).Should(ContainSubstring(errorMsgMissingSubscritionID))
+			Expect(response.AdmissionResponse.String()).Should(ContainSubstring(errorMsgMissingSubscriptionID))
 		})
 		It("Validate missing Azure clientID", func() {
 			cred := `{"subscriptionId": "SubID","tenantId": "TenantID", "clientKey": "ClientKey"}`
@@ -884,7 +924,7 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 			response := validator.Handle(context.Background(), accountReq)
 			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 			Expect(response.AdmissionResponse.Allowed).To(BeFalse())
-			Expect(response.AdmissionResponse.String()).Should(ContainSubstring(errorMsgMissingClientDetails))
+			Expect(response.AdmissionResponse.String()).Should(ContainSubstring(errorMsgMissingClientID))
 		})
 		It("Validate missing Azure TenantID", func() {
 			cred := `{"subscriptionId": "SubID", "clientId": "ClientID", "clientKey": "ClientKey"}`
@@ -926,6 +966,47 @@ var _ = Describe("CloudProviderAccountWebhook", func() {
 			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
 			Expect(response.AdmissionResponse.Allowed).To(BeFalse())
 			Expect(response.AdmissionResponse.String()).Should(ContainSubstring(errorMsgMissingTenantID))
+		})
+		It("Validate missing Azure credential", func() {
+			cred := `{"subscriptionId": "SubID", "clientId": "ClientID", "tenantId": "TenantID"}`
+			s1 := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      testSecretNamespacedName.Name,
+					Namespace: testSecretNamespacedName.Namespace,
+				},
+				Data: map[string][]byte{
+					credentials: []byte(cred),
+				},
+			}
+			err = fakeClient.Create(context.Background(), s1)
+			Expect(err).Should(BeNil())
+
+			encodedAccount, _ = json.Marshal(azureAccount)
+			accountReq = admission.Request{
+				AdmissionRequest: v1.AdmissionRequest{
+					Kind: metav1.GroupVersionKind{
+						Group:   "",
+						Version: "v1alpha1",
+						Kind:    "CloudProviderAccount",
+					},
+					Resource: metav1.GroupVersionResource{
+						Group:    "",
+						Version:  "v1alpha1",
+						Resource: "CloudProviderAccounts",
+					},
+					Name:      testAccountNamespacedName.Name,
+					Namespace: testAccountNamespacedName.Namespace,
+					Operation: v1.Create,
+					Object: runtime.RawExtension{
+						Raw: encodedAccount,
+					},
+				},
+			}
+
+			response := validator.Handle(context.Background(), accountReq)
+			_, _ = GinkgoWriter.Write([]byte(fmt.Sprintf("Got admission response %+v\n", response)))
+			Expect(response.AdmissionResponse.Allowed).To(BeFalse())
+			Expect(response.AdmissionResponse.String()).Should(ContainSubstring(errorMsgMissingAzureCredential))
 		})
 		It("Validate webhook update", func() {
 			err = fakeClient.Create(context.Background(), s1)

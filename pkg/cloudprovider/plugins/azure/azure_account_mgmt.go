@@ -48,6 +48,7 @@ func setAccountCredentials(client client.Client, credentials interface{}) (inter
 		accCred.TenantID = internal.AccountCredentialsDefault
 		accCred.ClientID = internal.AccountCredentialsDefault
 		accCred.ClientKey = internal.AccountCredentialsDefault
+		accCred.SessionToken = internal.AccountCredentialsDefault
 	}
 
 	// As only single region is supported right now, use 0th index in awsProviderConfig.Region as the configured region.
@@ -117,7 +118,10 @@ func extractSecret(c client.Client, s *crdv1alpha1.SecretReference) (*crdv1alpha
 		return cred, fmt.Errorf("%v, failed to unmarshall Secret credentials: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
 	}
 
-	if cred.SubscriptionID == "" || cred.TenantID == "" || cred.ClientID == "" || cred.ClientKey == "" {
+	if strings.TrimSpace(cred.SubscriptionID) == "" || strings.TrimSpace(cred.TenantID) == "" || strings.TrimSpace(cred.ClientID) == "" {
+		return cred, fmt.Errorf("%v, Secret credentials cannot be empty: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
+	}
+	if strings.TrimSpace(cred.ClientKey) == "" && strings.TrimSpace(cred.SessionToken) == "" {
 		return cred, fmt.Errorf("%v, Secret credentials cannot be empty: %v/%v", util.ErrorMsgSecretReference, s.Namespace, s.Name)
 	}
 
