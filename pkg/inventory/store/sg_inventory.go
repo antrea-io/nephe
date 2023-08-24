@@ -16,13 +16,13 @@ package store
 
 import (
 	"fmt"
+	"k8s.io/client-go/tools/cache"
 	"reflect"
 
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/tools/cache"
 
 	antreastorage "antrea.io/antrea/pkg/apiserver/storage"
 	"antrea.io/antrea/pkg/apiserver/storage/ram"
@@ -32,19 +32,19 @@ import (
 	nephelabels "antrea.io/nephe/pkg/labels"
 )
 
-// vpcInventoryEvent implements storage.InternalEvent.
-type vpcInventoryEvent struct {
-	// The current version of the stored VPC.
-	CurrObject *runtimev1alpha1.Vpc
-	// The previous version of the stored VPC.
-	PrevObject *runtimev1alpha1.Vpc
-	// The key of this VPC.
+// sgInventoryEvent implements storage.InternalEvent.
+type sgInventoryEvent struct {
+	// The current version of the stored SG.
+	CurrObject *runtimev1alpha1.SecurityGroup
+	// The previous version of the stored SG.
+	PrevObject *runtimev1alpha1.SecurityGroup
+	// The key of this SG.
 	Key             string
 	ResourceVersion uint64
 }
 
-// keyAndSpanSelectFunc returns whether the provided selectors matches the key and/or the nodeNames.
-func keyAndSpanSelectFunc(selectors *antreastorage.Selectors, key string, obj interface{}) bool {
+// keyAndSpanSelectFuncSg returns whether the provided selectors matches the key and/or the nodeNames.
+func keyAndSpanSelectFuncSg(selectors *antreastorage.Selectors, key string, obj interface{}) bool {
 	// If Key is present in selectors, the provided key must match it.
 	if selectors.Key != "" && key != selectors.Key {
 		return false
@@ -62,24 +62,22 @@ func keyAndSpanSelectFunc(selectors *antreastorage.Selectors, key string, obj in
 	if !selectors.Field.Empty() {
 		fieldSelector = selectors.Field
 	}
-	vpc, _ := obj.(*runtimev1alpha1.Vpc)
-	vpcFields := map[string]string{
-		selector.MetaName:      vpc.Name,
-		selector.MetaNamespace: vpc.Namespace,
-		selector.StatusCloudId: vpc.Status.CloudId,
-		selector.StatusRegion:  vpc.Status.Region,
+	sg, _ := obj.(*runtimev1alpha1.SecurityGroup)
+	sgFields := map[string]string{
+		selector.MetaName:      sg.Name,
+		selector.MetaNamespace: sg.Namespace,
 	}
-	return labelSelector.Matches(labels.Set(vpc.Labels)) && fieldSelector.Matches(fields.Set(vpcFields))
+	return labelSelector.Matches(labels.Set(sg.Labels)) && fieldSelector.Matches(fields.Set(sgFields))
 }
 
 // isSelected determines if the previous and the current version of an object should be selected by the given selectors.
-func isSelected(key string, prevObj, currObj interface{}, selectors *antreastorage.Selectors, isInitEvent bool) (bool, bool) {
+func isSelectedSg(key string, prevObj, currObj interface{}, selectors *antreastorage.Selectors, isInitEvent bool) (bool, bool) {
 	// We have filtered out init events that we are not interested in, so the current object must be selected.
 	if isInitEvent {
 		return false, true
 	}
-	prevObjSelected := !reflect.ValueOf(prevObj).IsNil() && keyAndSpanSelectFunc(selectors, key, prevObj)
-	currObjSelected := !reflect.ValueOf(currObj).IsNil() && keyAndSpanSelectFunc(selectors, key, currObj)
+	prevObjSelected := !reflect.ValueOf(prevObj).IsNil() && keyAndSpanSelectFuncSg(selectors, key, prevObj)
+	currObjSelected := !reflect.ValueOf(currObj).IsNil() && keyAndSpanSelectFuncSg(selectors, key, currObj)
 	return prevObjSelected, currObjSelected
 }
 
@@ -87,8 +85,8 @@ func isSelected(key string, prevObj, currObj interface{}, selectors *antreastora
 // 1. Added event will be generated if the Selectors was not interested in the object but is now.
 // 2. Modified event will be generated if the Selectors was and is interested in the object.
 // 3. Deleted event will be generated if the Selectors was interested in the object but is not now.
-func (event *vpcInventoryEvent) ToWatchEvent(selectors *antreastorage.Selectors, isInitEvent bool) *watch.Event {
-	prevObjSelected, currObjSelected := isSelected(event.Key, event.PrevObject, event.CurrObject, selectors, isInitEvent)
+func (event *sgInventoryEvent) ToWatchEvent(selectors *antreastorage.Selectors, isInitEvent bool) *watch.Event {
+	prevObjSelected, currObjSelected := isSelectedSg(event.Key, event.PrevObject, event.CurrObject, selectors, isInitEvent)
 	switch {
 	case !currObjSelected && !prevObjSelected:
 		return nil
@@ -105,55 +103,61 @@ func (event *vpcInventoryEvent) ToWatchEvent(selectors *antreastorage.Selectors,
 	return nil
 }
 
-func (event *vpcInventoryEvent) GetResourceVersion() uint64 {
+func (event *sgInventoryEvent) GetResourceVersion() uint64 {
 	return event.ResourceVersion
 }
 
-var _ antreastorage.GenEventFunc = genVPCEvent
+var _ antreastorage.GenEventFunc = genSgEvent
 
-// genVPCEvent generates InternalEvent from the given versions of an VPC.
-func genVPCEvent(key string, prevObj, currObj interface{}, rv uint64) (antreastorage.InternalEvent, error) {
+// genSgEvent generates InternalEvent from the given versions of a SG.
+func genSgEvent(key string, prevObj, currObj interface{}, rv uint64) (antreastorage.InternalEvent, error) {
 	if reflect.DeepEqual(prevObj, currObj) {
 		return nil, nil
 	}
 
-	event := &vpcInventoryEvent{Key: key, ResourceVersion: rv}
+	event := &sgInventoryEvent{Key: key, ResourceVersion: rv}
 	if prevObj != nil {
-		event.PrevObject = prevObj.(*runtimev1alpha1.Vpc)
+		event.PrevObject = prevObj.(*runtimev1alpha1.SecurityGroup)
 	}
-
 	if currObj != nil {
-		event.CurrObject = currObj.(*runtimev1alpha1.Vpc)
+		event.CurrObject = currObj.(*runtimev1alpha1.SecurityGroup)
 	}
-
 	return event, nil
 }
 
-// vpcKeyFunc knows how to get the key of an VPC.
-func vpcKeyFunc(obj interface{}) (string, error) {
-	vpc, ok := obj.(*runtimev1alpha1.Vpc)
+// sgKeyFunc knows how to get the key of an SG.
+func sgKeyFunc(obj interface{}) (string, error) {
+	sg, ok := obj.(*runtimev1alpha1.SecurityGroup)
 	if !ok {
-		return "", fmt.Errorf("object is not of type runtime/v1alpha1/Vpc: %v", obj)
+		return "", fmt.Errorf("object is not of type runtime/v1alpha1/SecurityGroup: %v", obj)
 	}
-	return fmt.Sprintf("%v/%v-%v", vpc.Namespace, vpc.Labels[nephelabels.CloudAccountName], vpc.Status.CloudId), nil
+	return fmt.Sprintf("%v/%v", sg.Namespace, sg.Name), nil
 }
 
-// NewVPCInventoryStore creates a store of VPC.
-func NewVPCInventoryStore() antreastorage.Interface {
+// NewSgInventoryStore creates a store of Security Group.
+func NewSgInventoryStore() antreastorage.Interface {
 	indexers := cache.Indexers{
 		indexer.ByNamespace: func(obj interface{}) ([]string, error) {
-			vpc := obj.(*runtimev1alpha1.Vpc)
-			return []string{vpc.Namespace}, nil
+			sg := obj.(*runtimev1alpha1.SecurityGroup)
+			return []string{sg.Namespace}, nil
 		},
-		indexer.ByNamespacedName: func(obj interface{}) ([]string, error) {
-			vpc := obj.(*runtimev1alpha1.Vpc)
-			return []string{vpc.Namespace + "/" + vpc.Name}, nil
+		indexer.SecurityGroupByAccountNamespacedName: func(obj interface{}) ([]string, error) {
+			sg := obj.(*runtimev1alpha1.SecurityGroup)
+			return []string{sg.Labels[nephelabels.CloudAccountNamespace] + "/" +
+				sg.Labels[nephelabels.CloudAccountName]}, nil
 		},
-
-		indexer.VpcByAccountNamespacedName: func(obj interface{}) ([]string, error) {
-			vpc := obj.(*runtimev1alpha1.Vpc)
-			return []string{vpc.Namespace + "/" + vpc.Labels[nephelabels.CloudAccountName]}, nil
+		indexer.SecurityGroupBySelectorNamespacedName: func(obj interface{}) ([]string, error) {
+			sg := obj.(*runtimev1alpha1.SecurityGroup)
+			return []string{sg.Labels[nephelabels.CloudSelectorNamespace] + "/" +
+				sg.Labels[nephelabels.CloudSelectorName]}, nil
+		},
+		indexer.SecurityGroupByCloudID: func(obj interface{}) ([]string, error) {
+			sg := obj.(*runtimev1alpha1.SecurityGroup)
+			return []string{sg.Status.CloudId}, nil
 		},
 	}
-	return ram.NewStore(vpcKeyFunc, indexers, genVPCEvent, keyAndSpanSelectFunc, func() runtime.Object { return new(runtimev1alpha1.Vpc) })
+	return ram.NewStore(sgKeyFunc, indexers, genSgEvent, keyAndSpanSelectFuncSg, func() runtime.Object {
+		return new(runtimev1alpha1.
+			SecurityGroup)
+	})
 }

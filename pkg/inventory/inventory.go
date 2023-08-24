@@ -39,6 +39,7 @@ type Inventory struct {
 	log      logr.Logger
 	vpcStore antreastorage.Interface
 	vmStore  antreastorage.Interface
+	sgStore  antreastorage.Interface
 }
 
 // InitInventory creates an instance of Inventory struct and initializes inventory with cache indexers.
@@ -48,6 +49,7 @@ func InitInventory() *Inventory {
 	}
 	inventory.vpcStore = store.NewVPCInventoryStore()
 	inventory.vmStore = store.NewVmInventoryStore()
+	inventory.sgStore = store.NewSgInventoryStore()
 	return inventory
 }
 
@@ -328,4 +330,131 @@ func (i *Inventory) compareVirtualMachineObjects(cached, discovered runtimev1alp
 func (i *Inventory) UpdateVm(vm *runtimev1alpha1.VirtualMachine) error {
 	i.log.Info("Updating virtual machine", "namespace", vm.Namespace, "name", vm.Name)
 	return i.vmStore.Update(vm)
+}
+
+// BuildSgCache builds SG cache for given account using security group list fetched from cloud.
+func (i *Inventory) BuildSgCache(discoveredSgMap map[string]*runtimev1alpha1.SecurityGroup,
+	accountNamespacedName *types.NamespacedName, selectorNamespacedName *types.NamespacedName) {
+	var numSgsAdded, numSgsUpdated, numSgsDeleted int
+	// Fetch all security groups for a given account from the cache and check if it exists in the discovered sg list.
+	sgsInCache, _ := i.sgStore.GetByIndex(indexer.SecurityGroupBySelectorNamespacedName, selectorNamespacedName.String())
+
+	// Remove security groups in SG cache which are not found in security group list fetched from cloud.
+	for _, object := range sgsInCache {
+		sg := object.(*runtimev1alpha1.SecurityGroup)
+		if _, found := discoveredSgMap[sg.Status.CloudId]; !found {
+			if err := i.sgStore.Delete(fmt.Sprintf("%v/%v", sg.Namespace, sg.Name)); err != nil {
+				i.log.Error(err, "failed to delete security group from sg cache",
+					"sg", sg.Name, "account", accountNamespacedName)
+			} else {
+				numSgsDeleted++
+			}
+		}
+	}
+
+	// Add or Update Security Group
+	for _, discoveredSg := range discoveredSgMap {
+		var err error
+		key := fmt.Sprintf("%v/%v", discoveredSg.Namespace, discoveredSg.Name)
+		if cachedObject, found, _ := i.sgStore.Get(key); !found {
+			err = i.sgStore.Create(discoveredSg)
+			if err == nil {
+				numSgsAdded++
+			}
+		} else {
+			cachedSg := cachedObject.(*runtimev1alpha1.SecurityGroup)
+			if !reflect.DeepEqual(cachedSg.Status, discoveredSg.Status) {
+				err = i.sgStore.Update(discoveredSg)
+				if err == nil {
+					numSgsUpdated++
+				}
+			}
+		}
+		if err != nil {
+			i.log.Error(err, "failed to update security group in sg cache", "vm", discoveredSg.Name,
+				"account", accountNamespacedName, "selector", selectorNamespacedName)
+		}
+	}
+
+	if numSgsAdded != 0 || numSgsUpdated != 0 || numSgsDeleted != 0 {
+		i.log.Info("SG poll statistics", "account", accountNamespacedName, "added", numSgsAdded,
+			"update", numSgsUpdated, "delete", numSgsDeleted)
+	}
+}
+
+// GetAllSgs returns all the security groups from the SG cache.
+func (i *Inventory) GetAllSgs() []interface{} {
+	return i.sgStore.List()
+}
+
+// GetSgsFromIndexer returns security group matching the indexedValue for the requested indexName.
+func (i *Inventory) GetSgsFromIndexer(indexName string, indexedValue string) ([]interface{}, error) {
+	return i.sgStore.GetByIndex(indexName, indexedValue)
+}
+
+// GetSgByKey returns security group from sg cache for a given key (namespace/name).
+func (i *Inventory) GetSgByKey(key string) (*runtimev1alpha1.SecurityGroup, bool) {
+	cachedObject, found, err := i.sgStore.Get(key)
+	if err != nil {
+		// Shouldn't happen. Logging it.
+		i.log.Error(err, "failed to lookup sg", "vm", key)
+		return nil, false
+	}
+	if !found {
+		return nil, false
+	}
+	return cachedObject.(*runtimev1alpha1.SecurityGroup), true
+}
+
+// DeleteSgsFromCache deletes all entries from sg cache for a given selector.
+func (i *Inventory) DeleteSgsFromCache(accountNamespacedName, selectorNamespacedName *types.NamespacedName) error {
+	sgsInCache, err := i.sgStore.GetByIndex(indexer.SecurityGroupBySelectorNamespacedName, selectorNamespacedName.String())
+	if err != nil {
+		return err
+	}
+	var numSgsToDelete int
+	for _, object := range sgsInCache {
+		sg, ok := object.(*runtimev1alpha1.SecurityGroup)
+		if !ok {
+			continue
+		}
+		key := fmt.Sprintf("%v/%v", sg.Namespace, sg.Name)
+		if err := i.sgStore.Delete(key); err != nil {
+			i.log.Error(err, "failed to delete security group from sg cache", "sg", sg.Name,
+				"account", accountNamespacedName, "selector", selectorNamespacedName)
+		} else {
+			numSgsToDelete++
+		}
+	}
+
+	if numSgsToDelete != 0 {
+		i.log.Info("SG poll statistics", "account", accountNamespacedName, "deleted", numSgsToDelete)
+	}
+	return nil
+}
+
+// DeleteAllSgsFromCache deletes all entries from sg cache for a given account.
+func (i *Inventory) DeleteAllSgsFromCache(accountNamespacedName *types.NamespacedName) error {
+	sgsInCache, err := i.sgStore.GetByIndex(indexer.VirtualMachineByAccountNamespacedName, accountNamespacedName.String())
+	if err != nil {
+		return err
+	}
+	var numSgsToDelete int
+	for _, cachedObject := range sgsInCache {
+		cachedSg, ok := cachedObject.(*runtimev1alpha1.SecurityGroup)
+		if !ok {
+			continue
+		}
+		key := fmt.Sprintf("%v/%v", cachedSg.Namespace, cachedSg.Name)
+		if err := i.sgStore.Delete(key); err != nil {
+			i.log.Error(err, "failed to delete sg from sg cache", "sg", cachedSg.Name, "account", *accountNamespacedName)
+		} else {
+			numSgsToDelete++
+		}
+	}
+
+	if numSgsToDelete != 0 {
+		i.log.Info("SG poll statistics", "account", accountNamespacedName, "deleted", numSgsToDelete)
+	}
+	return nil
 }

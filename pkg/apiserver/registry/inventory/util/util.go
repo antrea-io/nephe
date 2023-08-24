@@ -89,6 +89,8 @@ func getObjLabels(obj interface{}) map[string]string {
 		return obj.(*runtimev1alpha1.Vpc).Labels
 	} else if reflect.TypeOf(obj).Elem().Name() == reflect.TypeOf(&runtimev1alpha1.VirtualMachine{}).Elem().Name() {
 		return obj.(*runtimev1alpha1.VirtualMachine).Labels
+	} else if reflect.TypeOf(obj).Elem().Name() == reflect.TypeOf(&runtimev1alpha1.SecurityGroup{}).Elem().Name() {
+		return obj.(*runtimev1alpha1.SecurityGroup).Labels
 	}
 	return nil
 }

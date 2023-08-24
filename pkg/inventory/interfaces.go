@@ -28,6 +28,7 @@ import (
 type Interface interface {
 	VPCStore
 	VMStore
+	SGStore
 }
 
 type VPCStore interface {
@@ -72,4 +73,25 @@ type VMStore interface {
 
 	// UpdateVm updates virtual machine object in vm cache.
 	UpdateVm(vm *runtimev1alpha1.VirtualMachine) error
+}
+
+type SGStore interface {
+	// BuildSgCache builds the sg cache using discoveredSgMap.
+	BuildSgCache(discoveredSgMap map[string]*runtimev1alpha1.SecurityGroup, accountNamespacedName *types.NamespacedName,
+		selectorNamespacedName *types.NamespacedName)
+
+	// DeleteSgsFromCache deletes all sgs from the cache for a given selector.
+	DeleteSgsFromCache(accountNamespacedName *types.NamespacedName, selectorNamespacedName *types.NamespacedName) error
+
+	// DeleteAllSgsFromCache deletes all sgs from the cache for a given account.
+	DeleteAllSgsFromCache(accountNamespacedName *types.NamespacedName) error
+
+	// GetAllSgs gets all sgs from the cache.
+	GetAllSgs() []interface{}
+
+	// GetSgsFromIndexer gets all sgs from the cache that have a matching index value.
+	GetSgsFromIndexer(indexName string, indexedValue string) ([]interface{}, error)
+
+	// GetSgByKey gets the security group that matches the given key.
+	GetSgByKey(key string) (*runtimev1alpha1.SecurityGroup, bool)
 }

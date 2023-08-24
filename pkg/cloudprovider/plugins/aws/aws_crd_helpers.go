@@ -78,10 +78,15 @@ func ec2InstanceToInternalVirtualMachineObject(instance *ec2.Instance, vpcs map[
 				ipAddressObjs = append(ipAddressObjs, ipAddress)
 			}
 		}
+		var Sgs []string
+		for _, groups := range nwInf.Groups {
+			Sgs = append(Sgs, *groups.GroupId)
+		}
 		networkInterface := runtimev1alpha1.NetworkInterface{
-			Name: *nwInf.NetworkInterfaceId,
-			MAC:  *nwInf.MacAddress,
-			IPs:  ipAddressObjs,
+			Name:             *nwInf.NetworkInterfaceId,
+			MAC:              *nwInf.MacAddress,
+			IPs:              ipAddressObjs,
+			SecurityGroupIds: Sgs,
 		}
 		networkInterfaces = append(networkInterfaces, networkInterface)
 	}
@@ -191,4 +196,111 @@ func ec2VpcToInternalVpcObject(vpc *ec2.Vpc, accountNamespace, accountName, regi
 	}
 
 	return vpcObj
+}
+
+// ec2SgToInternalSgObject converts ec2 SecurityGroup object to SecurityGroup runtime object.
+func ec2SgToInternalSgObject(sg *ec2.SecurityGroup, selectorNamespacedName, accountNamespacedName *types.NamespacedName,
+	region string) *runtimev1alpha1.SecurityGroup {
+	status := &runtimev1alpha1.SecurityGroupStatus{
+		CloudName: strings.ToLower(*sg.GroupName),
+		CloudId:   strings.ToLower(*sg.GroupId),
+		Provider:  runtimev1alpha1.AWSCloudProvider,
+		Region:    region,
+	}
+
+	ingressRules := parseIpPermissions(sg.IpPermissions, true)
+	if ingressRules != nil {
+		status.Rules = append(status.Rules, *ingressRules...)
+	}
+	egressRules := parseIpPermissions(sg.IpPermissionsEgress, false)
+	if egressRules != nil {
+		status.Rules = append(status.Rules, *egressRules...)
+	}
+
+	labels := map[string]string{
+		labels.CloudAccountNamespace:  accountNamespacedName.Namespace,
+		labels.CloudAccountName:       accountNamespacedName.Name,
+		labels.CloudSelectorNamespace: selectorNamespacedName.Namespace,
+		labels.CloudSelectorName:      selectorNamespacedName.Name,
+		labels.VpcName:                strings.ToLower(*sg.VpcId),
+	}
+
+	sgObj := &runtimev1alpha1.SecurityGroup{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      *sg.GroupId,
+			Namespace: selectorNamespacedName.Namespace,
+			Labels:    labels,
+		},
+		Status: *status,
+	}
+	return sgObj
+}
+
+// parseIpPermissions parses objects in ec2.IpPermission format and converts to runtime Rule objects.
+func parseIpPermissions(ipPermissions []*ec2.IpPermission, ingress bool) *[]runtimev1alpha1.Rule {
+	var rules []runtimev1alpha1.Rule
+	for _, ipPermission := range ipPermissions {
+		rule := runtimev1alpha1.Rule{}
+		for _, ip := range ipPermission.IpRanges {
+			if ip.CidrIp != nil {
+				if ingress {
+					rule.Source = append(rule.Source, *ip.CidrIp)
+				} else {
+					rule.Destination = append(rule.Destination, *ip.CidrIp)
+				}
+				if ip.Description != nil {
+					rule.Description = *ip.Description
+				}
+			}
+		}
+		// parse ipv6.
+		for _, ipv6 := range ipPermission.Ipv6Ranges {
+			if ipv6.CidrIpv6 != nil {
+				if ingress {
+					rule.Source = append(rule.Source, *ipv6.CidrIpv6)
+				} else {
+					rule.Destination = append(rule.Destination, *ipv6.CidrIpv6)
+				}
+				if ipv6.Description != nil {
+					rule.Description = *ipv6.Description
+				}
+			}
+		}
+		// parse prefixLists
+		for _, prefix := range ipPermission.PrefixListIds {
+			if prefix.PrefixListId != nil {
+				if ingress {
+					rule.Source = append(rule.Source, *prefix.PrefixListId)
+				} else {
+					rule.Destination = append(rule.Destination, *prefix.PrefixListId)
+				}
+				if prefix.Description != nil {
+					rule.Description = *prefix.Description
+				}
+			}
+		}
+		// parse security group ids
+		for _, sg := range ipPermission.UserIdGroupPairs {
+			if sg.GroupId != nil {
+				if ingress {
+					rule.Source = append(rule.Source, *sg.GroupId)
+				} else {
+					rule.Destination = append(rule.Destination, *sg.GroupId)
+				}
+				if sg.Description != nil {
+					rule.Description = *sg.Description
+				}
+			}
+		}
+		protocol := convertFromIPPermissionProtocol(*ipPermission.IpProtocol)
+		if protocol != nil {
+			rule.Protocol = *ipPermission.IpProtocol
+		} else {
+			rule.Protocol = "any"
+		}
+		rule.Ingress = ingress
+		rule.Port = convertFromIPPermissionPortToString(ipPermission.FromPort, ipPermission.ToPort)
+		rules = append(rules, rule)
+	}
+	return &rules
 }

@@ -308,6 +308,23 @@ func convertFromIPPermissionPort(startPort *int64, endPort *int64) *int {
 	return nil
 }
 
+// convertFromIPPermissionPortToString helper function to convert cloud port number field to string.
+func convertFromIPPermissionPortToString(startPort *int64, endPort *int64) string {
+	if startPort == nil || *startPort == -1 {
+		return "all"
+	}
+
+	if endPort == nil {
+		return strconv.Itoa(int(*startPort))
+	}
+
+	if *startPort == *endPort || *endPort == -1 {
+		return strconv.Itoa(int(*startPort))
+	} else {
+		return strconv.Itoa(int(*startPort)) + "-" + strconv.Itoa(int(*endPort))
+	}
+}
+
 func convertFromIPPermissionProtocol(proto string) *int {
 	if strings.Compare(proto, awsAnyProtocolValue) == 0 {
 		return nil

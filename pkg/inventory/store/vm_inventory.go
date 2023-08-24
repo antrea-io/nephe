@@ -144,6 +144,7 @@ func NewVmInventoryStore() antreastorage.Interface {
 			vm := obj.(*runtimev1alpha1.VirtualMachine)
 			return []string{vm.Namespace}, nil
 		},
+		// TODO: Remove this indexer as its same as key
 		indexer.ByNamespacedName: func(obj interface{}) ([]string, error) {
 			vm := obj.(*runtimev1alpha1.VirtualMachine)
 			return []string{vm.Namespace + "/" + vm.Name}, nil

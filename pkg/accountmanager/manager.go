@@ -75,6 +75,7 @@ func (a *AccountManager) AddAccount(namespacedName *types.NamespacedName, cloudP
 		accPoller.stopPoller()
 		_ = a.Inventory.DeleteVpcsFromCache(namespacedName)
 		_ = a.Inventory.DeleteAllVmsFromCache(namespacedName)
+		_ = a.Inventory.DeleteAllSgsFromCache(namespacedName)
 		return false, err
 	}
 
@@ -132,6 +133,7 @@ func (a *AccountManager) RemoveResourceFiltersFromAccount(accNamespacedName *typ
 	go func() {
 		accPoller.restartPoller(accNamespacedName)
 		_ = accPoller.inventory.DeleteVmsFromCache(accNamespacedName, selectorNamespacedName)
+		_ = accPoller.inventory.DeleteSgsFromCache(accNamespacedName, selectorNamespacedName)
 	}()
 	return nil
 }
@@ -181,6 +183,7 @@ func (a *AccountManager) removeAccountPoller(accPoller *accountPoller) {
 	accPoller.stopPoller()
 	_ = accPoller.inventory.DeleteAllVmsFromCache(accPoller.accountNamespacedName)
 	_ = accPoller.inventory.DeleteVpcsFromCache(accPoller.accountNamespacedName)
+	_ = a.Inventory.DeleteAllSgsFromCache(accPoller.accountNamespacedName)
 }
 
 // getAccountPoller returns the account poller matching the nameSpacedName

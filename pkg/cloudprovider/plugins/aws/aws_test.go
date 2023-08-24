@@ -277,6 +277,7 @@ var _ = Describe("AWS cloud", func() {
 				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(&ec2.DescribeVpcsOutput{}, nil).AnyTimes()
 				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
 					nil).AnyTimes()
+				mockawsEC2.EXPECT().describeSecurityGroups(gomock.Any()).Return(&ec2.DescribeSecurityGroupsOutput{}, nil).AnyTimes()
 
 				_ = fakeClient.Create(context.Background(), secret)
 				c := newAWSCloud(mockawsCloudHelper)
@@ -303,6 +304,7 @@ var _ = Describe("AWS cloud", func() {
 				mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(&ec2.DescribeVpcsOutput{}, nil).AnyTimes()
 				mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{},
 					nil).AnyTimes()
+				mockawsEC2.EXPECT().describeSecurityGroups(gomock.Any()).Return(&ec2.DescribeSecurityGroupsOutput{}, nil).AnyTimes()
 				_ = fakeClient.Create(context.Background(), secret)
 				c := newAWSCloud(mockawsCloudHelper)
 				err := c.AddProviderAccount(fakeClient, account)
@@ -410,12 +412,12 @@ var _ = Describe("AWS cloud", func() {
 			mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).AnyTimes()
 			mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(&ec2.DescribeVpcsOutput{}, nil).AnyTimes()
 			mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{}, nil).AnyTimes()
+			mockawsEC2.EXPECT().describeSecurityGroups(gomock.Any()).Return(&ec2.DescribeSecurityGroupsOutput{}, nil).AnyTimes()
 		})
 
 		AfterEach(func() {
 			mockCtrl.Finish()
 		})
-
 		setAwsAccount := func(mockawsCloudHelper *MockawsServicesHelper) *awsCloud {
 			fakeClient = fake.NewClientBuilder().Build()
 			_ = fakeClient.Create(context.Background(), secret)
@@ -449,6 +451,106 @@ var _ = Describe("AWS cloud", func() {
 
 				filters := getFilters(c, testSelectorNamespacedName)
 				Expect(filters).To(Equal(expectedFilters))
+			})
+		})
+
+		Context("SecurityGroup snapshot update scenarios", func() {
+			It("create snapshots", func() {
+				c := newAWSCloud(mockawsCloudHelper)
+				//err := fakeClient.Create(context.Background(), secret)
+				//Expect(err).Should(BeNil())
+				err := c.AddProviderAccount(fakeClient, account)
+				Expect(err).Should(BeNil())
+				vmSelector := []v1alpha1.VirtualMachineSelector{
+					{
+						VpcMatch: &v1alpha1.EntityMatch{MatchID: testVpcID01},
+						VMMatch:  []v1alpha1.EntityMatch{},
+					},
+				}
+				selector.Spec.VMSelector = vmSelector
+				err = c.AddAccountResourceSelector(&testAccountNamespacedName, selector)
+				Expect(err).Should(BeNil())
+				accCfg, _ := c.cloudCommon.GetCloudAccountByName(&testAccountNamespacedName)
+				serviceConfig := accCfg.GetServiceConfig()
+				selectorNamespacedName := types.NamespacedName{Namespace: selector.Namespace, Name: selector.Name}
+				inventory := serviceConfig.(*ec2ServiceConfig).GetCloudInventory()
+				Expect(len(inventory.VmMap[selectorNamespacedName])).To(Equal(0))
+				Expect(len(inventory.VpcMap)).To(Equal(0))
+				Expect(len(inventory.SgMap[selectorNamespacedName])).To(Equal(0))
+
+				secGroup := ec2.SecurityGroup{}
+				secGroupId := "secGroupId1"
+				secGroupName := "secGroupName1"
+				secGroupDescription := "security group example"
+				secGroupVpcId := "vpcId01"
+				ruleDescription := "rule description"
+				srcPort := int64(22)
+				dstPort := int64(8080)
+				protocol := "tcp"
+				fromIPv4 := "10.10.10.10"
+				fromIPv6 := "2001:db8::"
+				prefixList1 := "prefixList1"
+				group1 := "sg-xyz"
+				ipv4 := ec2.IpRange{CidrIp: &fromIPv4, Description: &ruleDescription}
+				ipv6 := ec2.Ipv6Range{CidrIpv6: &fromIPv6, Description: &ruleDescription}
+				prefixList := ec2.PrefixListId{
+					PrefixListId: &prefixList1,
+					Description:  &ruleDescription,
+				}
+				userGroup := ec2.UserIdGroupPair{
+					GroupId:     &group1,
+					GroupName:   &secGroupName,
+					Description: &ruleDescription,
+				}
+				rule1 := ec2.IpPermission{
+					FromPort:   &srcPort,
+					IpProtocol: &protocol,
+					ToPort:     &dstPort,
+					IpRanges:   []*ec2.IpRange{&ipv4},
+				}
+				rule2 := ec2.IpPermission{
+					FromPort:   &srcPort,
+					IpProtocol: &protocol,
+					ToPort:     &dstPort,
+					Ipv6Ranges: []*ec2.Ipv6Range{&ipv6},
+				}
+				rule3 := ec2.IpPermission{
+					FromPort:      &srcPort,
+					IpProtocol:    &protocol,
+					ToPort:        &dstPort,
+					PrefixListIds: []*ec2.PrefixListId{&prefixList},
+				}
+				rule4 := ec2.IpPermission{
+					FromPort:         &srcPort,
+					IpProtocol:       &protocol,
+					ToPort:           &dstPort,
+					UserIdGroupPairs: []*ec2.UserIdGroupPair{&userGroup},
+				}
+				secGroup.GroupId = &secGroupId
+				secGroup.GroupName = &secGroupName
+				secGroup.VpcId = &secGroupVpcId
+				secGroup.Description = &secGroupDescription
+				secGroup.IpPermissions = append(secGroup.IpPermissions, &rule1)
+				secGroup.IpPermissions = append(secGroup.IpPermissions, &rule2)
+				secGroup.IpPermissions = append(secGroup.IpPermissions, &rule3)
+				secGroup.IpPermissions = append(secGroup.IpPermissions, &rule4)
+				secGroup.IpPermissionsEgress = append(secGroup.IpPermissionsEgress, &rule1)
+				secGroup.IpPermissionsEgress = append(secGroup.IpPermissionsEgress, &rule2)
+				secGroup.IpPermissionsEgress = append(secGroup.IpPermissionsEgress, &rule3)
+				secGroup.IpPermissionsEgress = append(secGroup.IpPermissionsEgress, &rule4)
+				sgs := make([]*ec2.SecurityGroup, 0)
+				sgs = append(sgs, &secGroup)
+				vmSnapshot := make(map[types.NamespacedName][]*ec2.Instance)
+				sgSnapshot := make(map[types.NamespacedName][]*ec2.SecurityGroup)
+				sgSnapshot[selectorNamespacedName] = sgs
+
+				serviceConfig.(*ec2ServiceConfig).resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{
+					vmSnapshot, nil, nil, nil, nil, sgSnapshot})
+				inventory = serviceConfig.(*ec2ServiceConfig).GetCloudInventory()
+				Expect(len(inventory.VmMap[selectorNamespacedName])).To(Equal(0))
+				Expect(len(inventory.VpcMap)).To(Equal(0))
+				Expect(len(inventory.SgMap[selectorNamespacedName])).To(Equal(1))
+
 			})
 		})
 		It("Should match expected filter - multiple vpcID only match", func() {

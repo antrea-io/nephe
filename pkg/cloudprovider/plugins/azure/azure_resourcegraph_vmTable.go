@@ -33,15 +33,18 @@ type virtualMachineTable struct {
 	Tags              map[string]*string
 	Status            *string
 	VnetID            *string
+	Location          *string
 }
 type networkInterface struct {
-	ID         *string
-	Name       *string
-	MacAddress *string
-	PrivateIps []*string
-	PublicIps  []*string
-	Tags       map[string]*string
-	VnetID     *string
+	ID                          *string
+	Name                        *string
+	MacAddress                  *string
+	PrivateIps                  []*string
+	PublicIps                   []*string
+	Tags                        map[string]*string
+	VnetID                      *string
+	NsgID                       *string
+	ApplicationSecurityGroupIDs []*string
 }
 
 type vmTableQueryParameters struct {
@@ -82,6 +85,8 @@ const (
 		"	Resources" +
 		"	| where type =~ 'microsoft.network/networkinterfaces'" +
 		"	| extend macAddress = properties.macAddress" +
+		"   | mvexpand nsg = properties.networkSecurityGroup" +
+		"   | extend nsgId = nsg.id" +
 		"	| mvexpand ipconfig = properties.ipConfigurations" +
 		"	| extend vnetIdArray = array_slice(split(ipconfig.properties.subnet.id, \"/\"), 0, 8)" +
 		"	| extend vnetId = tolower(strcat_array(vnetIdArray, \"/\"))" +
@@ -90,17 +95,23 @@ const (
 		"	{{ end }}" +
 		"	| extend publicIpId = tolower(tostring(ipconfig.properties.publicIPAddress.id))" +
 		"	| extend nicPrivateIp = ipconfig.properties.privateIPAddress" +
+		"   | extend applicationSecurityGroup = ipconfig.properties.applicationSecurityGroups" +
 		"	| join kind = leftouter (" +
 		"		Resources" +
 		"		| where type =~ 'microsoft.network/publicipaddresses'" +
 		"		| project publicIpId = tolower(id), nicPublicIp = properties.ipAddress" +
 		"	) on publicIpId" +
-		"	| summarize nicTags = any(tags), macAddress = any(macAddress), vnetId = any(vnetId), " +
-		"nicPublicIps = make_list(nicPublicIp), nicPrivateIps = make_list(nicPrivateIp) by id, name" +
-		"	| project nicId = tolower(id), nicName = name, nicPublicIps, nicPrivateIps, vnetId, macAddress, nicTags" +
+		"   | mvexpand applicationSecurityGroup" +
+		"   | extend appId = tolower(applicationSecurityGroup.id)" +
+		"	| summarize nicTags = any(tags), macAddress = any(macAddress), vnetId = any(vnetId), nsgId = any(nsgId), " +
+		"applicationSecurityGroupIds = make_list(appId), nicPublicIps = make_list(nicPublicIp), " +
+		"nicPrivateIps = make_list(nicPrivateIp) by id, name" +
+		"	| project nicId = tolower(id), nicName = name, nicPublicIps, nicPrivateIps, vnetId, macAddress, " +
+		"nicTags, nsgId = tolower(nsgId), applicationSecurityGroupIds" +
 		") on nicId" +
 		"| extend networkInterfaceDetails = pack(\"id\", nicId, \"name\", nicName, \"macAddress\", macAddress, \"privateIps\"," +
-		"nicPrivateIps, \"publicIps\", nicPublicIps, \"tags\", nicTags, \"vnetId\", vnetId)" +
+		"nicPrivateIps, \"publicIps\", nicPublicIps, \"tags\", nicTags, \"vnetId\", vnetId, \"nsgId\", nsgId, " +
+		"\"applicationSecurityGroupIds\", applicationSecurityGroupIds)" +
 		"| summarize vnetId = any(vnetId), properties = make_bag(properties), tags = make_bag(tags), " +
 		"networkInterfaces = make_list(networkInterfaceDetails) by id, name" +
 		"| project id, name, properties, status=properties.extended.instanceView.powerState.code, networkInterfaces, tags, vnetId"

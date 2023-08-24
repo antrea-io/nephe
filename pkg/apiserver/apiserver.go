@@ -34,6 +34,7 @@ import (
 	controllerruntime "sigs.k8s.io/controller-runtime"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/apiserver/registry/inventory/securitygroup"
 	virtualmachineinventory "antrea.io/nephe/pkg/apiserver/registry/inventory/virtualmachine"
 	vpcinventory "antrea.io/nephe/pkg/apiserver/registry/inventory/vpc"
 	"antrea.io/nephe/pkg/apiserver/registry/virtualmachinepolicy"
@@ -237,12 +238,14 @@ func (c completedConfig) New(scheme *runtime.Scheme, codecs serializer.CodecFact
 	vpcStorage := vpcinventory.NewREST(c.ExtraConfig.cloudInventory, logger.WithName("VpcInventory"))
 	vmpStorage := virtualmachinepolicy.NewREST(c.ExtraConfig.npTrackerIndexer, logger.WithName("VirtualMachinePolicy"))
 	vmStorage := virtualmachineinventory.NewREST(c.ExtraConfig.cloudInventory, logger.WithName("VirtualMachineInventory"))
+	sgStorage := securitygroup.NewREST(c.ExtraConfig.cloudInventory, logger.WithName("SecurityGroup"))
 
 	cpGroup := genericapiserver.NewDefaultAPIGroupInfo(runtimev1alpha1.GroupVersion.Group, scheme, metav1.ParameterCodec, codecs)
 	cpv1alpha1Storage := map[string]rest.Storage{}
 	cpv1alpha1Storage["vpc"] = vpcStorage
 	cpv1alpha1Storage["virtualmachinepolicy"] = vmpStorage
 	cpv1alpha1Storage["virtualmachine"] = vmStorage
+	cpv1alpha1Storage["sg"] = sgStorage
 
 	cpGroup.VersionedResourcesStorageMap["v1alpha1"] = cpv1alpha1Storage
 

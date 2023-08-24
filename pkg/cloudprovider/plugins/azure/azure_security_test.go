@@ -88,6 +88,8 @@ var _ = Describe("Azure Cloud Security", func() {
 
 		testNsgID = fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Network/applicationSecurityGroups/%v",
 			testSubID, testRG, nsgID)
+		testVmID01   = "testVmId01"
+		testVmName01 = "testVmName01"
 	)
 
 	Context("SecurityGroup", func() {
@@ -187,18 +189,21 @@ var _ = Describe("Azure Cloud Security", func() {
 			agAsg := &network.ApplicationSecurityGroup{ID: &testAGAsgID, Name: &agAsgID}
 			asglist = []network.ApplicationSecurityGroup{*agAsg, *atAsg}
 
+			protocol := network.SecurityRuleProtocol("tcp")
+			access := network.SecurityRuleAccess("allow")
 			nsgrule := &network.SecurityRule{
 				ID: &nsgID,
 				Properties: &network.SecurityRulePropertiesFormat{
 					SourceApplicationSecurityGroups:      []*network.ApplicationSecurityGroup{agAsg},
 					DestinationApplicationSecurityGroups: []*network.ApplicationSecurityGroup{atAsg},
 					Priority:                             &testPriority,
+					Protocol:                             &protocol,
 					SourcePortRange:                      &testSourcePortRange,
 					DestinationPortRange:                 &testDestinationPortRange,
 					Direction:                            &testDirection,
+					Access:                               &access,
 				},
 			}
-
 			nsg = network.SecurityGroup{
 				Properties: &network.SecurityGroupPropertiesFormat{
 					SecurityRules: []*network.SecurityRule{nsgrule},
@@ -247,6 +252,7 @@ var _ = Describe("Azure Cloud Security", func() {
 			inventory := serviceConfig.(*computeServiceConfig).GetCloudInventory()
 			Expect(len(inventory.VmMap[selectorNamespacedName])).To(Equal(0))
 			Expect(len(inventory.VpcMap)).To(Equal(0))
+			Expect(len(inventory.SgMap[selectorNamespacedName])).To(Equal(0))
 
 			vnetIDs := make(map[string]struct{})
 			vnetIDs[strings.ToLower(testVnetID01)] = struct{}{}
@@ -257,14 +263,17 @@ var _ = Describe("Azure Cloud Security", func() {
 				{strings.ToLower(testVnetPeerID01), "destinationID", "sourceID"},
 			}
 			vmInfo := make([]*virtualMachineTable, 0)
-
+			networkInterfaceId := "testnItfID"
 			vmInfo = append(vmInfo, &virtualMachineTable{
+				ID:     &testVmID01,
+				Name:   &testVmName01,
 				VnetID: &testVnetPeerID01,
 				NetworkInterfaces: []*networkInterface{
 					{
 						PrivateIps: []*string{
 							&testPrivateIP,
 						},
+						ID: &networkInterfaceId,
 					},
 				},
 			})
@@ -276,14 +285,28 @@ var _ = Describe("Azure Cloud Security", func() {
 			vnet.Name = &testVnet01
 			vnet.ID = &testVnetID01
 			vnetList = append(vnetList, *vnet)
+
+			nsgs := make(map[types.NamespacedName][]*nsgTable)
+			nsgInfo := make([]*nsgTable, 0)
+			nsgInfo = append(nsgInfo, &nsgTable{
+				ID:            &testNsgID,
+				Name:          &nsgID,
+				ResourceGroup: &testRG,
+				Properties: &network.SecurityGroupPropertiesFormat{
+					SecurityRules: []*network.SecurityRule{nsgrule},
+				},
+				VnetID: &testVnetID01,
+			})
+			nsgs[selectorNamespacedName] = nsgInfo
 			vmSnapshot := make(map[types.NamespacedName][]*virtualMachineTable)
 			serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{
-				vmSnapshot, vnetList, vnetIDs, vpcPeers})
+				vmSnapshot, vnetList, vnetIDs, vpcPeers, nsgs})
 			snapshot := serviceConfig.(*computeServiceConfig).resourcesCache.GetSnapshot()
 			vmSnapshot[selectorNamespacedName] = vmInfo
 			serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(
 				&computeResourcesCacheSnapshot{vmSnapshot, snapshot.(*computeResourcesCacheSnapshot).vnets,
-					snapshot.(*computeResourcesCacheSnapshot).managedVnetIds, snapshot.(*computeResourcesCacheSnapshot).vnetPeers})
+					snapshot.(*computeResourcesCacheSnapshot).managedVnetIds,
+					snapshot.(*computeResourcesCacheSnapshot).vnetPeers, snapshot.(*computeResourcesCacheSnapshot).nsgs})
 		})
 
 		AfterEach(func() {
@@ -907,10 +930,85 @@ var _ = Describe("Azure Cloud Security", func() {
 				vmSnapshot[selectorNamespacedName] = vmToUpdate
 				serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(
 					&computeResourcesCacheSnapshot{vmSnapshot, snapshot.(*computeResourcesCacheSnapshot).vnets,
-						snapshot.(*computeResourcesCacheSnapshot).managedVnetIds, snapshot.(*computeResourcesCacheSnapshot).vnetPeers})
+						snapshot.(*computeResourcesCacheSnapshot).managedVnetIds,
+						snapshot.(*computeResourcesCacheSnapshot).vnetPeers, snapshot.(*computeResourcesCacheSnapshot).nsgs})
 				inventory := serviceConfig.(*computeServiceConfig).GetCloudInventory()
 				Expect(len(inventory.VmMap[selectorNamespacedName])).To(Equal(1))
 				Expect(len(inventory.VpcMap)).To(Equal(1))
+				Expect(len(inventory.SgMap[selectorNamespacedName])).To(Equal(1))
+			})
+		})
+
+		Context("Update SG snapshot", func() {
+			It("Should update virtual machine snapshot successfully", func() {
+				protocol1 := network.SecurityRuleProtocol("*")
+				access := network.SecurityRuleAccess("deny")
+				destPortRange1 := "80"
+				srcPortRange1 := "*"
+				description := "test Rule"
+				destinationAddressPrefix := "10.0.0.0/24"
+				sourceAddressPrefix := "*"
+				nsgrule1 := &network.SecurityRule{
+					ID: &nsgID,
+					Properties: &network.SecurityRulePropertiesFormat{
+						SourceAddressPrefix:      &sourceAddressPrefix,
+						DestinationAddressPrefix: &destinationAddressPrefix,
+						Priority:                 &testPriority,
+						Protocol:                 &protocol1,
+						SourcePortRange:          &srcPortRange1,
+						DestinationPortRange:     &destPortRange1,
+						Direction:                &testDirection,
+						Access:                   &access,
+						Description:              &description,
+					},
+				}
+
+				protocol2 := network.SecurityRuleProtocol("tcp")
+				destPortRange2 := "*"
+				sourcePortRange2 := "80"
+				destip := "10.0.0.1"
+				sourceip := "20.0.0.1"
+				destinationAddressPrefixes := []*string{&destip}
+				sourceAddressPrefixes := []*string{&sourceip}
+				nsgrule2 := &network.SecurityRule{
+					ID: &nsgID,
+					Properties: &network.SecurityRulePropertiesFormat{
+						SourceAddressPrefixes:      sourceAddressPrefixes,
+						DestinationAddressPrefixes: destinationAddressPrefixes,
+						Priority:                   &testPriority,
+						Protocol:                   &protocol2,
+						SourcePortRange:            &sourcePortRange2,
+						DestinationPortRange:       &destPortRange2,
+						Direction:                  &testDirection,
+						Access:                     &access,
+						Description:                &description,
+					},
+				}
+				sgToUpdate := make([]*nsgTable, 0)
+				sgToUpdate = append(sgToUpdate, &nsgTable{
+					ID:            &testNsgID,
+					Name:          &nsgID,
+					ResourceGroup: &testRG,
+					Properties: &network.SecurityGroupPropertiesFormat{
+						SecurityRules: []*network.SecurityRule{nsgrule1, nsgrule2},
+					},
+					VnetID: &testVnetID01,
+				})
+				selectorNamespacedName := types.NamespacedName{Namespace: selector.Namespace, Name: selector.Name}
+				accCfg, _ := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
+				serviceConfig := accCfg.GetServiceConfig()
+				snapshot := serviceConfig.(*computeServiceConfig).resourcesCache.GetSnapshot()
+				sgSnapshot := snapshot.(*computeResourcesCacheSnapshot).nsgs
+				sgSnapshot[selectorNamespacedName] = sgToUpdate
+
+				serviceConfig.(*computeServiceConfig).resourcesCache.UpdateSnapshot(
+					&computeResourcesCacheSnapshot{snapshot.(*computeResourcesCacheSnapshot).vms, snapshot.(*computeResourcesCacheSnapshot).vnets,
+						snapshot.(*computeResourcesCacheSnapshot).managedVnetIds,
+						snapshot.(*computeResourcesCacheSnapshot).vnetPeers, sgSnapshot})
+				inventory := serviceConfig.(*computeServiceConfig).GetCloudInventory()
+				Expect(len(inventory.VmMap[selectorNamespacedName])).To(Equal(1))
+				Expect(len(inventory.VpcMap)).To(Equal(1))
+				Expect(len(inventory.SgMap[selectorNamespacedName])).To(Equal(1))
 			})
 		})
 

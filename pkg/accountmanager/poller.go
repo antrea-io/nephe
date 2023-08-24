@@ -160,6 +160,10 @@ func (p *accountPoller) doAccountPolling() {
 func (p *accountPoller) processCloudInventory(cloudInventory *nephetypes.CloudInventory) {
 	_ = p.inventory.BuildVpcCache(cloudInventory.VpcMap, p.accountNamespacedName)
 
+	for selectorNamespacedName, sgs := range cloudInventory.SgMap {
+		p.inventory.BuildSgCache(sgs, p.accountNamespacedName, &selectorNamespacedName)
+	}
+
 	// VMs are stored per selector in the VmMap.
 	for selectorNamespacedName, virtualMachines := range cloudInventory.VmMap {
 		// Maybe expose, Add, Delete, Update routine in inventory, and do the calculation here.

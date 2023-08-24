@@ -10,6 +10,9 @@ cloudResourcePrefix: "nephe"
 # -- Specifies the interval (in seconds) to be used for syncing cloud resources with controller.
 cloudSyncInterval: 300
 
+# -- Enable/Disable polling of cloud security groups and rules.
+cloudSecurityGroupVisibility: true
+
 # -- Enable/Disable Nephe CRDs dependent chart.
 crds:
   enabled: true

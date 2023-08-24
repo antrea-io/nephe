@@ -87,6 +87,7 @@ func main() {
 
 	setupLog.Info("Nephe ConfigMap", "ControllerConfig", opts.config)
 	cloudresource.SetCloudResourcePrefix(opts.config.CloudResourcePrefix)
+	cloudresource.SetCloudSecurityGroupVisibility(opts.config.CloudSecurityGroupVisibility)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,

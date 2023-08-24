@@ -61,7 +61,6 @@ type CloudCommonInterface interface {
 	GetCloudAccountByName(namespacedName *types.NamespacedName) (CloudAccountInterface, error)
 	GetCloudAccountByAccountId(accountID *string) (CloudAccountInterface, error)
 	GetCloudAccounts() map[types.NamespacedName]CloudAccountInterface
-
 	AddCloudAccount(client client.Client, account *crdv1alpha1.CloudProviderAccount, credentials interface{}) error
 	RemoveCloudAccount(namespacedName *types.NamespacedName)
 

@@ -30,6 +30,8 @@ var (
 	ControllerPrefix             string
 	ControllerAddressGroupPrefix string
 	ControllerAppliedToPrefix    string
+
+	CloudSecurityGroupVisibility bool
 )
 
 // CloudResourceType specifies the type of cloud resource.
@@ -52,6 +54,14 @@ func GetControllerAddressGroupPrefix() string {
 func GetControllerAppliedToPrefix() string {
 	ControllerAppliedToPrefix = ControllerPrefix + "-at-"
 	return ControllerAppliedToPrefix
+}
+
+func SetCloudSecurityGroupVisibility(enable bool) {
+	CloudSecurityGroupVisibility = enable
+}
+
+func IsCloudSecurityGroupVisibilityEnabled() bool {
+	return CloudSecurityGroupVisibility
 }
 
 type CloudResourceID struct {

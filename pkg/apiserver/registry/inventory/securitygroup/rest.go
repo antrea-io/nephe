@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package virtualmachine
+package securitygroup
 
 import (
 	"context"
@@ -26,9 +26,7 @@ import (
 	metatable "k8s.io/apimachinery/pkg/api/meta/table"
 	"k8s.io/apimachinery/pkg/apis/meta/internalversion"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
 
@@ -37,11 +35,10 @@ import (
 	"antrea.io/nephe/pkg/apiserver/registry/inventory/util"
 	"antrea.io/nephe/pkg/inventory"
 	"antrea.io/nephe/pkg/inventory/indexer"
-	"antrea.io/nephe/pkg/inventory/store"
 	"antrea.io/nephe/pkg/labels"
 )
 
-// REST implements rest.Storage for VirtualMachine Inventory.
+// REST implements rest.Storage for VPC Inventory.
 type REST struct {
 	cloudInventory inventory.Interface
 	logger         logger.Logger
@@ -51,11 +48,9 @@ type REST struct {
 }
 
 var (
-	_ rest.Scoper  = &REST{}
-	_ rest.Getter  = &REST{}
-	_ rest.Watcher = &REST{}
-	_ rest.Lister  = &REST{}
-	_ rest.Updater = &REST{}
+	_ rest.Scoper = &REST{}
+	_ rest.Getter = &REST{}
+	_ rest.Lister = &REST{}
 )
 
 // NewREST returns a REST object that will work against API services.
@@ -70,66 +65,29 @@ func NewREST(cloudInventory inventory.Interface, l logger.Logger) *REST {
 }
 
 func (r *REST) New() runtime.Object {
-	return &runtimev1alpha1.VirtualMachine{}
+	return &runtimev1alpha1.SecurityGroup{}
 }
 
 func (r *REST) Destroy() {
 }
 
 func (r *REST) NewList() runtime.Object {
-	return &runtimev1alpha1.VirtualMachine{}
-}
-
-func (r *REST) ShortNames() []string {
-	return []string{"vm"}
-}
-
-func (r *REST) Update(ctx context.Context, name string, objInfo rest.UpdatedObjectInfo, _ rest.ValidateObjectFunc,
-	_ rest.ValidateObjectUpdateFunc, _ bool, options *metav1.UpdateOptions) (runtime.Object, bool, error) {
-	ns, ok := request.NamespaceFrom(ctx)
-	if !ok || len(ns) == 0 {
-		return nil, false, errors.NewBadRequest("namespace cannot be empty.")
-	}
-	r.logger.Info("Received update for vm", "vm", name)
-	namespacedName := ns + "/" + name
-	cachedVm, ok := r.cloudInventory.GetVmByKey(namespacedName)
-	if !ok {
-		return nil, false, errors.NewNotFound(runtimev1alpha1.Resource("virtualmachine"), name)
-	}
-
-	updatedObject, err := objInfo.UpdatedObject(context.TODO(), cachedVm)
-	if err != nil {
-		return nil, false, err
-	}
-
-	updatedVm, ok := updatedObject.(*runtimev1alpha1.VirtualMachine)
-	if !ok {
-		return nil, false, errors.NewBadRequest("invalid resource object")
-	}
-	if !reflect.DeepEqual(updatedVm.Spec, cachedVm.Spec) {
-		err = r.cloudInventory.UpdateVm(updatedVm)
-		if err != nil {
-			return nil, false, errors.NewInternalError(fmt.Errorf("failed to update the resource"))
-		}
-	}
-	return updatedVm, false, nil
+	return &runtimev1alpha1.SecurityGroupList{}
 }
 
 func (r *REST) Get(ctx context.Context, name string, _ *metav1.GetOptions) (runtime.Object, error) {
 	ns, ok := request.NamespaceFrom(ctx)
 	if !ok || len(ns) == 0 {
-		return nil, errors.NewBadRequest("Namespace cannot be empty.")
+		return nil, errors.NewBadRequest("namespace cannot be empty.")
 	}
-
 	namespacedName := ns + "/" + name
-	vm, ok := r.cloudInventory.GetVmByKey(namespacedName)
+	sg, ok := r.cloudInventory.GetSgByKey(namespacedName)
 	if !ok {
-		return nil, errors.NewNotFound(runtimev1alpha1.Resource("virtualmachine"), name)
+		return nil, errors.NewNotFound(runtimev1alpha1.Resource("securitygroup"), name)
 	}
-	return vm, nil
+	return sg, nil
 }
 
-// List returns a list of object based on Namespace and filtered by labels and field selectors.
 func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (runtime.Object, error) {
 	labelSelectors, fieldSelectors, err := getSelectors(options, r.labelKeysMap, r.fieldKeysMap)
 	if err != nil {
@@ -139,26 +97,26 @@ func (r *REST) List(ctx context.Context, options *internalversion.ListOptions) (
 	var objsByNamespace []interface{}
 	contextNamespace, _ := request.NamespaceFrom(ctx)
 	if contextNamespace == "" {
-		objsByNamespace = r.cloudInventory.GetAllVms()
+		objsByNamespace = r.cloudInventory.GetAllSgs()
 	} else {
 		// Resources are listed based on the context Namespace.
 		if labelSelectors[selector.CloudAccountNamespace] != "" &&
 			labelSelectors[selector.CloudAccountNamespace] != contextNamespace {
 			// Since account Namespace is different from context Namespace, return empty.
-			return &runtimev1alpha1.VirtualMachineList{}, nil
+			return &runtimev1alpha1.SecurityGroupList{}, nil
 		}
 		if fieldSelectors[selector.MetaNamespace] != "" &&
 			fieldSelectors[selector.MetaNamespace] != contextNamespace {
 			// Since meta Namespace is different from context Namespace, return empty.
-			return &runtimev1alpha1.VirtualMachineList{}, nil
+			return &runtimev1alpha1.SecurityGroupList{}, nil
 		}
 
-		objsByNamespace, _ = r.cloudInventory.GetVmFromIndexer(indexer.ByNamespace, contextNamespace)
+		objsByNamespace, _ = r.cloudInventory.GetSgsFromIndexer(indexer.ByNamespace, contextNamespace)
 	}
 
 	filterObjsByLabels := util.GetFilteredObjsByLabels(objsByNamespace, labelSelectors, r.labelKeysMap)
 	filterObjs := getFilteredObjsByFields(filterObjsByLabels, fieldSelectors)
-	return sortAndConvertObjsToVmList(filterObjs), nil
+	return sortAndConvertObjsToSgList(filterObjs), nil
 }
 
 func (r *REST) NamespaceScoped() bool {
@@ -172,11 +130,10 @@ func (r *REST) ConvertToTable(_ context.Context, obj runtime.Object, _ runtime.O
 			{Name: "CLOUD-PROVIDER", Type: "string", Description: "Cloud Provider"},
 			{Name: "REGION", Type: "string", Description: "Region"},
 			{Name: "VIRTUAL-PRIVATE-CLOUD", Type: "string", Description: "VPC/VNET"},
-			{Name: "STATE", Type: "string", Description: "Running state"},
-			{Name: "AGENTED", Type: "bool", Description: "Agent installed"},
+			{Name: "INGRESS-RULES", Type: "int", Description: "Number of Ingress Rules"},
+			{Name: "EGRESS-RULES", Type: "int", Description: "Number of egress Rules"},
 		},
 	}
-
 	if m, err := meta.ListAccessor(obj); err == nil {
 		table.ResourceVersion = m.GetResourceVersion()
 		table.Continue = m.GetContinue()
@@ -186,36 +143,24 @@ func (r *REST) ConvertToTable(_ context.Context, obj runtime.Object, _ runtime.O
 			table.ResourceVersion = m.GetResourceVersion()
 		}
 	}
-
 	var err error
 	table.Rows, err = metatable.MetaToTableRow(obj,
 		func(obj runtime.Object, _ metav1.Object, _, _ string) ([]interface{}, error) {
-			vm := obj.(*runtimev1alpha1.VirtualMachine)
-			if vm.Name == "" {
+			sg := obj.(*runtimev1alpha1.SecurityGroup)
+			if sg.Name == "" {
 				return nil, nil
 			}
-			return []interface{}{vm.Name, vm.Status.Provider, vm.Status.Region,
-				vm.Labels[labels.VpcName], vm.Status.State, vm.Status.Agented}, nil
+			var ingressRules, egressRules int
+			for _, rule := range sg.Status.Rules {
+				if rule.Ingress {
+					ingressRules++
+				} else {
+					egressRules++
+				}
+			}
+			return []interface{}{sg.Name, sg.Status.Provider, sg.Status.Region, sg.Labels[labels.VpcName], ingressRules, egressRules}, nil
 		})
 	return table, err
-}
-
-func (r *REST) Watch(ctx context.Context, options *internalversion.ListOptions) (watch.Interface, error) {
-	key, label, field := store.GetSelectors(options)
-	contextNamespace, _ := request.NamespaceFrom(ctx)
-	if key != "" {
-		if contextNamespace == "" {
-			return nil, errors.NewBadRequest("cannot watch for a resources in all namespaces")
-		} else {
-			key = contextNamespace + "/" + key
-		}
-	} else if contextNamespace != "" {
-		// Namespace specified and field selector doesn't have namespace.
-		if _, ok := field.RequiresExactMatch("metadata.namespace"); !ok {
-			field = fields.AndSelectors(field, fields.OneTermEqualSelector("metadata.namespace", contextNamespace))
-		}
-	}
-	return r.cloudInventory.WatchVms(ctx, key, label, field)
 }
 
 // setSupportedFieldKeysMap sets the map of supported fields.
@@ -225,8 +170,6 @@ func (r *REST) setSupportedFieldKeysMap() {
 	r.fieldKeysMap[selector.MetaName] = struct{}{}
 	r.fieldKeysMap[selector.MetaNamespace] = struct{}{}
 	r.fieldKeysMap[selector.StatusCloudId] = struct{}{}
-	r.fieldKeysMap[selector.StatusCloudVpcId] = struct{}{}
-	r.fieldKeysMap[selector.StatusRegion] = struct{}{}
 }
 
 // setSupportedLabelKeysMap set the map of supported label names.
@@ -236,27 +179,42 @@ func (r *REST) setSupportedLabelKeysMap() {
 	r.labelKeysMap[selector.CloudAccountName] = struct{}{}
 }
 
-// sortAndConvertObjsToVmList sorts the objs based on Namespace and Name and returns the VPC list.
-func sortAndConvertObjsToVmList(objs []interface{}) *runtimev1alpha1.VirtualMachineList {
+// sortAndConvertObjsToSgList sorts the objs based on Namespace and Name and returns the SG list.
+func sortAndConvertObjsToSgList(objs []interface{}) *runtimev1alpha1.SecurityGroupList {
 	sort.Slice(objs, func(i, j int) bool {
-		vmI := objs[i].(*runtimev1alpha1.VirtualMachine)
-		vmJ := objs[j].(*runtimev1alpha1.VirtualMachine)
+		sgI := objs[i].(*runtimev1alpha1.SecurityGroup)
+		sgJ := objs[j].(*runtimev1alpha1.SecurityGroup)
 		// First Sort with Namespace.
-		if vmI.Namespace < vmJ.Namespace {
+		if sgI.Namespace < sgJ.Namespace {
 			return true
-		} else if vmI.Namespace > vmJ.Namespace {
+		} else if sgI.Namespace > sgJ.Namespace {
 			return false
 		}
 		// Second Sort with Name.
-		return vmI.Name < vmJ.Name
+		return sgI.Name < sgJ.Name
 	})
 
-	vmList := &runtimev1alpha1.VirtualMachineList{}
+	sgList := &runtimev1alpha1.SecurityGroupList{}
 	for _, obj := range objs {
-		vm := obj.(*runtimev1alpha1.VirtualMachine)
-		vmList.Items = append(vmList.Items, *vm)
+		sg := obj.(*runtimev1alpha1.SecurityGroup)
+		sortSgRule(sg.Status.Rules)
+		sgList.Items = append(sgList.Items, *sg)
 	}
-	return vmList
+	return sgList
+}
+
+// sortSgRule sorts security group rules based on direction of rule and priority.
+func sortSgRule(rules []runtimev1alpha1.Rule) {
+	sort.Slice(rules, func(i, j int) bool {
+		// First sort with rule direction.
+		if rules[i].Ingress && !rules[j].Ingress {
+			return true
+		} else if !rules[i].Ingress && rules[j].Ingress {
+			return false
+		}
+		// when direction is same, second level of sort with rule priority.
+		return rules[i].Priority < rules[j].Priority
+	})
 }
 
 // getSelectors creates and returns a map of supported label and field selectors.
@@ -283,25 +241,17 @@ func getFilteredObjsByFields(objs []interface{}, fieldSelector map[string]string
 
 	var ret []interface{}
 	for _, obj := range objs {
-		vm := obj.(*runtimev1alpha1.VirtualMachine)
+		sg := obj.(*runtimev1alpha1.SecurityGroup)
 		if fieldSelector[selector.MetaName] != "" &&
-			vm.Name != fieldSelector[selector.MetaName] {
+			sg.Name != fieldSelector[selector.MetaName] {
 			continue
 		}
 		if fieldSelector[selector.MetaNamespace] != "" &&
-			vm.Namespace != fieldSelector[selector.MetaNamespace] {
+			sg.Namespace != fieldSelector[selector.MetaNamespace] {
 			continue
 		}
 		if fieldSelector[selector.StatusCloudId] != "" &&
-			vm.Status.CloudId != fieldSelector[selector.StatusCloudId] {
-			continue
-		}
-		if fieldSelector[selector.StatusCloudVpcId] != "" &&
-			vm.Status.CloudVpcId != fieldSelector[selector.StatusCloudVpcId] {
-			continue
-		}
-		if fieldSelector[selector.StatusRegion] != "" &&
-			vm.Status.Region != fieldSelector[selector.StatusRegion] {
+			sg.Status.CloudId != fieldSelector[selector.StatusCloudId] {
 			continue
 		}
 		ret = append(ret, obj)

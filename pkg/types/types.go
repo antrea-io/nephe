@@ -25,4 +25,6 @@ type CloudInventory struct {
 	VmMap map[types.NamespacedName]map[string]*runtimev1alpha1.VirtualMachine
 	// VpcMap holds VPC objects.
 	VpcMap map[string]*runtimev1alpha1.Vpc
+	// SgMap holds Security Group objects indexed per selector.
+	SgMap map[types.NamespacedName]map[string]*runtimev1alpha1.SecurityGroup
 }
