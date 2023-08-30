@@ -52,8 +52,10 @@ type AccountMgmtInterface interface {
 	AddAccountResourceSelector(accNamespacedName *types.NamespacedName, selector *crdv1alpha1.CloudEntitySelector) error
 	// RemoveAccountResourcesSelector removes account specific resource selector.
 	RemoveAccountResourcesSelector(accNamespacedName, selectorNamespacedName *types.NamespacedName)
-	// GetAccountStatus gets accounts status.
+	// GetAccountStatus gets the account status.
 	GetAccountStatus(accNamespacedName *types.NamespacedName) (*crdv1alpha1.CloudProviderAccountStatus, error)
+	// GetAccountState gets the account state.
+	GetAccountState(accNamespacedName *types.NamespacedName) (bool, error)
 	// DoInventoryPoll calls cloud API to get cloud resources.
 	DoInventoryPoll(accountNamespacedName *types.NamespacedName) error
 	// ResetInventoryCache resets cloud snapshot and poll stats to nil.

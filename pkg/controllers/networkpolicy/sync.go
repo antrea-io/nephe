@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/cloudprovider/cloud"
 	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
 	"antrea.io/nephe/pkg/cloudprovider/securitygroup"
 	"antrea.io/nephe/pkg/inventory/indexer"
@@ -76,6 +77,12 @@ func (s *securityGroupImpl) syncImpl(csg cloudSecurityGroup, syncContent *cloudr
 // sync synchronizes addressSecurityGroup with cloud.
 func (a *addrSecurityGroup) sync(syncContent *cloudresource.SynchronizationContent, r *NetworkPolicyReconciler) {
 	log := r.Log.WithName("CloudSync")
+
+	// skip syncing sg that is associated with an unready account.
+	if !isAccountReady(a.id) {
+		return
+	}
+
 	if a.deletePending {
 		log.V(1).Info("AddressSecurityGroup pending delete", "Name", a.id.Name)
 		return
@@ -86,6 +93,12 @@ func (a *addrSecurityGroup) sync(syncContent *cloudresource.SynchronizationConte
 // sync synchronizes appliedToSecurityGroup with cloud.
 func (a *appliedToSecurityGroup) sync(syncContent *cloudresource.SynchronizationContent, r *NetworkPolicyReconciler) {
 	log := r.Log.WithName("CloudSync")
+
+	// skip syncing sg that is associated with an unready account.
+	if !isAccountReady(a.id) {
+		return
+	}
+
 	if a.deletePending {
 		log.V(1).Info("AppliedSecurityGroup pending delete", "Name", a.id.Name)
 		return
@@ -374,4 +387,18 @@ func updateCountForItem(item string, items map[string]int, subtract bool) {
 	} else {
 		items[item]++
 	}
+}
+
+func isAccountReady(id cloudresource.CloudResource) bool {
+	providerType := runtimev1alpha1.CloudProvider(id.CloudProvider)
+	cloudInterface, err := cloud.GetCloudInterface(providerType)
+	if err != nil {
+		return false
+	}
+	accountNamespacedName := id.GetAccountNamespacedName()
+	if accountNamespacedName == nil {
+		return false
+	}
+	state, _ := cloudInterface.GetAccountState(accountNamespacedName)
+	return state
 }

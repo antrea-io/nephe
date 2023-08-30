@@ -220,6 +220,9 @@ func (c *awsCloud) GetEnforcedSecurity() []cloudresource.SynchronizationContent 
 	var accNamespacedNames []types.NamespacedName
 	accountConfigs := c.cloudCommon.GetCloudAccounts()
 	for _, accCfg := range accountConfigs {
+		if ready := accCfg.GetAccountConfigState(); !ready {
+			continue
+		}
 		accNamespacedNames = append(accNamespacedNames, *accCfg.GetNamespacedName())
 	}
 

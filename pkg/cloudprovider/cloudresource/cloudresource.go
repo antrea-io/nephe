@@ -23,6 +23,8 @@ import (
 	"reflect"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/types"
+
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 )
 
@@ -80,6 +82,16 @@ type CloudResource struct {
 
 func (c *CloudResource) String() string {
 	return string(c.Type) + "/" + c.CloudResourceID.String()
+}
+
+func (c *CloudResource) GetAccountNamespacedName() *types.NamespacedName {
+	// accountID is a string representation of namespacedName ie namespace and provider account name joined with a "/".
+	tokens := strings.Split(c.AccountID, string(types.Separator))
+	if len(tokens) == 2 {
+		return &types.NamespacedName{Namespace: tokens[0], Name: tokens[1]}
+	} else {
+		return nil
+	}
 }
 
 func (c *CloudResourceID) GetCloudName(membershipOnly bool) string {

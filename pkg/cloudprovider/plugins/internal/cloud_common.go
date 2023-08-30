@@ -19,7 +19,6 @@ import (
 	"reflect"
 	"strings"
 	"sync"
-	"time"
 
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -35,7 +34,6 @@ var (
 	VirtualMachineRuntimeObjectKind = reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()
 
 	MaxCloudResourceResponse  int64 = 100
-	InventoryInitWaitDuration       = time.Second * 30
 	AccountCredentialsDefault       = "default"
 )
 
@@ -68,6 +66,7 @@ type CloudCommonInterface interface {
 	RemoveResourceFilters(accNamespacedName, selectorNamespacedName *types.NamespacedName)
 
 	GetStatus(accNamespacedName *types.NamespacedName) (*crdv1alpha1.CloudProviderAccountStatus, error)
+	GetAccountConfigState(accountNamespacedName *types.NamespacedName) (bool, error)
 
 	DoInventoryPoll(accountNamespacedName *types.NamespacedName) error
 
@@ -150,7 +149,7 @@ func (c *cloudCommon) GetCloudAccountByName(namespacedName *types.NamespacedName
 // GetCloudAccountByAccountId converts accountID to namespacedName and finds the matching accCfg.
 func (c *cloudCommon) GetCloudAccountByAccountId(accountID *string) (CloudAccountInterface, error) {
 	// accountID is a string representation of namespacedName ie namespace and provider account name joined with a "/".
-	tokens := strings.Split(*accountID, "/")
+	tokens := strings.Split(*accountID, string(types.Separator))
 	if len(tokens) == 2 {
 		namespacedName := types.NamespacedName{Namespace: tokens[0], Name: tokens[1]}
 		accCfg, err := c.GetCloudAccountByName(&namespacedName)
@@ -204,6 +203,17 @@ func (c *cloudCommon) GetStatus(accountNamespacedName *types.NamespacedName) (*c
 	defer accCfg.UnlockMutex()
 
 	return accCfg.GetStatus(), nil
+}
+
+func (c *cloudCommon) GetAccountConfigState(accountNamespacedName *types.NamespacedName) (bool, error) {
+	accCfg, err := c.GetCloudAccountByName(accountNamespacedName)
+	if err != nil && strings.Contains(err.Error(), AccountConfigNotFound) {
+		return false, err
+	}
+	accCfg.LockMutex()
+	defer accCfg.UnlockMutex()
+
+	return accCfg.GetAccountConfigState(), nil
 }
 
 // DoInventoryPoll calls cloud API to get vm and vpc resources.
