@@ -78,13 +78,15 @@ func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable
 		}
 
 		var nsgIds []string
-		if nwInf.NsgID != nil {
+		if nwInf.NsgID != nil && *nwInf.NsgID != "" {
 			nsgIds = append(nsgIds, *nwInf.NsgID)
 		}
 
 		var asgIDs []string
 		for _, asgID := range nwInf.ApplicationSecurityGroupIDs {
-			asgIDs = append(asgIDs, *asgID)
+			if asgID != nil && *asgID != "" {
+				asgIDs = append(asgIDs, *asgID)
+			}
 		}
 
 		networkInterface := runtimev1alpha1.NetworkInterface{

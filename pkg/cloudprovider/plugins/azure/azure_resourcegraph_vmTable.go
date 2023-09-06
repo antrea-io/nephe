@@ -95,19 +95,19 @@ const (
 		"	{{ end }}" +
 		"	| extend publicIpId = tolower(tostring(ipconfig.properties.publicIPAddress.id))" +
 		"	| extend nicPrivateIp = ipconfig.properties.privateIPAddress" +
-		"   | extend applicationSecurityGroup = ipconfig.properties.applicationSecurityGroups" +
+		"   | extend applicationSecurityGroups = ipconfig.properties.applicationSecurityGroups" +
 		"	| join kind = leftouter (" +
 		"		Resources" +
 		"		| where type =~ 'microsoft.network/publicipaddresses'" +
 		"		| project publicIpId = tolower(id), nicPublicIp = properties.ipAddress" +
 		"	) on publicIpId" +
-		"   | mvexpand applicationSecurityGroup" +
-		"   | extend appId = tolower(applicationSecurityGroup.id)" +
-		"	| summarize nicTags = any(tags), macAddress = any(macAddress), vnetId = any(vnetId), nsgId = any(nsgId), " +
-		"applicationSecurityGroupIds = make_list(appId), nicPublicIps = make_list(nicPublicIp), " +
-		"nicPrivateIps = make_list(nicPrivateIp) by id, name" +
-		"	| project nicId = tolower(id), nicName = name, nicPublicIps, nicPrivateIps, vnetId, macAddress, " +
-		"nicTags, nsgId = tolower(nsgId), applicationSecurityGroupIds" +
+		"   | mvexpand applicationSecurityGroup = applicationSecurityGroups" +
+		"   | extend appSecurityGroupId = tolower(applicationSecurityGroup.id)" +
+		"   | summarize applicationSecurityGroupIds = make_set(appSecurityGroupId), " +
+		"nicTags = any(tags), macAddress = any(macAddress), vnetId = any(vnetId), nsgId = any(nsgId), " +
+		"nicPublicIps = make_set(nicPublicIp), nicPrivateIps = make_set(nicPrivateIp) by id, name" +
+		"	| project nicId = tolower(id), nicName = name, nsgId = tolower(nsgId), nicPublicIps, nicPrivateIps, vnetId, macAddress, " +
+		"nicTags, applicationSecurityGroupIds" +
 		") on nicId" +
 		"| extend networkInterfaceDetails = pack(\"id\", nicId, \"name\", nicName, \"macAddress\", macAddress, \"privateIps\"," +
 		"nicPrivateIps, \"publicIps\", nicPublicIps, \"tags\", nicTags, \"vnetId\", vnetId, \"nsgId\", nsgId, " +
