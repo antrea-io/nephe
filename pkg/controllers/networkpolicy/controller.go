@@ -16,6 +16,7 @@ package networkpolicy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"time"
@@ -90,11 +91,14 @@ type NetworkPolicyReconciler struct {
 	networkPolicyWatcher  watch.Interface
 
 	// Indexers
-	networkPolicyIndexer cache.Indexer
-	addrSGIndexer        cache.Indexer
-	appliedToSGIndexer   cache.Indexer
-	npTrackerIndexer     cache.Indexer
-	cloudRuleIndexer     cache.Indexer
+	networkPolicyIndexer  cache.Indexer
+	appliedToGroupIndexer cache.Indexer
+	addressGroupIndexer   cache.Indexer
+
+	addrSGIndexer      cache.Indexer
+	appliedToSGIndexer cache.Indexer
+	npTrackerIndexer   cache.Indexer
+	cloudRuleIndexer   cache.Indexer
 
 	Inventory inventory.Interface
 
@@ -372,6 +376,16 @@ func (r *NetworkPolicyReconciler) processAddressGroup(event watch.Event) error {
 		added = patch.AddedGroupMembers
 		removed = patch.RemovedGroupMembers
 	}
+	// Just storing AddressGroup, not AddressGroupPatch. We just need the object key to remove stale member.
+	if event.Type == watch.Added {
+		if err := r.addressGroupIndexer.Add(event.Object); err != nil {
+			r.Log.Error(err, "failed to add addressGroup")
+		}
+	} else if event.Type == watch.Deleted {
+		if err := r.addressGroupIndexer.Delete(event.Object); err != nil {
+			r.Log.Error(err, "failed to delete addressGroup")
+		}
+	}
 	return r.processGroup(getNormalizedName(accessor.GetName()), event.Type, true, added, removed)
 }
 
@@ -391,6 +405,17 @@ func (r *NetworkPolicyReconciler) processAppliedToGroup(event watch.Event) error
 	} else if patch != nil {
 		added = patch.AddedGroupMembers
 		removed = patch.RemovedGroupMembers
+	}
+
+	// Just storing AppliedToGroup, not AppliedToGroupPatch. We just need the object key to remove stale member.
+	if event.Type == watch.Added {
+		if err := r.appliedToGroupIndexer.Add(event.Object); err != nil {
+			r.Log.Error(err, "failed to add appliedToGroup")
+		}
+	} else if event.Type == watch.Deleted {
+		if err := r.appliedToGroupIndexer.Delete(event.Object); err != nil {
+			r.Log.Error(err, "failed to delete appliedToGroup")
+		}
 	}
 	return r.processGroup(getNormalizedName(accessor.GetName()), event.Type, false, added, removed)
 }
@@ -682,6 +707,18 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager, antreaKubec
 				return appliedToGroups, nil
 			},
 		})
+	r.addressGroupIndexer = cache.NewIndexer(
+		func(obj interface{}) (string, error) {
+			addressGroup := obj.(*antreanetworking.AddressGroup)
+			return types.NamespacedName{Name: addressGroup.Name, Namespace: addressGroup.Namespace}.String(), nil
+		}, cache.Indexers{},
+	)
+	r.appliedToGroupIndexer = cache.NewIndexer(
+		func(obj interface{}) (string, error) {
+			appliedToGroup := obj.(*antreanetworking.AppliedToGroup)
+			return types.NamespacedName{Name: appliedToGroup.Name, Namespace: appliedToGroup.Namespace}.String(), nil
+		}, cache.Indexers{},
+	)
 	r.npTrackerIndexer = cache.NewIndexer(
 		// Each CloudResourceNpTracker is uniquely identified by cloud resource.
 		func(obj interface{}) (string, error) {
@@ -758,11 +795,141 @@ func (r *NetworkPolicyReconciler) createAntreaClient(mgr ctrl.Manager, antreaKub
 	r.antreaClient = antreanetworkingclient.NewForConfigOrDie(config)
 }
 
+// reSyncCache re-syncs internal cache of appliedToGroup, addressGroup and networkPolicy upon watcher reset.
+// It caches all the events till the bookmark and figures out stale objects (if any) and issue explicit
+// delete for those objects.
+func (r *NetworkPolicyReconciler) reSyncCache() error {
+	var (
+		npInitialEventObjects           []watch.Event
+		addressGroupInitialEventObjects []watch.Event
+		appliedToInitialEventObjects    []watch.Event
+
+		npInitialObjectKeys           = map[types.NamespacedName]struct{}{}
+		addressGroupInitialObjectKeys = map[types.NamespacedName]struct{}{}
+		appliedToInitialObjectKeys    = map[types.NamespacedName]struct{}{}
+	)
+
+	// TODO: Better choice is to make watch interface and let networkPolicy, addressGroup and appliedToGroup
+	// share the common watch interface. This can work we can process these events in parallel.
+	syncCount := 0
+	for {
+		if syncCount == 3 {
+			break
+		}
+		select {
+		case event, ok := <-r.addrGroupWatcher.ResultChan():
+			if !ok || event.Type == watch.Error {
+				return errors.New("closed addressGroupWatcher channel, restart")
+			}
+			// Cache in initial objects till bookmark event.
+			addressGroupInitialEventObjects = append(addressGroupInitialEventObjects, event)
+
+			if event.Type == watch.Bookmark {
+				syncCount++
+				break
+			} else {
+				// Store the key so that it can be used for figuring out stale objects later.
+				addressGroup := event.Object.(*antreanetworking.AddressGroup)
+				key := types.NamespacedName{Namespace: addressGroup.Namespace, Name: addressGroup.Name}
+				addressGroupInitialObjectKeys[key] = struct{}{}
+			}
+		case event, ok := <-r.appliedToGroupWatcher.ResultChan():
+			if !ok || event.Type == watch.Error {
+				return errors.New("closed appliedToGroupWatcher channel, restart")
+			}
+			appliedToInitialEventObjects = append(appliedToInitialEventObjects, event)
+			if event.Type == watch.Bookmark {
+				syncCount++
+				break
+			} else {
+				appliedToGroup := event.Object.(*antreanetworking.AppliedToGroup)
+				key := types.NamespacedName{Namespace: appliedToGroup.Namespace, Name: appliedToGroup.Name}
+				appliedToInitialObjectKeys[key] = struct{}{}
+			}
+		case event, ok := <-r.networkPolicyWatcher.ResultChan():
+			if !ok || event.Type == watch.Error {
+				return errors.New("closed networkPolicyWatcher channel, restart")
+			}
+			npInitialEventObjects = append(npInitialEventObjects, event)
+			if event.Type == watch.Bookmark {
+				syncCount++
+				break
+			} else {
+				np := event.Object.(*antreanetworking.NetworkPolicy)
+				key := types.NamespacedName{Name: np.SourceRef.Name, Namespace: np.SourceRef.Namespace}
+				npInitialObjectKeys[key] = struct{}{}
+			}
+		}
+	}
+
+	// Delete Stale Network Policy, AppliedToGroup and AddressGroup.
+	cachedNp := r.networkPolicyIndexer.List()
+	for _, obj := range cachedNp {
+		np := obj.(*networkPolicy)
+		npKey := types.NamespacedName{Name: np.Name, Namespace: np.Namespace}
+		if _, ok := npInitialObjectKeys[npKey]; !ok {
+			r.Log.V(1).Info("Deleting stale networkPolicy", "name", npKey)
+			obj := watch.Event{Object: &np.NetworkPolicy, Type: watch.Deleted}
+			if err := r.processNetworkPolicy(obj); err != nil {
+				r.Log.Error(err, "processing")
+			}
+		}
+	}
+
+	cachedAppliedToGroup := r.appliedToGroupIndexer.List()
+	for _, obj := range cachedAppliedToGroup {
+		appliedToGroup := obj.(*antreanetworking.AppliedToGroup)
+		key := types.NamespacedName{Name: appliedToGroup.Name, Namespace: appliedToGroup.Namespace}
+		if _, ok := npInitialObjectKeys[key]; !ok {
+			r.Log.V(1).Info("Deleting stale appliedToGroup", "name", key)
+			obj := watch.Event{Object: appliedToGroup, Type: watch.Deleted}
+			if err := r.processAppliedToGroup(obj); err != nil {
+				r.Log.Error(err, "processing")
+			}
+		}
+	}
+
+	cachedAddressGroup := r.addressGroupIndexer.List()
+	for _, obj := range cachedAddressGroup {
+		addressGroup := obj.(*antreanetworking.AddressGroup)
+		key := types.NamespacedName{Name: addressGroup.Name, Namespace: addressGroup.Namespace}
+		if _, ok := npInitialObjectKeys[key]; !ok {
+			r.Log.V(1).Info("Deleting stale addressGroup", "name", key)
+			obj := watch.Event{Object: addressGroup, Type: watch.Deleted}
+			if err := r.processAddressGroup(obj); err != nil {
+				r.Log.Error(err, "processing")
+			}
+		}
+	}
+
+	// Add AddressGroup, AppliedToGroup and NetworkPolicy.
+	for _, obj := range addressGroupInitialEventObjects {
+		if err := r.processAddressGroup(obj); err != nil {
+			r.Log.Error(err, "processing")
+		}
+	}
+
+	for _, obj := range appliedToInitialEventObjects {
+		if err := r.processAppliedToGroup(obj); err != nil {
+			r.Log.Error(err, "processing")
+		}
+	}
+
+	for _, obj := range npInitialEventObjects {
+		if err := r.processNetworkPolicy(obj); err != nil {
+			r.Log.Error(err, "processing")
+		}
+	}
+	return nil
+}
+
 func (r *NetworkPolicyReconciler) resetWatchers() error {
 	var err error
 	options := metav1.ListOptions{
 		FieldSelector: fields.OneTermEqualSelector("nodeName", config.ANPNepheController).String(),
 	}
+
+	// TODO: Evaluate if we can avoid resetting all the watchers, if one of the watcher fails.
 	for {
 		if r.addrGroupWatcher, err = r.antreaClient.AddressGroups().Watch(context.Background(), options); err != nil {
 			r.Log.Error(err, "watcher connect to AddressGroup")
@@ -779,7 +946,10 @@ func (r *NetworkPolicyReconciler) resetWatchers() error {
 			time.Sleep(time.Second * 5)
 			continue
 		}
-		break
+		// Re-sync cache after reset.
+		if err := r.reSyncCache(); err == nil {
+			break
+		}
 	}
 	return err
 }
