@@ -324,22 +324,26 @@ func parseSecurityRules(securityRule *armnetwork.SecurityRule) *runtimev1alpha1.
 	if securityRule.Properties.SourceAddressPrefix != nil {
 		if *securityRule.Properties.SourceAddressPrefix == "*" {
 			rule.Source = append(rule.Source, "any")
-		} else {
+		} else if *securityRule.Properties.SourceAddressPrefix != "" {
 			rule.Source = append(rule.Source, *securityRule.Properties.SourceAddressPrefix)
 		}
 	}
 	if securityRule.Properties.DestinationAddressPrefix != nil {
 		if *securityRule.Properties.DestinationAddressPrefix == "*" {
 			rule.Destination = append(rule.Destination, "any")
-		} else {
+		} else if *securityRule.Properties.DestinationAddressPrefix != "" {
 			rule.Destination = append(rule.Destination, *securityRule.Properties.DestinationAddressPrefix)
 		}
 	}
 	for index := range securityRule.Properties.SourceAddressPrefixes {
-		rule.Source = append(rule.Source, *securityRule.Properties.SourceAddressPrefixes[index])
+		if securityRule.Properties.SourceAddressPrefixes[index] != nil && *securityRule.Properties.SourceAddressPrefixes[index] != "" {
+			rule.Source = append(rule.Source, *securityRule.Properties.SourceAddressPrefixes[index])
+		}
 	}
 	for index := range securityRule.Properties.DestinationAddressPrefixes {
-		rule.Destination = append(rule.Destination, *securityRule.Properties.DestinationAddressPrefixes[index])
+		if securityRule.Properties.DestinationAddressPrefixes[index] != nil && *securityRule.Properties.DestinationAddressPrefixes[index] != "" {
+			rule.Destination = append(rule.Destination, *securityRule.Properties.DestinationAddressPrefixes[index])
+		}
 	}
 
 	if len(rule.Source) == 0 {
