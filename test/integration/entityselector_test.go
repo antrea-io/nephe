@@ -29,6 +29,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"antrea.io/nephe/apis/crd/v1alpha1"
@@ -111,6 +112,11 @@ var _ = Describe(fmt.Sprintf("%s: Entity selector test", focusAws), func() {
 						VMSelector:       []v1alpha1.VirtualMachineSelector{},
 					},
 				}
+			} else {
+				// fetch the latest CES in order to avoid resource version related issues on CES update.
+				namespacedName := types.NamespacedName{Name: testAccountName, Namespace: cesNs[i].Name}
+				err := k8sClient.Get(context.TODO(), namespacedName, &selector[i])
+				Expect(err).ToNot(HaveOccurred())
 			}
 
 			switch matchKey {
@@ -195,10 +201,9 @@ var _ = Describe(fmt.Sprintf("%s: Entity selector test", focusAws), func() {
 		return true
 	}
 
-	tester := func(matchKey string, matchValue []string, selectorExists bool, numOfInterval int, cesNs []v1.Namespace,
-		expectedResult [][]string) {
+	tester := func(matchKey string, matchValue []string, selectorExists bool, cesNs []v1.Namespace, expectedResult [][]string) {
 		applyEntitySelector(matchKey, matchValue, selectorExists, cesNs)
-		time.Sleep(time.Duration(numOfInterval) * time.Duration(pollInterval) * time.Second)
+		time.Sleep(time.Duration(pollInterval) * time.Second)
 
 		for i := range cesNs {
 			var expectedResultValue []string
@@ -353,15 +358,15 @@ var _ = Describe(fmt.Sprintf("%s: Entity selector test", focusAws), func() {
 		func(matchKey string) {
 			By("Apply entity selector with valid match key")
 			matchValue, expectedResult := setParams(matchKey, "")
-			tester(matchKey, matchValue, false, 2, cesNamespace, expectedResult)
+			tester(matchKey, matchValue, false, cesNamespace, expectedResult)
 
 			By("Change match key to invalid non-empty value")
 			matchValue, _ = setParams(matchKey, "xyz")
-			tester(matchKey, matchValue, true, 2, cesNamespace, nil)
+			tester(matchKey, matchValue, true, cesNamespace, nil)
 
 			By("Change match key back to valid value again")
 			matchValue, expectedResult = setParams(matchKey, "")
-			tester(matchKey, matchValue, true, 2, cesNamespace, expectedResult)
+			tester(matchKey, matchValue, true, cesNamespace, expectedResult)
 
 		},
 		Entry(focusAzure+":"+"VPC id match", vpcIDMatch),
