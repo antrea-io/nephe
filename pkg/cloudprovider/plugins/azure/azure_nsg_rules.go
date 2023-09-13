@@ -427,7 +427,10 @@ func findSecurityRule(ruleList []*armnetwork.SecurityRule, rule *armnetwork.Secu
 func normalizeAzureSecurityRule(rule *armnetwork.SecurityRule) *armnetwork.SecurityRule {
 	property := *rule.Properties
 	normalizedProtocolNum := azureProtoNameToNumMap[strings.ToLower(string(*rule.Properties.Protocol))]
-	normalizedProtocol := protoNumAzureNameMap[normalizedProtocolNum]
+	normalizedProtocol, ok := protoNumAzureNameMap[normalizedProtocolNum]
+	if !ok {
+		normalizedProtocol = "*"
+	}
 
 	property.Protocol = &normalizedProtocol
 	property.Priority = nil
