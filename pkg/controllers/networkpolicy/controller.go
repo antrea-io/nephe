@@ -35,8 +35,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	antreanetworking "antrea.io/antrea/pkg/apis/controlplane/v1beta2"
-	antreav1alpha1 "antrea.io/antrea/pkg/apis/crd/v1alpha1"
-	antreav1alpha2 "antrea.io/antrea/pkg/apis/crd/v1alpha2"
+	antreacrdv1alpha2 "antrea.io/antrea/pkg/apis/crd/v1alpha2"
+	antreacrdv1beta1 "antrea.io/antrea/pkg/apis/crd/v1beta1"
 	antreanetworkingclient "antrea.io/antrea/pkg/client/clientset/versioned/typed/controlplane/v1beta2"
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
@@ -132,7 +132,7 @@ func (r *NetworkPolicyReconciler) isNetworkPolicySupported(anp *antreanetworking
 	}
 	// Check for support actions.
 	for _, rule := range anp.Rules {
-		if rule.Action != nil && *rule.Action != antreav1alpha1.RuleActionAllow {
+		if rule.Action != nil && *rule.Action != antreacrdv1beta1.RuleActionAllow {
 			return fmt.Errorf("only Allow action is supported in antrea network policy")
 		}
 		// check for supported protocol.
@@ -587,7 +587,7 @@ func (r *NetworkPolicyReconciler) ExternalEntityStart(_ context.Context) error {
 		r.Log.Error(err, "dependent controller sync failed", "controller", sync.ControllerTypeCPA.String())
 		return err
 	}
-	eeList := &antreav1alpha2.ExternalEntityList{}
+	eeList := &antreacrdv1alpha2.ExternalEntityList{}
 	if err := r.Client.List(context.TODO(), eeList, &client.ListOptions{}); err != nil {
 		return err
 	}
@@ -772,7 +772,7 @@ func (r *NetworkPolicyReconciler) SetupWithManager(mgr ctrl.Manager, antreaKubec
 	}
 
 	r.createAntreaClient(mgr, antreaKubeconfig)
-	if err := ctrl.NewControllerManagedBy(mgr).For(&antreav1alpha2.ExternalEntity{}).Complete(r); err != nil {
+	if err := ctrl.NewControllerManagedBy(mgr).For(&antreacrdv1alpha2.ExternalEntity{}).Complete(r); err != nil {
 		return err
 	}
 	return mgr.Add(r)

@@ -58,7 +58,7 @@ Terraform state files and other runtime info will be stored under
 `~/tmp/terraform-aks/`. You can also create an AKS cluster in other ways and
 deploy prerequisites manually.
 
-This also deploys `cert-manager v1.8.2` and `antrea v1.12.0`.
+This also deploys `cert-manager v1.8.2` and `antrea v1.13.0`.
 
 ```bash
 ~/terraform/aks create

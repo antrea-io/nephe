@@ -40,8 +40,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	antreanetworking "antrea.io/antrea/pkg/apis/controlplane/v1beta2"
-	"antrea.io/antrea/pkg/apis/crd/v1alpha1"
 	antreatypes "antrea.io/antrea/pkg/apis/crd/v1alpha2"
+	antreacrdv1beta1 "antrea.io/antrea/pkg/apis/crd/v1beta1"
 	antreafakeclientset "antrea.io/antrea/pkg/client/clientset/versioned/fake"
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
@@ -947,7 +947,7 @@ var _ = Describe("NetworkPolicy", func() {
 
 	It("Verify unsupported networkPolicy drop action", func() {
 		anpTemp := anp
-		ruleAction := v1alpha1.RuleActionDrop
+		ruleAction := antreacrdv1beta1.RuleActionDrop
 		anpTemp.Rules[0].Action = &ruleAction
 		event := watch.Event{Type: watch.Added, Object: anpTemp}
 		err := reconciler.processNetworkPolicy(event)

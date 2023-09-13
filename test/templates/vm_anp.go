@@ -55,7 +55,7 @@ type GroupParameters struct {
 }
 
 const CloudAntreaNetworkPolicy = `
-apiVersion: crd.antrea.io/v1alpha1
+apiVersion: crd.antrea.io/v1beta1
 kind: NetworkPolicy
 metadata:
   name: {{.Name}}
@@ -175,7 +175,7 @@ spec:
 {{ end }} {{/* .To */}}
 `
 const CloudAntreaGroup = `
-apiVersion: crd.antrea.io/v1alpha3
+apiVersion: crd.antrea.io/v1beta1
 kind: Group
 metadata:
   name: {{.Name}}

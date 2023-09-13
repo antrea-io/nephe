@@ -49,7 +49,7 @@ const (
 	focusCloud = "test-cloud-cluster"
 	focusAgent = "test-with-agent"
 
-	antreaVersion = "v1.12.0"
+	antreaVersion = "v1.13.0"
 )
 
 var (
