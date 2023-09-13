@@ -462,12 +462,14 @@ func (s *securityGroupImpl) deleteImpl(c cloudSecurityGroup, membershipOnly bool
 		// and then delete it. In most cases, the detachment should go through, but we
 		// may not be able to delete AtGroup. So delete the rules from the indexers,
 		// so that when AtGroup is re-added, rules can be realized again.
-		s.deleteSgRulesFromIndexer(r)
-		// Send rule realization even if appliedToGroup is getting deleted.
-		if !membershipOnly && len(nps) != 0 {
-			for _, obj := range nps {
-				np := obj.(*networkPolicy)
-				r.sendRuleRealizationStatus(&np.NetworkPolicy, err)
+		if !membershipOnly {
+			s.deleteSgRulesFromIndexer(r)
+			// Send rule realization even if appliedToGroup is getting deleted.
+			if len(nps) != 0 {
+				for _, obj := range nps {
+					np := obj.(*networkPolicy)
+					r.sendRuleRealizationStatus(&np.NetworkPolicy, err)
+				}
 			}
 		}
 		r.cloudResponse <- &securityGroupStatus{sg: c, op: securityGroupOperationDelete, err: err}
