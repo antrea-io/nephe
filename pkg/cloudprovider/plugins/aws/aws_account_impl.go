@@ -45,6 +45,10 @@ func (c *awsCloud) GetAccountStatus(accNamespacedName *types.NamespacedName) (*c
 	return c.cloudCommon.GetStatus(accNamespacedName)
 }
 
+func (c *awsCloud) GetAccountState(accNamespacedName *types.NamespacedName) (bool, error) {
+	return c.cloudCommon.GetAccountConfigState(accNamespacedName)
+}
+
 // DoInventoryPoll calls cloud API to get cloud resources.
 func (c *awsCloud) DoInventoryPoll(accountNamespacedName *types.NamespacedName) error {
 	return c.cloudCommon.DoInventoryPoll(accountNamespacedName)

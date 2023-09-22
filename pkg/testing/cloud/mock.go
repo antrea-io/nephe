@@ -125,6 +125,21 @@ func (mr *MockCloudInterfaceMockRecorder) DoInventoryPoll(arg0 interface{}) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DoInventoryPoll", reflect.TypeOf((*MockCloudInterface)(nil).DoInventoryPoll), arg0)
 }
 
+// GetAccountState mocks base method.
+func (m *MockCloudInterface) GetAccountState(arg0 *types0.NamespacedName) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAccountState", arg0)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAccountState indicates an expected call of GetAccountState.
+func (mr *MockCloudInterfaceMockRecorder) GetAccountState(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccountState", reflect.TypeOf((*MockCloudInterface)(nil).GetAccountState), arg0)
+}
+
 // GetAccountStatus mocks base method.
 func (m *MockCloudInterface) GetAccountStatus(arg0 *types0.NamespacedName) (*v1alpha1.CloudProviderAccountStatus, error) {
 	m.ctrl.T.Helper()
