@@ -49,6 +49,9 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 
 		importAfterANP bool
 		abbreviated    bool
+
+		anpPriority        = 10
+		defaultAnpPriority = 20
 	)
 
 	BeforeEach(func() {
@@ -102,6 +105,10 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		Expect(err).ToNot(HaveOccurred())
 		err = utils.ConfigureK8s(kubeCtl, anpParams, k8stemplates.CloudAntreaNetworkPolicy, true)
 		Expect(err).ToNot(HaveOccurred())
+		if !withAgent && cloudProviders == "Azure" {
+			err = utils.ConfigureK8s(kubeCtl, defaultANPParameters, k8stemplates.DefaultANPSetup, true)
+			Expect(err).ToNot(HaveOccurred())
+		}
 		err = utils.CheckCloudResourceNetworkPolicies(kubeCtl, k8sClient, reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name(), namespace.Name,
 			cloudVPC.GetVMs(), nil, withAgent)
 		Expect(err).ToNot(HaveOccurred())
@@ -146,23 +153,39 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			// TODO: Update the tests later to remove this rule
 			defaultANPParameters = k8stemplates.DefaultANPParameters{
 				Namespace: staticVMNS.Name,
+				Name:      "deny-8080",
 				Entity: &k8stemplates.EntitySelectorParameters{
 					Kind: labels.ExternalEntityLabelKeyKind + ": " + strings.ToLower(reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
 				},
 			}
-			err := utils.ConfigureK8s(kubeCtl, defaultANPParameters, k8stemplates.DefaultANPSetup, false)
+			err := utils.ConfigureK8s(kubeCtl, defaultANPParameters, k8stemplates.DefaultANPAgentedSetup, false)
 			Expect(err).ToNot(HaveOccurred(), "failed to add default ANP rule")
+		} else {
+			if cloudProviders == "Azure" {
+				defaultANPParameters = k8stemplates.DefaultANPParameters{
+					Namespace: namespace.Name,
+					Name:      "deny-all",
+					Priority:  defaultAnpPriority,
+					Entity: &k8stemplates.EntitySelectorParameters{
+						Kind: labels.ExternalEntityLabelKeyKind + ": " + strings.ToLower(reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
+					},
+				}
+				err := utils.ConfigureK8s(kubeCtl, defaultANPParameters, k8stemplates.DefaultANPSetup, false)
+				Expect(err).ToNot(HaveOccurred(), "failed to add default deny ANP rule")
+			}
 		}
 
 		anpParams = k8stemplates.ANPParameters{
 			Name:      "test-cloud-anp",
 			Namespace: namespace.Name,
+			Priority:  anpPriority,
 		}
 
 		// Setup policies for all VMs
 		anpSetupParams = k8stemplates.ANPParameters{
 			Name:      "test-cloud-setup-anp",
 			Namespace: namespace.Name,
+			Priority:  anpPriority,
 		}
 		vmKind := reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()
 		anpSetupParams.AppliedTo = utils.ConfigANPApplyTo(vmKind, "", "", "", "")
@@ -219,8 +242,12 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			}
 		}
 
+		np := []string{anpSetupParams.Name}
+		if !withAgent && cloudProviders == "Azure" {
+			np = append(np, defaultANPParameters.Name)
+		}
 		err = utils.CheckCloudResourceNetworkPolicies(
-			kubeCtl, k8sClient, vmKind, namespace.Name, cloudVPC.GetVMs(), []string{anpSetupParams.Name}, withAgent,
+			kubeCtl, k8sClient, vmKind, namespace.Name, cloudVPC.GetVMs(), np, withAgent,
 		)
 		Expect(err).ToNot(HaveOccurred())
 		oks := make([]bool, len(cloudVPC.GetVMs()))
@@ -239,6 +266,9 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			var np []string
 			if kind == reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name() {
 				np = append(np, anpSetupParams.Name)
+				if !withAgent && cloudProviders == "Azure" {
+					np = append(np, defaultANPParameters.Name)
+				}
 			}
 			if ok {
 				np = append(np, anpParams.Name)
@@ -278,6 +308,9 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		var np []string
 		if kind == reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name() {
 			np = append(np, anpSetupParams.Name)
+			if !withAgent && cloudProviders == "Azure" {
+				np = append(np, defaultANPParameters.Name)
+			}
 		}
 		np = append(np, anpParams.Name)
 		err = utils.CheckCloudResourceNetworkPolicies(kubeCtl, k8sClient, kind, namespace.Name, []string{id}, np, withAgent)
@@ -297,6 +330,9 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		var np []string
 		if kind == reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name() {
 			np = append(np, anpSetupParams.Name)
+			if !withAgent && cloudProviders == "Azure" {
+				np = append(np, defaultANPParameters.Name)
+			}
 		}
 		np = append(np, anpParams.Name)
 		err = utils.CheckCloudResourceNetworkPolicies(kubeCtl, k8sClient, kind, namespace.Name, []string{id}, np, withAgent)
@@ -566,6 +602,42 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		verifyIngress(kind, ids[appliedIdx], ips[appliedIdx], srcVMs, oks, false)
 	}
 
+	testIngressDenyAll := func(kind string) {
+		var ids []string
+		var ips []string
+		if kind == reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name() {
+			ids = cloudVPC.GetVMs()
+			ips = cloudVPC.GetVMPrivateIPs()
+		} else {
+			Fail("Unsupported type")
+		}
+		setup(kind, len(ids), []string{"22"}, false)
+
+		appliedIdx := len(ids) - 1
+		srcVMs := cloudVPC.GetVMs()[:appliedIdx]
+		anpParams.AppliedTo = utils.ConfigANPApplyTo(kind, ids[appliedIdx], "", "", "")
+
+		By("Ingress AllowAll NetworkPolicy")
+		oks := make([]bool, len(ids)-1)
+		for i := range oks {
+			oks[i] = true
+		}
+
+		// wildcard ipblock and port.
+		anpParams.From = utils.ConfigANPToFrom("", "", "", "", "", "", namespace.Name,
+			[]string{}, false)
+		verifyIngress(kind, ids[appliedIdx], ips[appliedIdx], srcVMs, oks, false)
+
+		By("Make default rule higher priority")
+		defaultANPParameters.Priority = 5
+		err := utils.ConfigureK8s(kubeCtl, defaultANPParameters, k8stemplates.DefaultANPSetup, false)
+		Expect(err).ToNot(HaveOccurred(), "failed to update default deny ANP rule")
+		for i := range oks {
+			oks[i] = false
+		}
+		verifyIngress(kind, ids[appliedIdx], ips[appliedIdx], srcVMs, oks, false)
+	}
+
 	DescribeTable("AppliedTo",
 		func(kind string) {
 			testAppliedTo(kind)
@@ -613,6 +685,16 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		Entry(fmt.Sprintf("%s %s: VM In Same Namespace", focusAzure, focusAgent),
 			reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
 	)
+
+	if cloudProviders == "Azure" {
+		DescribeTable("Ingress DenyAll",
+			func(kind string) {
+				testIngressDenyAll(kind)
+			},
+			Entry(fmt.Sprintf("%s: VM In Same Namespace", focusAzure),
+				reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
+		)
+	}
 
 	Context("Enforce Before Import", func() {
 		JustBeforeEach(func() {
@@ -699,7 +781,12 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		Expect(err).NotTo(HaveOccurred())
 		err = utils.WaitApiServer(k8sClient, time.Second*60)
 		Expect(err).NotTo(HaveOccurred())
-		err = utils.CheckCloudResourceNetworkPolicies(kubeCtl, k8sClient, kind, namespace.Name, ids, []string{anpSetupParams.Name}, withAgent)
+
+		np := []string{anpSetupParams.Name}
+		if !withAgent && cloudProviders == "Azure" {
+			np = append(np, defaultANPParameters.Name)
+		}
+		err = utils.CheckCloudResourceNetworkPolicies(kubeCtl, k8sClient, kind, namespace.Name, ids, np, withAgent)
 		Expect(err).ToNot(HaveOccurred())
 		err = utils.ExecuteCurlCmds(cloudVPC, nil, srcVMs, "", []string{ids[appliedIdx]}, apachePort, oks, 30)
 		Expect(err).ToNot(HaveOccurred())
@@ -757,8 +844,12 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 		err := utils.ConfigureK8s(kubeCtl, anpParams, k8stemplates.CloudAntreaNetworkPolicy, false)
 		Expect(err).ToNot(HaveOccurred())
 
+		np := []string{anpSetupParams.Name, anpParams.Name}
+		if !withAgent && cloudProviders == "Azure" {
+			np = append(np, defaultANPParameters.Name)
+		}
 		err = utils.CheckCloudResourceNetworkPolicies(
-			kubeCtl, k8sClient, kind, namespace.Name, cloudVPC.GetVMs(), []string{anpSetupParams.Name, anpParams.Name}, withAgent,
+			kubeCtl, k8sClient, kind, namespace.Name, cloudVPC.GetVMs(), np, withAgent,
 		)
 		Expect(err).ToNot(HaveOccurred())
 

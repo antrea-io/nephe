@@ -20,6 +20,7 @@ import (
 	"math/rand"
 	"path"
 	"reflect"
+	"strings"
 	"time"
 
 	k8stemplates "antrea.io/nephe/test/templates"
@@ -29,6 +30,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
+	"antrea.io/nephe/pkg/labels"
 	"antrea.io/nephe/test/utils"
 )
 
@@ -37,13 +39,16 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy upgrade test", focusAws, focu
 		apachePort = "8080"
 	)
 	var (
-		namespace      *v1.Namespace
-		accountParams  k8stemplates.CloudAccountParameters
-		anpParams      k8stemplates.ANPParameters
-		anpSetupParams k8stemplates.ANPParameters
+		namespace            *v1.Namespace
+		accountParams        k8stemplates.CloudAccountParameters
+		anpParams            k8stemplates.ANPParameters
+		anpSetupParams       k8stemplates.ANPParameters
+		defaultANPParameters k8stemplates.DefaultANPParameters
+		defaultDenyANP       bool
 	)
 
 	BeforeEach(func() {
+		defaultDenyANP = false
 		if preserveSetupOnFail {
 			preserveSetup = true
 		}
@@ -90,6 +95,10 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy upgrade test", focusAws, focu
 		Expect(err).ToNot(HaveOccurred())
 		err = utils.ConfigureK8s(kubeCtl, anpParams, k8stemplates.CloudAntreaNetworkPolicy, true)
 		Expect(err).ToNot(HaveOccurred())
+		if defaultDenyANP {
+			err = utils.ConfigureK8s(kubeCtl, defaultANPParameters, k8stemplates.DefaultANPSetup, true)
+			Expect(err).ToNot(HaveOccurred())
+		}
 		err = utils.CheckCloudResourceNetworkPolicies(kubeCtl, k8sClient, reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name(), namespace.Name,
 			cloudVPC.GetVMs(), nil, false)
 		Expect(err).ToNot(HaveOccurred())
@@ -179,6 +188,9 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy upgrade test", focusAws, focu
 			var np []string
 			if kind == reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name() {
 				np = append(np, anpSetupParams.Name)
+				if defaultDenyANP == true {
+					np = append(np, defaultANPParameters.Name)
+				}
 			}
 			if ok {
 				np = append(np, anpParams.Name)
@@ -215,6 +227,19 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy upgrade test", focusAws, focu
 		ids := cloudVPC.GetVMs()
 		ips := cloudVPC.GetVMPrivateIPs()
 		setup(kind, len(ids), []string{"22"}, false)
+
+		// Add explicit deny-all rule.
+		if defaultDenyANP {
+			defaultANPParameters = k8stemplates.DefaultANPParameters{
+				Namespace: namespace.Name,
+				Name:      "deny-all",
+				Entity: &k8stemplates.EntitySelectorParameters{
+					Kind: labels.ExternalEntityLabelKeyKind + ": " + strings.ToLower(reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
+				},
+			}
+			err := utils.ConfigureK8s(kubeCtl, defaultANPParameters, k8stemplates.DefaultANPSetup, false)
+			Expect(err).ToNot(HaveOccurred(), "failed to add default deny ANP rule")
+		}
 
 		srcVM := cloudVPC.GetVMs()[0]
 		srcIP := cloudVPC.GetVMPrivateIPs()[0]
@@ -267,6 +292,10 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy upgrade test", focusAws, focu
 			By(fmt.Sprintf("Upgrading Helm Chart to %s.", toVersion))
 			err := utils.UpgradeHelmChart(k8sClient, toVersion, chartDir)
 			Expect(err).ToNot(HaveOccurred())
+
+			if cloudProvider == "Azure" {
+				defaultDenyANP = true
+			}
 			By("Test AppliedTo after upgrade.")
 			testAppliedTo(kind)
 		},
@@ -296,6 +325,19 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy upgrade test", focusAws, focu
 			By(fmt.Sprintf("Upgrading Helm Chart to %s.", toVersion))
 			err := utils.UpgradeHelmChart(k8sClient, toVersion, chartDir)
 			Expect(err).ToNot(HaveOccurred())
+
+			if cloudProvider == "Azure" {
+				defaultANPParameters = k8stemplates.DefaultANPParameters{
+					Namespace: namespace.Name,
+					Name:      "deny-all",
+					Entity: &k8stemplates.EntitySelectorParameters{
+						Kind: labels.ExternalEntityLabelKeyKind + ": " + strings.ToLower(reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
+					},
+				}
+				err := utils.ConfigureK8s(kubeCtl, defaultANPParameters, k8stemplates.DefaultANPSetup, false)
+				Expect(err).ToNot(HaveOccurred(), "failed to add default deny ANP rule")
+				defaultDenyANP = true
+			}
 			verifyAppliedTo(kind, ids, ips, srcVM, srcIP, applied)
 		},
 		Entry("VM In Same Namespace",

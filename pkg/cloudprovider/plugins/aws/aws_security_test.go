@@ -474,7 +474,7 @@ var _ = Describe("AWS Cloud Security", func() {
 			output1 := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier1.CloudResourceID, true, false)
 			output2 := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier2.CloudResourceID, true, false)
 			outputAt := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier1.CloudResourceID, false, false)
-			desc, _ := utils.GenerateCloudDescription(testAnpNamespacedName.String())
+			desc, _ := utils.GenerateCloudDescription(testAnpNamespacedName.String(), nil)
 			outputAt.SecurityGroups[0].IpPermissions = []*ec2.IpPermission{
 				{
 					FromPort:   aws.Int64(22),
@@ -576,7 +576,7 @@ var _ = Describe("AWS Cloud Security", func() {
 			output1 := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier1.CloudResourceID, true, false)
 			output2 := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier2.CloudResourceID, true, false)
 			outputAt := constructEc2DescribeSecurityGroupsOutput(&webSgIdentifier1.CloudResourceID, false, false)
-			desc, _ := utils.GenerateCloudDescription(testAnpNamespacedName.String())
+			desc, _ := utils.GenerateCloudDescription(testAnpNamespacedName.String(), nil)
 			outputAt.SecurityGroups[0].IpPermissionsEgress = []*ec2.IpPermission{
 				{
 					FromPort:   aws.Int64(22),

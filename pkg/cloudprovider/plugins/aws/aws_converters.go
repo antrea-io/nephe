@@ -147,7 +147,7 @@ func convertIngressToIpPermission(rules []*cloudresource.CloudRule, cloudSGNameT
 		if rule == nil {
 			continue
 		}
-		description, err := utils.GenerateCloudDescription(obj.NpNamespacedName)
+		description, err := utils.GenerateCloudDescription(obj.NpNamespacedName, rule.Priority)
 		if err != nil {
 			return nil, fmt.Errorf("unable to generate rule description, err: %v", err)
 		}
@@ -176,7 +176,7 @@ func convertEgressToIpPermission(rules []*cloudresource.CloudRule, cloudSGNameTo
 		if rule == nil {
 			continue
 		}
-		description, err := utils.GenerateCloudDescription(obj.NpNamespacedName)
+		description, err := utils.GenerateCloudDescription(obj.NpNamespacedName, rule.Priority)
 		if err != nil {
 			return nil, fmt.Errorf("unable to generate rule description, err: %v", err)
 		}

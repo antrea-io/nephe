@@ -16,14 +16,16 @@ package templates
 
 type DefaultANPParameters struct {
 	Namespace string
+	Name      string
+	Priority  int
 	Entity    *EntitySelectorParameters
 }
 
-const DefaultANPSetup = `
+const DefaultANPAgentedSetup = `
 apiVersion: crd.antrea.io/v1alpha1
 kind: NetworkPolicy
 metadata:
-  name: deny-8080
+  name: {{.Name}}
   namespace: {{.Namespace}}
 spec:
   priority: 2
@@ -44,6 +46,30 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+      to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+`
+const DefaultANPSetup = `
+apiVersion: crd.antrea.io/v1alpha1
+kind: NetworkPolicy
+metadata:
+  name: {{.Name}}
+  namespace: {{.Namespace}}
+spec:
+  tier: application
+  priority: {{.Priority}}
+  appliedTo:
+    - externalEntitySelector:
+        matchLabels:
+          {{.Entity.Kind}}
+  ingress:
+    - action: Drop
+      from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+  egress:
+    - action: Drop
       to:
         - ipBlock:
             cidr: 0.0.0.0/0

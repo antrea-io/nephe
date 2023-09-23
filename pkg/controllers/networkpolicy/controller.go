@@ -132,14 +132,14 @@ func (r *NetworkPolicyReconciler) isNetworkPolicySupported(anp *antreanetworking
 	}
 	// Check for support actions.
 	for _, rule := range anp.Rules {
-		if rule.Action != nil && *rule.Action != antreacrdv1beta1.RuleActionAllow {
-			return fmt.Errorf("only Allow action is supported in antrea network policy")
+		if rule.Action != nil && !(*rule.Action == antreacrdv1beta1.RuleActionAllow || *rule.Action == antreacrdv1beta1.RuleActionDrop) {
+			return fmt.Errorf("unsupported action: %v, supportted actions: %v, %v", *rule.Action,
+				antreacrdv1beta1.RuleActionAllow, antreacrdv1beta1.RuleActionDrop)
 		}
 		// check for supported protocol.
 		for _, s := range rule.Services {
 			if _, ok := AntreaProtocolMap[*s.Protocol]; !ok {
-				return fmt.Errorf("unsupported protocol %v, only %v protocols are supported",
-					*s.Protocol, reflect.ValueOf(AntreaProtocolMap).MapKeys())
+				return fmt.Errorf("unsupported protocol: %v, supportted protocols: %v", *s.Protocol, reflect.ValueOf(AntreaProtocolMap).MapKeys())
 			}
 		}
 	}
@@ -465,7 +465,9 @@ func (r *NetworkPolicyReconciler) processNetworkPolicy(event watch.Event) error 
 		return nil
 	}
 	if !isCreate && reflect.DeepEqual(anp.Rules, np.Rules) &&
-		reflect.DeepEqual(anp.AppliedToGroups, np.AppliedToGroups) {
+		reflect.DeepEqual(anp.AppliedToGroups, np.AppliedToGroups) &&
+		reflect.DeepEqual(anp.TierPriority, np.TierPriority) &&
+		reflect.DeepEqual(anp.Priority, np.Priority) {
 		r.Log.V(1).Info("Unchanged NetworkPolicy, ignoring update.", "Name", anp.Name, "Namespace", anp.Namespace)
 		// Send rule realization status if even no rule diff is found. This is because in case of
 		// antrea controller restart, it will send all ANPs again and there won't be any diff.

@@ -131,6 +131,12 @@ type CloudSecurityGroupInterface interface {
 	// This API ensures cloud plug-in stays stateless.
 	// - Correct SGs accidentally changed by customers via cloud API/console directly.
 	GetSecurityGroupSyncChan() <-chan cloudresource.SynchronizationContent
+
+	// CloudProviderSupportsRulePriority Returns true is Cloud Provider supports priority in the rule.
+	CloudProviderSupportsRulePriority(provider string) bool
+
+	// CloudProviderSupportsRuleAction Returns true is Cloud Provider supports action in the rule.
+	CloudProviderSupportsRuleAction(provider string) bool
 }
 
 type CloudSecurityGroupImpl struct{}
@@ -292,4 +298,12 @@ func (sg *CloudSecurityGroupImpl) GetSecurityGroupSyncChan() <-chan cloudresourc
 	}()
 
 	return retCh
+}
+
+func (sg *CloudSecurityGroupImpl) CloudProviderSupportsRulePriority(provider string) bool {
+	return provider == string(runtimev1alpha1.AzureCloudProvider)
+}
+
+func (sg *CloudSecurityGroupImpl) CloudProviderSupportsRuleAction(provider string) bool {
+	return provider == string(runtimev1alpha1.AzureCloudProvider)
 }
