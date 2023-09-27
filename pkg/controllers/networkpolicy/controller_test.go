@@ -344,6 +344,10 @@ var _ = Describe("NetworkPolicy", func() {
 		sgConfig.appSgMemberTimes = 1
 		sgConfig.appSgRuleTimes = 1
 		sgConfig.sgDeleteTimes = 1
+
+		// mock
+		mockCloudSecurityAPI.EXPECT().CloudProviderSupportsRulePriority(mock.Any()).Return(false).AnyTimes()
+		mockCloudSecurityAPI.EXPECT().CloudProviderSupportsRuleAction(mock.Any()).Return(false).AnyTimes()
 	})
 
 	AfterEach(func() {
@@ -945,9 +949,9 @@ var _ = Describe("NetworkPolicy", func() {
 		deleteAndVerifyNP(true)
 	})
 
-	It("Verify unsupported networkPolicy drop action", func() {
+	It("Verify unsupported networkPolicy reject action", func() {
 		anpTemp := anp
-		ruleAction := antreacrdv1beta1.RuleActionDrop
+		ruleAction := antreacrdv1beta1.RuleActionReject
 		anpTemp.Rules[0].Action = &ruleAction
 		event := watch.Event{Type: watch.Added, Object: anpTemp}
 		err := reconciler.processNetworkPolicy(event)

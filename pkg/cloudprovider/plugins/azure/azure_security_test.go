@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	antreacrdv1beta1 "antrea.io/antrea/pkg/apis/crd/v1beta1"
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
 	"antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
@@ -169,14 +170,12 @@ var _ = Describe("Azure Cloud Security", func() {
 
 			mockCtrl = gomock.NewController(GinkgoT())
 			mockAzureServiceHelper = NewMockazureServicesHelper(mockCtrl)
-
 			mockazureService = NewMockazureServiceClientCreateInterface(mockCtrl)
 			mockazureNwIntfWrapper = NewMockazureNwIntfWrapper(mockCtrl)
 			mockazureNsgWrapper = NewMockazureNsgWrapper(mockCtrl)
 			mockazureAsgWrapper = NewMockazureAsgWrapper(mockCtrl)
 			mockazureVirtualNetworksWrapper = NewMockazureVirtualNetworksWrapper(mockCtrl)
 			mockazureResourceGraph = NewMockazureResourceGraphWrapper(mockCtrl)
-
 			mockAzureServiceHelper.EXPECT().newServiceSdkConfigProvider(gomock.Any()).Return(mockazureService, nil).Times(1)
 			mockazureService.EXPECT().networkInterfaces(gomock.Any()).Return(mockazureNwIntfWrapper, nil).AnyTimes()
 			mockazureService.EXPECT().securityGroups(gomock.Any()).Return(mockazureNsgWrapper, nil).AnyTimes()
@@ -185,10 +184,10 @@ var _ = Describe("Azure Cloud Security", func() {
 			mockazureService.EXPECT().resourceGraph().Return(mockazureResourceGraph, nil)
 			mockazureVirtualNetworksWrapper.EXPECT().listAllComplete(gomock.Any()).AnyTimes()
 			mockazureResourceGraph.EXPECT().resources(gomock.Any(), gomock.Any()).Return(getResourceGraphResult(), nil).AnyTimes()
+
 			atAsg := &network.ApplicationSecurityGroup{ID: &testATAsgID, Name: &atAsgID}
 			agAsg := &network.ApplicationSecurityGroup{ID: &testAGAsgID, Name: &agAsgID}
 			asglist = []network.ApplicationSecurityGroup{*agAsg, *atAsg}
-
 			protocol := network.SecurityRuleProtocol("tcp")
 			access := network.SecurityRuleAccess("allow")
 			nsgrule := &network.SecurityRule{
@@ -543,7 +542,7 @@ var _ = Describe("Azure Cloud Security", func() {
 						}, NpNamespacedName: testAnpNamespace.String(),
 					},
 				}
-				desc, _ := utils.GenerateCloudDescription(testAnpNamespace.String())
+				desc, _ := utils.GenerateCloudDescription(testAnpNamespace.String(), nil)
 				nsgrules := []*network.SecurityRule{
 					{
 						ID: &nsgID,
@@ -603,8 +602,7 @@ var _ = Describe("Azure Cloud Security", func() {
 				}
 				mockazureNsgWrapper.EXPECT().createOrUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).
 					Do(func(_ context.Context, _, _ string, parameters network.SecurityGroup) {
-						// 4 rules and 2 deny rule.
-						Expect(len(parameters.Properties.SecurityRules)).To(Equal(6))
+						Expect(len(parameters.Properties.SecurityRules)).To(Equal(4))
 					})
 
 				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*cloudresource.CloudRule{})
@@ -666,7 +664,7 @@ var _ = Describe("Azure Cloud Security", func() {
 						}, NpNamespacedName: testAnpNamespace.String(),
 					},
 				}
-				desc, _ := utils.GenerateCloudDescription(testAnpNamespace.String())
+				desc, _ := utils.GenerateCloudDescription(testAnpNamespace.String(), nil)
 				nsgrules := []*network.SecurityRule{
 					{
 						ID: &nsgID,
@@ -726,11 +724,165 @@ var _ = Describe("Azure Cloud Security", func() {
 				}
 				mockazureNsgWrapper.EXPECT().createOrUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).
 					Do(func(_ context.Context, _, _ string, parameters network.SecurityGroup) {
-						// 4 rules and 2 deny rule.
-						Expect(len(parameters.Properties.SecurityRules)).To(Equal(6))
+						Expect(len(parameters.Properties.SecurityRules)).To(Equal(4))
 					})
 
 				err := c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*cloudresource.CloudRule{})
+				Expect(err).Should(BeNil())
+			})
+
+			It("test ingress rule priority", func() {
+				access := network.SecurityRuleAccessDeny
+				protocol := network.SecurityRuleProtocolTCP
+				webAddressGroupIdentifier03 := &cloudresource.CloudResource{
+					Type: cloudresource.CloudResourceTypeVM,
+					CloudResourceID: cloudresource.CloudResourceID{
+						Name: atAsgName,
+						Vpc:  testVnetID01,
+					},
+					AccountID:     testAccountNamespacedName.String(),
+					CloudProvider: string(v1alpha1.AzureCloudProvider),
+				}
+				toSg1 := cloudresource.CloudResourceID{
+					Name: agAsgName + "1",
+					Vpc:  testVnetID01,
+				}
+
+				testAnp2NamespaceName := &types.NamespacedName{Namespace: "test-anp-ns", Name: "test-anp-2"}
+				action := antreacrdv1beta1.RuleActionAllow
+				priority := []float64{10000.0001, 10000.0002}
+				addRules := []*cloudresource.CloudRule{
+					{
+						Rule: &cloudresource.IngressRule{
+							FromPort:           &testFromPort,
+							FromSecurityGroups: []*cloudresource.CloudResourceID{&toSg1},
+							Protocol:           &testProtocol,
+							Priority:           &priority[0],
+							Action:             &action,
+						}, NpNamespacedName: testAnp2NamespaceName.String(),
+					},
+				}
+
+				desc, err := utils.GenerateCloudDescription(testAnpNamespace.String(), &priority[1])
+				Expect(err).Should(BeNil())
+
+				nsgrules := []*network.SecurityRule{
+					{
+						ID: &nsgID,
+						Properties: &network.SecurityRulePropertiesFormat{
+							Access:                               &access,
+							Protocol:                             &protocol,
+							DestinationApplicationSecurityGroups: []*network.ApplicationSecurityGroup{{ID: &testATAsgID}},
+							SourceAddressPrefixes:                []*string{to.StringPtr("1.1.1.0/24")},
+							Priority:                             &testPriority,
+							SourcePortRange:                      &testSourcePortRange,
+							DestinationPortRange:                 to.StringPtr(strconv.Itoa(testFromPort)),
+							Direction:                            &testDirection,
+							Description:                          &desc,
+						},
+					},
+				}
+
+				nsg = network.SecurityGroup{
+					Properties: &network.SecurityGroupPropertiesFormat{
+						SecurityRules: nsgrules,
+					},
+					ID:   &testNsgID,
+					Name: &nsgID,
+				}
+				asglist = []network.ApplicationSecurityGroup{
+					{ID: to.StringPtr(testAGAsgID + "1"), Name: to.StringPtr(agAsgID + "1")},
+					{ID: to.StringPtr(testAGAsgID + "2"), Name: to.StringPtr(agAsgID + "2")},
+					{ID: to.StringPtr(testATAsgID), Name: to.StringPtr(atAsgID)},
+				}
+				mockazureNsgWrapper.EXPECT().createOrUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).
+					Do(func(_ context.Context, _, _ string, parameters network.SecurityGroup) {
+						Expect(len(parameters.Properties.SecurityRules)).To(Equal(2))
+						desc, _ := utils.ExtractCloudDescription(parameters.Properties.SecurityRules[0].Properties.Description)
+						if desc.Name != testAnp2NamespaceName.Name {
+							Fail(fmt.Sprintf("%s anp was not added before %s anp", testAnp2NamespaceName.Name, testAnpNamespace.Name))
+						}
+					})
+
+				err = c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*cloudresource.CloudRule{})
+				Expect(err).Should(BeNil())
+			})
+
+			It("test egress rule priority", func() {
+				access := network.SecurityRuleAccessDeny
+				protocol := network.SecurityRuleProtocolTCP
+				outbound := network.SecurityRuleDirectionOutbound
+				webAddressGroupIdentifier03 := &cloudresource.CloudResource{
+					Type: cloudresource.CloudResourceTypeVM,
+					CloudResourceID: cloudresource.CloudResourceID{
+						Name: atAsgName,
+						Vpc:  testVnetID01,
+					},
+					AccountID:     testAccountNamespacedName.String(),
+					CloudProvider: string(v1alpha1.AzureCloudProvider),
+				}
+				toSg1 := cloudresource.CloudResourceID{
+					Name: agAsgName + "1",
+					Vpc:  testVnetID01,
+				}
+
+				testAnp2NamespaceName := &types.NamespacedName{Namespace: "test-anp-ns", Name: "test-anp-2"}
+				action := antreacrdv1beta1.RuleActionAllow
+				priority := []float64{10000.0001, 10000.0002}
+				addRules := []*cloudresource.CloudRule{
+					{
+						Rule: &cloudresource.EgressRule{
+							ToPort:           &testFromPort,
+							ToSecurityGroups: []*cloudresource.CloudResourceID{&toSg1},
+							Protocol:         &testProtocol,
+							Priority:         &priority[0],
+							Action:           &action,
+						}, NpNamespacedName: testAnp2NamespaceName.String(),
+					},
+				}
+
+				desc, err := utils.GenerateCloudDescription(testAnpNamespace.String(), &priority[1])
+				Expect(err).Should(BeNil())
+
+				nsgrules := []*network.SecurityRule{
+					{
+						ID: &nsgID,
+						Properties: &network.SecurityRulePropertiesFormat{
+							Access:                               &access,
+							Protocol:                             &protocol,
+							DestinationApplicationSecurityGroups: []*network.ApplicationSecurityGroup{{ID: &testATAsgID}},
+							SourceAddressPrefixes:                []*string{to.StringPtr("1.1.1.0/24")},
+							Priority:                             &testPriority,
+							SourcePortRange:                      &testSourcePortRange,
+							DestinationPortRange:                 to.StringPtr(strconv.Itoa(testFromPort)),
+							Direction:                            &outbound,
+							Description:                          &desc,
+						},
+					},
+				}
+
+				nsg = network.SecurityGroup{
+					Properties: &network.SecurityGroupPropertiesFormat{
+						SecurityRules: nsgrules,
+					},
+					ID:   &testNsgID,
+					Name: &nsgID,
+				}
+				asglist = []network.ApplicationSecurityGroup{
+					{ID: to.StringPtr(testAGAsgID + "1"), Name: to.StringPtr(agAsgID + "1")},
+					{ID: to.StringPtr(testAGAsgID + "2"), Name: to.StringPtr(agAsgID + "2")},
+					{ID: to.StringPtr(testATAsgID), Name: to.StringPtr(atAsgID)},
+				}
+				mockazureNsgWrapper.EXPECT().createOrUpdate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(1).
+					Do(func(_ context.Context, _, _ string, parameters network.SecurityGroup) {
+						Expect(len(parameters.Properties.SecurityRules)).To(Equal(2))
+						desc, _ := utils.ExtractCloudDescription(parameters.Properties.SecurityRules[0].Properties.Description)
+						if desc.Name != testAnp2NamespaceName.Name {
+							Fail(fmt.Sprintf("%s anp was not added before %s anp", testAnp2NamespaceName.Name, testAnpNamespace.Name))
+						}
+					})
+
+				err = c.UpdateSecurityGroupRules(webAddressGroupIdentifier03, addRules, []*cloudresource.CloudRule{})
 				Expect(err).Should(BeNil())
 			})
 

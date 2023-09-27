@@ -46,6 +46,7 @@ type ANPParameters struct {
 	AppliedTo          *EntitySelectorParameters
 	RuleAppliedToGroup *GroupParameters
 	AppliedToGroup     *GroupParameters
+	Priority           int
 }
 
 type GroupParameters struct {
@@ -61,7 +62,8 @@ metadata:
   name: {{.Name}}
   namespace: {{.Namespace}}
 spec:
-  priority: 1
+  tier: application
+  priority: {{.Priority}}
 {{- if  .AppliedToGroup }}
   appliedTo:
   - group : {{ .AppliedToGroup.Name }}

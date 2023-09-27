@@ -49,6 +49,34 @@ func (m *MockCloudSecurityGroupInterface) EXPECT() *MockCloudSecurityGroupInterf
 	return m.recorder
 }
 
+// CloudProviderSupportsRuleAction mocks base method.
+func (m *MockCloudSecurityGroupInterface) CloudProviderSupportsRuleAction(arg0 string) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CloudProviderSupportsRuleAction", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// CloudProviderSupportsRuleAction indicates an expected call of CloudProviderSupportsRuleAction.
+func (mr *MockCloudSecurityGroupInterfaceMockRecorder) CloudProviderSupportsRuleAction(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloudProviderSupportsRuleAction", reflect.TypeOf((*MockCloudSecurityGroupInterface)(nil).CloudProviderSupportsRuleAction), arg0)
+}
+
+// CloudProviderSupportsRulePriority mocks base method.
+func (m *MockCloudSecurityGroupInterface) CloudProviderSupportsRulePriority(arg0 string) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CloudProviderSupportsRulePriority", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// CloudProviderSupportsRulePriority indicates an expected call of CloudProviderSupportsRulePriority.
+func (mr *MockCloudSecurityGroupInterfaceMockRecorder) CloudProviderSupportsRulePriority(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloudProviderSupportsRulePriority", reflect.TypeOf((*MockCloudSecurityGroupInterface)(nil).CloudProviderSupportsRulePriority), arg0)
+}
+
 // CreateSecurityGroup mocks base method.
 func (m *MockCloudSecurityGroupInterface) CreateSecurityGroup(arg0 *cloudresource.CloudResource, arg1 bool) <-chan error {
 	m.ctrl.T.Helper()

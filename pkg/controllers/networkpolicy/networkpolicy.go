@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/mohae/deepcopy"
@@ -29,6 +30,7 @@ import (
 
 	antreanetworking "antrea.io/antrea/pkg/apis/controlplane/v1beta2"
 	antreanetcore "antrea.io/antrea/pkg/apis/crd/v1alpha2"
+	antreacrdv1beta1 "antrea.io/antrea/pkg/apis/crd/v1beta1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/cloudprovider/cloudresource"
 	"antrea.io/nephe/pkg/cloudprovider/securitygroup"
@@ -891,7 +893,7 @@ func (a *appliedToSecurityGroup) clearMembers(r *NetworkPolicyReconciler, np *ne
 }
 
 // getCloudRulesFromNps converts and combines all rules from given anps to securitygroup.CloudRule.
-func (a *appliedToSecurityGroup) getCloudRulesFromNps(nps []interface{}) []*cloudresource.CloudRule {
+func (a *appliedToSecurityGroup) getCloudRulesFromNps(nps []interface{}) ([]*cloudresource.CloudRule, error) {
 	rules := make([]*cloudresource.CloudRule, 0)
 	for _, i := range nps {
 		np := i.(*networkPolicy)
@@ -906,6 +908,18 @@ func (a *appliedToSecurityGroup) getCloudRulesFromNps(nps []interface{}) []*clou
 			// Reset AppliedToGroup so that it's not added in hash.
 			ruleCopy := deepcopy.Copy(r).(*cloudresource.IngressRule)
 			ruleCopy.AppliedToGroup = nil
+
+			if !securitygroup.CloudSecurityGroup.CloudProviderSupportsRulePriority(a.id.CloudProvider) {
+				// Reset Priority for AWS Cloud
+				ruleCopy.Priority = nil
+			}
+			if !securitygroup.CloudSecurityGroup.CloudProviderSupportsRuleAction(a.id.CloudProvider) {
+				if r.Action != nil && *r.Action == antreacrdv1beta1.RuleActionDrop {
+					return nil, fmt.Errorf("cloud provider %s doesnt support %s action", a.id.CloudProvider, antreacrdv1beta1.RuleActionDrop)
+				}
+				// Reset Action.
+				ruleCopy.Action = nil
+			}
 			rule := &cloudresource.CloudRule{
 				Rule:             ruleCopy,
 				NpNamespacedName: npNamespacedName,
@@ -921,6 +935,17 @@ func (a *appliedToSecurityGroup) getCloudRulesFromNps(nps []interface{}) []*clou
 			// Reset AppliedToGroup so that it's not added in hash.
 			ruleCopy := deepcopy.Copy(r).(*cloudresource.EgressRule)
 			ruleCopy.AppliedToGroup = nil
+			// Reset Priority for AWS Cloud
+			if !securitygroup.CloudSecurityGroup.CloudProviderSupportsRulePriority(a.id.CloudProvider) {
+				ruleCopy.Priority = nil
+			}
+			if !securitygroup.CloudSecurityGroup.CloudProviderSupportsRuleAction(a.id.CloudProvider) {
+				if r.Action != nil && *r.Action == antreacrdv1beta1.RuleActionDrop {
+					return nil, fmt.Errorf("cloud provider %s doesnt support %s action", a.id.CloudProvider, antreacrdv1beta1.RuleActionDrop)
+				}
+				// Reset Action.
+				ruleCopy.Action = nil
+			}
 			rule := &cloudresource.CloudRule{
 				Rule:             ruleCopy,
 				NpNamespacedName: npNamespacedName,
@@ -930,7 +955,7 @@ func (a *appliedToSecurityGroup) getCloudRulesFromNps(nps []interface{}) []*clou
 			rules = append(rules, rule)
 		}
 	}
-	return rules
+	return rules, nil
 }
 
 // computeCloudRulesFromNp computes the rule update delta of an ANP by comparing current rules in np and realized rules in indexer.
@@ -943,7 +968,10 @@ func (a *appliedToSecurityGroup) computeCloudRulesFromNp(r *NetworkPolicyReconci
 	}
 
 	// get current rules for given np to compute rule update delta.
-	currentRules := a.getCloudRulesFromNps([]interface{}{np})
+	currentRules, err := a.getCloudRulesFromNps([]interface{}{np})
+	if err != nil {
+		return nil, nil, err
+	}
 	currentRuleMap := make(map[string]*cloudresource.CloudRule)
 	for _, rule := range currentRules {
 		currentRuleMap[rule.Hash] = rule
@@ -985,6 +1013,25 @@ func (a *appliedToSecurityGroup) computeCloudRulesFromNp(r *NetworkPolicyReconci
 		addRules = append(addRules, rule)
 	}
 
+	// sort add rules to preserve priority.
+	sort.Slice(addRules, func(i int, j int) bool {
+		getRulePriority := func(rule cloudresource.Rule) (priority float64) {
+			_, ok := rule.(*cloudresource.IngressRule)
+			if ok {
+				if rule.(*cloudresource.IngressRule).Priority != nil {
+					priority = *rule.(*cloudresource.IngressRule).Priority
+				}
+			} else {
+				if rule.(*cloudresource.EgressRule).Priority != nil {
+					priority = *rule.(*cloudresource.EgressRule).Priority
+				}
+			}
+			return
+		}
+		iRulePriority := getRulePriority(addRules[i].Rule)
+		jRulePriority := getRulePriority(addRules[j].Rule)
+		return iRulePriority < jRulePriority
+	})
 	return addRules, removeRules, nil
 }
 
@@ -1273,7 +1320,7 @@ type networkPolicyRule struct {
 }
 
 // rules generate cloud plug-in ingressRule and/or egressRule from an networkPolicyRule.
-func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, policyAppliedToGroups []string) (
+func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, tier *int32, policyPriority *float64, policyAppliedToGroups []string) (
 	ingressList []*cloudresource.IngressRule, egressList []*cloudresource.EgressRule, ready bool) {
 	ready = true
 	rule := r.rule
@@ -1288,6 +1335,8 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, policyAppliedToGr
 			}
 			ingress.FromSrcIP = append(ingress.FromSrcIP, &ipNet)
 			setAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, ingress)
+			ingress.Action = rule.Action
+			ingress.Priority = cloudresource.GetRulePriority(tier, policyPriority, rule.Priority)
 			iRules = append(iRules, ingress)
 		}
 		for _, ag := range rule.From.AddressGroups {
@@ -1309,6 +1358,8 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, policyAppliedToGr
 					ingress.AppliedToGroup = make(map[string]struct{}, 0)
 					ingress.FromSecurityGroups = append(ingress.FromSecurityGroups, &id)
 					setAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, ingress)
+					ingress.Priority = cloudresource.GetRulePriority(tier, policyPriority, rule.Priority)
+					ingress.Action = rule.Action
 					iRules = append(iRules, ingress)
 				}
 			}
@@ -1351,6 +1402,8 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, policyAppliedToGr
 		}
 		egress.ToDstIP = append(egress.ToDstIP, &ipNet)
 		setAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, egress)
+		egress.Priority = cloudresource.GetRulePriority(tier, policyPriority, rule.Priority)
+		egress.Action = rule.Action
 		eRules = append(eRules, egress)
 	}
 	for _, ag := range rule.To.AddressGroups {
@@ -1372,6 +1425,8 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, policyAppliedToGr
 				egress.AppliedToGroup = make(map[string]struct{}, 0)
 				egress.ToSecurityGroups = append(egress.ToSecurityGroups, &id)
 				setAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, egress)
+				egress.Priority = cloudresource.GetRulePriority(tier, policyPriority, rule.Priority)
+				egress.Action = rule.Action
 				eRules = append(eRules, egress)
 			}
 		}
@@ -1452,8 +1507,7 @@ func (n *networkPolicy) update(anp *antreanetworking.NetworkPolicy, recompute bo
 				r.Log.V(1).Info("AddressGroup removed from NetworkPolicy", "networkPolicy", n.Name, "removed", removedAddr)
 			}
 			addedAppliedTo, removedAppliedTo = diffAppliedToGrp(n, anp)
-			n.Rules = anp.Rules
-			n.Generation = anp.Generation
+			anp.DeepCopyInto(&n.NetworkPolicy)
 			if err := r.networkPolicyIndexer.Add(n); err != nil {
 				r.Log.Error(err, "add networkPolicy indexer", "Name", n.Name)
 			}
@@ -1474,13 +1528,28 @@ func (n *networkPolicy) update(anp *antreanetworking.NetworkPolicy, recompute bo
 				r.Log.Error(err, "delete networkPolicy indexer", "Name", n.Name)
 			}
 			addedAppliedTo, removedAppliedTo = diffAppliedToGrp(n, anp)
-			n.AppliedToGroups = anp.AppliedToGroups
-			n.Generation = anp.Generation
+			anp.DeepCopyInto(&n.NetworkPolicy)
 			if err := r.networkPolicyIndexer.Add(n); err != nil {
 				r.Log.Error(err, "add networkPolicy indexer", "Name", n.Name)
 			}
 			r.Log.V(1).Info("NetworkPolicy appliedToGroups changed, recompute rules", "networkPolicy", n.Name)
 			if ok := n.computeRules(r); !ok {
+				addedAppliedTo = nil
+			}
+		}
+		if !reflect.DeepEqual(anp.TierPriority, n.TierPriority) || !reflect.DeepEqual(anp.Priority, n.Priority) {
+			if err := r.networkPolicyIndexer.Delete(n); err != nil {
+				r.Log.Error(err, "delete networkPolicy indexer", "Name", n.Name)
+			}
+			// Trigger update on all appliedToGroup.
+			// TODO: Verify if indexer update really doesn't work.
+			addedAppliedTo, _ = diffAppliedToGrp(nil, anp)
+			anp.DeepCopyInto(&n.NetworkPolicy)
+			if err := r.networkPolicyIndexer.Add(n); err != nil {
+				r.Log.Error(err, "add networkPolicy indexer", "Name", n.Name)
+			}
+			if ok := n.computeRules(r); !ok {
+				r.Log.Error(fmt.Errorf("failed to compute the rules"), "networkPolicy update failed", "name", n.Name)
 				addedAppliedTo = nil
 			}
 		}
@@ -1636,7 +1705,7 @@ func (n *networkPolicy) computeRules(rr *NetworkPolicyReconciler) bool {
 	n.egressRules = nil
 	n.rulesReady = false
 	for _, r := range n.Rules {
-		ing, eg, ready := (&networkPolicyRule{rule: &r}).rules(rr, n.AppliedToGroups)
+		ing, eg, ready := (&networkPolicyRule{rule: &r}).rules(rr, n.TierPriority, n.Priority, n.AppliedToGroups)
 		if !ready {
 			n.ingressRules = nil
 			n.egressRules = nil

@@ -21,8 +21,10 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"strconv"
 	"strings"
 
+	antreacrdv1beta1 "antrea.io/antrea/pkg/apis/crd/v1beta1"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 )
 
@@ -97,16 +99,21 @@ func (c *CloudResourceID) String() string {
 const (
 	Name      = "Name"
 	Namespace = "Ns"
+	Priority  = "Priority"
 )
 
 type CloudRuleDescription struct {
 	Name      string
 	Namespace string
+	Priority  *float64
 }
 
 func (r *CloudRuleDescription) String() string {
-	return Name + ":" + r.Name + ", " +
-		Namespace + ":" + r.Namespace
+	retVal := Name + ":" + r.Name + ", " + Namespace + ":" + r.Namespace
+	if r.Priority != nil {
+		retVal = retVal + ", " + Priority + ":" + strconv.FormatFloat(*r.Priority, 'f', 4, 64)
+	}
+	return retVal
 }
 
 type Rule interface {
@@ -120,6 +127,8 @@ type IngressRule struct {
 	FromSecurityGroups []*CloudResourceID
 	Protocol           *int
 	AppliedToGroup     map[string]struct{}
+	Priority           *float64
+	Action             *antreacrdv1beta1.RuleAction
 }
 
 func (i *IngressRule) isRule() {}
@@ -131,6 +140,8 @@ type EgressRule struct {
 	ToSecurityGroups []*CloudResourceID
 	Protocol         *int
 	AppliedToGroup   map[string]struct{}
+	Priority         *float64
+	Action           *antreacrdv1beta1.RuleAction
 }
 
 func (e *EgressRule) isRule() {}
@@ -140,6 +151,27 @@ type CloudRule struct {
 	Rule             Rule
 	NpNamespacedName string `json:"-"`
 	AppliedToGrp     string
+}
+
+const (
+	tierStepCount = 50
+	maxPriority   = 10000
+)
+
+// GetRulePriority calculates and returns rule priority.
+func GetRulePriority(tier *int32, policyPriority *float64, rulePriority int32) *float64 {
+	// Antrea tier priorities are increment of 50 and max priority for an ANP policy/rule is 10k.
+	// Hence, we add tier priority with policy priority allowing a gap of 10K priorities(basically ANP).
+	// Further, rule priority is added as decimal for uniqueness of rules within an ANP policy.
+	var tierVal int32
+	if tier != nil {
+		tierVal = *tier
+	}
+	if policyPriority == nil {
+		return nil
+	}
+	priority := float64((tierVal/tierStepCount)*maxPriority) + *policyPriority + float64(rulePriority)/maxPriority
+	return &priority
 }
 
 func (c *CloudRule) GetHash() string {

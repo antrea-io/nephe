@@ -378,7 +378,6 @@ func (computeCfg *computeServiceConfig) buildEffectiveNSGSecurityRulesToApply(ap
 
 	allIngressRules := updateSecurityRuleNameAndPriority(currentNsgIngressRules, addIngressRules)
 	allEgressRules := updateSecurityRuleNameAndPriority(currentNsgEgressRules, addEgressRules)
-	allIngressRules, allEgressRules = addDefaultDenyRule(allIngressRules, allEgressRules)
 
 	return append(allIngressRules, allEgressRules...), nil
 }
@@ -469,8 +468,6 @@ func (computeCfg *computeServiceConfig) buildEffectivePeerNSGSecurityRulesToAppl
 
 	allIngressRules := updateSecurityRuleNameAndPriority(currentNsgIngressRules, addIngressRules)
 	allEgressRules := updateSecurityRuleNameAndPriority(currentNsgEgressRules, addEgressRules)
-	allIngressRules, allEgressRules = addDefaultDenyRule(allIngressRules, allEgressRules)
-
 	return append(allIngressRules, allEgressRules...), nil
 }
 

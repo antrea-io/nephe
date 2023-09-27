@@ -16,7 +16,7 @@ package utils
 
 import (
 	"fmt"
-	"reflect"
+	"strconv"
 	"strings"
 
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
@@ -106,7 +106,7 @@ func SplitCloudRulesByDirection(rules []*cloudresource.CloudRule) ([]*cloudresou
 }
 
 // GenerateCloudDescription generates a CloudRuleDescription object and converts to string.
-func GenerateCloudDescription(namespacedName string) (string, error) {
+func GenerateCloudDescription(namespacedName string, priority *float64) (string, error) {
 	tokens := strings.Split(namespacedName, "/")
 	if len(tokens) != 2 {
 		return "", fmt.Errorf("invalid namespacedname %v", namespacedName)
@@ -114,6 +114,9 @@ func GenerateCloudDescription(namespacedName string) (string, error) {
 	desc := cloudresource.CloudRuleDescription{
 		Name:      tokens[1],
 		Namespace: tokens[0],
+	}
+	if priority != nil {
+		desc.Priority = priority
 	}
 	return desc.String(), nil
 }
@@ -123,12 +126,8 @@ func ExtractCloudDescription(description *string) (*cloudresource.CloudRuleDescr
 	if description == nil {
 		return nil, false
 	}
-	numKeyValuePair := reflect.TypeOf(cloudresource.CloudRuleDescription{}).NumField()
 	descMap := map[string]string{}
 	tempSlice := strings.Split(*description, ",")
-	if len(tempSlice) != numKeyValuePair {
-		return nil, false
-	}
 	// each key and value are separated by ":"
 	for i := range tempSlice {
 		keyValuePair := strings.Split(strings.TrimSpace(tempSlice[i]), ":")
@@ -145,6 +144,11 @@ func ExtractCloudDescription(description *string) (*cloudresource.CloudRuleDescr
 	desc := &cloudresource.CloudRuleDescription{
 		Name:      descMap[cloudresource.Name],
 		Namespace: descMap[cloudresource.Namespace],
+	}
+
+	if descMap[cloudresource.Priority] != "" {
+		priority, _ := strconv.ParseFloat(descMap[cloudresource.Priority], 64)
+		desc.Priority = &priority
 	}
 	return desc, true
 }
