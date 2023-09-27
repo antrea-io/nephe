@@ -45,6 +45,9 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy upgrade test", focusAws, focu
 		anpSetupParams       k8stemplates.ANPParameters
 		defaultANPParameters k8stemplates.DefaultANPParameters
 		defaultDenyANP       bool
+
+		anpPriority        = 10
+		defaultAnpPriority = 20
 	)
 
 	BeforeEach(func() {
@@ -149,12 +152,14 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy upgrade test", focusAws, focu
 		anpParams = k8stemplates.ANPParameters{
 			Name:      "test-cloud-anp",
 			Namespace: namespace.Name,
+			Priority:  anpPriority,
 		}
 
 		// Setup policies for all VMs
 		anpSetupParams = k8stemplates.ANPParameters{
 			Name:      "test-cloud-setup-anp",
 			Namespace: namespace.Name,
+			Priority:  anpPriority,
 		}
 		vmKind := reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()
 		anpSetupParams.AppliedTo = utils.ConfigANPApplyTo(vmKind, "", "", "", "")
@@ -233,6 +238,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy upgrade test", focusAws, focu
 			defaultANPParameters = k8stemplates.DefaultANPParameters{
 				Namespace: namespace.Name,
 				Name:      "deny-all",
+				Priority:  defaultAnpPriority,
 				Entity: &k8stemplates.EntitySelectorParameters{
 					Kind: labels.ExternalEntityLabelKeyKind + ": " + strings.ToLower(reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
 				},
@@ -330,6 +336,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy upgrade test", focusAws, focu
 				defaultANPParameters = k8stemplates.DefaultANPParameters{
 					Namespace: namespace.Name,
 					Name:      "deny-all",
+					Priority:  defaultAnpPriority,
 					Entity: &k8stemplates.EntitySelectorParameters{
 						Kind: labels.ExternalEntityLabelKeyKind + ": " + strings.ToLower(reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
 					},

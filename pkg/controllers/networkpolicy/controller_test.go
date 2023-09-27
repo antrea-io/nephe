@@ -348,6 +348,7 @@ var _ = Describe("NetworkPolicy", func() {
 		// mock
 		mockCloudSecurityAPI.EXPECT().CloudProviderSupportsRulePriority(mock.Any()).Return(false).AnyTimes()
 		mockCloudSecurityAPI.EXPECT().CloudProviderSupportsRuleAction(mock.Any()).Return(false).AnyTimes()
+		mockCloudSecurityAPI.EXPECT().CloudProviderSupportsRuleName(mock.Any()).Return(false).AnyTimes()
 	})
 
 	AfterEach(func() {

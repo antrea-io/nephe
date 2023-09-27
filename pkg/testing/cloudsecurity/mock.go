@@ -63,6 +63,20 @@ func (mr *MockCloudSecurityGroupInterfaceMockRecorder) CloudProviderSupportsRule
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloudProviderSupportsRuleAction", reflect.TypeOf((*MockCloudSecurityGroupInterface)(nil).CloudProviderSupportsRuleAction), arg0)
 }
 
+// CloudProviderSupportsRuleName mocks base method.
+func (m *MockCloudSecurityGroupInterface) CloudProviderSupportsRuleName(arg0 string) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CloudProviderSupportsRuleName", arg0)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// CloudProviderSupportsRuleName indicates an expected call of CloudProviderSupportsRuleName.
+func (mr *MockCloudSecurityGroupInterfaceMockRecorder) CloudProviderSupportsRuleName(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloudProviderSupportsRuleName", reflect.TypeOf((*MockCloudSecurityGroupInterface)(nil).CloudProviderSupportsRuleName), arg0)
+}
+
 // CloudProviderSupportsRulePriority mocks base method.
 func (m *MockCloudSecurityGroupInterface) CloudProviderSupportsRulePriority(arg0 string) bool {
 	m.ctrl.T.Helper()
