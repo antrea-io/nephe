@@ -1333,9 +1333,56 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, anpName string, t
 	ingressList []*cloudresource.IngressRule, egressList []*cloudresource.EgressRule, ready bool) {
 	ready = true
 	rule := r.rule
+
 	rCount := 1
+	updateServicesAndRuleName := func(cloudRule cloudresource.Rule, ingress bool) {
+		if rule.Services == nil || len(rule.Services) == 0 {
+			if ingress {
+				iRule := cloudRule.(*cloudresource.IngressRule)
+				iRule.RuleName = rule.Name + "-" + anpName + "-" + strconv.Itoa(rCount)
+				ingressList = append(ingressList, iRule)
+				rCount++
+			} else {
+				eRule := cloudRule.(*cloudresource.EgressRule)
+				eRule.RuleName = rule.Name + "-" + anpName + "-" + strconv.Itoa(rCount)
+				egressList = append(egressList, eRule)
+				rCount++
+			}
+		} else {
+			for _, s := range rule.Services {
+				var protocol *int
+				var targetPort *int
+				if s.Protocol != nil {
+					if p, ok := AntreaProtocolMap[*s.Protocol]; ok {
+						protocol = &p
+					}
+				}
+				if s.Port != nil {
+					port := int(s.Port.IntVal)
+					targetPort = &port
+				}
+
+				if ingress {
+					iRule := deepcopy.Copy(cloudRule).(*cloudresource.IngressRule)
+					iRule.FromPort = targetPort
+					iRule.Protocol = protocol
+					iRule.RuleName = rule.Name + "-" + anpName + "-" + strconv.Itoa(rCount)
+					rCount++
+					ingressList = append(ingressList, iRule)
+				} else {
+					eRule := deepcopy.Copy(cloudRule).(*cloudresource.EgressRule)
+					eRule.ToPort = targetPort
+					eRule.Protocol = protocol
+					eRule.RuleName = rule.Name + "-" + anpName + "-" + strconv.Itoa(rCount)
+					rCount++
+					egressList = append(egressList, eRule)
+				}
+			}
+		}
+	}
+
 	if rule.Direction == antreanetworking.DirectionIn {
-		iRules := make([]*cloudresource.IngressRule, 0)
+		// IP Blocks.
 		for _, ip := range rule.From.IPBlocks {
 			ingress := &cloudresource.IngressRule{}
 			ingress.AppliedToGroup = make(map[string]struct{}, 0)
@@ -1348,10 +1395,10 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, anpName string, t
 			ingress.Action = rule.Action
 			ingress.Priority = cloudresource.GetRulePriority(tier, policyPriority, rule.Priority)
 			// TODO: Create 1 Rule for All IPBlocks and let cloud provider plugin split it into multiple rules.
-			ingress.RuleName = rule.Name + "-" + anpName + "-" + strconv.Itoa(rCount)
-			rCount++
-			iRules = append(iRules, ingress)
+			updateServicesAndRuleName(ingress, true)
 		}
+
+		// Address Groups.
 		for _, ag := range rule.From.AddressGroups {
 			sgs, err := rr.addrSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, ag)
 			if err != nil {
@@ -1374,114 +1421,49 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, anpName string, t
 					ingress.Priority = cloudresource.GetRulePriority(tier, policyPriority, rule.Priority)
 					ingress.Action = rule.Action
 					// TODO: Create 1 Rule for All AddressGroups and let cloud provider plugin split it into multiple rules.
-					ingress.RuleName = rule.Name + "-" + anpName + "-" + strconv.Itoa(rCount)
-					rCount++
-					iRules = append(iRules, ingress)
+					updateServicesAndRuleName(ingress, true)
 				}
 			}
 		}
-		if len(iRules) == 0 {
-			return
+	} else {
+		rCount = 1
+		for _, ip := range rule.To.IPBlocks {
+			egress := &cloudresource.EgressRule{}
+			egress.AppliedToGroup = make(map[string]struct{}, 0)
+			ipNet := net.IPNet{IP: net.IP(ip.CIDR.IP), Mask: net.CIDRMask(int(ip.CIDR.PrefixLength), 8*net.IPv4len)}
+			if ipNet.IP.To4() == nil {
+				ipNet = net.IPNet{IP: net.IP(ip.CIDR.IP), Mask: net.CIDRMask(int(ip.CIDR.PrefixLength), 8*net.IPv6len)}
+			}
+			egress.ToDstIP = append(egress.ToDstIP, &ipNet)
+			setAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, egress)
+			egress.Priority = cloudresource.GetRulePriority(tier, policyPriority, rule.Priority)
+			egress.Action = rule.Action
+			updateServicesAndRuleName(egress, false)
 		}
-		if rule.Services == nil {
-			ingressList = append(ingressList, iRules...)
-			return
-		}
-		pCount := 1
-		for _, s := range rule.Services {
-			var protocol *int
-			var fromPort *int
-			if s.Protocol != nil {
-				if p, ok := AntreaProtocolMap[*s.Protocol]; ok {
-					protocol = &p
+		for _, ag := range rule.To.AddressGroups {
+			sgs, err := rr.addrSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, ag)
+			if err != nil {
+				rr.Log.Error(err, "get AddrSecurityGroup indexer", "Name", ag)
+				continue
+			}
+			if len(sgs) == 0 {
+				rr.Log.V(1).Info("Egress rule cannot be computed with unknown AddressGroup", "AddressGroup", ag)
+				ready = false
+				return
+			}
+			for _, i := range sgs {
+				sg := i.(*addrSecurityGroup)
+				id := sg.getID()
+				if len(id.Vpc) > 0 {
+					egress := &cloudresource.EgressRule{}
+					egress.AppliedToGroup = make(map[string]struct{}, 0)
+					egress.ToSecurityGroups = append(egress.ToSecurityGroups, &id)
+					setAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, egress)
+					egress.Priority = cloudresource.GetRulePriority(tier, policyPriority, rule.Priority)
+					egress.Action = rule.Action
+					updateServicesAndRuleName(egress, false)
 				}
 			}
-			if s.Port != nil {
-				port := int(s.Port.IntVal)
-				fromPort = &port
-			}
-			for _, ingress := range iRules {
-				i := deepcopy.Copy(ingress).(*cloudresource.IngressRule)
-				i.FromPort = fromPort
-				i.Protocol = protocol
-				i.RuleName += "." + strconv.Itoa(pCount)
-				pCount++
-				ingressList = append(ingressList, i)
-			}
-		}
-		return
-	}
-	eRules := make([]*cloudresource.EgressRule, 0)
-	rCount = 1
-	for _, ip := range rule.To.IPBlocks {
-		egress := &cloudresource.EgressRule{}
-		egress.AppliedToGroup = make(map[string]struct{}, 0)
-		ipNet := net.IPNet{IP: net.IP(ip.CIDR.IP), Mask: net.CIDRMask(int(ip.CIDR.PrefixLength), 8*net.IPv4len)}
-		if ipNet.IP.To4() == nil {
-			ipNet = net.IPNet{IP: net.IP(ip.CIDR.IP), Mask: net.CIDRMask(int(ip.CIDR.PrefixLength), 8*net.IPv6len)}
-		}
-		egress.ToDstIP = append(egress.ToDstIP, &ipNet)
-		setAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, egress)
-		egress.Priority = cloudresource.GetRulePriority(tier, policyPriority, rule.Priority)
-		egress.Action = rule.Action
-		egress.RuleName = rule.Name + "-" + anpName + "-" + strconv.Itoa(rCount)
-		rCount++
-		eRules = append(eRules, egress)
-	}
-	for _, ag := range rule.To.AddressGroups {
-		sgs, err := rr.addrSGIndexer.ByIndex(addrAppliedToIndexerByGroupID, ag)
-		if err != nil {
-			rr.Log.Error(err, "get AddrSecurityGroup indexer", "Name", ag)
-			continue
-		}
-		if len(sgs) == 0 {
-			rr.Log.V(1).Info("Egress rule cannot be computed with unknown AddressGroup", "AddressGroup", ag)
-			ready = false
-			return
-		}
-		for _, i := range sgs {
-			sg := i.(*addrSecurityGroup)
-			id := sg.getID()
-			if len(id.Vpc) > 0 {
-				egress := &cloudresource.EgressRule{}
-				egress.AppliedToGroup = make(map[string]struct{}, 0)
-				egress.ToSecurityGroups = append(egress.ToSecurityGroups, &id)
-				setAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, egress)
-				egress.Priority = cloudresource.GetRulePriority(tier, policyPriority, rule.Priority)
-				egress.Action = rule.Action
-				egress.RuleName = rule.Name + "-" + anpName + "-" + strconv.Itoa(rCount)
-				rCount++
-				eRules = append(eRules, egress)
-			}
-		}
-	}
-	if len(eRules) == 0 {
-		return
-	}
-	if rule.Services == nil {
-		egressList = append(egressList, eRules...)
-		return
-	}
-	pCount := 1
-	for _, s := range rule.Services {
-		var protocol *int
-		var fromPort *int
-		if s.Protocol != nil {
-			if p, ok := AntreaProtocolMap[*s.Protocol]; ok {
-				protocol = &p
-			}
-		}
-		if s.Port != nil {
-			port := int(s.Port.IntVal)
-			fromPort = &port
-		}
-		for _, egress := range eRules {
-			e := deepcopy.Copy(egress).(*cloudresource.EgressRule)
-			e.ToPort = fromPort
-			e.Protocol = protocol
-			e.RuleName += "." + strconv.Itoa(pCount)
-			pCount++
-			egressList = append(egressList, e)
 		}
 	}
 	return
