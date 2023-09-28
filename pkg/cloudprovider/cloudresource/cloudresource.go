@@ -129,6 +129,7 @@ type IngressRule struct {
 	AppliedToGroup     map[string]struct{}
 	Priority           *float64
 	Action             *antreacrdv1beta1.RuleAction
+	RuleName           string
 }
 
 func (i *IngressRule) isRule() {}
@@ -142,6 +143,7 @@ type EgressRule struct {
 	AppliedToGroup   map[string]struct{}
 	Priority         *float64
 	Action           *antreacrdv1beta1.RuleAction
+	RuleName         string
 }
 
 func (e *EgressRule) isRule() {}

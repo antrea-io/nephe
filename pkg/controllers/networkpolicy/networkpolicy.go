@@ -20,6 +20,7 @@ import (
 	"net"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/mohae/deepcopy"
@@ -915,10 +916,13 @@ func (a *appliedToSecurityGroup) getCloudRulesFromNps(nps []interface{}) ([]*clo
 			}
 			if !securitygroup.CloudSecurityGroup.CloudProviderSupportsRuleAction(a.id.CloudProvider) {
 				if r.Action != nil && *r.Action == antreacrdv1beta1.RuleActionDrop {
-					return nil, fmt.Errorf("cloud provider %s doesnt support %s action", a.id.CloudProvider, antreacrdv1beta1.RuleActionDrop)
+					return nil, fmt.Errorf("cloud provider %s doesn't support %s action", a.id.CloudProvider, antreacrdv1beta1.RuleActionDrop)
 				}
 				// Reset Action.
 				ruleCopy.Action = nil
+			}
+			if !securitygroup.CloudSecurityGroup.CloudProviderSupportsRuleAction(a.id.CloudProvider) {
+				ruleCopy.RuleName = ""
 			}
 			rule := &cloudresource.CloudRule{
 				Rule:             ruleCopy,
@@ -946,6 +950,9 @@ func (a *appliedToSecurityGroup) getCloudRulesFromNps(nps []interface{}) ([]*clo
 				// Reset Action.
 				ruleCopy.Action = nil
 			}
+			if !securitygroup.CloudSecurityGroup.CloudProviderSupportsRuleAction(a.id.CloudProvider) {
+				ruleCopy.RuleName = ""
+			}
 			rule := &cloudresource.CloudRule{
 				Rule:             ruleCopy,
 				NpNamespacedName: npNamespacedName,
@@ -970,6 +977,7 @@ func (a *appliedToSecurityGroup) computeCloudRulesFromNp(r *NetworkPolicyReconci
 	// get current rules for given np to compute rule update delta.
 	currentRules, err := a.getCloudRulesFromNps([]interface{}{np})
 	if err != nil {
+		r.Log.Error(err, "failed to compute rules for networkPolicy", "name", np.Name, "namespace", np.Namespace)
 		return nil, nil, err
 	}
 	currentRuleMap := make(map[string]*cloudresource.CloudRule)
@@ -1320,10 +1328,12 @@ type networkPolicyRule struct {
 }
 
 // rules generate cloud plug-in ingressRule and/or egressRule from an networkPolicyRule.
-func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, tier *int32, policyPriority *float64, policyAppliedToGroups []string) (
+func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, anpName string, tier *int32, policyPriority *float64,
+	policyAppliedToGroups []string) (
 	ingressList []*cloudresource.IngressRule, egressList []*cloudresource.EgressRule, ready bool) {
 	ready = true
 	rule := r.rule
+	rCount := 1
 	if rule.Direction == antreanetworking.DirectionIn {
 		iRules := make([]*cloudresource.IngressRule, 0)
 		for _, ip := range rule.From.IPBlocks {
@@ -1337,6 +1347,9 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, tier *int32, poli
 			setAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, ingress)
 			ingress.Action = rule.Action
 			ingress.Priority = cloudresource.GetRulePriority(tier, policyPriority, rule.Priority)
+			// TODO: Create 1 Rule for All IPBlocks and let cloud provider plugin split it into multiple rules.
+			ingress.RuleName = rule.Name + "-" + anpName + "-" + strconv.Itoa(rCount)
+			rCount++
 			iRules = append(iRules, ingress)
 		}
 		for _, ag := range rule.From.AddressGroups {
@@ -1360,6 +1373,9 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, tier *int32, poli
 					setAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, ingress)
 					ingress.Priority = cloudresource.GetRulePriority(tier, policyPriority, rule.Priority)
 					ingress.Action = rule.Action
+					// TODO: Create 1 Rule for All AddressGroups and let cloud provider plugin split it into multiple rules.
+					ingress.RuleName = rule.Name + "-" + anpName + "-" + strconv.Itoa(rCount)
+					rCount++
 					iRules = append(iRules, ingress)
 				}
 			}
@@ -1371,6 +1387,7 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, tier *int32, poli
 			ingressList = append(ingressList, iRules...)
 			return
 		}
+		pCount := 1
 		for _, s := range rule.Services {
 			var protocol *int
 			var fromPort *int
@@ -1387,12 +1404,15 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, tier *int32, poli
 				i := deepcopy.Copy(ingress).(*cloudresource.IngressRule)
 				i.FromPort = fromPort
 				i.Protocol = protocol
+				i.RuleName += "." + strconv.Itoa(pCount)
+				pCount++
 				ingressList = append(ingressList, i)
 			}
 		}
 		return
 	}
 	eRules := make([]*cloudresource.EgressRule, 0)
+	rCount = 1
 	for _, ip := range rule.To.IPBlocks {
 		egress := &cloudresource.EgressRule{}
 		egress.AppliedToGroup = make(map[string]struct{}, 0)
@@ -1404,6 +1424,8 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, tier *int32, poli
 		setAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, egress)
 		egress.Priority = cloudresource.GetRulePriority(tier, policyPriority, rule.Priority)
 		egress.Action = rule.Action
+		egress.RuleName = rule.Name + "-" + anpName + "-" + strconv.Itoa(rCount)
+		rCount++
 		eRules = append(eRules, egress)
 	}
 	for _, ag := range rule.To.AddressGroups {
@@ -1427,6 +1449,8 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, tier *int32, poli
 				setAppliedToGroup(rule.AppliedToGroups, policyAppliedToGroups, egress)
 				egress.Priority = cloudresource.GetRulePriority(tier, policyPriority, rule.Priority)
 				egress.Action = rule.Action
+				egress.RuleName = rule.Name + "-" + anpName + "-" + strconv.Itoa(rCount)
+				rCount++
 				eRules = append(eRules, egress)
 			}
 		}
@@ -1438,6 +1462,7 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, tier *int32, poli
 		egressList = append(egressList, eRules...)
 		return
 	}
+	pCount := 1
 	for _, s := range rule.Services {
 		var protocol *int
 		var fromPort *int
@@ -1454,6 +1479,8 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, tier *int32, poli
 			e := deepcopy.Copy(egress).(*cloudresource.EgressRule)
 			e.ToPort = fromPort
 			e.Protocol = protocol
+			e.RuleName += "." + strconv.Itoa(pCount)
+			pCount++
 			egressList = append(egressList, e)
 		}
 	}
@@ -1705,7 +1732,7 @@ func (n *networkPolicy) computeRules(rr *NetworkPolicyReconciler) bool {
 	n.egressRules = nil
 	n.rulesReady = false
 	for _, r := range n.Rules {
-		ing, eg, ready := (&networkPolicyRule{rule: &r}).rules(rr, n.TierPriority, n.Priority, n.AppliedToGroups)
+		ing, eg, ready := (&networkPolicyRule{rule: &r}).rules(rr, n.Name, n.TierPriority, n.Priority, n.AppliedToGroups)
 		if !ready {
 			n.ingressRules = nil
 			n.egressRules = nil

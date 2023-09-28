@@ -134,9 +134,10 @@ type CloudSecurityGroupInterface interface {
 
 	// CloudProviderSupportsRulePriority Returns true is Cloud Provider supports priority in the rule.
 	CloudProviderSupportsRulePriority(provider string) bool
-
 	// CloudProviderSupportsRuleAction Returns true is Cloud Provider supports action in the rule.
 	CloudProviderSupportsRuleAction(provider string) bool
+	// CloudProviderSupportsRuleName Returns true is Cloud Provider supports name in the rule.
+	CloudProviderSupportsRuleName(provider string) bool
 }
 
 type CloudSecurityGroupImpl struct{}
@@ -305,5 +306,9 @@ func (sg *CloudSecurityGroupImpl) CloudProviderSupportsRulePriority(provider str
 }
 
 func (sg *CloudSecurityGroupImpl) CloudProviderSupportsRuleAction(provider string) bool {
+	return provider == string(runtimev1alpha1.AzureCloudProvider)
+}
+
+func (sg *CloudSecurityGroupImpl) CloudProviderSupportsRuleName(provider string) bool {
 	return provider == string(runtimev1alpha1.AzureCloudProvider)
 }
