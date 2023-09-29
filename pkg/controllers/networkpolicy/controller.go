@@ -133,13 +133,13 @@ func (r *NetworkPolicyReconciler) isNetworkPolicySupported(anp *antreanetworking
 	// Check for support actions.
 	for _, rule := range anp.Rules {
 		if rule.Action != nil && !(*rule.Action == antreacrdv1beta1.RuleActionAllow || *rule.Action == antreacrdv1beta1.RuleActionDrop) {
-			return fmt.Errorf("unsupported action: %v, supportted actions: %v, %v", *rule.Action,
+			return fmt.Errorf("unsupported action: %v, supported actions: %v, %v", *rule.Action,
 				antreacrdv1beta1.RuleActionAllow, antreacrdv1beta1.RuleActionDrop)
 		}
 		// check for supported protocol.
 		for _, s := range rule.Services {
 			if _, ok := AntreaProtocolMap[*s.Protocol]; !ok {
-				return fmt.Errorf("unsupported protocol: %v, supportted protocols: %v", *s.Protocol, reflect.ValueOf(AntreaProtocolMap).MapKeys())
+				return fmt.Errorf("unsupported protocol: %v, supported protocols: %v", *s.Protocol, reflect.ValueOf(AntreaProtocolMap).MapKeys())
 			}
 		}
 	}

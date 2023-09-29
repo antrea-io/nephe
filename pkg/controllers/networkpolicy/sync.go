@@ -329,7 +329,7 @@ func countIngressRuleItems(iRule *cloudresource.IngressRule, items map[string]in
 	if iRule.Protocol != nil {
 		proto = *iRule.Protocol
 	}
-	port := 0
+	var port int32
 	if iRule.FromPort != nil {
 		port = *iRule.FromPort
 	}
@@ -351,7 +351,7 @@ func countEgressRuleItems(eRule *cloudresource.EgressRule, items map[string]int,
 	if eRule.Protocol != nil {
 		proto = *eRule.Protocol
 	}
-	port := 0
+	var port int32
 	if eRule.ToPort != nil {
 		port = *eRule.ToPort
 	}

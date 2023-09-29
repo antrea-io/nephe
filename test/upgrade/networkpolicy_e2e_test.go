@@ -29,6 +29,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	controlplanev1beta2 "antrea.io/antrea/pkg/apis/controlplane/v1beta2"
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 	"antrea.io/nephe/pkg/labels"
 	"antrea.io/nephe/test/utils"
@@ -164,11 +165,11 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy upgrade test", focusAws, focu
 		vmKind := reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()
 		anpSetupParams.AppliedTo = utils.ConfigANPApplyTo(vmKind, "", "", "", "")
 		anpSetupParams.From = utils.ConfigANPToFrom("", "", "", "", "",
-			"0.0.0.0/0", "", allowedPorts, false)
+			"0.0.0.0/0", "", controlplanev1beta2.ProtocolTCP, allowedPorts, false)
 		if denyEgress {
-			anpSetupParams.To = utils.ConfigANPToFrom("", "", "", "", "", "", "", nil, denyEgress)
+			anpSetupParams.To = utils.ConfigANPToFrom("", "", "", "", "", "", "", controlplanev1beta2.ProtocolTCP, nil, denyEgress)
 		} else {
-			anpSetupParams.To = utils.ConfigANPToFrom("", "", "", "", "", "0.0.0.0/0", "", nil, false)
+			anpSetupParams.To = utils.ConfigANPToFrom("", "", "", "", "", "0.0.0.0/0", "", controlplanev1beta2.ProtocolTCP, nil, false)
 
 		}
 		err := utils.ConfigureK8s(kubeCtl, anpSetupParams, k8stemplates.CloudAntreaNetworkPolicy, false)
@@ -252,7 +253,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy upgrade test", focusAws, focu
 		dstNsName := namespace.Name
 
 		appliedIdx := len(ids) - 1
-		anpParams.From = utils.ConfigANPToFrom(kind, "", "", "", "", "", dstNsName, []string{apachePort}, false)
+		anpParams.From = utils.ConfigANPToFrom(kind, "", "", "", "", "", dstNsName, controlplanev1beta2.ProtocolTCP, []string{apachePort}, false)
 
 		By(fmt.Sprintf("Applied NetworkPolicy to %v by kind label selector", kind))
 		applied := make([]bool, len(ids))
@@ -318,7 +319,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy upgrade test", focusAws, focu
 			srcVM := cloudVPC.GetVMs()[0]
 			srcIP := cloudVPC.GetVMPrivateIPs()[0]
 			dstNsName := namespace.Name
-			anpParams.From = utils.ConfigANPToFrom(kind, "", "", "", "", "", dstNsName, []string{apachePort}, false)
+			anpParams.From = utils.ConfigANPToFrom(kind, "", "", "", "", "", dstNsName, controlplanev1beta2.ProtocolTCP, []string{apachePort}, false)
 
 			By(fmt.Sprintf("Applied NetworkPolicy to %v by kind label selector", kind))
 			applied := make([]bool, len(ids))

@@ -26,11 +26,12 @@ type NamespaceParameters struct {
 }
 
 type ToFromParameters struct {
-	Entity    *EntitySelectorParameters
-	Namespace *NamespaceParameters
-	IPBlock   string
-	Ports     []*PortParameters
-	DenyAll   bool
+	Entity       *EntitySelectorParameters
+	Namespace    *NamespaceParameters
+	IPBlock      string
+	Ports        []*PortParameters
+	ICMPProtocol string
+	DenyAll      bool
 }
 
 type PortParameters struct {
@@ -127,6 +128,10 @@ spec:
       port: {{$port.Port}}
 {{ end }}
 {{- end }}{{/* .From.Ports */}}
+{{- if .From.ICMPProtocol }}
+    protocols:
+       - icmp: {}
+{{- end }}{{/* .From.ICMPProtocol */}}
 {{- if  .RuleAppliedToGroup }}
     appliedTo:
     - group: {{ .RuleAppliedToGroup.Name }}
@@ -174,6 +179,10 @@ spec:
       port: {{$port.Port}}
 {{ end }}
 {{- end }}{{/* .To.Ports */}}
+{{- if .To.ICMPProtocol }}
+    protocols:
+       - icmp: {}
+{{- end }}{{/* .To.ICMPProtocol */}}
 {{ end }} {{/* .To */}}
 `
 const CloudAntreaGroup = `

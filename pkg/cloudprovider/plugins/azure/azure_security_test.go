@@ -64,8 +64,8 @@ var _ = Describe("Azure Cloud Security", func() {
 		testDestinationPortRange          = "*"
 		testPrivateIP                     = "0.0.0.0"
 		testProtocol                      = 6
-		testFromPort                      = 22
-		testToPort                        = 23
+		testFromPort                      = int32(22)
+		testToPort                        = int32(23)
 		testCidrStr                       = "192.168.1.1/24"
 
 		testVnet01   = "testVnet01"
@@ -553,7 +553,7 @@ var _ = Describe("Azure Cloud Security", func() {
 							SourceAddressPrefixes:                []*string{to.StringPtr("2600:1f16:c77:a001:fb97:21b2:a8dc:dc60/128")},
 							Priority:                             &testPriority,
 							SourcePortRange:                      &testSourcePortRange,
-							DestinationPortRange:                 to.StringPtr(strconv.Itoa(testFromPort)),
+							DestinationPortRange:                 to.StringPtr(strconv.Itoa(int(testFromPort))),
 							Direction:                            &testDirection,
 							Description:                          &desc,
 						},
@@ -567,7 +567,7 @@ var _ = Describe("Azure Cloud Security", func() {
 							SourceAddressPrefixes:                []*string{to.StringPtr("2600:1f16:c77:a001:fb97:21b2:a8dc:dc61/128")},
 							Priority:                             to.Int32Ptr(testPriority + 1),
 							SourcePortRange:                      &testSourcePortRange,
-							DestinationPortRange:                 to.StringPtr(strconv.Itoa(testFromPort)),
+							DestinationPortRange:                 to.StringPtr(strconv.Itoa(int(testFromPort))),
 							Direction:                            &testDirection,
 							Description:                          &desc,
 						},
@@ -581,7 +581,7 @@ var _ = Describe("Azure Cloud Security", func() {
 							DestinationApplicationSecurityGroups: []*network.ApplicationSecurityGroup{{ID: &testATAsgID}},
 							Priority:                             to.Int32Ptr(testPriority + 2),
 							SourcePortRange:                      &testSourcePortRange,
-							DestinationPortRange:                 to.StringPtr(strconv.Itoa(testFromPort)),
+							DestinationPortRange:                 to.StringPtr(strconv.Itoa(int(testFromPort))),
 							Direction:                            &testDirection,
 							Description:                          &desc,
 						},
@@ -674,7 +674,7 @@ var _ = Describe("Azure Cloud Security", func() {
 							SourceApplicationSecurityGroups: []*network.ApplicationSecurityGroup{{ID: &testATAsgID}},
 							DestinationAddressPrefixes:      []*string{to.StringPtr("2600:1f16:c77:a001:fb97:21b2:a8dc:dc60/128")},
 							Priority:                        &testPriority,
-							DestinationPortRange:            to.StringPtr(strconv.Itoa(testToPort)),
+							DestinationPortRange:            to.StringPtr(strconv.Itoa(int(testToPort))),
 							SourcePortRange:                 &testSourcePortRange,
 							Direction:                       &outbound,
 							Description:                     &desc,
@@ -688,7 +688,7 @@ var _ = Describe("Azure Cloud Security", func() {
 							SourceApplicationSecurityGroups: []*network.ApplicationSecurityGroup{{ID: &testATAsgID}},
 							DestinationAddressPrefixes:      []*string{to.StringPtr("2600:1f16:c77:a001:fb97:21b2:a8dc:dc61/128")},
 							Priority:                        to.Int32Ptr(testPriority + 1),
-							DestinationPortRange:            to.StringPtr(strconv.Itoa(testToPort)),
+							DestinationPortRange:            to.StringPtr(strconv.Itoa(int(testToPort))),
 							SourcePortRange:                 &testSourcePortRange,
 							Direction:                       &outbound,
 							Description:                     &desc,
@@ -702,7 +702,7 @@ var _ = Describe("Azure Cloud Security", func() {
 							DestinationApplicationSecurityGroups: []*network.ApplicationSecurityGroup{{ID: to.StringPtr(testAGAsgID + "1")}},
 							SourceApplicationSecurityGroups:      []*network.ApplicationSecurityGroup{{ID: &testATAsgID}},
 							Priority:                             to.Int32Ptr(testPriority + 2),
-							DestinationPortRange:                 to.StringPtr(strconv.Itoa(testToPort)),
+							DestinationPortRange:                 to.StringPtr(strconv.Itoa(int(testToPort))),
 							SourcePortRange:                      &testSourcePortRange,
 							Direction:                            &outbound,
 							Description:                          &desc,
@@ -776,7 +776,7 @@ var _ = Describe("Azure Cloud Security", func() {
 							SourceAddressPrefixes:                []*string{to.StringPtr("1.1.1.0/24")},
 							Priority:                             &testPriority,
 							SourcePortRange:                      &testSourcePortRange,
-							DestinationPortRange:                 to.StringPtr(strconv.Itoa(testFromPort)),
+							DestinationPortRange:                 to.StringPtr(strconv.Itoa(int(testFromPort))),
 							Direction:                            &testDirection,
 							Description:                          &desc,
 						},
@@ -854,7 +854,7 @@ var _ = Describe("Azure Cloud Security", func() {
 							SourceAddressPrefixes:                []*string{to.StringPtr("1.1.1.0/24")},
 							Priority:                             &testPriority,
 							SourcePortRange:                      &testSourcePortRange,
-							DestinationPortRange:                 to.StringPtr(strconv.Itoa(testFromPort)),
+							DestinationPortRange:                 to.StringPtr(strconv.Itoa(int(testFromPort))),
 							Direction:                            &outbound,
 							Description:                          &desc,
 						},

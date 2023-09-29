@@ -408,6 +408,16 @@ func ExecuteCurlCmds(vpc CloudVPC, kubctl *KubeCtl,
 	return ExecuteCmds(vpc, kubctl, srcIDs, ns, cmds, oks, retries)
 }
 
+// ExecutePingCmds executes ping on resource srcIDs in parallel, and returns error if oks mismatch.
+func ExecutePingCmds(vpc CloudVPC, kubctl *KubeCtl,
+	srcIDs []string, ns string, destIPs []string, oks []bool, retries int) error {
+	cmds := make([][]string, 0, len(destIPs))
+	for _, ip := range destIPs {
+		cmds = append(cmds, []string{"ping", "-c", "1", "-w", "1", ip})
+	}
+	return ExecuteCmds(vpc, kubctl, srcIDs, ns, cmds, oks, retries)
+}
+
 // CheckRestart returns error if nephe controller has restarted.
 func CheckRestart(kubctl *KubeCtl) error {
 	controllers := []string{"nephe-controller"}

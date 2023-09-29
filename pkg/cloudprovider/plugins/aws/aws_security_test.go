@@ -274,7 +274,7 @@ var _ = Describe("AWS Cloud Security", func() {
 			}
 			addRule := []*cloudresource.CloudRule{{
 				Rule: &cloudresource.IngressRule{
-					FromPort: aws.Int(22),
+					FromPort: aws.Int32(22),
 					FromSrcIP: []*net.IPNet{{
 						IP:   net.ParseIP("2600:1f16:c77:a001:fb97:21b2:a8dc:dc60"),
 						Mask: net.CIDRMask(128, 128)},
@@ -319,7 +319,7 @@ var _ = Describe("AWS Cloud Security", func() {
 			}
 			addRule := []*cloudresource.CloudRule{{
 				Rule: &cloudresource.IngressRule{
-					FromPort:           aws.Int(22),
+					FromPort:           aws.Int32(22),
 					FromSrcIP:          []*net.IPNet{},
 					FromSecurityGroups: []*cloudresource.CloudResourceID{&webSgIdentifier.CloudResourceID},
 					Protocol:           aws.Int(6),
@@ -355,7 +355,7 @@ var _ = Describe("AWS Cloud Security", func() {
 			}
 			addRule := []*cloudresource.CloudRule{{
 				Rule: &cloudresource.EgressRule{
-					ToPort:           aws.Int(22),
+					ToPort:           aws.Int32(22),
 					ToDstIP:          []*net.IPNet{},
 					ToSecurityGroups: []*cloudresource.CloudResourceID{&webSgIdentifier.CloudResourceID},
 					Protocol:         aws.Int(6),
@@ -396,7 +396,7 @@ var _ = Describe("AWS Cloud Security", func() {
 			}
 			addRule := []*cloudresource.CloudRule{{
 				Rule: &cloudresource.EgressRule{
-					ToPort:           aws.Int(22),
+					ToPort:           aws.Int32(22),
 					ToDstIP:          []*net.IPNet{},
 					ToSecurityGroups: []*cloudresource.CloudResourceID{&webSgIdentifier.CloudResourceID},
 					Protocol:         aws.Int(6),
@@ -441,7 +441,7 @@ var _ = Describe("AWS Cloud Security", func() {
 			addRule := []*cloudresource.CloudRule{
 				{
 					Rule: &cloudresource.IngressRule{
-						FromPort: aws.Int(22),
+						FromPort: aws.Int32(22),
 						FromSrcIP: []*net.IPNet{{
 							IP:   net.ParseIP("2600:1f16:c77:a001:fb97:21b2:a8dc:dc60"),
 							Mask: net.CIDRMask(128, 128)},
@@ -450,7 +450,7 @@ var _ = Describe("AWS Cloud Security", func() {
 					}, NpNamespacedName: testAnpNamespacedName.String(),
 				}, {
 					Rule: &cloudresource.IngressRule{
-						FromPort: aws.Int(22),
+						FromPort: aws.Int32(22),
 						FromSrcIP: []*net.IPNet{{
 							IP:   net.ParseIP("2600:1f16:c77:a001:fb97:21b2:a8dc:dc61"),
 							Mask: net.CIDRMask(128, 128)},
@@ -459,13 +459,13 @@ var _ = Describe("AWS Cloud Security", func() {
 					}, NpNamespacedName: testAnpNamespacedName.String(),
 				}, {
 					Rule: &cloudresource.IngressRule{
-						FromPort:           aws.Int(22),
+						FromPort:           aws.Int32(22),
 						FromSecurityGroups: []*cloudresource.CloudResourceID{&webSgIdentifier1.CloudResourceID},
 						Protocol:           aws.Int(6),
 					}, NpNamespacedName: testAnpNamespacedName.String(),
 				}, {
 					Rule: &cloudresource.IngressRule{
-						FromPort:           aws.Int(22),
+						FromPort:           aws.Int32(22),
 						FromSecurityGroups: []*cloudresource.CloudResourceID{&webSgIdentifier2.CloudResourceID},
 						Protocol:           aws.Int(6),
 					}, NpNamespacedName: testAnpNamespacedName.String(),
@@ -543,7 +543,7 @@ var _ = Describe("AWS Cloud Security", func() {
 			addRule := []*cloudresource.CloudRule{
 				{
 					Rule: &cloudresource.EgressRule{
-						ToPort: aws.Int(22),
+						ToPort: aws.Int32(22),
 						ToDstIP: []*net.IPNet{{
 							IP:   net.ParseIP("2600:1f16:c77:a001:fb97:21b2:a8dc:dc60"),
 							Mask: net.CIDRMask(128, 128)},
@@ -552,7 +552,7 @@ var _ = Describe("AWS Cloud Security", func() {
 					}, NpNamespacedName: testAnpNamespacedName.String(),
 				}, {
 					Rule: &cloudresource.EgressRule{
-						ToPort: aws.Int(22),
+						ToPort: aws.Int32(22),
 						ToDstIP: []*net.IPNet{{
 							IP:   net.ParseIP("2600:1f16:c77:a001:fb97:21b2:a8dc:dc61"),
 							Mask: net.CIDRMask(128, 128)},
@@ -561,13 +561,13 @@ var _ = Describe("AWS Cloud Security", func() {
 					}, NpNamespacedName: testAnpNamespacedName.String(),
 				}, {
 					Rule: &cloudresource.EgressRule{
-						ToPort:           aws.Int(22),
+						ToPort:           aws.Int32(22),
 						ToSecurityGroups: []*cloudresource.CloudResourceID{&webSgIdentifier1.CloudResourceID},
 						Protocol:         aws.Int(6),
 					}, NpNamespacedName: testAnpNamespacedName.String(),
 				}, {
 					Rule: &cloudresource.EgressRule{
-						ToPort:           aws.Int(22),
+						ToPort:           aws.Int32(22),
 						ToSecurityGroups: []*cloudresource.CloudResourceID{&webSgIdentifier2.CloudResourceID},
 						Protocol:         aws.Int(6),
 					}, NpNamespacedName: testAnpNamespacedName.String(),
