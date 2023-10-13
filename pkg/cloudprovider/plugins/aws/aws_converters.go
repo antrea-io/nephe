@@ -35,14 +35,28 @@ func convertToIPPermissionProtocol(protocol *int) *string {
 	return aws.String(strconv.FormatInt(int64(*protocol), 10))
 }
 
-func convertToIPPermissionPort(port *int, protocol *int) (*int64, *int64) {
+func convertToIPPermissionPort(port *int32, protocol *int, icmpType, icmpCode *int32) (*int64, *int64) {
 	if port == nil {
 		// For TCP and UDP, aws expects explicit start and end port numbers (for all ports case)
-		if protocol != nil && (*protocol == 6 || *protocol == 17) {
-			return aws.Int64(int64(tcpUDPPortStart)), aws.Int64(int64(tcpUDPPortEnd))
+		if protocol != nil &&
+			(*protocol == cloudresource.TcpProtocol || *protocol == cloudresource.UdpProtocol || *protocol == cloudresource.IcmpProtocol) {
+			if *protocol == cloudresource.IcmpProtocol {
+				awsIcmpType := aws.Int64(-1)
+				awsIcmpCode := aws.Int64(-1)
+				if icmpType != nil {
+					awsIcmpType = aws.Int64(int64(*icmpType))
+				}
+				if icmpCode != nil {
+					awsIcmpCode = aws.Int64(int64(*icmpCode))
+				}
+				return awsIcmpType, awsIcmpCode
+			} else {
+				return aws.Int64(int64(tcpUDPPortStart)), aws.Int64(int64(tcpUDPPortEnd))
+			}
 		}
 		return nil, nil
 	}
+
 	portVal := aws.Int64(int64(*port))
 	return portVal, portVal
 }
@@ -153,7 +167,7 @@ func convertIngressToIpPermission(rules []*cloudresource.CloudRule, cloudSGNameT
 		}
 		idGroupPairs := buildEc2UserIDGroupPairs(rule.FromSecurityGroups, cloudSGNameToObj, &description)
 		ipv4Ranges, ipv6Ranges := convertToEc2IpRanges(rule.FromSrcIP, len(rule.FromSecurityGroups) > 0, &description)
-		startPort, endPort := convertToIPPermissionPort(rule.FromPort, rule.Protocol)
+		startPort, endPort := convertToIPPermissionPort(rule.FromPort, rule.Protocol, rule.IcmpType, rule.IcmpCode)
 		ipPermission := &ec2.IpPermission{
 			FromPort:         startPort,
 			ToPort:           endPort,
@@ -183,7 +197,7 @@ func convertEgressToIpPermission(rules []*cloudresource.CloudRule, cloudSGNameTo
 
 		idGroupPairs := buildEc2UserIDGroupPairs(rule.ToSecurityGroups, cloudSGNameToObj, &description)
 		ipv4Ranges, ipv6Ranges := convertToEc2IpRanges(rule.ToDstIP, len(rule.ToSecurityGroups) > 0, &description)
-		startPort, endPort := convertToIPPermissionPort(rule.ToPort, rule.Protocol)
+		startPort, endPort := convertToIPPermissionPort(rule.ToPort, rule.Protocol, rule.IcmpType, rule.IcmpCode)
 		ipPermission := &ec2.IpPermission{
 			FromPort:         startPort,
 			ToPort:           endPort,
@@ -203,18 +217,25 @@ func convertFromIngressIpPermissionToCloudRule(sgID string, ipPermissions []*ec2
 	managedSGs, unmanagedSGs map[string]*ec2.SecurityGroup) []cloudresource.CloudRule {
 	var ingressRules []cloudresource.CloudRule
 	for _, ipPermission := range ipPermissions {
+		protocol := convertFromIPPermissionProtocol(*ipPermission.IpProtocol)
+		fromPort, toPort := convertFromIPPermissionPort(ipPermission.FromPort, ipPermission.ToPort)
 		fromSrcIPs, descriptions := convertFromIPRange(ipPermission.IpRanges, ipPermission.Ipv6Ranges)
 		for i, srcIP := range fromSrcIPs {
-			// Get cloud rule description.
-			desc, ok := utils.ExtractCloudDescription(descriptions[i])
+			rule := &cloudresource.IngressRule{
+				FromSrcIP: []*net.IPNet{srcIP},
+				Protocol:  protocol,
+			}
+			if protocol != nil && *protocol == cloudresource.IcmpProtocol {
+				rule.IcmpType = fromPort
+				rule.IcmpCode = toPort
+			} else {
+				rule.FromPort = fromPort
+			}
 			ingressRule := cloudresource.CloudRule{
-				Rule: &cloudresource.IngressRule{
-					FromPort:  convertFromIPPermissionPort(ipPermission.FromPort, ipPermission.ToPort),
-					FromSrcIP: []*net.IPNet{srcIP},
-					Protocol:  convertFromIPPermissionProtocol(*ipPermission.IpProtocol),
-				},
+				Rule:         rule,
 				AppliedToGrp: sgID,
 			}
+			desc, ok := utils.ExtractCloudDescription(descriptions[i])
 			if ok {
 				ingressRule.NpNamespacedName = types.NamespacedName{Name: desc.Name, Namespace: desc.Namespace}.String()
 			}
@@ -223,16 +244,22 @@ func convertFromIngressIpPermissionToCloudRule(sgID string, ipPermissions []*ec2
 		}
 		fromSecurityGroups, descriptions := convertFromSecurityGroupPair(ipPermission.UserIdGroupPairs, managedSGs, unmanagedSGs)
 		for i, SecurityGroup := range fromSecurityGroups {
-			// Get cloud rule description.
-			desc, ok := utils.ExtractCloudDescription(descriptions[i])
+			rule := &cloudresource.IngressRule{
+				FromSecurityGroups: []*cloudresource.CloudResourceID{SecurityGroup},
+				Protocol:           protocol,
+			}
+			if protocol != nil && *protocol == cloudresource.IcmpProtocol {
+				rule.IcmpType = fromPort
+				rule.IcmpCode = toPort
+			} else {
+				rule.FromPort = fromPort
+			}
 			ingressRule := cloudresource.CloudRule{
-				Rule: &cloudresource.IngressRule{
-					FromPort:           convertFromIPPermissionPort(ipPermission.FromPort, ipPermission.ToPort),
-					FromSecurityGroups: []*cloudresource.CloudResourceID{SecurityGroup},
-					Protocol:           convertFromIPPermissionProtocol(*ipPermission.IpProtocol),
-				},
+				Rule:         rule,
 				AppliedToGrp: sgID,
 			}
+			// Get cloud rule description.
+			desc, ok := utils.ExtractCloudDescription(descriptions[i])
 			if ok {
 				ingressRule.NpNamespacedName = types.NamespacedName{Name: desc.Name, Namespace: desc.Namespace}.String()
 			}
@@ -249,18 +276,26 @@ func convertFromEgressIpPermissionToCloudRule(sgID string, ipPermissions []*ec2.
 	managedSGs, unmanagedSGs map[string]*ec2.SecurityGroup) []cloudresource.CloudRule {
 	var egressRules []cloudresource.CloudRule
 	for _, ipPermission := range ipPermissions {
+		protocol := convertFromIPPermissionProtocol(*ipPermission.IpProtocol)
+		fromPort, toPort := convertFromIPPermissionPort(ipPermission.FromPort, ipPermission.ToPort)
 		toDstIPs, descriptions := convertFromIPRange(ipPermission.IpRanges, ipPermission.Ipv6Ranges)
 		for i, dstIP := range toDstIPs {
-			// Get cloud rule description.
-			desc, ok := utils.ExtractCloudDescription(descriptions[i])
+			rule := &cloudresource.EgressRule{
+				ToDstIP:  []*net.IPNet{dstIP},
+				Protocol: protocol,
+			}
+			if protocol != nil && *protocol == cloudresource.IcmpProtocol {
+				rule.IcmpType = fromPort
+				rule.IcmpCode = toPort
+			} else {
+				rule.ToPort = fromPort
+			}
 			egressRule := cloudresource.CloudRule{
-				Rule: &cloudresource.EgressRule{
-					ToPort:   convertFromIPPermissionPort(ipPermission.FromPort, ipPermission.ToPort),
-					ToDstIP:  []*net.IPNet{dstIP},
-					Protocol: convertFromIPPermissionProtocol(*ipPermission.IpProtocol),
-				},
+				Rule:         rule,
 				AppliedToGrp: sgID,
 			}
+			// Get cloud rule description.
+			desc, ok := utils.ExtractCloudDescription(descriptions[i])
 			if ok {
 				egressRule.NpNamespacedName = types.NamespacedName{Name: desc.Name, Namespace: desc.Namespace}.String()
 			}
@@ -269,16 +304,22 @@ func convertFromEgressIpPermissionToCloudRule(sgID string, ipPermissions []*ec2.
 		}
 		toSecurityGroups, descriptions := convertFromSecurityGroupPair(ipPermission.UserIdGroupPairs, managedSGs, unmanagedSGs)
 		for i, SecurityGroup := range toSecurityGroups {
-			// Get cloud rule description.
-			desc, ok := utils.ExtractCloudDescription(descriptions[i])
+			rule := &cloudresource.EgressRule{
+				ToSecurityGroups: []*cloudresource.CloudResourceID{SecurityGroup},
+				Protocol:         protocol,
+			}
+			if protocol != nil && *protocol == cloudresource.IcmpProtocol {
+				rule.IcmpType = fromPort
+				rule.IcmpCode = toPort
+			} else {
+				rule.ToPort = fromPort
+			}
 			egressRule := cloudresource.CloudRule{
-				Rule: &cloudresource.EgressRule{
-					ToPort:           convertFromIPPermissionPort(ipPermission.FromPort, ipPermission.ToPort),
-					ToSecurityGroups: []*cloudresource.CloudResourceID{SecurityGroup},
-					Protocol:         convertFromIPPermissionProtocol(*ipPermission.IpProtocol),
-				},
+				Rule:         rule,
 				AppliedToGrp: sgID,
 			}
+			// Get cloud rule description.
+			desc, ok := utils.ExtractCloudDescription(descriptions[i])
 			if ok {
 				egressRule.NpNamespacedName = types.NamespacedName{Name: desc.Name, Namespace: desc.Namespace}.String()
 			}
@@ -289,23 +330,38 @@ func convertFromEgressIpPermissionToCloudRule(sgID string, ipPermissions []*ec2.
 	return egressRules
 }
 
-func convertFromIPPermissionPort(startPort *int64, endPort *int64) *int {
+func convertFromIPPermissionPort(startPort *int64, endPort *int64) (*int32, *int32) {
 	if startPort == nil {
-		return nil
+		if endPort == nil {
+			return nil, nil
+		} else {
+			retval := int32(*endPort)
+			return nil, &retval
+		}
 	}
 	if endPort == nil {
-		retVal := int(*startPort)
-		return &retVal
+		retVal := int32(*startPort)
+		return &retVal, nil
 	}
 	if *startPort == -1 {
-		return nil
+		if *endPort == -1 {
+			return nil, nil
+		} else {
+			retval := int32(*endPort)
+			return nil, &retval
+		}
 	}
+
 	if *startPort == *endPort {
-		retVal := int(*startPort)
-		return &retVal
+		retVal := int32(*startPort)
+		return &retVal, nil
+	} else if *startPort == 0 && *endPort == 65535 {
+		// (0 - 65535) tcp/udp ports returns nil
+		return nil, nil
 	}
-	// other cases along with all (0 - 65535) tcp/udp ports returns nil
-	return nil
+	retval1 := int32(*startPort)
+	retval2 := int32(*endPort)
+	return &retval1, &retval2
 }
 
 // convertFromIPPermissionPortToString helper function to convert cloud port number field to string.

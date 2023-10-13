@@ -17,8 +17,7 @@ package utils
 import (
 	"strings"
 
-	v1 "k8s.io/api/core/v1"
-
+	cpv1beta2 "antrea.io/antrea/pkg/apis/controlplane/v1beta2"
 	"antrea.io/nephe/pkg/labels"
 	k8stemplates "antrea.io/nephe/test/templates"
 )
@@ -43,7 +42,7 @@ func ConfigANPApplyTo(kind, instanceName, vpc, tagKey, tagVal string) *k8stempla
 }
 
 // ConfigANPToFrom helper function to configure to and from fields in Antrea NetworkPolicy.
-func ConfigANPToFrom(kind, instanceName, vpc, tagKey, tagVal, ipBlock, nsName string, ports []string,
+func ConfigANPToFrom(kind, instanceName, vpc, tagKey, tagVal, ipBlock, nsName string, protocol cpv1beta2.Protocol, ports []string,
 	denyAll bool) *k8stemplates.ToFromParameters {
 	ret := &k8stemplates.ToFromParameters{
 		DenyAll: denyAll,
@@ -67,8 +66,12 @@ func ConfigANPToFrom(kind, instanceName, vpc, tagKey, tagVal, ipBlock, nsName st
 		}
 	}
 
-	for _, p := range ports {
-		ret.Ports = append(ret.Ports, &k8stemplates.PortParameters{Protocol: string(v1.ProtocolTCP), Port: p})
+	if protocol == cpv1beta2.ProtocolTCP {
+		for _, p := range ports {
+			ret.Ports = append(ret.Ports, &k8stemplates.PortParameters{Protocol: string(protocol), Port: p})
+		}
+	} else if protocol == cpv1beta2.ProtocolICMP {
+		ret.ICMPProtocol = string(cpv1beta2.ProtocolICMP)
 	}
 	return ret
 }

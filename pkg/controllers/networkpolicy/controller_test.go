@@ -264,10 +264,15 @@ var _ = Describe("NetworkPolicy", func() {
 			Type: antreanetworking.AntreaNetworkPolicy,
 		}
 		protocol := antreanetworking.ProtocolTCP
+		icmpProtocol := antreanetworking.ProtocolICMP
+		icmpType := int32(8)
+		icmpCode := int32(0)
 		port := &intstr.IntOrString{IntVal: 443}
 		inRule := antreanetworking.NetworkPolicyRule{Direction: antreanetworking.DirectionIn}
 		inRule.Services = []antreanetworking.Service{
 			{Port: port, Protocol: &protocol},
+			{Protocol: &icmpProtocol},
+			{Protocol: &icmpProtocol, ICMPType: &icmpType, ICMPCode: &icmpCode},
 		}
 		_, ingressIPBlock, _ := net.ParseCIDR("5.5.5.0/24")
 		ipInBlock := antreanetworking.IPBlock{}
@@ -279,6 +284,8 @@ var _ = Describe("NetworkPolicy", func() {
 		eRule := antreanetworking.NetworkPolicyRule{Direction: antreanetworking.DirectionOut}
 		eRule.Services = []antreanetworking.Service{
 			{Port: port, Protocol: &protocol},
+			{Protocol: &icmpProtocol},
+			{Protocol: &icmpProtocol, ICMPType: &icmpType, ICMPCode: &icmpCode},
 		}
 		_, egressIPBlock, _ := net.ParseCIDR("6.6.6.0/24")
 		ipEgBlock := antreanetworking.IPBlock{}
@@ -290,29 +297,69 @@ var _ = Describe("NetworkPolicy", func() {
 
 		// rules
 		tcp := 6
-		portInt := int(port.IntVal)
+		icmp := 1
 		ingressRule = []*cloudresource.IngressRule{
 			{
-				FromPort:  &portInt,
+				FromPort:  &port.IntVal,
 				Protocol:  &tcp,
 				FromSrcIP: []*net.IPNet{ingressIPBlock},
 			},
 			{
-				FromPort:           &portInt,
+				FromPort:           &port.IntVal,
 				Protocol:           &tcp,
 				FromSecurityGroups: []*cloudresource.CloudResourceID{addrGrpIDs[addrGrps[0].Name]},
+			},
+			{
+				FromSrcIP: []*net.IPNet{ingressIPBlock},
+				Protocol:  &icmp,
+			},
+			{
+				FromSecurityGroups: []*cloudresource.CloudResourceID{addrGrpIDs[addrGrps[0].Name]},
+				Protocol:           &icmp,
+			},
+			{
+				FromSrcIP: []*net.IPNet{ingressIPBlock},
+				Protocol:  &icmp,
+				IcmpType:  &icmpType,
+				IcmpCode:  &icmpCode,
+			},
+			{
+				FromSecurityGroups: []*cloudresource.CloudResourceID{addrGrpIDs[addrGrps[0].Name]},
+				Protocol:           &icmp,
+				IcmpType:           &icmpType,
+				IcmpCode:           &icmpCode,
 			},
 		}
 		egressRule = []*cloudresource.EgressRule{
 			{
-				ToPort:   &portInt,
+				ToPort:   &port.IntVal,
 				Protocol: &tcp,
 				ToDstIP:  []*net.IPNet{egressIPBlock},
 			},
 			{
-				ToPort:           &portInt,
+				ToPort:           &port.IntVal,
 				Protocol:         &tcp,
 				ToSecurityGroups: []*cloudresource.CloudResourceID{addrGrpIDs[addrGrps[1].Name]},
+			},
+			{
+				ToDstIP:  []*net.IPNet{egressIPBlock},
+				Protocol: &icmp,
+			},
+			{
+				ToSecurityGroups: []*cloudresource.CloudResourceID{addrGrpIDs[addrGrps[1].Name]},
+				Protocol:         &icmp,
+			},
+			{
+				ToDstIP:  []*net.IPNet{egressIPBlock},
+				Protocol: &icmp,
+				IcmpType: &icmpType,
+				IcmpCode: &icmpCode,
+			},
+			{
+				ToSecurityGroups: []*cloudresource.CloudResourceID{addrGrpIDs[addrGrps[1].Name]},
+				Protocol:         &icmp,
+				IcmpType:         &icmpType,
+				IcmpCode:         &icmpCode,
 			},
 		}
 
@@ -962,7 +1009,7 @@ var _ = Describe("NetworkPolicy", func() {
 	It("Verify unsupported networkPolicy protocol", func() {
 		anpTemp := anp
 		inRule := antreanetworking.NetworkPolicyRule{Direction: antreanetworking.DirectionIn}
-		protocol := antreanetworking.ProtocolICMP
+		protocol := antreanetworking.ProtocolIGMP
 		inRule.Services = []antreanetworking.Service{
 			{Protocol: &protocol},
 		}
@@ -1037,6 +1084,19 @@ var _ = Describe("NetworkPolicy", func() {
 		ingress.FromSecurityGroups = append(ingress.FromSecurityGroups, addrGrpIDs[ag.Name])
 		ingress.FromSrcIP = nil
 		ingressRule = append(ingressRule, ingress)
+
+		// Update ICMP without Type and Code.
+		ingress = ingressRule[2]
+		ingress.FromSecurityGroups = append(ingress.FromSecurityGroups, addrGrpIDs[ag.Name])
+		ingress.FromSrcIP = nil
+		ingressRule = append(ingressRule, ingress)
+
+		// Update ICMP with Type and Code.
+		ingress = ingressRule[4]
+		ingress.FromSecurityGroups = append(ingress.FromSecurityGroups, addrGrpIDs[ag.Name])
+		ingress.FromSrcIP = nil
+		ingressRule = append(ingressRule, ingress)
+
 		checkNPPatchChange(appliedToGrps)
 		event = watch.Event{Type: watch.Modified, Object: anp}
 		err = reconciler.processNetworkPolicy(event)

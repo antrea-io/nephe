@@ -111,6 +111,7 @@ var (
 		antreanetworking.ProtocolTCP:  6,
 		antreanetworking.ProtocolUDP:  17,
 		antreanetworking.ProtocolSCTP: 132,
+		antreanetworking.ProtocolICMP: 1,
 	}
 )
 
@@ -1351,28 +1352,35 @@ func (r *networkPolicyRule) rules(rr *NetworkPolicyReconciler, anpName string, t
 		} else {
 			for _, s := range rule.Services {
 				var protocol *int
-				var targetPort *int
+				var targetPort *int32
 				if s.Protocol != nil {
 					if p, ok := AntreaProtocolMap[*s.Protocol]; ok {
 						protocol = &p
 					}
 				}
 				if s.Port != nil {
-					port := int(s.Port.IntVal)
+					port := s.Port.IntVal
 					targetPort = &port
 				}
-
 				if ingress {
 					iRule := deepcopy.Copy(cloudRule).(*cloudresource.IngressRule)
-					iRule.FromPort = targetPort
 					iRule.Protocol = protocol
+					if *protocol == AntreaProtocolMap[antreanetworking.ProtocolICMP] {
+						iRule.IcmpCode = s.ICMPCode
+						iRule.IcmpType = s.ICMPType
+					}
+					iRule.FromPort = targetPort
 					iRule.RuleName = rule.Name + "-" + anpName + "-" + strconv.Itoa(rCount)
 					rCount++
 					ingressList = append(ingressList, iRule)
 				} else {
 					eRule := deepcopy.Copy(cloudRule).(*cloudresource.EgressRule)
-					eRule.ToPort = targetPort
 					eRule.Protocol = protocol
+					if *protocol == AntreaProtocolMap[antreanetworking.ProtocolICMP] {
+						eRule.IcmpCode = s.ICMPCode
+						eRule.IcmpType = s.ICMPType
+					}
+					eRule.ToPort = targetPort
 					eRule.RuleName = rule.Name + "-" + anpName + "-" + strconv.Itoa(rCount)
 					rCount++
 					egressList = append(egressList, eRule)

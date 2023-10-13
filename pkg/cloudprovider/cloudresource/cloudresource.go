@@ -36,6 +36,12 @@ var (
 	CloudSecurityGroupVisibility bool
 )
 
+var (
+	IcmpProtocol = 1
+	TcpProtocol  = 6
+	UdpProtocol  = 17
+)
+
 // CloudResourceType specifies the type of cloud resource.
 type CloudResourceType string
 
@@ -122,7 +128,7 @@ type Rule interface {
 
 // IngressRule specifies one ingress rule of cloud SecurityGroup.
 type IngressRule struct {
-	FromPort           *int
+	FromPort           *int32
 	FromSrcIP          []*net.IPNet
 	FromSecurityGroups []*CloudResourceID
 	Protocol           *int
@@ -130,13 +136,15 @@ type IngressRule struct {
 	Priority           *float64
 	Action             *antreacrdv1beta1.RuleAction
 	RuleName           string
+	IcmpType           *int32
+	IcmpCode           *int32
 }
 
 func (i *IngressRule) isRule() {}
 
 // EgressRule specifies one egress rule of cloud SecurityGroup.
 type EgressRule struct {
-	ToPort           *int
+	ToPort           *int32
 	ToDstIP          []*net.IPNet
 	ToSecurityGroups []*CloudResourceID
 	Protocol         *int
@@ -144,6 +152,8 @@ type EgressRule struct {
 	Priority         *float64
 	Action           *antreacrdv1beta1.RuleAction
 	RuleName         string
+	IcmpType         *int32
+	IcmpCode         *int32
 }
 
 func (e *EgressRule) isRule() {}
