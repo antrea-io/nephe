@@ -155,6 +155,7 @@ var _ = Describe(fmt.Sprintf("%s,%s: NetworkPolicy On Cloud Resources", focusAws
 			defaultANPParameters = k8stemplates.DefaultANPParameters{
 				Namespace: staticVMNS.Name,
 				Name:      "deny-8080",
+				Priority:  defaultAnpPriority,
 				Entity: &k8stemplates.EntitySelectorParameters{
 					Kind: labels.ExternalEntityLabelKeyKind + ": " + strings.ToLower(reflect.TypeOf(runtimev1alpha1.VirtualMachine{}).Name()),
 				},

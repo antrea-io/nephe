@@ -28,7 +28,7 @@ metadata:
   name: {{.Name}}
   namespace: {{.Namespace}}
 spec:
-  priority: 2
+  priority: {{.Priority}}
   appliedTo:
     - externalEntitySelector:
         matchLabels:
