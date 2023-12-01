@@ -20,7 +20,7 @@ import (
 	nephetypes "antrea.io/nephe/pkg/types"
 )
 
-// GetCloudInventory pulls cloud vpc and vm inventory from internal snapshot.
-func (c *azureCloud) GetCloudInventory(accountNamespacedName *types.NamespacedName) (*nephetypes.CloudInventory, error) {
-	return c.cloudCommon.GetCloudInventory(accountNamespacedName)
+// GetAccountCloudInventory pulls cloud vpc and vm inventory from internal snapshot.
+func (c *azureCloud) GetAccountCloudInventory(accountNamespacedName *types.NamespacedName) (*nephetypes.CloudInventory, error) {
+	return c.cloudCommon.GetAccountCloudInventory(accountNamespacedName)
 }

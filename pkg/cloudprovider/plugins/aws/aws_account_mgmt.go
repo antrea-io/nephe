@@ -19,6 +19,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"reflect"
+	"sort"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -32,15 +34,15 @@ import (
 
 type awsAccountConfig struct {
 	crdv1alpha1.AwsAccountCredential
-	region   string
+	regions  []string
 	endpoint string
 }
 
-// setAccountCredentials sets account credentials.
-func setAccountCredentials(client client.Client, credentials interface{}) (interface{}, error) {
-	awsProviderConfig := credentials.(*crdv1alpha1.CloudProviderAccountAWSConfig)
+// setAccountConfig sets account config.
+func setAccountConfig(client client.Client, config interface{}) (interface{}, error) {
+	awsProviderConfig := config.(*crdv1alpha1.CloudProviderAccountAWSConfig)
 	awsConfig := &awsAccountConfig{
-		region:   strings.TrimSpace(awsProviderConfig.Region[0]),
+		regions:  awsProviderConfig.Region,
 		endpoint: strings.TrimSpace(awsProviderConfig.Endpoint),
 	}
 	accCred, err := extractSecret(client, awsProviderConfig.SecretRef)
@@ -53,12 +55,12 @@ func setAccountCredentials(client client.Client, credentials interface{}) (inter
 		accCred.ExternalID = internal.AccountCredentialsDefault
 	}
 
-	// As only single region is supported right now, use 0th index in awsProviderConfig.Region as the configured region.
 	awsConfig.AwsAccountCredential = *accCred
 	return awsConfig, err
 }
 
-func compareAccountCredentials(accountName string, existing interface{}, new interface{}) bool {
+// compareAccountConfig compares two account configs and returns they are different or not.
+func compareAccountConfig(accountName string, existing interface{}, new interface{}) bool {
 	existingConfig := existing.(*awsAccountConfig)
 	newConfig := new.(*awsAccountConfig)
 
@@ -67,36 +69,38 @@ func compareAccountCredentials(accountName string, existing interface{}, new int
 		return true
 	}
 
-	credsChanged := false
+	configChanged := false
 	if strings.Compare(existingConfig.AccessKeyID, newConfig.AccessKeyID) != 0 {
-		credsChanged = true
+		configChanged = true
 		awsPluginLogger().Info("Account access key ID updated", "account", accountName)
 	}
 	if strings.Compare(existingConfig.AccessKeySecret, newConfig.AccessKeySecret) != 0 {
-		credsChanged = true
+		configChanged = true
 		awsPluginLogger().Info("Account access key secret updated", "account", accountName)
 	}
 	if strings.Compare(existingConfig.SessionToken, newConfig.SessionToken) != 0 {
-		credsChanged = true
+		configChanged = true
 		awsPluginLogger().Info("Account session token updated", "account", accountName)
 	}
 	if strings.Compare(existingConfig.RoleArn, newConfig.RoleArn) != 0 {
-		credsChanged = true
+		configChanged = true
 		awsPluginLogger().Info("Account IAM role updated", "account", accountName)
 	}
 	if strings.Compare(existingConfig.ExternalID, newConfig.ExternalID) != 0 {
-		credsChanged = true
+		configChanged = true
 		awsPluginLogger().Info("Account IAM external id updated", "account", accountName)
 	}
-	if strings.Compare(existingConfig.region, newConfig.region) != 0 {
-		credsChanged = true
-		awsPluginLogger().Info("Account region updated", "account", accountName)
-	}
 	if strings.Compare(existingConfig.endpoint, newConfig.endpoint) != 0 {
-		credsChanged = true
+		configChanged = true
 		awsPluginLogger().Info("Endpoint url updated", "account", accountName)
 	}
-	return credsChanged
+	sort.Strings(existingConfig.regions)
+	sort.Strings(newConfig.regions)
+	if !reflect.DeepEqual(existingConfig.regions, newConfig.regions) {
+		configChanged = true
+		awsPluginLogger().Info("Account regions updated", "account", accountName)
+	}
+	return configChanged
 }
 
 // extractSecret extracts credentials from a Kubernetes secret.

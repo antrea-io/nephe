@@ -148,7 +148,7 @@ func (p *accountPoller) doAccountPolling() {
 	}
 
 	// TODO: Remove this when event based push is implemented in the plugin.
-	cloudInventory, err := p.cloudInterface.GetCloudInventory(p.accountNamespacedName)
+	cloudInventory, err := p.cloudInterface.GetAccountCloudInventory(p.accountNamespacedName)
 	if err != nil {
 		// Chances are while polling was happening, account is removed.
 		return

@@ -21,9 +21,10 @@ import (
 	runtimev1alpha1 "antrea.io/nephe/apis/runtime/v1alpha1"
 )
 
-var (
+const (
 	ErrorMsgUnknownCloudProvider = "missing cloud provider config. Please add AWS or Azure Config"
 	ErrorMsgSecretReference      = "error fetching Secret reference"
+	ErrorMsgRegion               = "error processing region"
 )
 
 // GetVMIPAddresses returns IP addresses of all network interfaces attached to the vm.

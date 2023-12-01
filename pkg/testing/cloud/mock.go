@@ -125,6 +125,21 @@ func (mr *MockCloudInterfaceMockRecorder) DoInventoryPoll(arg0 interface{}) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DoInventoryPoll", reflect.TypeOf((*MockCloudInterface)(nil).DoInventoryPoll), arg0)
 }
 
+// GetAccountCloudInventory mocks base method.
+func (m *MockCloudInterface) GetAccountCloudInventory(arg0 *types0.NamespacedName) (*types.CloudInventory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAccountCloudInventory", arg0)
+	ret0, _ := ret[0].(*types.CloudInventory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAccountCloudInventory indicates an expected call of GetAccountCloudInventory.
+func (mr *MockCloudInterfaceMockRecorder) GetAccountCloudInventory(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccountCloudInventory", reflect.TypeOf((*MockCloudInterface)(nil).GetAccountCloudInventory), arg0)
+}
+
 // GetAccountStatus mocks base method.
 func (m *MockCloudInterface) GetAccountStatus(arg0 *types0.NamespacedName) (*v1alpha1.CloudProviderAccountStatus, error) {
 	m.ctrl.T.Helper()
@@ -138,21 +153,6 @@ func (m *MockCloudInterface) GetAccountStatus(arg0 *types0.NamespacedName) (*v1a
 func (mr *MockCloudInterfaceMockRecorder) GetAccountStatus(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccountStatus", reflect.TypeOf((*MockCloudInterface)(nil).GetAccountStatus), arg0)
-}
-
-// GetCloudInventory mocks base method.
-func (m *MockCloudInterface) GetCloudInventory(arg0 *types0.NamespacedName) (*types.CloudInventory, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetCloudInventory", arg0)
-	ret0, _ := ret[0].(*types.CloudInventory)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetCloudInventory indicates an expected call of GetCloudInventory.
-func (mr *MockCloudInterfaceMockRecorder) GetCloudInventory(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCloudInventory", reflect.TypeOf((*MockCloudInterface)(nil).GetCloudInventory), arg0)
 }
 
 // GetEnforcedSecurity mocks base method.

@@ -48,8 +48,11 @@ func (c *azureCloud) CreateSecurityGroup(securityGroupIdentifier *cloudresource.
 	}
 
 	// create/get nsg/asg on/from cloud
-	computeService := accCfg.GetServiceConfig().(*computeServiceConfig)
-	location := computeService.credentials.region
+	location := accCfg.FindRegion(vnetID)
+	if location == "" {
+		return nil, fmt.Errorf("location not found for vnet %s", vnetID)
+	}
+	computeService := accCfg.GetServiceConfig(location).(*computeServiceConfig)
 
 	if !membershipOnly {
 		// per vnet only one appliedTo SG will be created. Hence, always use the same pre-assigned name.
@@ -92,8 +95,11 @@ func (c *azureCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *cloudres
 	accCfg.LockMutex()
 	defer accCfg.UnlockMutex()
 
-	computeService := accCfg.GetServiceConfig().(*computeServiceConfig)
-	location := computeService.credentials.region
+	location := accCfg.FindRegion(vnetID)
+	if location == "" {
+		return fmt.Errorf("location not found for vnet %s", vnetID)
+	}
+	computeService := accCfg.GetServiceConfig(location).(*computeServiceConfig)
 
 	// extract resource-group-name from vnet ID
 	_, rgName, _, err := extractFieldsFromAzureResourceID(appliedToGroupIdentifier.Vpc)
@@ -159,7 +165,11 @@ func (c *azureCloud) UpdateSecurityGroupMembers(securityGroupIdentifier *cloudre
 	accCfg.LockMutex()
 	defer accCfg.UnlockMutex()
 
-	computeService := accCfg.GetServiceConfig().(*computeServiceConfig)
+	location := accCfg.FindRegion(vnetID)
+	if location == "" {
+		return fmt.Errorf("location not found for vnet %s", vnetID)
+	}
+	computeService := accCfg.GetServiceConfig(location).(*computeServiceConfig)
 	return computeService.updateSecurityGroupMembers(&securityGroupIdentifier.CloudResourceID, computeResourceIdentifier, membershipOnly)
 }
 
@@ -174,10 +184,14 @@ func (c *azureCloud) DeleteSecurityGroup(securityGroupIdentifier *cloudresource.
 	accCfg.LockMutex()
 	defer accCfg.UnlockMutex()
 
-	computeService := accCfg.GetServiceConfig().(*computeServiceConfig)
-	location := computeService.credentials.region
+	location := accCfg.FindRegion(vnetID)
+	if location == "" {
+		return fmt.Errorf("location not found for vnet %s", vnetID)
+	}
+	computeService := accCfg.GetServiceConfig(location).(*computeServiceConfig)
 
 	_ = computeService.updateSecurityGroupMembers(&securityGroupIdentifier.CloudResourceID, nil, membershipOnly)
+
 	_, rgName, _, err := extractFieldsFromAzureResourceID(securityGroupIdentifier.Vpc)
 	if err != nil {
 		return err
@@ -200,6 +214,7 @@ func (c *azureCloud) DeleteSecurityGroup(securityGroupIdentifier *cloudresource.
 	return computeService.asgAPIClient.delete(context.Background(), rgName, cloudAsgName)
 }
 
+// GetEnforcedSecurity gets the current security groups and security rules in the cloud.
 func (c *azureCloud) GetEnforcedSecurity() []cloudresource.SynchronizationContent {
 	var accNamespacedNames []types.NamespacedName
 	accountConfigs := c.cloudCommon.GetCloudAccounts()
@@ -208,34 +223,43 @@ func (c *azureCloud) GetEnforcedSecurity() []cloudresource.SynchronizationConten
 	}
 
 	var enforcedSecurityCloudView []cloudresource.SynchronizationContent
+	// wait group to close the channel and finish the GetEnforcedSecurity call.
 	var wg sync.WaitGroup
 	ch := make(chan []cloudresource.SynchronizationContent)
-	wg.Add(len(accNamespacedNames))
+
+	for _, accNamespacedName := range accNamespacedNames {
+		accCfg, err := c.cloudCommon.GetCloudAccountByName(&accNamespacedName)
+		if err != nil {
+			azurePluginLogger().V(1).Info("Account is invalid")
+			continue
+		}
+		accCfg.LockMutex()
+
+		computeServices := accCfg.GetAllServiceConfigs()
+
+		// wait group to release account mutex after all service config operation finishes.
+		var accWg sync.WaitGroup
+		accWg.Add(len(computeServices))
+		wg.Add(len(computeServices))
+		go func() {
+			accWg.Wait()
+			accCfg.UnlockMutex()
+		}()
+
+		for _, s := range computeServices {
+			computeService := s.(*computeServiceConfig)
+
+			go func(computeService *computeServiceConfig, sendCh chan<- []cloudresource.SynchronizationContent) {
+				defer wg.Done()
+				defer accWg.Done()
+				sendCh <- computeService.getNepheControllerManagedSecurityGroupsCloudView()
+			}(computeService, ch)
+		}
+	}
 	go func() {
 		wg.Wait()
 		close(ch)
 	}()
-
-	for _, accNamespacedName := range accNamespacedNames {
-		accNamespacedNameCopy := &types.NamespacedName{
-			Namespace: accNamespacedName.Namespace,
-			Name:      accNamespacedName.Name,
-		}
-
-		go func(name *types.NamespacedName, sendCh chan<- []cloudresource.SynchronizationContent) {
-			defer wg.Done()
-
-			accCfg, err := c.cloudCommon.GetCloudAccountByName(name)
-			if err != nil {
-				azurePluginLogger().V(1).Info("Account is invalid")
-				return
-			}
-
-			accCfg.LockMutex()
-			defer accCfg.UnlockMutex()
-			sendCh <- accCfg.GetServiceConfig().(*computeServiceConfig).getNepheControllerManagedSecurityGroupsCloudView()
-		}(accNamespacedNameCopy, ch)
-	}
 
 	for val := range ch {
 		if val != nil {

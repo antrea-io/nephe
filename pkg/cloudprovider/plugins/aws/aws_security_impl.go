@@ -37,7 +37,11 @@ func (c *awsCloud) CreateSecurityGroup(securityGroupIdentifier *cloudresource.Cl
 	defer accCfg.UnlockMutex()
 
 	cloudSgName := securityGroupIdentifier.GetCloudName(membershipOnly)
-	ec2Service := accCfg.GetServiceConfig().(*ec2ServiceConfig)
+	region := accCfg.FindRegion(vpcID)
+	if region == "" {
+		return nil, fmt.Errorf("region not found for vpc %s", vpcID)
+	}
+	ec2Service := accCfg.GetServiceConfig(region).(*ec2ServiceConfig)
 	resp, err := ec2Service.createOrGetSecurityGroups(securityGroupIdentifier.Vpc, map[string]struct{}{cloudSgName: {}})
 	if err != nil {
 		return nil, err
@@ -67,7 +71,11 @@ func (c *awsCloud) UpdateSecurityGroupRules(appliedToGroupIdentifier *cloudresou
 		append(addERule, rmERule...))
 
 	// make sure all required security groups pre-exist
-	ec2Service := accCfg.GetServiceConfig().(*ec2ServiceConfig)
+	region := accCfg.FindRegion(vpcID)
+	if region == "" {
+		return fmt.Errorf("region not found for vpc %s", vpcID)
+	}
+	ec2Service := accCfg.GetServiceConfig(region).(*ec2ServiceConfig)
 	vpcIDs := []string{vpcID}
 	vpcPeerIDs := ec2Service.getVpcPeers(vpcID)
 	vpcIDs = append(vpcIDs, vpcPeerIDs...)
@@ -155,8 +163,12 @@ func (c *awsCloud) UpdateSecurityGroupMembers(securityGroupIdentifier *cloudreso
 	defer accCfg.UnlockMutex()
 
 	// get addressGroup cloudSgID
+	region := accCfg.FindRegion(vpcID)
+	if region == "" {
+		return fmt.Errorf("region not found for vpc %s", vpcID)
+	}
 	cloudSgName := securityGroupIdentifier.GetCloudName(membershipOnly)
-	ec2Service := accCfg.GetServiceConfig().(*ec2ServiceConfig)
+	ec2Service := accCfg.GetServiceConfig(region).(*ec2ServiceConfig)
 	vpcIDs := []string{vpcID}
 	cloudSgNames := map[string]struct{}{cloudSgName: {}}
 	out, err := ec2Service.getCloudSecurityGroupsWithNameFromCloud(vpcIDs, cloudSgNames)
@@ -191,7 +203,11 @@ func (c *awsCloud) DeleteSecurityGroup(securityGroupIdentifier *cloudresource.Cl
 	// check if sg exists in cloud and get its cloud sg id to delete
 	vpcIDs := []string{vpcID}
 	cloudSgNameToDelete := securityGroupIdentifier.GetCloudName(membershipOnly)
-	ec2Service := accCfg.GetServiceConfig().(*ec2ServiceConfig)
+	region := accCfg.FindRegion(vpcID)
+	if region == "" {
+		return fmt.Errorf("region not found for vpc %s", vpcID)
+	}
+	ec2Service := accCfg.GetServiceConfig(region).(*ec2ServiceConfig)
 	out, err := ec2Service.getCloudSecurityGroupsWithNameFromCloud(vpcIDs, map[string]struct{}{cloudSgNameToDelete: {}})
 	if err != nil || len(out) == 0 {
 		return err
@@ -216,6 +232,7 @@ func (c *awsCloud) DeleteSecurityGroup(securityGroupIdentifier *cloudresource.Cl
 	return nil
 }
 
+// GetEnforcedSecurity gets the current security groups and security rules in the cloud.
 func (c *awsCloud) GetEnforcedSecurity() []cloudresource.SynchronizationContent {
 	var accNamespacedNames []types.NamespacedName
 	accountConfigs := c.cloudCommon.GetCloudAccounts()
@@ -224,33 +241,44 @@ func (c *awsCloud) GetEnforcedSecurity() []cloudresource.SynchronizationContent 
 	}
 
 	var enforcedSecurityCloudView []cloudresource.SynchronizationContent
+	// wait group to close the sync channel and finish the GetEnforcedSecurity call.
 	var wg sync.WaitGroup
 	ch := make(chan []cloudresource.SynchronizationContent)
-	wg.Add(len(accNamespacedNames))
+
+	for _, accNamespacedName := range accNamespacedNames {
+		accCfg, err := c.cloudCommon.GetCloudAccountByName(&accNamespacedName)
+		if err != nil {
+			awsPluginLogger().V(1).Info("Account is invalid")
+			continue
+		}
+		accCfg.LockMutex()
+
+		ec2Services := accCfg.GetAllServiceConfigs()
+
+		// wait group to release account mutex after all service config operation finishes.
+		var accWg sync.WaitGroup
+		accWg.Add(len(ec2Services))
+		wg.Add(len(ec2Services))
+		go func() {
+			accWg.Wait()
+			accCfg.UnlockMutex()
+		}()
+
+		for _, s := range ec2Services {
+			ec2Service := s.(*ec2ServiceConfig)
+
+			go func(ec2Service *ec2ServiceConfig, sendCh chan<- []cloudresource.SynchronizationContent) {
+				defer wg.Done()
+				defer accWg.Done()
+
+				sendCh <- ec2Service.getNepheControllerManagedSecurityGroupsCloudView()
+			}(ec2Service, ch)
+		}
+	}
 	go func() {
 		wg.Wait()
 		close(ch)
 	}()
-
-	for _, accNamespacedName := range accNamespacedNames {
-		accNamespacedNameCopy := &types.NamespacedName{
-			Namespace: accNamespacedName.Namespace,
-			Name:      accNamespacedName.Name,
-		}
-
-		go func(name *types.NamespacedName, sendCh chan<- []cloudresource.SynchronizationContent) {
-			defer wg.Done()
-
-			accCfg, err := c.cloudCommon.GetCloudAccountByName(name)
-			if err != nil {
-				return
-			}
-
-			accCfg.LockMutex()
-			defer accCfg.UnlockMutex()
-			sendCh <- accCfg.GetServiceConfig().(*ec2ServiceConfig).getNepheControllerManagedSecurityGroupsCloudView()
-		}(accNamespacedNameCopy, ch)
-	}
 
 	for val := range ch {
 		if val != nil {

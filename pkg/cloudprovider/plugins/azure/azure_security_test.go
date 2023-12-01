@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	network "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
@@ -89,8 +90,13 @@ var _ = Describe("Azure Cloud Security", func() {
 
 		testNsgID = fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Network/applicationSecurityGroups/%v",
 			testSubID, testRG, nsgID)
-		testVmID01   = "testVmId01"
-		testVmName01 = "testVmName01"
+
+		testVm   = "testVm"
+		testVmID = fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Compute/virtualMachines/%v",
+			testSubID, testRG, testVm)
+
+		testNicID = fmt.Sprintf("/subscriptions/%v/resourceGroups/%v/providers/Microsoft.Network/networkInterfaces/%v",
+			testSubID, testRG, testVm)
 	)
 
 	Context("SecurityGroup", func() {
@@ -110,6 +116,7 @@ var _ = Describe("Azure Cloud Security", func() {
 			mockazureAsgWrapper             *MockazureAsgWrapper
 			mockazureVirtualNetworksWrapper *MockazureVirtualNetworksWrapper
 			mockazureResourceGraph          *MockazureResourceGraphWrapper
+			mockazureSubscriptionsWrapper   *MockazureSubscriptionsWrapper
 			mockazureService                *MockazureServiceClientCreateInterface
 		)
 
@@ -176,12 +183,15 @@ var _ = Describe("Azure Cloud Security", func() {
 			mockazureAsgWrapper = NewMockazureAsgWrapper(mockCtrl)
 			mockazureVirtualNetworksWrapper = NewMockazureVirtualNetworksWrapper(mockCtrl)
 			mockazureResourceGraph = NewMockazureResourceGraphWrapper(mockCtrl)
+			mockazureSubscriptionsWrapper = NewMockazureSubscriptionsWrapper(mockCtrl)
+
 			mockAzureServiceHelper.EXPECT().newServiceSdkConfigProvider(gomock.Any()).Return(mockazureService, nil).Times(1)
 			mockazureService.EXPECT().networkInterfaces(gomock.Any()).Return(mockazureNwIntfWrapper, nil).AnyTimes()
 			mockazureService.EXPECT().securityGroups(gomock.Any()).Return(mockazureNsgWrapper, nil).AnyTimes()
 			mockazureService.EXPECT().applicationSecurityGroups(gomock.Any()).Return(mockazureAsgWrapper, nil).AnyTimes()
 			mockazureService.EXPECT().virtualNetworks(gomock.Any()).Return(mockazureVirtualNetworksWrapper, nil).AnyTimes()
 			mockazureService.EXPECT().resourceGraph().Return(mockazureResourceGraph, nil)
+			mockazureService.EXPECT().subscriptions().Return(mockazureSubscriptionsWrapper, nil).AnyTimes()
 			mockazureVirtualNetworksWrapper.EXPECT().listAllComplete(gomock.Any()).AnyTimes()
 			mockazureResourceGraph.EXPECT().resources(gomock.Any(), gomock.Any()).Return(getResourceGraphResult(), nil).AnyTimes()
 
@@ -225,6 +235,9 @@ var _ = Describe("Azure Cloud Security", func() {
 					return asglist, nil
 				})
 
+			mockazureSubscriptionsWrapper.EXPECT().listComplete(gomock.Any(), testSubID).
+				Return([]armsubscription.Location{{Name: &testRegion}}, nil).AnyTimes()
+
 			fakeClient = fake.NewClientBuilder().Build()
 			c = newAzureCloud(mockAzureServiceHelper)
 
@@ -246,7 +259,7 @@ var _ = Describe("Azure Cloud Security", func() {
 			accCfg, err := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
 			Expect(err).To(BeNil())
 			Expect(accCfg).To(Not(BeNil()))
-			serviceConfig := accCfg.GetServiceConfig()
+			serviceConfig := accCfg.GetServiceConfig(testRegion)
 			selectorNamespacedName := types.NamespacedName{Namespace: selector.Namespace, Name: selector.Name}
 			inventory := serviceConfig.(*computeServiceConfig).GetCloudInventory()
 			Expect(len(inventory.VmMap[selectorNamespacedName])).To(Equal(0))
@@ -262,35 +275,47 @@ var _ = Describe("Azure Cloud Security", func() {
 				{strings.ToLower(testVnetPeerID01), "destinationID", "sourceID"},
 			}
 			vmInfo := make([]*virtualMachineTable, 0)
-			networkInterfaceId := "testnItfID"
 			vmInfo = append(vmInfo, &virtualMachineTable{
-				ID:     &testVmID01,
-				Name:   &testVmName01,
-				VnetID: &testVnetPeerID01,
+				ID:       &testVmID,
+				Name:     &testVm,
+				VnetID:   &testVnetPeerID01,
+				Location: &testRegion,
 				NetworkInterfaces: []*networkInterface{
 					{
+						ID: &testNicID,
 						PrivateIps: []*string{
 							&testPrivateIP,
 						},
-						ID: &networkInterfaceId,
 					},
 				},
 			})
 
 			cloudresource.SetCloudResourcePrefix(config.DefaultCloudResourcePrefix)
 
-			var vnetList []network.VirtualNetwork
-			vnet := new(network.VirtualNetwork)
-			vnet.Name = &testVnet01
-			vnet.ID = &testVnetID01
-			vnetList = append(vnetList, *vnet)
-
+			vnetList := []network.VirtualNetwork{
+				{
+					ID:       &testVnetID01,
+					Location: &testRegion,
+					Name:     &testVnet01,
+				},
+				{
+					ID:       &testVnetID02,
+					Location: &testRegion,
+					Name:     &testVnet02,
+				},
+				{
+					ID:       &testVnetPeerID01,
+					Location: &testRegion,
+					Name:     &testVnetPeer01,
+				},
+			}
 			nsgs := make(map[types.NamespacedName][]*nsgTable)
 			nsgInfo := make([]*nsgTable, 0)
 			nsgInfo = append(nsgInfo, &nsgTable{
 				ID:            &testNsgID,
 				Name:          &nsgID,
 				ResourceGroup: &testRG,
+				Location:      &testRegion,
 				Properties: &network.SecurityGroupPropertiesFormat{
 					SecurityRules: []*network.SecurityRule{nsgrule},
 				},
@@ -1063,9 +1088,10 @@ var _ = Describe("Azure Cloud Security", func() {
 				}
 				vmToUpdate := make([]*virtualMachineTable, 0)
 				vmToUpdate = append(vmToUpdate, &virtualMachineTable{
-					ID:   &vmID,
-					Name: &vmName,
-					Tags: tags,
+					ID:       &vmID,
+					Name:     &vmName,
+					Tags:     tags,
+					Location: &testRegion,
 					NetworkInterfaces: []*networkInterface{
 						&testNetworkInterface,
 					},
@@ -1075,7 +1101,7 @@ var _ = Describe("Azure Cloud Security", func() {
 				accCfg, err := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
 				Expect(err).To(BeNil())
 				Expect(accCfg).To(Not(BeNil()))
-				serviceConfig := accCfg.GetServiceConfig()
+				serviceConfig := accCfg.GetServiceConfig(testRegion)
 				selectorNamespacedName := types.NamespacedName{Namespace: selector.Namespace, Name: selector.Name}
 				snapshot := serviceConfig.(*computeServiceConfig).resourcesCache.GetSnapshot()
 				vmSnapshot := snapshot.(*computeResourcesCacheSnapshot).vms
@@ -1086,7 +1112,7 @@ var _ = Describe("Azure Cloud Security", func() {
 						snapshot.(*computeResourcesCacheSnapshot).vnetPeers, snapshot.(*computeResourcesCacheSnapshot).nsgs})
 				inventory := serviceConfig.(*computeServiceConfig).GetCloudInventory()
 				Expect(len(inventory.VmMap[selectorNamespacedName])).To(Equal(1))
-				Expect(len(inventory.VpcMap)).To(Equal(1))
+				Expect(len(inventory.VpcMap)).To(Equal(3))
 				Expect(len(inventory.SgMap[selectorNamespacedName])).To(Equal(1))
 			})
 		})
@@ -1141,6 +1167,7 @@ var _ = Describe("Azure Cloud Security", func() {
 					ID:            &testNsgID,
 					Name:          &nsgID,
 					ResourceGroup: &testRG,
+					Location:      &testRegion,
 					Properties: &network.SecurityGroupPropertiesFormat{
 						SecurityRules: []*network.SecurityRule{nsgrule1, nsgrule2},
 					},
@@ -1148,7 +1175,7 @@ var _ = Describe("Azure Cloud Security", func() {
 				})
 				selectorNamespacedName := types.NamespacedName{Namespace: selector.Namespace, Name: selector.Name}
 				accCfg, _ := c.cloudCommon.GetCloudAccountByName(testAccountNamespacedName)
-				serviceConfig := accCfg.GetServiceConfig()
+				serviceConfig := accCfg.GetServiceConfig(testRegion)
 				snapshot := serviceConfig.(*computeServiceConfig).resourcesCache.GetSnapshot()
 				sgSnapshot := snapshot.(*computeResourcesCacheSnapshot).nsgs
 				sgSnapshot[selectorNamespacedName] = sgToUpdate
@@ -1159,7 +1186,7 @@ var _ = Describe("Azure Cloud Security", func() {
 						snapshot.(*computeResourcesCacheSnapshot).vnetPeers, sgSnapshot})
 				inventory := serviceConfig.(*computeServiceConfig).GetCloudInventory()
 				Expect(len(inventory.VmMap[selectorNamespacedName])).To(Equal(1))
-				Expect(len(inventory.VpcMap)).To(Equal(1))
+				Expect(len(inventory.VpcMap)).To(Equal(3))
 				Expect(len(inventory.SgMap[selectorNamespacedName])).To(Equal(1))
 			})
 		})

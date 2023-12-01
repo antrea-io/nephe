@@ -217,21 +217,21 @@ var _ = Describe("Account Poller", func() {
 				CloudProviderAccountStatus{}, nil).AnyTimes()
 
 			// Invalid VPC.
-			mockCloudInterface.EXPECT().GetCloudInventory(&testAccountNamespacedName).Return(nil,
+			mockCloudInterface.EXPECT().GetAccountCloudInventory(&testAccountNamespacedName).Return(nil,
 				fmt.Errorf("error")).Times(1)
 			accountPollerObj.doAccountPolling()
 			Expect(len(accountPollerObj.inventory.GetAllVpcs())).To(Equal(0))
 
 			// Empty VPC.
 			cloudInventory := nephetypes.CloudInventory{}
-			mockCloudInterface.EXPECT().GetCloudInventory(&testAccountNamespacedName).Return(&cloudInventory,
+			mockCloudInterface.EXPECT().GetAccountCloudInventory(&testAccountNamespacedName).Return(&cloudInventory,
 				nil).Times(1)
 			accountPollerObj.doAccountPolling()
 			Expect(len(accountPollerObj.inventory.GetAllVpcs())).To(Equal(0))
 
 			// Valid VPC.
 			cloudInventory = nephetypes.CloudInventory{VpcMap: vpcList}
-			mockCloudInterface.EXPECT().GetCloudInventory(&testAccountNamespacedName).Return(&cloudInventory,
+			mockCloudInterface.EXPECT().GetAccountCloudInventory(&testAccountNamespacedName).Return(&cloudInventory,
 				nil).Times(1)
 			accountPollerObj.doAccountPolling()
 			Expect(len(accountPollerObj.inventory.GetAllVpcs())).To(Equal(len(vpcList)))
@@ -253,7 +253,7 @@ var _ = Describe("Account Poller", func() {
 
 			cloudInventory = nephetypes.CloudInventory{VpcMap: vpcList}
 			// Invalid VMs.
-			mockCloudInterface.EXPECT().GetCloudInventory(&testAccountNamespacedName).Return(&cloudInventory,
+			mockCloudInterface.EXPECT().GetAccountCloudInventory(&testAccountNamespacedName).Return(&cloudInventory,
 				nil).Times(1)
 			accountPollerObj.doAccountPolling()
 			Expect(len(accountPollerObj.inventory.GetAllVms())).To(Equal(0))
@@ -262,7 +262,7 @@ var _ = Describe("Account Poller", func() {
 			vmMap := make(map[types.NamespacedName]map[string]*runtimev1alpha1.VirtualMachine)
 			vmMap[testCesNamespacedName] = vmList
 			cloudInventory = nephetypes.CloudInventory{VpcMap: vpcList, VmMap: vmMap}
-			mockCloudInterface.EXPECT().GetCloudInventory(&testAccountNamespacedName).Return(&cloudInventory,
+			mockCloudInterface.EXPECT().GetAccountCloudInventory(&testAccountNamespacedName).Return(&cloudInventory,
 				nil).Times(1)
 			accountPollerObj.doAccountPolling()
 			Expect(len(accountPollerObj.inventory.GetAllVms())).To(Equal(len(vmList)))

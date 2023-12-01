@@ -72,7 +72,7 @@ var _ = Describe("AWS Cloud Security", func() {
 			Spec: crdv1alpha1.CloudProviderAccountSpec{
 				PollIntervalInSeconds: &pollIntv,
 				AWSConfig: &crdv1alpha1.CloudProviderAccountAWSConfig{
-					Region: []string{"us-west-2"},
+					Region: []string{testRegion},
 					SecretRef: &crdv1alpha1.SecretReference{
 						Name:      testAccountNamespacedName.Name,
 						Namespace: testAccountNamespacedName.Namespace,
@@ -116,14 +116,15 @@ var _ = Describe("AWS Cloud Security", func() {
 		mockawsService = NewMockawsServiceClientCreateInterface(mockCtrl)
 		mockawsEC2 = NewMockawsEC2Wrapper(mockCtrl)
 
-		mockawsCloudHelper.EXPECT().newServiceSdkConfigProvider(gomock.Any()).Return(mockawsService, nil).Times(1)
+		mockawsCloudHelper.EXPECT().newServiceSdkConfigProvider(gomock.Any(), gomock.Any()).Return(mockawsService, nil).Times(1)
 		mockawsService.EXPECT().compute().Return(mockawsEC2, nil).AnyTimes()
 
 		instanceIds := []string{testVMID01, testVMID02}
-		mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds), nil).AnyTimes()
+		mockawsEC2.EXPECT().pagedDescribeInstancesWrapper(gomock.Any()).Return(getEc2InstanceObject(instanceIds, testVpcID01), nil).AnyTimes()
 		mockawsEC2.EXPECT().pagedDescribeNetworkInterfaces(gomock.Any()).Return([]*ec2.NetworkInterface{}, nil).AnyTimes()
-		mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(&ec2.DescribeVpcsOutput{}, nil).AnyTimes()
+		mockawsEC2.EXPECT().describeVpcsWrapper(gomock.Any()).Return(createVpcObject([]string{testVpcID01}), nil).AnyTimes()
 		mockawsEC2.EXPECT().describeVpcPeeringConnectionsWrapper(gomock.Any()).Return(&ec2.DescribeVpcPeeringConnectionsOutput{}, nil).AnyTimes()
+		mockawsEC2.EXPECT().getRegion().Return(testRegion).AnyTimes()
 		managedVpcIds := make(map[string]struct{})
 		managedVpcIds[testVpcID01] = struct{}{}
 		filters := buildAwsEc2FilterForVpcIDOnlyMatches(managedVpcIds)
@@ -135,6 +136,7 @@ var _ = Describe("AWS Cloud Security", func() {
 			SecurityGroups: []*ec2.SecurityGroup{{
 				GroupId:   aws.String(fmt.Sprintf("%v", testSgID)),
 				GroupName: aws.String(awsVpcDefaultSecurityGroupName),
+				VpcId:     aws.String(testVpcID01),
 			}},
 		}
 		mockawsEC2.EXPECT().describeSecurityGroups(gomock.Eq(input2)).Return(output, nil).Times(1)
@@ -250,6 +252,7 @@ var _ = Describe("AWS Cloud Security", func() {
 				SecurityGroups: []*ec2.SecurityGroup{{
 					GroupId:   aws.String(fmt.Sprintf("%v", testSgID)),
 					GroupName: aws.String(awsVpcDefaultSecurityGroupName),
+					VpcId:     aws.String(testVpcID01),
 				}},
 			}
 			testSgID += 1
@@ -624,7 +627,6 @@ var _ = Describe("AWS Cloud Security", func() {
 			Expect(err).Should(BeNil())
 		})
 	})
-
 	Context("GetEnforcedSecurity", func() {
 		It("Should sync cloud security groups and rules with description", func() {
 			desc := cloudresource.CloudRuleDescription{
@@ -824,6 +826,7 @@ func constructEc2DescribeSecurityGroupsOutput(identifier *cloudresource.CloudRes
 		securityGroup := &ec2.SecurityGroup{
 			GroupId:   aws.String(fmt.Sprintf("%v", testSgID)),
 			GroupName: aws.String(awsVpcDefaultSecurityGroupName),
+			VpcId:     aws.String(testVpcID01),
 		}
 		securityGroups = append(securityGroups, securityGroup)
 		testSgID += 1

@@ -15,6 +15,8 @@
 package azure
 
 import (
+	"strings"
+
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -23,6 +25,9 @@ import (
 
 // AddProviderAccount adds and initializes given account of a cloud provider.
 func (c *azureCloud) AddProviderAccount(client client.Client, account *crdv1alpha1.CloudProviderAccount) error {
+	for idx := range account.Spec.AzureConfig.Region {
+		account.Spec.AzureConfig.Region[idx] = strings.ToLower(account.Spec.AzureConfig.Region[idx])
+	}
 	return c.cloudCommon.AddCloudAccount(client, account, account.Spec.AzureConfig)
 }
 

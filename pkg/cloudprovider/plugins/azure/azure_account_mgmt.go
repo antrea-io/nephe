@@ -19,6 +19,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"reflect"
+	"sort"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -32,14 +34,14 @@ import (
 
 type azureAccountConfig struct {
 	crdv1alpha1.AzureAccountCredential
-	region string
+	regions []string
 }
 
-// setAccountCredentials sets account credentials.
-func setAccountCredentials(client client.Client, credentials interface{}) (interface{}, error) {
-	azureProviderConfig := credentials.(*crdv1alpha1.CloudProviderAccountAzureConfig)
+// setAccountConfig sets account config.
+func setAccountConfig(client client.Client, config interface{}) (interface{}, error) {
+	azureProviderConfig := config.(*crdv1alpha1.CloudProviderAccountAzureConfig)
 	azureConfig := &azureAccountConfig{
-		region: strings.TrimSpace(azureProviderConfig.Region[0]),
+		regions: azureProviderConfig.Region,
 	}
 	accCred, err := extractSecret(client, azureProviderConfig.SecretRef)
 	if err != nil {
@@ -51,12 +53,12 @@ func setAccountCredentials(client client.Client, credentials interface{}) (inter
 		accCred.SessionToken = internal.AccountCredentialsDefault
 	}
 
-	// As only single region is supported right now, use 0th index in awsProviderConfig.Region as the configured region.
 	azureConfig.AzureAccountCredential = *accCred
 	return azureConfig, err
 }
 
-func compareAccountCredentials(accountName string, existing interface{}, new interface{}) bool {
+// compareAccountConfig compares two account configs and returns they are different or not.
+func compareAccountConfig(accountName string, existing interface{}, new interface{}) bool {
 	existingConfig := existing.(*azureAccountConfig)
 	newConfig := new.(*azureAccountConfig)
 	if newConfig.ClientKey == internal.AccountCredentialsDefault {
@@ -64,28 +66,30 @@ func compareAccountCredentials(accountName string, existing interface{}, new int
 		return true
 	}
 
-	credsChanged := false
+	configChanged := false
 	if strings.Compare(existingConfig.SubscriptionID, newConfig.SubscriptionID) != 0 {
-		credsChanged = true
+		configChanged = true
 		azurePluginLogger().Info("Subscription ID updated", "account", accountName)
 	}
 	if strings.Compare(existingConfig.ClientID, newConfig.ClientID) != 0 {
-		credsChanged = true
+		configChanged = true
 		azurePluginLogger().Info("Client ID updated", "account", accountName)
 	}
 	if strings.Compare(existingConfig.TenantID, newConfig.TenantID) != 0 {
-		credsChanged = true
+		configChanged = true
 		azurePluginLogger().Info("Account tenant ID updated", "account", accountName)
 	}
 	if strings.Compare(existingConfig.ClientKey, newConfig.ClientKey) != 0 {
-		credsChanged = true
+		configChanged = true
 		azurePluginLogger().Info("Account client key updated", "account", accountName)
 	}
-	if strings.Compare(existingConfig.region, newConfig.region) != 0 {
-		credsChanged = true
-		azurePluginLogger().Info("Account region updated", "account", accountName)
+	sort.Strings(existingConfig.regions)
+	sort.Strings(newConfig.regions)
+	if !reflect.DeepEqual(existingConfig.regions, newConfig.regions) {
+		configChanged = true
+		azurePluginLogger().Info("Account regions updated", "account", accountName)
 	}
-	return credsChanged
+	return configChanged
 }
 
 // extractSecret extracts credentials from a Kubernetes secret.

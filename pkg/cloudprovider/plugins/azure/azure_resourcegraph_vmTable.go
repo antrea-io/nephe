@@ -113,8 +113,8 @@ const (
 		"nicPrivateIps, \"publicIps\", nicPublicIps, \"tags\", nicTags, \"vnetId\", vnetId, \"nsgId\", nsgId, " +
 		"\"applicationSecurityGroupIds\", applicationSecurityGroupIds)" +
 		"| summarize vnetId = any(vnetId), properties = make_bag(properties), tags = make_bag(tags), " +
-		"networkInterfaces = make_list(networkInterfaceDetails) by id, name" +
-		"| project id, name, properties, status=properties.extended.instanceView.powerState.code, networkInterfaces, tags, vnetId"
+		"networkInterfaces = make_list(networkInterfaceDetails) by id, name, location = locationLowerCase" +
+		"| project id, name, properties, status=properties.extended.instanceView.powerState.code, networkInterfaces, tags, vnetId, location"
 )
 
 func ToTimeHookFunc() mapstructure.DecodeHookFunc {

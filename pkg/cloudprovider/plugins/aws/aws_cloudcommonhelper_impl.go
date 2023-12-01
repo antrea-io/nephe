@@ -22,10 +22,14 @@ func (h *awsCloudCommonHelperImpl) GetCloudServicesCreateFunc() internal.CloudSe
 	return newAwsServiceConfigs
 }
 
-func (h *awsCloudCommonHelperImpl) SetAccountCredentialsFunc() internal.CloudCredentialValidatorFunc {
-	return setAccountCredentials
+func (h *awsCloudCommonHelperImpl) GetCloudServicesUpdateFunc() internal.CloudServiceConfigUpdateFunc {
+	return updateAwsServiceConfigs
 }
 
-func (h *awsCloudCommonHelperImpl) GetCloudCredentialsComparatorFunc() internal.CloudCredentialComparatorFunc {
-	return compareAccountCredentials
+func (h *awsCloudCommonHelperImpl) SetAccountConfigFunc() internal.CloudConfigValidatorFunc {
+	return setAccountConfig
+}
+
+func (h *awsCloudCommonHelperImpl) GetCloudConfigComparatorFunc() internal.CloudConfigComparatorFunc {
+	return compareAccountConfig
 }

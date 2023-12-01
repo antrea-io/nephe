@@ -39,7 +39,7 @@ type computeServiceConfig struct {
 	resourceGraphAPIClient azureResourceGraphWrapper
 	resourcesCache         *internal.CloudServiceResourcesCache
 	inventoryStats         *internal.CloudServiceStats
-	credentials            *azureAccountConfig
+	azureConfig            *azureAccountConfig
 	computeFilters         map[types.NamespacedName][]*string
 	// selectors required for updating resource filters on account config update.
 	selectors map[types.NamespacedName]*crdv1alpha1.CloudEntitySelector
@@ -55,33 +55,34 @@ type computeResourcesCacheSnapshot struct {
 	nsgs           map[types.NamespacedName][]*nsgTable
 }
 
+// newComputeServiceConfig creates one compute service config for all regions. It returns a region to service config map or error happened.
 func newComputeServiceConfig(account types.NamespacedName, service azureServiceClientCreateInterface,
-	credentials *azureAccountConfig) (internal.CloudServiceInterface, error) {
+	azureConfig *azureAccountConfig) (map[string]internal.CloudServiceInterface, error) {
 	// create compute sdk api client
-	nwIntfAPIClient, err := service.networkInterfaces(credentials.SubscriptionID)
+	nwIntfAPIClient, err := service.networkInterfaces(azureConfig.SubscriptionID)
 	if err != nil {
-		return nil, fmt.Errorf("error creating compute sdk api client for account : %v, err: %v", account, err)
+		return nil, fmt.Errorf("error creating compute sdk api client for account: %v, err: %v", account, err)
 	}
 	// create security-groups sdk api client
-	securityGroupsAPIClient, err := service.securityGroups(credentials.SubscriptionID)
+	securityGroupsAPIClient, err := service.securityGroups(azureConfig.SubscriptionID)
 	if err != nil {
-		return nil, fmt.Errorf("error creating security-groups sdk api client for account : %v, err: %v", account, err)
+		return nil, fmt.Errorf("error creating security-groups sdk api client for account: %v, err: %v", account, err)
 	}
 	// create application-security-groups sdk api client
-	applicationSecurityGroupsAPIClient, err := service.applicationSecurityGroups(credentials.SubscriptionID)
+	applicationSecurityGroupsAPIClient, err := service.applicationSecurityGroups(azureConfig.SubscriptionID)
 	if err != nil {
-		return nil, fmt.Errorf("error creating application-security-groups sdk api client for account : %v, err: %v", account, err)
+		return nil, fmt.Errorf("error creating application-security-groups sdk api client for account: %v, err: %v", account, err)
 	}
 	// create resource-graph sdk api client
 	resourceGraphAPIClient, err := service.resourceGraph()
 	if err != nil {
-		return nil, fmt.Errorf("error creating resource-graph sdk api client for account : %v, err: %v", account, err)
+		return nil, fmt.Errorf("error creating resource-graph sdk api client for account: %v, err: %v", account, err)
 	}
 
 	// create virtual networks sdk api client
-	vnetAPIClient, err := service.virtualNetworks(credentials.SubscriptionID)
+	vnetAPIClient, err := service.virtualNetworks(azureConfig.SubscriptionID)
 	if err != nil {
-		return nil, fmt.Errorf("error creating virtual networks sdk api client for account : %v, err: %v", account, err)
+		return nil, fmt.Errorf("error creating virtual networks sdk api client for account: %v, err: %v", account, err)
 	}
 
 	config := &computeServiceConfig{
@@ -93,14 +94,19 @@ func newComputeServiceConfig(account types.NamespacedName, service azureServiceC
 		resourceGraphAPIClient: resourceGraphAPIClient,
 		resourcesCache:         &internal.CloudServiceResourcesCache{},
 		inventoryStats:         &internal.CloudServiceStats{},
-		credentials:            credentials,
+		azureConfig:            azureConfig,
 		computeFilters:         make(map[types.NamespacedName][]*string),
 		selectors:              make(map[types.NamespacedName]*crdv1alpha1.CloudEntitySelector),
 	}
 
 	vmSnapshot := make(map[types.NamespacedName][]*virtualMachineTable)
 	config.resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{vmSnapshot, nil, nil, nil, nil})
-	return config, nil
+
+	configs := make(map[string]internal.CloudServiceInterface)
+	for _, region := range azureConfig.regions {
+		configs[region] = config
+	}
+	return configs, nil
 }
 
 // getCachedVirtualMachines returns virtualMachines specific to a selector from the cache for the subscription.
@@ -213,38 +219,32 @@ func (computeCfg *computeServiceConfig) getCachedSGs(selector *types.NamespacedN
 
 // getVirtualMachines gets virtual machines from cloud matching the given selector configuration.
 func (computeCfg *computeServiceConfig) getVirtualMachines(namespacedName *types.NamespacedName) ([]*virtualMachineTable, error) {
-	filters, found := computeCfg.computeFilters[*namespacedName]
-	if found && len(filters) != 0 {
-		azurePluginLogger().V(1).Info("Fetching vm resources from cloud",
-			"account", computeCfg.accountNamespacedName, "selector", namespacedName, "resource-filters", "configured")
-	}
+	filters := computeCfg.computeFilters[*namespacedName]
 	var subscriptions []*string
-	subscriptions = append(subscriptions, &computeCfg.credentials.SubscriptionID)
+	subscriptions = append(subscriptions, &computeCfg.azureConfig.SubscriptionID)
 	var virtualMachines []*virtualMachineTable
 	for _, filter := range filters {
 		virtualMachineRows, _, err := getVirtualMachineTable(computeCfg.resourceGraphAPIClient, filter, subscriptions)
 		if err != nil {
-			azurePluginLogger().Error(err, "failed to fetch cloud resources",
-				"account", computeCfg.accountNamespacedName, "selector", namespacedName)
 			return nil, err
 		}
 		virtualMachines = append(virtualMachines, virtualMachineRows...)
 	}
-	azurePluginLogger().V(1).Info("Vm instances from cloud", "account", computeCfg.accountNamespacedName,
-		"selector", namespacedName, "instances", len(virtualMachines))
-
 	return virtualMachines, nil
 }
 
+// DoResourceInventory gets inventory from cloud for all managed regions in the cloud account.
 func (computeCfg *computeServiceConfig) DoResourceInventory() error {
+	regions := computeCfg.azureConfig.regions
 	vnets, err := computeCfg.getVpcs()
 	var subscriptions []*string
 	if err != nil {
-		azurePluginLogger().Error(err, "failed to fetch cloud resources", "account", computeCfg.accountNamespacedName)
+		azurePluginLogger().Error(err, "failed to fetch cloud resources", "account", computeCfg.accountNamespacedName,
+			"regions", regions)
 		return err
 	}
 	azurePluginLogger().V(1).Info("Vpcs from cloud", "account", computeCfg.accountNamespacedName,
-		"vpcs", len(vnets))
+		"regions", regions, "vpcs", len(vnets))
 	vnetPeers := computeCfg.buildMapVpcPeers(vnets)
 	allVirtualMachines := make(map[types.NamespacedName][]*virtualMachineTable)
 	allNsgs := make(map[types.NamespacedName][]*nsgTable)
@@ -252,20 +252,23 @@ func (computeCfg *computeServiceConfig) DoResourceInventory() error {
 	// Make cloud API calls for fetching vm inventory for each configured CES.
 	if len(computeCfg.selectors) == 0 {
 		computeCfg.resourcesCache.UpdateSnapshot(&computeResourcesCacheSnapshot{allVirtualMachines, vnets, nil, vnetPeers, allNsgs})
-		azurePluginLogger().V(1).Info("Fetching vm resources from cloud skipped",
-			"account", computeCfg.accountNamespacedName, "resource-filters", "not-configured")
+		azurePluginLogger().V(1).Info("Fetching vm resources from cloud skipped", "account", computeCfg.accountNamespacedName,
+			"regions", regions, "resource-filters", "not-configured")
 		return nil
 	}
 
 	allManagedVnetIds := make(map[string]struct{})
-	subscriptions = append(subscriptions, &computeCfg.credentials.SubscriptionID)
+	subscriptions = append(subscriptions, &computeCfg.azureConfig.SubscriptionID)
 	for namespacedName := range computeCfg.selectors {
 		managedVnetIds := make(map[string]struct{})
 		virtualMachines, err := computeCfg.getVirtualMachines(&namespacedName)
 		if err != nil {
-			azurePluginLogger().Error(err, "failed to fetch cloud resources", "account", computeCfg.accountNamespacedName)
+			azurePluginLogger().Error(err, "failed to fetch cloud resources", "account", computeCfg.accountNamespacedName,
+				"regions", regions)
 			return err
 		}
+		azurePluginLogger().V(1).Info("Vm instances from cloud", "account", computeCfg.accountNamespacedName,
+			"regions", regions, "selector", namespacedName, "instances", len(virtualMachines))
 		for _, vm := range virtualMachines {
 			allManagedVnetIds[*vm.VnetID] = struct{}{}
 			managedVnetIds[*vm.VnetID] = struct{}{}
@@ -293,10 +296,11 @@ func (computeCfg *computeServiceConfig) DoResourceInventory() error {
 	return nil
 }
 
+// AddResourceFilters add/updates instances resource filter for the service.
 func (computeCfg *computeServiceConfig) AddResourceFilters(selector *crdv1alpha1.CloudEntitySelector) error {
-	subscriptionIDs := []string{computeCfg.credentials.SubscriptionID}
-	tenantIDs := []string{computeCfg.credentials.TenantID}
-	locations := []string{computeCfg.credentials.region}
+	subscriptionIDs := []string{computeCfg.azureConfig.SubscriptionID}
+	tenantIDs := []string{computeCfg.azureConfig.TenantID}
+	locations := computeCfg.azureConfig.regions
 	namespacedName := types.NamespacedName{Namespace: selector.Namespace, Name: selector.Name}
 	if filters, ok := convertSelectorToComputeQuery(selector, subscriptionIDs, tenantIDs, locations); ok {
 		computeCfg.computeFilters[namespacedName] = filters
@@ -306,6 +310,11 @@ func (computeCfg *computeServiceConfig) AddResourceFilters(selector *crdv1alpha1
 	}
 
 	return nil
+}
+
+// GetResourceFilters gets all instances resource filters for the service.
+func (computeCfg *computeServiceConfig) GetResourceFilters() map[types.NamespacedName]*crdv1alpha1.CloudEntitySelector {
+	return computeCfg.selectors
 }
 
 func (computeCfg *computeServiceConfig) RemoveResourceFilters(selectorNamespacedName *types.NamespacedName) {
@@ -322,7 +331,7 @@ func (computeCfg *computeServiceConfig) getVirtualMachineObjects(
 	for _, virtualMachine := range virtualMachines {
 		// build runtimev1alpha1 VirtualMachine object.
 		vmObject := computeInstanceToInternalVirtualMachineObject(virtualMachine, vnets, selectorNamespacedName,
-			&computeCfg.accountNamespacedName, computeCfg.credentials.region)
+			&computeCfg.accountNamespacedName)
 		vmObjects[vmObject.Name] = vmObject
 	}
 
@@ -345,7 +354,7 @@ func (computeCfg *computeServiceConfig) UpdateServiceConfig(newConfig internal.C
 	computeCfg.asgAPIClient = newComputeServiceConfig.asgAPIClient
 	computeCfg.vnetAPIClient = newComputeServiceConfig.vnetAPIClient
 	computeCfg.resourceGraphAPIClient = newComputeServiceConfig.resourceGraphAPIClient
-	computeCfg.credentials = newComputeServiceConfig.credentials
+	computeCfg.azureConfig = newComputeServiceConfig.azureConfig
 	for _, selector := range computeCfg.selectors {
 		if err := computeCfg.AddResourceFilters(selector); err != nil {
 			return err
@@ -361,9 +370,13 @@ func (computeCfg *computeServiceConfig) getVpcs() ([]armnetwork.VirtualNetwork, 
 	if err != nil {
 		return vnets, err
 	}
-	// Store the vnets which are in the configured region, discard the rest.
+	// Store the vnets which are in the configured regions, discard the rest.
+	targetRegions := make(map[string]struct{})
+	for _, region := range computeCfg.azureConfig.regions {
+		targetRegions[region] = struct{}{}
+	}
 	for _, vnet := range allVnets {
-		if strings.EqualFold(*vnet.Location, computeCfg.credentials.region) {
+		if _, found := targetRegions[strings.ToLower(*vnet.Location)]; found {
 			vnets = append(vnets, vnet)
 		}
 	}
@@ -436,7 +449,7 @@ func (computeCfg *computeServiceConfig) getVpcObjects() map[string]*runtimev1alp
 			managed = true
 		}
 		vpcObj := ComputeVpcToInternalVpcObject(&vpc, computeCfg.accountNamespacedName.Namespace,
-			computeCfg.accountNamespacedName.Name, strings.ToLower(computeCfg.credentials.region), managed)
+			computeCfg.accountNamespacedName.Name, managed)
 		vpcMap[strings.ToLower(*vpc.ID)] = vpcObj
 	}
 
@@ -449,8 +462,7 @@ func (computeCfg *computeServiceConfig) getSecurityGroupObjects(
 	sgs := computeCfg.getCachedSGs(selectorNamespacedName)
 	sgMap := map[string]*runtimev1alpha1.SecurityGroup{}
 	for _, sg := range sgs {
-		sgObj := computeSgToInternalSgObject(sg, selectorNamespacedName, &computeCfg.accountNamespacedName,
-			strings.ToLower(computeCfg.credentials.region))
+		sgObj := computeSgToInternalSgObject(sg, selectorNamespacedName, &computeCfg.accountNamespacedName)
 		sgMap[strings.ToLower(*sg.ID)] = sgObj
 	}
 	return sgMap

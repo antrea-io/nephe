@@ -16,8 +16,10 @@ package internal
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
+	"go.uber.org/multierr"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -27,7 +29,9 @@ import (
 
 type CloudAccountInterface interface {
 	GetNamespacedName() *types.NamespacedName
-	GetServiceConfig() CloudServiceInterface
+	GetServiceConfig(region string) CloudServiceInterface
+	GetAllServiceConfigs() []CloudServiceInterface
+	FindRegion(vpcID string) string
 	GetStatus() *crdv1alpha1.CloudProviderAccountStatus
 	GetAccountConfigState() bool
 	LockMutex()
@@ -37,61 +41,67 @@ type CloudAccountInterface interface {
 }
 
 type cloudAccountConfig struct {
-	mutex          sync.Mutex
-	namespacedName *types.NamespacedName
-	credentials    interface{}
-	serviceConfig  CloudServiceInterface
-	logger         func() logging.Logger
-	Status         *crdv1alpha1.CloudProviderAccountStatus
+	mutex                    sync.Mutex
+	namespacedName           *types.NamespacedName
+	config                   interface{}
+	regionToServiceConfigMap map[string]CloudServiceInterface
+	logger                   func() logging.Logger
+	Status                   *crdv1alpha1.CloudProviderAccountStatus
 	// Indicates whether cloud account config can be used to make cloud API calls.
 	state bool
 }
 
-type CloudCredentialValidatorFunc func(client client.Client, credentials interface{}) (interface{}, error)
-type CloudCredentialComparatorFunc func(accountName string, existing interface{}, new interface{}) bool
-type CloudServiceConfigCreatorFunc func(namespacedName *types.NamespacedName, cloudConvertedCredentials interface{},
-	helper interface{}) (CloudServiceInterface, error)
+type CloudConfigValidatorFunc func(client client.Client, config interface{}) (interface{}, error)
+type CloudConfigComparatorFunc func(accountName string, existing interface{}, new interface{}) bool
+type CloudServiceConfigCreatorFunc func(namespacedName *types.NamespacedName, cloudConvertedConfig interface{},
+	helper interface{}) (map[string]CloudServiceInterface, error)
+type CloudServiceConfigUpdateFunc func(current, new map[string]CloudServiceInterface) error
 
-func (c *cloudCommon) getFunctionPointers() (CloudCredentialValidatorFunc, CloudServiceConfigCreatorFunc,
-	CloudCredentialComparatorFunc, error) {
-	credentialsValidatorFunc := c.commonHelper.SetAccountCredentialsFunc()
-	if credentialsValidatorFunc == nil {
-		return nil, nil, nil, fmt.Errorf("error registered cloud-credentials validator function cannot be nil")
+func (c *cloudCommon) getFunctionPointers() (CloudConfigValidatorFunc, CloudServiceConfigCreatorFunc,
+	CloudConfigComparatorFunc, CloudServiceConfigUpdateFunc, error) {
+	configValidatorFunc := c.commonHelper.SetAccountConfigFunc()
+	if configValidatorFunc == nil {
+		return nil, nil, nil, nil, fmt.Errorf("error creating account config, registered cloud-config validator function cannot be nil")
 	}
 	cloudServicesCreateFunc := c.commonHelper.GetCloudServicesCreateFunc()
 	if cloudServicesCreateFunc == nil {
-		return nil, nil, nil, fmt.Errorf("error registered cloud-services creator function cannot be nil")
+		return nil, nil, nil, nil, fmt.Errorf("error creating account config, registered cloud-services creator function cannot be nil")
 	}
 
-	credentialsComparatorFunc := c.commonHelper.GetCloudCredentialsComparatorFunc()
-	if credentialsComparatorFunc == nil {
-		return nil, nil, nil, nil
+	configComparatorFunc := c.commonHelper.GetCloudConfigComparatorFunc()
+	if configComparatorFunc == nil {
+		return nil, nil, nil, nil, fmt.Errorf("error creating account config, registered cloud-services comparator function cannot be nil")
+	}
+	cloudServicesUpdateFunc := c.commonHelper.GetCloudServicesUpdateFunc()
+	if cloudServicesUpdateFunc == nil {
+		return nil, nil, nil, nil, fmt.Errorf("error updating account config, registered cloud services updater function cannot be nil")
 	}
 
-	return credentialsValidatorFunc, cloudServicesCreateFunc, credentialsComparatorFunc, nil
+	return configValidatorFunc, cloudServicesCreateFunc, configComparatorFunc, cloudServicesUpdateFunc, nil
 }
 
 func (c *cloudCommon) newCloudAccountConfig(client client.Client, namespacedName *types.NamespacedName, credentials interface{},
 	loggerFunc func() logging.Logger) (CloudAccountInterface, error) {
-	credentialsValidatorFunc, cloudServicesCreateFunc, _, err := c.getFunctionPointers()
+	configValidatorFunc, cloudServicesCreateFunc, _, _, err := c.getFunctionPointers()
 	if err != nil {
 		return nil, err
 	}
 
 	accConfig := &cloudAccountConfig{
-		logger:         loggerFunc,
-		namespacedName: namespacedName,
-		Status:         &crdv1alpha1.CloudProviderAccountStatus{},
-		state:          false,
+		logger:                   loggerFunc,
+		namespacedName:           namespacedName,
+		regionToServiceConfigMap: make(map[string]CloudServiceInterface),
+		Status:                   &crdv1alpha1.CloudProviderAccountStatus{},
+		state:                    false,
 	}
 
-	accConfig.credentials, err = credentialsValidatorFunc(client, credentials)
+	accConfig.config, err = configValidatorFunc(client, credentials)
 	if err != nil {
 		accConfig.Status.Error = err.Error()
 		return accConfig, err
 	}
 
-	accConfig.serviceConfig, err = cloudServicesCreateFunc(namespacedName, accConfig.credentials, c.cloudSpecificHelper)
+	accConfig.regionToServiceConfigMap, err = cloudServicesCreateFunc(namespacedName, accConfig.config, c.cloudSpecificHelper)
 	if err != nil {
 		accConfig.Status.Error = err.Error()
 		return accConfig, err
@@ -101,11 +111,11 @@ func (c *cloudCommon) newCloudAccountConfig(client client.Client, namespacedName
 	return accConfig, nil
 }
 
-func (c *cloudCommon) updateCloudAccountConfig(client client.Client, credentials interface{}, config CloudAccountInterface) error {
-	currentConfig := config.(*cloudAccountConfig)
+func (c *cloudCommon) updateCloudAccountConfig(client client.Client, config interface{}, cloudAccConfig CloudAccountInterface) error {
+	currentConfig := cloudAccConfig.(*cloudAccountConfig)
 	cloudAccountConfigState := true
 
-	credentialsValidatorFunc, cloudServicesCreateFunc, credentialsComparatorFunc, err := c.getFunctionPointers()
+	configValidatorFunc, cloudServicesCreateFunc, configComparatorFunc, cloudServicesUpdateFunc, err := c.getFunctionPointers()
 	if err != nil {
 		cloudAccountConfigState = false
 		return err
@@ -118,67 +128,106 @@ func (c *cloudCommon) updateCloudAccountConfig(client client.Client, credentials
 		}
 	}()
 
-	if credentialsComparatorFunc == nil {
-		c.logger().Info("Cloud credentials comparator func nil. credentials not updated. existing credentials will be used.",
+	if configComparatorFunc == nil {
+		c.logger().Info("Cloud config comparator func nil. config not updated. existing credentials will be used.",
 			"account", currentConfig.GetNamespacedName())
 		return nil
 	}
 
-	cloudConvertedNewCredential, err := credentialsValidatorFunc(client, credentials)
-	if !credentialsComparatorFunc(currentConfig.namespacedName.String(), currentConfig.credentials, cloudConvertedNewCredential) {
-		c.logger().Info("Credentials not changed", "account", currentConfig.namespacedName)
+	cloudConvertedNewConfig, err := configValidatorFunc(client, config)
+	if !configComparatorFunc(currentConfig.namespacedName.String(), currentConfig.config, cloudConvertedNewConfig) {
+		c.logger().Info("Config not changed", "account", currentConfig.namespacedName)
 		return err
 	}
-	currentConfig.credentials = cloudConvertedNewCredential
-	c.logger().Info("Credentials updated", "account", currentConfig.namespacedName)
+	currentConfig.config = cloudConvertedNewConfig
+	c.logger().Info("Config updated", "account", currentConfig.namespacedName)
 	if err != nil {
 		cloudAccountConfigState = false
 		return err
 	}
 
-	serviceConfig, err := cloudServicesCreateFunc(currentConfig.namespacedName, cloudConvertedNewCredential, c.cloudSpecificHelper)
+	newServiceConfigMap, err := cloudServicesCreateFunc(currentConfig.namespacedName, cloudConvertedNewConfig, c.cloudSpecificHelper)
 	if err != nil {
 		cloudAccountConfigState = false
 		return err
 	}
 
-	if currentConfig.serviceConfig == nil {
-		currentConfig.serviceConfig = serviceConfig
-	} else {
-		if err = currentConfig.serviceConfig.UpdateServiceConfig(serviceConfig); err != nil {
-			cloudAccountConfigState = false
-			return err
-		}
-	}
-	return nil
+	return cloudServicesUpdateFunc(currentConfig.regionToServiceConfigMap, newServiceConfigMap)
 }
 
+// performInventorySync gets inventory from cloud for the cloud account.
 func (accCfg *cloudAccountConfig) performInventorySync() error {
-	err := accCfg.serviceConfig.DoResourceInventory()
-	// set the error status to be used later in `CloudProviderAccount` CR.
-	if err != nil {
-		accCfg.Status.Error = err.Error()
+	var retErr error
+	var wg sync.WaitGroup
+	ch := make(chan error)
+	serviceConfigs := accCfg.GetAllServiceConfigs()
+	wg.Add(len(serviceConfigs))
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+
+	for _, service := range serviceConfigs {
+		go func(service CloudServiceInterface, errCh chan error) {
+			defer wg.Done()
+			err := service.DoResourceInventory()
+			// set the error status to be used later in `CloudProviderAccount` CR.
+			service.GetInventoryStats().UpdateInventoryPollStats(err)
+			errCh <- err
+		}(service, ch)
+	}
+	for err := range ch {
+		retErr = multierr.Append(retErr, err)
+	}
+	if retErr != nil {
+		accCfg.Status.Error = retErr.Error()
 	} else {
 		accCfg.Status.Error = ""
 	}
-	accCfg.serviceConfig.GetInventoryStats().UpdateInventoryPollStats(err)
-	return err
+	return retErr
 }
 
 func (accCfg *cloudAccountConfig) GetNamespacedName() *types.NamespacedName {
 	return accCfg.namespacedName
 }
 
-func (accCfg *cloudAccountConfig) GetServiceConfig() CloudServiceInterface {
-	return accCfg.serviceConfig
+// GetServiceConfig returns the service config associated with the given region.
+func (accCfg *cloudAccountConfig) GetServiceConfig(region string) CloudServiceInterface {
+	return accCfg.regionToServiceConfigMap[region]
+}
+
+// GetAllServiceConfigs returns all unique service configs in the account.
+func (accCfg *cloudAccountConfig) GetAllServiceConfigs() []CloudServiceInterface {
+	serviceConfigList := make([]CloudServiceInterface, 0, len(accCfg.regionToServiceConfigMap))
+	serviceConfigs := make(map[CloudServiceInterface]struct{}, 0)
+	for _, serviceConfig := range accCfg.regionToServiceConfigMap {
+		if _, found := serviceConfigs[serviceConfig]; !found {
+			serviceConfigList = append(serviceConfigList, serviceConfig)
+			serviceConfigs[serviceConfig] = struct{}{}
+		}
+	}
+	return serviceConfigList
+}
+
+// FindRegion finds the region of a vpc based on its id.
+func (accCfg *cloudAccountConfig) FindRegion(vpcId string) string {
+	for _, service := range accCfg.GetAllServiceConfigs() {
+		if vpc, found := service.GetCloudInventory().VpcMap[strings.ToLower(vpcId)]; found {
+			return vpc.Status.Region
+		}
+	}
+	return ""
 }
 
 func (accCfg *cloudAccountConfig) GetStatus() *crdv1alpha1.CloudProviderAccountStatus {
 	return accCfg.Status
 }
 
+// resetInventoryCache resets the account inventory.
 func (accCfg *cloudAccountConfig) resetInventoryCache() {
-	accCfg.serviceConfig.ResetInventoryCache()
+	for _, serviceConfig := range accCfg.GetAllServiceConfigs() {
+		serviceConfig.ResetInventoryCache()
+	}
 }
 
 func (accCfg *cloudAccountConfig) LockMutex() {

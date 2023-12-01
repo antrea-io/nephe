@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
 	resourcegraph "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 )
 
 type azureNwIntfWrapper interface {
@@ -98,7 +99,7 @@ func (sg *azureNsgWrapperImpl) createOrUpdate(ctx context.Context, resourceGroup
 }
 
 func (sg *azureNsgWrapperImpl) get(ctx context.Context, resourceGroupName string, networkSecurityGroupName string,
-	expand string) (result armnetwork.SecurityGroup, err error) {
+	_ string) (result armnetwork.SecurityGroup, err error) {
 	var nsg armnetwork.SecurityGroup
 	res, err := sg.nsgAPIClient.Get(ctx, resourceGroupName, networkSecurityGroupName,
 		&armnetwork.SecurityGroupsClientGetOptions{Expand: nil})
@@ -277,4 +278,27 @@ func (vnet *azureVirtualNetworksWrapperImpl) listAllComplete(ctx context.Context
 	}
 
 	return VNListResultIterators, nil
+}
+
+type azureSubscriptionsWrapper interface {
+	listComplete(ctx context.Context, subscriptionId string) ([]armsubscription.Location, error)
+}
+
+type azureSubscriptionsWrapperImpl struct {
+	subscriptionsClient armsubscription.SubscriptionsClient
+}
+
+func (sub *azureSubscriptionsWrapperImpl) listComplete(ctx context.Context, subscriptionId string) ([]armsubscription.Location, error) {
+	var locations []armsubscription.Location
+	listResultIterator := sub.subscriptionsClient.NewListLocationsPager(subscriptionId, nil)
+	for listResultIterator.More() {
+		nextResult, err := listResultIterator.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to iterate list of locations, reason %v", err)
+		}
+		for _, v := range nextResult.Value {
+			locations = append(locations, *v)
+		}
+	}
+	return locations, nil
 }

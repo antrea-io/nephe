@@ -1062,8 +1062,10 @@ func (a *appliedToSecurityGroup) checkRealization(r *NetworkPolicyReconciler, np
 	}
 
 	for _, irule := range np.ingressRules {
+		ruleCopy := deepcopy.Copy(irule).(*cloudresource.IngressRule)
+		ruleCopy.AppliedToGroup = nil
 		desiredRule := cloudresource.CloudRule{
-			Rule:         irule,
+			Rule:         ruleCopy,
 			AppliedToGrp: a.id.CloudResourceID.String(),
 		}
 		desiredRule.Hash = desiredRule.GetHash()
@@ -1074,8 +1076,10 @@ func (a *appliedToSecurityGroup) checkRealization(r *NetworkPolicyReconciler, np
 		delete(realizedRuleMap, desiredRule.Hash)
 	}
 	for _, erule := range np.egressRules {
+		ruleCopy := deepcopy.Copy(erule).(*cloudresource.EgressRule)
+		ruleCopy.AppliedToGroup = nil
 		desiredRule := cloudresource.CloudRule{
-			Rule:         erule,
+			Rule:         ruleCopy,
 			AppliedToGrp: a.id.CloudResourceID.String(),
 		}
 		desiredRule.Hash = desiredRule.GetHash()

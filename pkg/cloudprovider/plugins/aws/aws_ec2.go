@@ -21,6 +21,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/mohae/deepcopy"
+	"go.uber.org/multierr"
 	"k8s.io/apimachinery/pkg/types"
 
 	crdv1alpha1 "antrea.io/nephe/apis/crd/v1alpha1"
@@ -33,7 +34,6 @@ import (
 type ec2ServiceConfig struct {
 	accountNamespacedName types.NamespacedName
 	apiClient             awsEC2Wrapper
-	credentials           *awsAccountConfig
 	resourcesCache        *internal.CloudServiceResourcesCache
 	inventoryStats        *internal.CloudServiceStats
 	instanceFilters       map[types.NamespacedName][][]*ec2.Filter
@@ -51,27 +51,36 @@ type ec2ResourcesCacheSnapshot struct {
 	sgs           map[types.NamespacedName][]*ec2.SecurityGroup
 }
 
-func newEC2ServiceConfig(accountNamespacedName types.NamespacedName, service awsServiceClientCreateInterface,
-	credentials *awsAccountConfig) (internal.CloudServiceInterface, error) {
-	// create ec2 sdk api client.
-	apiClient, err := service.compute()
-	if err != nil {
-		return nil, fmt.Errorf("error creating ec2 sdk api client for account : %v, err: %v", accountNamespacedName.String(), err)
-	}
+// newEC2ServiceConfig creates an ec2 service configs for each region. It returns a region to service config map for successful creations
+// and multierr for any errors.
+func newEC2ServiceConfig(accountNamespacedName types.NamespacedName, services map[string]awsServiceClientCreateInterface) (
+	map[string]internal.CloudServiceInterface, error) {
+	var retErr error
+	configs := make(map[string]internal.CloudServiceInterface)
+	for region, service := range services {
+		// create ec2 sdk api client.
+		apiClient, err := service.compute()
+		if err != nil {
+			err = fmt.Errorf("error creating ec2 sdk api client for account: %s, region: %s, err: %v", accountNamespacedName.String(),
+				region, err)
+			retErr = multierr.Append(retErr, err)
+			continue
+		}
 
-	config := &ec2ServiceConfig{
-		apiClient:             apiClient,
-		accountNamespacedName: accountNamespacedName,
-		resourcesCache:        &internal.CloudServiceResourcesCache{},
-		inventoryStats:        &internal.CloudServiceStats{},
-		credentials:           credentials,
-		instanceFilters:       make(map[types.NamespacedName][][]*ec2.Filter),
-		selectors:             make(map[types.NamespacedName]*crdv1alpha1.CloudEntitySelector),
-	}
+		config := &ec2ServiceConfig{
+			apiClient:             apiClient,
+			accountNamespacedName: accountNamespacedName,
+			resourcesCache:        &internal.CloudServiceResourcesCache{},
+			inventoryStats:        &internal.CloudServiceStats{},
+			instanceFilters:       make(map[types.NamespacedName][][]*ec2.Filter),
+			selectors:             make(map[types.NamespacedName]*crdv1alpha1.CloudEntitySelector),
+		}
 
-	vmSnapshot := make(map[types.NamespacedName][]*ec2.Instance)
-	config.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{vmSnapshot, nil, nil, nil, nil, nil})
-	return config, nil
+		vmSnapshot := make(map[types.NamespacedName][]*ec2.Instance)
+		config.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{vmSnapshot, nil, nil, nil, nil, nil})
+		configs[region] = config
+	}
+	return configs, retErr
 }
 
 // compute returns AWS Compute (ec2) SDK apiClient.
@@ -202,11 +211,7 @@ func (ec2Cfg *ec2ServiceConfig) getVpcPeers(vpcId string) []string {
 // getInstances gets instances from cloud matching the given selector configuration.
 func (ec2Cfg *ec2ServiceConfig) getInstances(namespacedName *types.NamespacedName) ([]*ec2.Instance, error) {
 	var instances []*ec2.Instance
-	filters, found := ec2Cfg.instanceFilters[*namespacedName]
-	if found && len(filters) != 0 {
-		awsPluginLogger().V(1).Info("Fetching vm resources from cloud", "account", ec2Cfg.accountNamespacedName,
-			"selector", namespacedName, "resource-filters", "configured")
-	}
+	filters := ec2Cfg.instanceFilters[*namespacedName]
 	for _, filter := range filters {
 		if len(filter) > 0 {
 			if *filter[0].Name == awsCustomFilterKeyVPCName {
@@ -223,20 +228,19 @@ func (ec2Cfg *ec2ServiceConfig) getInstances(namespacedName *types.NamespacedNam
 		}
 		instances = append(instances, filterInstances...)
 	}
-	awsPluginLogger().Info("Vm instances from cloud", "account", ec2Cfg.accountNamespacedName,
-		"selector", namespacedName, "instances", len(instances))
-
 	return instances, nil
 }
 
-// DoResourceInventory gets inventory from cloud for a given cloud account.
+// DoResourceInventory gets inventory from cloud for a given ec2 service config in the cloud account.
 func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
+	region := ec2Cfg.apiClient.getRegion()
 	vpcs, err := ec2Cfg.getVpcs()
 	if err != nil {
-		awsPluginLogger().Error(err, "failed to fetch cloud resources", "account", ec2Cfg.accountNamespacedName)
+		awsPluginLogger().Error(err, "failed to fetch cloud resources", "account", ec2Cfg.accountNamespacedName,
+			"region", region)
 		return err
 	}
-	awsPluginLogger().V(1).Info("Vpcs from cloud", "account", ec2Cfg.accountNamespacedName,
+	awsPluginLogger().V(1).Info("Vpcs from cloud", "account", ec2Cfg.accountNamespacedName, "region", region,
 		"vpcs", len(vpcs))
 	vpcNameToId := ec2Cfg.buildMapVpcNameToId(vpcs)
 	vpcPeers, _ := ec2Cfg.buildMapVpcPeers()
@@ -245,8 +249,8 @@ func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
 
 	// Call cloud APIs for the configured CloudEntitySelectors CRs.
 	if len(ec2Cfg.selectors) == 0 {
-		awsPluginLogger().V(1).Info("Fetching vm resources from cloud skipped",
-			"account", ec2Cfg.accountNamespacedName, "resource-filters", "not-configured")
+		awsPluginLogger().V(1).Info("Fetching vm resources from cloud skipped", "account", ec2Cfg.accountNamespacedName,
+			"region", region, "resource-filters", "not-configured")
 		ec2Cfg.resourcesCache.UpdateSnapshot(&ec2ResourcesCacheSnapshot{allInstances, vpcs, nil, vpcNameToId, vpcPeers, allSgs})
 		return nil
 	}
@@ -256,9 +260,12 @@ func (ec2Cfg *ec2ServiceConfig) DoResourceInventory() error {
 		managedVpcIds := make(map[string]struct{})
 		instances, err := ec2Cfg.getInstances(&namespacedName)
 		if err != nil {
-			awsPluginLogger().Error(err, "failed to fetch cloud resources", "account", ec2Cfg.accountNamespacedName)
+			awsPluginLogger().Error(err, "failed to fetch cloud resources", "account", ec2Cfg.accountNamespacedName,
+				"region", region)
 			return err
 		}
+		awsPluginLogger().V(1).Info("Vm instances from cloud", "account", ec2Cfg.accountNamespacedName,
+			"selector", namespacedName, "region", region, "instances", len(instances))
 		for _, instance := range instances {
 			allManagedVpcIds[strings.ToLower(*instance.VpcId)] = struct{}{}
 			managedVpcIds[strings.ToLower(*instance.VpcId)] = struct{}{}
@@ -294,6 +301,11 @@ func (ec2Cfg *ec2ServiceConfig) AddResourceFilters(selector *crdv1alpha1.CloudEn
 	return nil
 }
 
+// GetResourceFilters gets all instances resource filters for the service.
+func (ec2Cfg *ec2ServiceConfig) GetResourceFilters() map[types.NamespacedName]*crdv1alpha1.CloudEntitySelector {
+	return ec2Cfg.selectors
+}
+
 func (ec2Cfg *ec2ServiceConfig) RemoveResourceFilters(namespacedName *types.NamespacedName) {
 	delete(ec2Cfg.instanceFilters, *namespacedName)
 	delete(ec2Cfg.selectors, *namespacedName)
@@ -308,7 +320,7 @@ func (ec2Cfg *ec2ServiceConfig) getVirtualMachineObjects(selector *types.Namespa
 	for _, instance := range instances {
 		// build runtime.v1alpha1.VirtualMachine object.
 		vmObject := ec2InstanceToInternalVirtualMachineObject(instance, vpcs, selector, &ec2Cfg.accountNamespacedName,
-			ec2Cfg.credentials.region)
+			ec2Cfg.apiClient.getRegion())
 		vmObjects[vmObject.Name] = vmObject
 	}
 
@@ -324,10 +336,10 @@ func (ec2Cfg *ec2ServiceConfig) ResetInventoryCache() {
 	ec2Cfg.inventoryStats.ResetInventoryPollStats()
 }
 
+// UpdateServiceConfig updates the service config according to the new service config.
 func (ec2Cfg *ec2ServiceConfig) UpdateServiceConfig(newConfig internal.CloudServiceInterface) error {
 	newEc2ServiceConfig := newConfig.(*ec2ServiceConfig)
 	ec2Cfg.apiClient = newEc2ServiceConfig.apiClient
-	ec2Cfg.credentials = newEc2ServiceConfig.credentials
 	return nil
 }
 
@@ -386,7 +398,7 @@ func (ec2Cfg *ec2ServiceConfig) getVpcObjects() map[string]*runtimev1alpha1.Vpc 
 			managed = true
 		}
 		vpcObj := ec2VpcToInternalVpcObject(vpc, ec2Cfg.accountNamespacedName.Namespace, ec2Cfg.accountNamespacedName.Name,
-			strings.ToLower(ec2Cfg.credentials.region), managed)
+			strings.ToLower(ec2Cfg.apiClient.getRegion()), managed)
 		vpcMap[strings.ToLower(*vpc.VpcId)] = vpcObj
 	}
 	return vpcMap
@@ -398,7 +410,7 @@ func (ec2Cfg *ec2ServiceConfig) getSecurityGroupObjects(
 	sgs := ec2Cfg.GetCachedSGs(selectorNamespacedName)
 	sgMap := map[string]*runtimev1alpha1.SecurityGroup{}
 	for _, sg := range sgs {
-		sgObj := ec2SgToInternalSgObject(sg, selectorNamespacedName, &ec2Cfg.accountNamespacedName, strings.ToLower(ec2Cfg.credentials.region))
+		sgObj := ec2SgToInternalSgObject(sg, selectorNamespacedName, &ec2Cfg.accountNamespacedName, strings.ToLower(ec2Cfg.apiClient.getRegion()))
 		sgMap[strings.ToLower(*sg.GroupId)] = sgObj
 	}
 	return sgMap

@@ -154,6 +154,20 @@ func (mr *MockawsEC2WrapperMockRecorder) describeVpcsWrapper(input interface{}) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "describeVpcsWrapper", reflect.TypeOf((*MockawsEC2Wrapper)(nil).describeVpcsWrapper), input)
 }
 
+// getRegion mocks base method.
+func (m *MockawsEC2Wrapper) getRegion() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "getRegion")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// getRegion indicates an expected call of getRegion.
+func (mr *MockawsEC2WrapperMockRecorder) getRegion() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "getRegion", reflect.TypeOf((*MockawsEC2Wrapper)(nil).getRegion))
+}
+
 // modifyNetworkInterfaceAttribute mocks base method.
 func (m *MockawsEC2Wrapper) modifyNetworkInterfaceAttribute(input *ec2.ModifyNetworkInterfaceAttributeInput) (*ec2.ModifyNetworkInterfaceAttributeOutput, error) {
 	m.ctrl.T.Helper()

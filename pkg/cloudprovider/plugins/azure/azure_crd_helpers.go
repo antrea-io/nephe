@@ -40,9 +40,8 @@ var azureStateMap = map[string]runtimev1alpha1.VMState{
 }
 
 // computeInstanceToInternalVirtualMachineObject converts compute instance to VirtualMachine runtime object.
-func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable,
-	vnets map[string]armnetwork.VirtualNetwork, selectorNamespacedName *types.NamespacedName, accountNamespacedName *types.NamespacedName,
-	region string) *runtimev1alpha1.VirtualMachine {
+func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable, vnets map[string]armnetwork.VirtualNetwork,
+	selectorNamespacedName *types.NamespacedName, accountNamespacedName *types.NamespacedName) *runtimev1alpha1.VirtualMachine {
 	vmTags := make(map[string]string)
 	for key, value := range instance.Tags {
 		vmTags[key] = *value
@@ -132,7 +131,7 @@ func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable
 		Tags:              importedTags,
 		State:             state,
 		NetworkInterfaces: networkInterfaces,
-		Region:            strings.ToLower(region),
+		Region:            strings.ToLower(*instance.Location),
 		Agented:           false,
 		CloudId:           strings.ToLower(cloudID),
 		CloudName:         strings.ToLower(cloudName),
@@ -168,8 +167,8 @@ func computeInstanceToInternalVirtualMachineObject(instance *virtualMachineTable
 }
 
 // ComputeVpcToInternalVpcObject converts vnet object from cloud format(network.VirtualNetwork) to vpc runtime object.
-func ComputeVpcToInternalVpcObject(vnet *armnetwork.VirtualNetwork, accountNamespace, accountName,
-	region string, managed bool) *runtimev1alpha1.Vpc {
+func ComputeVpcToInternalVpcObject(vnet *armnetwork.VirtualNetwork, accountNamespace, accountName string,
+	managed bool) *runtimev1alpha1.Vpc {
 	crdName := utils.GenerateShortResourceIdentifier(*vnet.ID, *vnet.Name)
 	tags := make(map[string]string, 0)
 	if len(vnet.Tags) != 0 {
@@ -195,7 +194,7 @@ func ComputeVpcToInternalVpcObject(vnet *armnetwork.VirtualNetwork, accountNames
 		CloudName: strings.ToLower(*vnet.Name),
 		CloudId:   strings.ToLower(*vnet.ID),
 		Provider:  runtimev1alpha1.AzureCloudProvider,
-		Region:    region,
+		Region:    strings.ToLower(*vnet.Location),
 		Tags:      tags,
 		Cidrs:     cidrs,
 		Managed:   managed,
@@ -221,12 +220,12 @@ func ComputeVpcToInternalVpcObject(vnet *armnetwork.VirtualNetwork, accountNames
 
 // computeSgToInternalSgObject converts nsg object from cloud format(nsgTable) to security group runtime object.
 func computeSgToInternalSgObject(nsg *nsgTable, selectorNamespacedName,
-	accountNamespacedName *types.NamespacedName, region string) *runtimev1alpha1.SecurityGroup {
+	accountNamespacedName *types.NamespacedName) *runtimev1alpha1.SecurityGroup {
 	status := &runtimev1alpha1.SecurityGroupStatus{
 		CloudName: strings.ToLower(*nsg.Name),
 		CloudId:   strings.ToLower(*nsg.ID),
 		Provider:  runtimev1alpha1.AzureCloudProvider,
-		Region:    region,
+		Region:    strings.ToLower(*nsg.Location),
 	}
 
 	if nsg.Properties != nil {
