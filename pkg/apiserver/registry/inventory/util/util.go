@@ -15,6 +15,7 @@
 package util
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 
@@ -33,7 +34,7 @@ func GetFieldSelectors(options *internalversion.ListOptions, selectors map[strin
 			fieldKeyAndValue := strings.Split(fieldSelectorString, "=")
 			_, exist := fieldKeysMap[fieldKeyAndValue[0]]
 			if !exist {
-				return errors.NewBadRequest("unsupported field selector")
+				return errors.NewBadRequest(fmt.Sprintf("unsupported field selector %q", fieldKeyAndValue[0]))
 			}
 			selectors[fieldKeyAndValue[0]] = fieldKeyAndValue[1]
 		}
@@ -50,7 +51,7 @@ func GetLabelSelectors(options *internalversion.ListOptions, selectors map[strin
 			labelKeyAndValue := strings.Split(labelSelectorString, "=")
 			_, exists := supportedLabelNameMap[labelKeyAndValue[0]]
 			if !exists {
-				return errors.NewBadRequest("unsupported label selector")
+				return errors.NewBadRequest(fmt.Sprintf("unsupported label selector %q", labelKeyAndValue[0]))
 			}
 			selectors[labelKeyAndValue[0]] = labelKeyAndValue[1]
 		}

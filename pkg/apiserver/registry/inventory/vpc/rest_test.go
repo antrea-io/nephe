@@ -219,6 +219,7 @@ var _ = Describe("VPC", func() {
 			rest := NewREST(cloudInventory, l)
 			_, err := rest.List(request.NewDefaultContext(), listLabelSelectorOption)
 			Expect(err).ShouldNot(BeNil())
+			Expect(err.Error()).Should(ContainSubstring(nephelabels.CloudVpcUID))
 		})
 		It("Should return the VPC list by fields", func() {
 			listFieldSelectorOption1 := &internalversion.ListOptions{}

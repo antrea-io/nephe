@@ -265,12 +265,12 @@ func getSelectors(options *internalversion.ListOptions, labelsNameMap map[string
 	labelSelectors := make(map[string]string)
 	fieldSelectors := make(map[string]string)
 	if err := util.GetLabelSelectors(options, labelSelectors, labelsNameMap); err != nil {
-		return nil, nil, errors.NewBadRequest(fmt.Sprintf("unsupported label selector, supported labels are: "+
-			"%v", reflect.ValueOf(labelsNameMap).MapKeys()))
+		return nil, nil, errors.NewBadRequest(fmt.Sprintf("%v, supported labels are: "+
+			"%v", err.Error(), reflect.ValueOf(labelsNameMap).MapKeys()))
 	}
 	if err := util.GetFieldSelectors(options, fieldSelectors, fieldsNameMap); err != nil {
-		return nil, nil, errors.NewBadRequest(fmt.Sprintf("unsupported field selector, supported fields are: "+
-			"%v", reflect.ValueOf(fieldsNameMap).MapKeys()))
+		return nil, nil, errors.NewBadRequest(fmt.Sprintf("%v, supported fields are: "+
+			"%v", err.Error(), reflect.ValueOf(fieldsNameMap).MapKeys()))
 	}
 	return labelSelectors, fieldSelectors, nil
 }
